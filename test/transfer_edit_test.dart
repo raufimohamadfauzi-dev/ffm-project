@@ -59,91 +59,97 @@ void main() {
     isDeleted: false,
   );
 
-  testWidgets('TransferFormDialog memuat data existingTransfer dan menampilkan label edit', (tester) async {
-    TransferDraft? submittedDraft;
+  testWidgets(
+    'TransferFormDialog memuat data existingTransfer dan menampilkan label edit',
+    (tester) async {
+      TransferDraft? submittedDraft;
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => ElevatedButton(
-              onPressed: () async {
-                submittedDraft = await showDialog<TransferDraft>(
-                  context: context,
-                  builder: (_) => TransferFormDialog(
-                    accounts: accounts,
-                    existingTransfer: existingTransfer,
-                  ),
-                );
-              },
-              child: const Text('Buka Dialog'),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () async {
+                  submittedDraft = await showDialog<TransferDraft>(
+                    context: context,
+                    builder: (_) => TransferFormDialog(
+                      accounts: accounts,
+                      existingTransfer: existingTransfer,
+                    ),
+                  );
+                },
+                child: const Text('Buka Dialog'),
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    // Buka dialog
-    await tester.tap(find.text('Buka Dialog'));
-    await tester.pumpAndSettle();
+      // Buka dialog
+      await tester.tap(find.text('Buka Dialog'));
+      await tester.pumpAndSettle();
 
-    // Verifikasi Judul & Label Edit
-    expect(find.text('Edit transfer saldo'), findsOneWidget);
-    expect(find.text('Perbarui transfer'), findsOneWidget);
+      // Verifikasi Judul & Label Edit
+      expect(find.text('Edit transfer saldo'), findsOneWidget);
+      expect(find.text('Perbarui transfer'), findsOneWidget);
 
-    // Verifikasi Prefill Nilai
-    expect(find.text('500000'), findsOneWidget);
-    expect(find.text('2500'), findsOneWidget);
-    expect(find.text('Tarik tunai untuk belanja pasar'), findsOneWidget);
+      // Verifikasi Prefill Nilai
+      expect(find.text('500000'), findsOneWidget);
+      expect(find.text('2500'), findsOneWidget);
+      expect(find.text('Tarik tunai untuk belanja pasar'), findsOneWidget);
 
-    // Simpan dialog
-    await tester.tap(find.text('Perbarui transfer'));
-    await tester.pumpAndSettle();
+      // Simpan dialog
+      await tester.tap(find.text('Perbarui transfer'));
+      await tester.pumpAndSettle();
 
-    expect(submittedDraft, isNotNull);
-    expect(submittedDraft!.amount, 500000);
-    expect(submittedDraft!.adminFee, 2500);
-    expect(submittedDraft!.fromAccountId, 'acc-1');
-    expect(submittedDraft!.toAccountId, 'acc-2');
-    expect(submittedDraft!.note, 'Tarik tunai untuk belanja pasar');
-  });
+      expect(submittedDraft, isNotNull);
+      expect(submittedDraft!.amount, 500000);
+      expect(submittedDraft!.adminFee, 2500);
+      expect(submittedDraft!.fromAccountId, 'acc-1');
+      expect(submittedDraft!.toAccountId, 'acc-2');
+      expect(submittedDraft!.note, 'Tarik tunai untuk belanja pasar');
+    },
+  );
 
-  testWidgets('TransferHistoryCard menampilkan aksi edit dan memanggil onEdit', (tester) async {
-    var editCalled = false;
-    var deleteCalled = false;
+  testWidgets(
+    'TransferHistoryCard menampilkan aksi edit dan memanggil onEdit',
+    (tester) async {
+      var editCalled = false;
+      var deleteCalled = false;
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ListView(
-            children: [
-              TransferHistoryCard(
-                transfer: existingTransfer,
-                fromLabel: 'Bank Mandiri',
-                toLabel: 'Dompet Tunai',
-                dateLabel: (d) => '03/09/2026',
-                onEdit: () => editCalled = true,
-                onDelete: () => deleteCalled = true,
-              ),
-            ],
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: [
+                TransferHistoryCard(
+                  transfer: existingTransfer,
+                  fromLabel: 'Bank Mandiri',
+                  toLabel: 'Dompet Tunai',
+                  dateLabel: (d) => '03/09/2026',
+                  onEdit: () => editCalled = true,
+                  onDelete: () => deleteCalled = true,
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    // Buka menu konteks
-    await tester.tap(find.byIcon(Icons.more_vert));
-    await tester.pumpAndSettle();
+      // Buka menu konteks
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Edit transfer'), findsOneWidget);
-    expect(find.text('Hapus transfer'), findsOneWidget);
+      expect(find.text('Edit transfer'), findsOneWidget);
+      expect(find.text('Hapus transfer'), findsOneWidget);
 
-    // Klik Edit
-    await tester.tap(find.text('Edit transfer'));
-    await tester.pumpAndSettle();
+      // Klik Edit
+      await tester.tap(find.text('Edit transfer'));
+      await tester.pumpAndSettle();
 
-    expect(editCalled, isTrue);
-    expect(deleteCalled, isFalse);
-  });
+      expect(editCalled, isTrue);
+      expect(deleteCalled, isFalse);
+    },
+  );
 }

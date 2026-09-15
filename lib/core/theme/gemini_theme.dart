@@ -19,25 +19,32 @@ class GeminiTheme {
       useMaterial3: true,
       fontFamily: 'Hanken Grotesk',
     );
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: GeminiColors.primary,
-      brightness: brightness,
-    ).copyWith(
-      primary: GeminiColors.primary,
-      onPrimary: GeminiColors.onPrimary,
-      surface: isDark ? GeminiColors.surface : Colors.white,
-      onSurface: isDark ? GeminiColors.onSurface : const Color(0xFF10201F),
-        onSurfaceVariant: isDark
-          ? GeminiColors.onSurfaceVariant
-          : const Color(0xFF3F514F),
-      outline: GeminiColors.outline,
-    );
+    final colorScheme =
+        ColorScheme.fromSeed(
+          seedColor: GeminiColors.primary,
+          brightness: brightness,
+        ).copyWith(
+          primary: GeminiColors.primary,
+          onPrimary: GeminiColors.onPrimary,
+          surface: isDark ? GeminiColors.surface : Colors.white,
+          onSurface: isDark ? GeminiColors.onSurface : const Color(0xFF10201F),
+          onSurfaceVariant: isDark
+              ? GeminiColors.onSurfaceVariant
+              : const Color(0xFF3F514F),
+          outline: GeminiColors.outline,
+        );
     return base.copyWith(
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: isDark ? GeminiColors.background : const Color(0xFFF7FAF9),
+      scaffoldBackgroundColor: isDark
+          ? GeminiColors.background
+          : const Color(0xFFF7FAF9),
       appBarTheme: AppBarTheme(
-        backgroundColor: isDark ? GeminiColors.background : const Color(0xFFF7FAF9),
-        foregroundColor: isDark ? GeminiColors.onSurface : const Color(0xFF10201F),
+        backgroundColor: isDark
+            ? GeminiColors.background
+            : const Color(0xFFF7FAF9),
+        foregroundColor: isDark
+            ? GeminiColors.onSurface
+            : const Color(0xFF10201F),
         elevation: 0,
         titleTextStyle: TextStyle(
           color: isDark ? GeminiColors.onSurface : const Color(0xFF10201F),

@@ -1,5 +1,5 @@
 /// Feedback Model untuk Assistant Responses
-/// 
+///
 /// Model ini menyimpan feedback user terhadap response assistant
 /// untuk analisis dan improvement di masa depan.
 library;
@@ -7,16 +7,16 @@ library;
 enum FfmAssistantFeedbackType {
   /// User likes the response
   thumbsUp,
-  
+
   /// User dislikes the response
   thumbsDown,
-  
+
   /// User marked response as incorrect
   incorrect,
-  
+
   /// User reported an issue with the response
   issue,
-  
+
   /// User provided a correction suggestion
   correction,
 }
@@ -24,19 +24,19 @@ enum FfmAssistantFeedbackType {
 enum FfmAssistantFeedbackCategory {
   /// Response was factually incorrect
   factual,
-  
+
   /// Response was confusing or unclear
   confusing,
-  
+
   /// Response was helpful
   helpful,
-  
+
   /// Response had hallucination
   hallucination,
-  
+
   /// Response missed context
   missingContext,
-  
+
   /// Response had other issues
   other,
 }
@@ -64,19 +64,19 @@ class FfmAssistantFeedback {
   final FfmAssistantFeedbackType type;
   final FfmAssistantFeedbackCategory category;
   final DateTime createdAt;
-  
+
   /// User's correction suggestion (for correction type)
   final String? correction;
-  
+
   /// Additional note from user
   final String? note;
-  
+
   /// Verified facts that were used (for context)
   final String? verifiedFacts;
-  
+
   /// Analysis results that were used (for context)
   final String? analysisResults;
-  
+
   /// Intent type that was classified
   final String? intentType;
 

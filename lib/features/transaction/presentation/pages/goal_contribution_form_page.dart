@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:drift/drift.dart' hide Column;
+
 import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
@@ -109,7 +110,8 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
   Future<void> _loadAccounts() async {
     final database = getIt<AppDatabase>();
     final accounts =
-        await (database.select(database.accounts)..where(
+        await (database.select(database.accounts)
+              ..where(
                 (table) =>
                     table.householdId.equals(AppContext.householdId) &
                     table.isArchived.equals(false),

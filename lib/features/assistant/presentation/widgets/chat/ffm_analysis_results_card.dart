@@ -20,12 +20,10 @@ class FfmAnalysisResultsCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: isDark 
-            ? const Color(0xFF2A2A2A)
-            : const Color(0xFFF5F5F5),
+        color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF5F5F5),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isDark 
+          color: isDark
               ? const Color(0xFF2196F3).withValues(alpha: 0.3)
               : const Color(0xFF2196F3).withValues(alpha: 0.5),
           width: 1,
@@ -43,7 +41,7 @@ class FfmAnalysisResultsCard extends StatelessWidget {
                   Icon(
                     Icons.analytics,
                     size: 16,
-                    color: isDark 
+                    color: isDark
                         ? const Color(0xFF2196F3)
                         : const Color(0xFF1976D2),
                   ),
@@ -54,20 +52,16 @@ class FfmAnalysisResultsCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: isDark 
+                        color: isDark
                             ? const Color(0xFF2196F3)
                             : const Color(0xFF1976D2),
                       ),
                     ),
                   ),
                   Icon(
-                    isExpanded 
-                        ? Icons.expand_less 
-                        : Icons.expand_more,
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
                     size: 16,
-                    color: isDark 
-                        ? Colors.white70
-                        : Colors.black54,
+                    color: isDark ? Colors.white70 : Colors.black54,
                   ),
                 ],
               ),
@@ -80,9 +74,7 @@ class FfmAnalysisResultsCard extends StatelessWidget {
                 results,
                 style: TextStyle(
                   fontSize: 12,
-                  color: isDark 
-                      ? Colors.white70
-                      : Colors.black87,
+                  color: isDark ? Colors.white70 : Colors.black87,
                   height: 1.4,
                 ),
               ),

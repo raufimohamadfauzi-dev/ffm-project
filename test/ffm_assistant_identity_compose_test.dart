@@ -8,45 +8,36 @@ import 'package:ffm_manager/features/assistant/domain/ffm_assistant_self_descrip
 void main() {
   AppDatabase freshDb() => createInMemoryDatabaseForTests();
 
-  test(
-    'identitas aplikasi dijawab dari deskripsi resmi',
-    () async {
-      final db = freshDb();
-      addTearDown(db.close);
-      final interpreter = FfmAssistantInterpreter(db);
+  test('identitas aplikasi dijawab dari deskripsi resmi', () async {
+    final db = freshDb();
+    addTearDown(db.close);
+    final interpreter = FfmAssistantInterpreter(db);
 
-      final intent = await interpreter.interpret('siapa pembuat aplikasi');
+    final intent = await interpreter.interpret('siapa pembuat aplikasi');
 
-      expect(intent.type, FfmAssistantIntentType.assistantIdentity);
-      expect(
-        intent.response,
-        contains(FfmAssistantSelfDescriptionService.creatorName),
-      );
-      expect(intent.responseMode, FfmAssistantResponseMode.localRules);
-      expect(
-        intent.responseOrigin,
-        FfmAssistantResponseOrigin.agentOrchestrator,
-      );
-      expect(intent.draft, isNull);
-    },
-  );
+    expect(intent.type, FfmAssistantIntentType.assistantIdentity);
+    expect(
+      intent.response,
+      contains(FfmAssistantSelfDescriptionService.creatorName),
+    );
+    expect(intent.responseMode, FfmAssistantResponseMode.localRules);
+    expect(intent.responseOrigin, FfmAssistantResponseOrigin.agentOrchestrator);
+    expect(intent.draft, isNull);
+  });
 
-  test(
-    'deskripsi resmi tetap tersedia untuk developer fmm',
-    () async {
-      final db = freshDb();
-      addTearDown(db.close);
-      final interpreter = FfmAssistantInterpreter(db);
+  test('deskripsi resmi tetap tersedia untuk developer fmm', () async {
+    final db = freshDb();
+    addTearDown(db.close);
+    final interpreter = FfmAssistantInterpreter(db);
 
-      final intent = await interpreter.interpret('siapa developer fmm');
+    final intent = await interpreter.interpret('siapa developer fmm');
 
-      expect(intent.responseMode, FfmAssistantResponseMode.localRules);
-      expect(
-        intent.response,
-        contains(FfmAssistantSelfDescriptionService.creatorName),
-      );
-    },
-  );
+    expect(intent.responseMode, FfmAssistantResponseMode.localRules);
+    expect(
+      intent.response,
+      contains(FfmAssistantSelfDescriptionService.creatorName),
+    );
+  });
 
   test('penjelasan kemampuan asisten', () async {
     final db = freshDb();

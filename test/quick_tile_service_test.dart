@@ -16,13 +16,18 @@ void main() {
       expect(action?.wireName, equals('scan_nfc'));
     });
 
-    test('parse wireName assistant ke FfmAssistantWidgetAction.openAssistant', () {
-      final action = FfmAssistantWidgetAction.fromWireName('assistant');
-      expect(action, equals(FfmAssistantWidgetAction.openAssistant));
-    });
+    test(
+      'parse wireName assistant ke FfmAssistantWidgetAction.openAssistant',
+      () {
+        final action = FfmAssistantWidgetAction.fromWireName('assistant');
+        expect(action, equals(FfmAssistantWidgetAction.openAssistant));
+      },
+    );
 
     test('parse wireName tidak dikenal => return null', () {
-      final action = FfmAssistantWidgetAction.fromWireName('unknown_tile_action');
+      final action = FfmAssistantWidgetAction.fromWireName(
+        'unknown_tile_action',
+      );
       expect(action, isNull);
     });
   });

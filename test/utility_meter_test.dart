@@ -14,34 +14,34 @@ void main() {
   group('UtilityMeterRepository & UtilityMeter Tests', () {
     const householdId = 'hh_test_1';
 
-    test('Menyimpan meteran baru dan memformat nomor meteran & token', () async {
-      final repo = UtilityMeterRepository();
+    test(
+      'Menyimpan meteran baru dan memformat nomor meteran & token',
+      () async {
+        final repo = UtilityMeterRepository();
 
-      final meter = UtilityMeter(
-        id: 'meter_1',
-        householdId: householdId,
-        name: 'Pompa Air Sawah (Ladang)',
-        meterNumber: '14238765432',
-        customerName: 'H. Ahmad',
-        tariffPower: 'B1/2200VA',
-        location: 'Sawah Blok 4',
-        createdAt: DateTime(2026, 9, 1),
-        lastTokenNumber: '12345678901234567890',
-        lastAmount: 100000,
-      );
+        final meter = UtilityMeter(
+          id: 'meter_1',
+          householdId: householdId,
+          name: 'Pompa Air Sawah (Ladang)',
+          meterNumber: '14238765432',
+          customerName: 'H. Ahmad',
+          tariffPower: 'B1/2200VA',
+          location: 'Sawah Blok 4',
+          createdAt: DateTime(2026, 9, 1),
+          lastTokenNumber: '12345678901234567890',
+          lastAmount: 100000,
+        );
 
-      await repo.saveMeter(meter);
+        await repo.saveMeter(meter);
 
-      final meters = await repo.getAllMeters(householdId);
-      expect(meters, hasLength(1));
-      expect(meters.first.name, 'Pompa Air Sawah (Ladang)');
-      expect(meters.first.formattedMeterNumber, '1423 8765 432');
-      expect(
-        meters.first.formattedTokenNumber,
-        '1234-5678-9012-3456-7890',
-      );
-      expect(meters.first.lastAmount, 100000);
-    });
+        final meters = await repo.getAllMeters(householdId);
+        expect(meters, hasLength(1));
+        expect(meters.first.name, 'Pompa Air Sawah (Ladang)');
+        expect(meters.first.formattedMeterNumber, '1423 8765 432');
+        expect(meters.first.formattedTokenNumber, '1234-5678-9012-3456-7890');
+        expect(meters.first.lastAmount, 100000);
+      },
+    );
 
     test('Mencari meteran berdasarkan nomor meteran (toleran terhadap spasi / strip)', () async {
       final repo = UtilityMeterRepository();
@@ -62,7 +62,10 @@ void main() {
       expect(found!.id, 'm_rumah');
       expect(found.name, 'Rumah Utama');
 
-      final foundSpaces = await repo.findMeterByNumber(householdId, '3201 9876 543');
+      final foundSpaces = await repo.findMeterByNumber(
+        householdId,
+        '3201 9876 543',
+      );
       expect(foundSpaces, isNotNull);
       expect(foundSpaces!.id, 'm_rumah');
     });
@@ -90,10 +93,7 @@ void main() {
       final updated = await repo.findMeterByNumber(householdId, '55667788990');
       expect(updated, isNotNull);
       expect(updated!.lastTokenNumber, '99887766554433221100');
-      expect(
-        updated.formattedTokenNumber,
-        '9988-7766-5544-3322-1100',
-      );
+      expect(updated.formattedTokenNumber, '9988-7766-5544-3322-1100');
       expect(updated.lastAmount, 50000);
     });
 

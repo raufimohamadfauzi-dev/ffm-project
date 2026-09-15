@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
+
 import '../../../../core/database/app_database.dart';
 import '../ffm_assistant_insight.dart';
 import '../ffm_assistant_models.dart';
@@ -16,11 +17,13 @@ class IntelligentEnvelopeRebalanceDetector {
     required DateTime now,
   }) async {
     // 1. Ambil pos anggaran bulanan yang aktif
-    final allBudgets = await (_db.select(_db.envelopeBudgets)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.isActive.equals(true)))
-        .get();
+    final allBudgets =
+        await (_db.select(_db.envelopeBudgets)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
 
     final budgets = allBudgets.where((b) {
       return !now.isBefore(b.startDate) && !now.isAfter(b.endDate);
@@ -31,9 +34,9 @@ class IntelligentEnvelopeRebalanceDetector {
     final firstStart = budgets.first.startDate;
     final lastEnd = budgets.first.endDate;
 
-    final allTxs = await (_db.select(_db.transactions)
-          ..where((row) => row.householdId.equals(householdId)))
-        .get();
+    final allTxs = await (_db.select(
+      _db.transactions,
+    )..where((row) => row.householdId.equals(householdId))).get();
 
     final txs = allTxs.where((t) {
       return !t.isArchived &&
@@ -46,12 +49,15 @@ class IntelligentEnvelopeRebalanceDetector {
     final totalDuration = lastEnd.difference(firstStart).inSeconds;
     if (totalDuration <= 0) return null;
     final elapsedDuration = now.difference(firstStart).inSeconds;
-    final periodElapsedRatio = (elapsedDuration / totalDuration).clamp(0.0, 1.0);
+    final periodElapsedRatio = (elapsedDuration / totalDuration).clamp(
+      0.0,
+      1.0,
+    );
 
     // Ambil transfer antar-amplop yang sudah terjadi periode ini
-    final envelopeTransfers = await (_db.select(_db.envelopeTransfers)
-          ..where((row) => row.householdId.equals(householdId)))
-        .get();
+    final envelopeTransfers = await (_db.select(
+      _db.envelopeTransfers,
+    )..where((row) => row.householdId.equals(householdId))).get();
 
     EnvelopeBudget? deficitBudget;
     int deficitNeeded = 0;
@@ -61,7 +67,9 @@ class IntelligentEnvelopeRebalanceDetector {
     for (final b in budgets) {
       int spent = 0;
       for (final tx in txs) {
-        if (tx.amount < 0 && tx.categoryId != null && tx.categoryId == b.categoryId) {
+        if (tx.amount < 0 &&
+            tx.categoryId != null &&
+            tx.categoryId == b.categoryId) {
           spent += tx.amount.abs();
         }
       }
@@ -80,11 +88,14 @@ class IntelligentEnvelopeRebalanceDetector {
       final usedRatio = spent / totalLimit;
 
       // Kategori A: Defisit jika >90% terpakai sebelum 75% periode waktu berjalan
-      if (periodElapsedRatio < 0.75 && usedRatio >= 0.90 && deficitBudget == null) {
+      if (periodElapsedRatio < 0.75 &&
+          usedRatio >= 0.90 &&
+          deficitBudget == null) {
         deficitBudget = b;
         deficitNeeded = (spent - (totalLimit * periodElapsedRatio)).round();
         if (deficitNeeded <= 0) {
-          deficitNeeded = (totalLimit * 0.2).round(); // Minimal alokasi penyelamat 20%
+          deficitNeeded = (totalLimit * 0.2)
+              .round(); // Minimal alokasi penyelamat 20%
         }
       }
 
@@ -95,7 +106,9 @@ class IntelligentEnvelopeRebalanceDetector {
       }
     }
 
-    if (deficitBudget != null && surplusBudget != null && deficitBudget.id != surplusBudget.id) {
+    if (deficitBudget != null &&
+        surplusBudget != null &&
+        deficitBudget.id != surplusBudget.id) {
       // RebalanceAmount = min(DeficitNeeded, SurplusAvailable * 0.5)
       final maxTransferFromSurplus = (surplusAvailable * 0.5).round();
       final rebalanceAmount = deficitNeeded < maxTransferFromSurplus
@@ -103,7 +116,8 @@ class IntelligentEnvelopeRebalanceDetector {
           : maxTransferFromSurplus;
 
       if (rebalanceAmount >= 10000) {
-        final dedupeKey = 'rebalance_${deficitBudget.id}_${surplusBudget.id}_${now.month}';
+        final dedupeKey =
+            'rebalance_${deficitBudget.id}_${surplusBudget.id}_${now.month}';
 
         return FfmAssistantInsight(
           id: const Uuid().v4(),

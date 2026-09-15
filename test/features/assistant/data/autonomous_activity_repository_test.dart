@@ -51,31 +51,34 @@ void main() {
       expect(list.first.status, equals(AutonomousActivityStatus.active));
     });
 
-    test('correctActivity updates title, description and sets status to corrected', () async {
-      final record = AutonomousActivityRecord(
-        id: 'act_2',
-        householdId: 'house_1',
-        title: 'Pendaftaran Meteran',
-        description: 'Meteran PLN 123456',
-        activityType: AutonomousActivityType.utilityMeter,
-        occurredAt: DateTime(2026, 9, 5, 11, 0),
-      );
+    test(
+      'correctActivity updates title, description and sets status to corrected',
+      () async {
+        final record = AutonomousActivityRecord(
+          id: 'act_2',
+          householdId: 'house_1',
+          title: 'Pendaftaran Meteran',
+          description: 'Meteran PLN 123456',
+          activityType: AutonomousActivityType.utilityMeter,
+          occurredAt: DateTime(2026, 9, 5, 11, 0),
+        );
 
-      await repository.recordActivity(record);
+        await repository.recordActivity(record);
 
-      final ok = await repository.correctActivity(
-        householdId: 'house_1',
-        activityId: 'act_2',
-        newTitle: 'Meteran Ruko Utama',
-        newDescription: 'Meteran PLN Ruko 123456',
-      );
+        final ok = await repository.correctActivity(
+          householdId: 'house_1',
+          activityId: 'act_2',
+          newTitle: 'Meteran Ruko Utama',
+          newDescription: 'Meteran PLN Ruko 123456',
+        );
 
-      expect(ok, isTrue);
-      final list = await repository.getRecentActivities('house_1');
-      expect(list.first.title, equals('Meteran Ruko Utama'));
-      expect(list.first.description, equals('Meteran PLN Ruko 123456'));
-      expect(list.first.status, equals(AutonomousActivityStatus.corrected));
-    });
+        expect(ok, isTrue);
+        final list = await repository.getRecentActivities('house_1');
+        expect(list.first.title, equals('Meteran Ruko Utama'));
+        expect(list.first.description, equals('Meteran PLN Ruko 123456'));
+        expect(list.first.status, equals(AutonomousActivityStatus.corrected));
+      },
+    );
 
     test('revertActivity reverts fuelLog by deleting the log entry from VehicleRepository', () async {
       final vehicle = Vehicle(
@@ -113,10 +116,7 @@ void main() {
         description: '4L Pertalite',
         activityType: AutonomousActivityType.fuelLog,
         occurredAt: DateTime.now(),
-        payload: {
-          'vehicleId': 'veh_1',
-          'logId': 'fuel_log_1',
-        },
+        payload: {'vehicleId': 'veh_1', 'logId': 'fuel_log_1'},
       );
       await repository.recordActivity(record);
 
@@ -133,52 +133,60 @@ void main() {
 
       // Verify activity status is reverted
       final activities = await repository.getRecentActivities('house_1');
-      expect(activities.first.status, equals(AutonomousActivityStatus.reverted));
+      expect(
+        activities.first.status,
+        equals(AutonomousActivityStatus.reverted),
+      );
     });
 
-    test('revertActivity restores previous harvest date for harvestShift activity', () async {
-      final initialDate = DateTime(2026, 10, 1);
-      final shiftedDate = DateTime(2026, 10, 15);
+    test(
+      'revertActivity restores previous harvest date for harvestShift activity',
+      () async {
+        final initialDate = DateTime(2026, 10, 1);
+        final shiftedDate = DateTime(2026, 10, 15);
 
-      final profile = CashFlowProfile(
-        id: 'prof_1',
-        householdId: 'house_1',
-        profileType: CashFlowProfileType.agriculture,
-        name: 'Kebun Jagung',
-        commodityOrBusinessType: 'Jagung',
-        startDate: DateTime(2026, 8, 1),
-        targetHarvestDate: shiftedDate,
-        initialCapital: 5000000,
-        estimatedInflow: 15000000,
-        dailyLivingBudget: 50000,
-      );
-      await cashFlowRepository.saveProfile(profile);
+        final profile = CashFlowProfile(
+          id: 'prof_1',
+          householdId: 'house_1',
+          profileType: CashFlowProfileType.agriculture,
+          name: 'Kebun Jagung',
+          commodityOrBusinessType: 'Jagung',
+          startDate: DateTime(2026, 8, 1),
+          targetHarvestDate: shiftedDate,
+          initialCapital: 5000000,
+          estimatedInflow: 15000000,
+          dailyLivingBudget: 50000,
+        );
+        await cashFlowRepository.saveProfile(profile);
 
-      final record = AutonomousActivityRecord(
-        id: 'act_harvest_1',
-        householdId: 'house_1',
-        title: 'Pembaruan Jadwal Panen',
-        description: 'Panen mundur 14 hari',
-        activityType: AutonomousActivityType.harvestShift,
-        occurredAt: DateTime.now(),
-        payload: {
-          'profileId': 'prof_1',
-          'previousHarvestDate': initialDate.toIso8601String(),
-          'newHarvestDate': shiftedDate.toIso8601String(),
-        },
-      );
-      await repository.recordActivity(record);
+        final record = AutonomousActivityRecord(
+          id: 'act_harvest_1',
+          householdId: 'house_1',
+          title: 'Pembaruan Jadwal Panen',
+          description: 'Panen mundur 14 hari',
+          activityType: AutonomousActivityType.harvestShift,
+          occurredAt: DateTime.now(),
+          payload: {
+            'profileId': 'prof_1',
+            'previousHarvestDate': initialDate.toIso8601String(),
+            'newHarvestDate': shiftedDate.toIso8601String(),
+          },
+        );
+        await repository.recordActivity(record);
 
-      final reverted = await repository.revertActivity(
-        householdId: 'house_1',
-        activityId: 'act_harvest_1',
-      );
-      expect(reverted, isTrue);
+        final reverted = await repository.revertActivity(
+          householdId: 'house_1',
+          activityId: 'act_harvest_1',
+        );
+        expect(reverted, isTrue);
 
-      // Check restored harvest date
-      final restoredProfile = (await cashFlowRepository.getAllProfiles('house_1')).first;
-      expect(restoredProfile.targetHarvestDate, equals(initialDate));
-    });
+        // Check restored harvest date
+        final restoredProfile = (await cashFlowRepository.getAllProfiles(
+          'house_1',
+        )).first;
+        expect(restoredProfile.targetHarvestDate, equals(initialDate));
+      },
+    );
 
     test('correctActivity synchronizes fuel log liters and totalAmount in VehicleRepository', () async {
       final vehicle = Vehicle(
@@ -225,15 +233,15 @@ void main() {
         activityId: 'act_fuel_corr',
         newTitle: 'Pencatatan BBM (Revisi)',
         newDescription: '4.5L BBM Rp 45.000',
-        updatedPayload: {
-          'liters': 4.5,
-          'cost': 45000,
-        },
+        updatedPayload: {'liters': 4.5, 'cost': 45000},
       );
       expect(ok, isTrue);
 
-      final updatedVeh = (await vehicleRepository.getAllVehicles('house_1')).firstWhere((v) => v.id == 'veh_corr');
-      final updatedLog = updatedVeh.fuelLogs.firstWhere((l) => l.id == 'fuel_log_corr');
+      final updatedVeh = (await vehicleRepository.getAllVehicles('house_1'))
+          .firstWhere((v) => v.id == 'veh_corr');
+      final updatedLog = updatedVeh.fuelLogs.firstWhere(
+        (l) => l.id == 'fuel_log_corr',
+      );
       expect(updatedLog.liters, equals(4.5));
       expect(updatedLog.totalAmount, equals(45000.0));
     });

@@ -5373,6 +5373,12 @@ class FfmAssistantCapabilityAdapterRegistry {
     );
     final effectiveMode =
         requestedMode ?? ActivityMode.defaultForKind(activityKind);
+    if (effectiveMode == ActivityMode.history) {
+      // Catatan kejadian memiliki sumber data kanonis sendiri. Permintaan lama
+      // berjenis activity+history tetap diterima, tetapi tidak lagi membuat
+      // sesi aktivitas semu yang tampil berbeda di UI.
+      return _saveDailyNote(step, idempotencyKey);
+    }
 
     final now = _clock();
     final id = _stableId(idempotencyKey);
@@ -5482,9 +5488,12 @@ class FfmAssistantCapabilityAdapterRegistry {
     FfmAssistantActionStep step,
     String idempotencyKey,
   ) async {
-    final body = (step.parameters['body'] ?? step.parameters['note'])
-        ?.toString()
-        .trim();
+    final body =
+        (step.parameters['body'] ??
+                step.parameters['note'] ??
+                step.parameters['title'])
+            ?.toString()
+            .trim();
     if (body == null || body.isEmpty) {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Isi Catatan Harian belum diisi.',
@@ -5626,7 +5635,8 @@ class FfmAssistantCapabilityAdapterRegistry {
       final originRaw = step.parameters['origin']?.toString();
       final origin = ReminderOriginX.fromStorage(originRaw);
       final modeRaw =
-          (step.parameters['reminderMode'] ?? step.parameters['mode'])?.toString();
+          (step.parameters['reminderMode'] ?? step.parameters['mode'])
+              ?.toString();
       final mode = ReminderModeX.fromStorage(modeRaw);
       final sourceTypeRaw = step.parameters['sourceType']?.toString();
       final sourceType = ReminderSourceTypeX.fromStorage(sourceTypeRaw);

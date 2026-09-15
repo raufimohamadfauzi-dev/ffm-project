@@ -6,19 +6,76 @@ class FfmAssistantKnowledgeIndex {
   static const policyName = 'ffm-knowledge-index-v1';
 
   static const _entries = <_KnowledgeIndexEntry>[
-    _KnowledgeIndexEntry('onboarding', 'Status onboarding dan langkah berikutnya', _IndexScope.guidance),
-    _KnowledgeIndexEntry('summary', 'Ringkasan saldo dan arus kas', _IndexScope.financial),
-    _KnowledgeIndexEntry('transactions', 'Transaksi dan analisis historis terbatas', _IndexScope.financial),
-    _KnowledgeIndexEntry('budget', 'Anggaran dan pemakaian pos', _IndexScope.financial),
-    _KnowledgeIndexEntry('goals', 'Target keuangan dan progres', _IndexScope.financial),
-    _KnowledgeIndexEntry('liabilities', 'Hutang, piutang, dan cicilan', _IndexScope.financial),
-    _KnowledgeIndexEntry('activity', 'Aktivitas, tugas, dan jadwal', _IndexScope.activity),
-    _KnowledgeIndexEntry('reminders', 'Pengingat dan alarm', _IndexScope.activity),
-    _KnowledgeIndexEntry('profile', 'Profil keluarga dan personalisasi', _IndexScope.profile),
-    _KnowledgeIndexEntry('diagnostics', 'Error teknis dan Asisten Log', _IndexScope.diagnostics),
-    _KnowledgeIndexEntry('memory', 'Memory yang sudah disetujui user', _IndexScope.profile),
-    _KnowledgeIndexEntry('calendar', 'Tanggal lokal dan kalender Hijriah', _IndexScope.calendar),
-    _KnowledgeIndexEntry('chat_history', 'Riwayat obrolan dan percakapan sebelumnya', _IndexScope.profile),
+    _KnowledgeIndexEntry(
+      'onboarding',
+      'Status onboarding dan langkah berikutnya',
+      _IndexScope.guidance,
+    ),
+    _KnowledgeIndexEntry(
+      'page_context',
+      'Konteks halaman aktif',
+      _IndexScope.guidance,
+    ),
+    _KnowledgeIndexEntry(
+      'summary',
+      'Ringkasan saldo dan arus kas',
+      _IndexScope.financial,
+    ),
+    _KnowledgeIndexEntry(
+      'transactions',
+      'Transaksi dan analisis historis terbatas',
+      _IndexScope.financial,
+    ),
+    _KnowledgeIndexEntry(
+      'budget',
+      'Anggaran dan pemakaian pos',
+      _IndexScope.financial,
+    ),
+    _KnowledgeIndexEntry(
+      'goals',
+      'Target keuangan dan progres',
+      _IndexScope.financial,
+    ),
+    _KnowledgeIndexEntry(
+      'liabilities',
+      'Hutang, piutang, dan cicilan',
+      _IndexScope.financial,
+    ),
+    _KnowledgeIndexEntry(
+      'activity',
+      'Aktivitas, tugas, dan jadwal',
+      _IndexScope.activity,
+    ),
+    _KnowledgeIndexEntry(
+      'reminders',
+      'Pengingat dan notifikasi',
+      _IndexScope.activity,
+    ),
+    _KnowledgeIndexEntry(
+      'profile',
+      'Profil keluarga dan personalisasi',
+      _IndexScope.profile,
+    ),
+    _KnowledgeIndexEntry(
+      'diagnostics',
+      'Error teknis dan Asisten Log',
+      _IndexScope.diagnostics,
+    ),
+    _KnowledgeIndexEntry(
+      'memory',
+      'Memory yang sudah disetujui user',
+      _IndexScope.profile,
+    ),
+    _KnowledgeIndexEntry(
+      'calendar',
+      'Tanggal lokal dan kalender Hijriah',
+      _IndexScope.calendar,
+    ),
+    _KnowledgeIndexEntry(
+      'chat_history',
+      'Riwayat obrolan dan percakapan sebelumnya',
+      _IndexScope.profile,
+    ),
   ];
 
   static FfmAssistantKnowledgeIndexPlan planForRequest(String request) {
@@ -30,25 +87,64 @@ class FfmAssistantKnowledgeIndex {
       if (!selected.contains(entry)) selected.add(entry);
     }
 
-    if (RegExp(r'\b(onboarding|mulai|langkah|harus saya lakukan|isi apa|berikutnya)\b').hasMatch(normalized)) {
+    if (RegExp(
+      r'\b(halaman apa|sedang di halaman|lagi di halaman|di halaman apa|halaman ini|halaman aktif|nama halaman|di sini ada apa)\b',
+    ).hasMatch(normalized)) {
+      add('page_context');
+    }
+    if (RegExp(
+      r'\b(onboarding|mulai|langkah|harus saya lakukan|isi apa|berikutnya)\b',
+    ).hasMatch(normalized)) {
       add('onboarding');
       add('profile');
       add('summary');
     }
-    if (RegExp(r'\b(transaksi|pengeluaran|pemasukan|saldo|ringkasan|analisis|tahun lalu|bulan lalu|historis)\b').hasMatch(normalized)) {
+    if (RegExp(
+      r'\b(transaksi|pengeluaran|pemasukan|saldo|ringkasan|analisis|tahun lalu|bulan lalu|historis)\b',
+    ).hasMatch(normalized)) {
       add('summary');
       add('transactions');
     }
-    if (RegExp(r'\b(anggaran|budget)\b').hasMatch(normalized)) add('budget');
-    if (RegExp(r'\b(target|goal|tujuan)\b').hasMatch(normalized)) add('goals');
-    if (RegExp(r'\b(hutang|utang|piutang|cicilan|pinjaman)\b').hasMatch(normalized)) add('liabilities');
-    if (RegExp(r'\b(aktivitas|kegiatan|tugas|jadwal|agenda)\b').hasMatch(normalized)) add('activity');
-    if (RegExp(r'\b(pengingat|alarm|ingatkan|reminder)\b').hasMatch(normalized)) add('reminders');
-    if (RegExp(r'\b(profil|keluarga|suami|istri|pasangan|nama)\b').hasMatch(normalized)) add('profile');
-    if (RegExp(r'\b(error|masalah|bug|asisten log|diagnostik)\b').hasMatch(normalized)) add('diagnostics');
-    if (RegExp(r'\b(memory|ingatanku|pernah saya ajarkan)\b').hasMatch(normalized)) add('memory');
-    if (RegExp(r'\b(hari|tanggal|kalender|hijriah|rabu|kamis|jumat)\b').hasMatch(normalized)) add('calendar');
-    if (RegExp(r'\b(pernah dibahas|obrolan|riwayat chat|percakapan lalu|pernah kita bicarakan|pernah saya tanyakan)\b').hasMatch(normalized)) add('chat_history');
+    if (RegExp(r'\b(anggaran|budget)\b').hasMatch(normalized)) {
+      add('budget');
+    }
+    if (RegExp(r'\b(target|goal|tujuan)\b').hasMatch(normalized)) {
+      add('goals');
+    }
+    if (RegExp(r'\b(hutang|utang|piutang|cicilan|pinjaman)\b')
+        .hasMatch(normalized)) {
+      add('liabilities');
+    }
+    if (RegExp(
+      r'\b(aktivitas|kegiatan|tugas|jadwal|agenda|catatan harian|catatan|jurnal|rutinitas)\b',
+    ).hasMatch(normalized)) {
+      add('activity');
+    }
+    if (RegExp(r'\b(pengingat|alarm|ingatkan|reminder)\b')
+        .hasMatch(normalized)) {
+      add('reminders');
+    }
+    if (RegExp(r'\b(profil|keluarga|suami|istri|pasangan|nama)\b')
+        .hasMatch(normalized)) {
+      add('profile');
+    }
+    if (RegExp(r'\b(error|masalah|bug|asisten log|diagnostik)\b')
+        .hasMatch(normalized)) {
+      add('diagnostics');
+    }
+    if (RegExp(r'\b(memory|ingatanku|pernah saya ajarkan)\b')
+        .hasMatch(normalized)) {
+      add('memory');
+    }
+    if (RegExp(r'\b(hari|tanggal|kalender|hijriah|rabu|kamis|jumat)\b')
+        .hasMatch(normalized)) {
+      add('calendar');
+    }
+    if (RegExp(
+      r'\b(pernah dibahas|obrolan|riwayat chat|percakapan lalu|pernah kita bicarakan|pernah saya tanyakan)\b',
+    ).hasMatch(normalized)) {
+      add('chat_history');
+    }
 
     if (selected.isEmpty) {
       add('onboarding');
@@ -58,7 +154,9 @@ class FfmAssistantKnowledgeIndex {
     return FfmAssistantKnowledgeIndexPlan(
       request: request,
       sourceIds: selected.map((entry) => entry.id).toList(growable: false),
-      sourceLabels: selected.map((entry) => entry.label).toList(growable: false),
+      sourceLabels: selected
+          .map((entry) => entry.label)
+          .toList(growable: false),
     );
   }
 }
@@ -81,7 +179,14 @@ class FfmAssistantKnowledgeIndexPlan {
       'Index ini read-only; tidak memberi akses SQL atau mutasi.';
 }
 
-enum _IndexScope { guidance, financial, activity, profile, diagnostics, calendar }
+enum _IndexScope {
+  guidance,
+  financial,
+  activity,
+  profile,
+  diagnostics,
+  calendar,
+}
 
 class _KnowledgeIndexEntry {
   const _KnowledgeIndexEntry(this.id, this.label, this.scope);

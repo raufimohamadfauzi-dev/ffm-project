@@ -106,33 +106,40 @@ class ExecutiveMorningBriefingService {
     final current = now ?? DateTime.now();
 
     // 1. Ambil nama keluarga
-    final household = await (database.select(database.households)
-          ..where((h) => h.id.equals(householdId)))
-        .getSingleOrNull();
+    final household = await (database.select(
+      database.households,
+    )..where((h) => h.id.equals(householdId))).getSingleOrNull();
     final familyName =
         (household?.name != null && household!.name.trim().isNotEmpty)
-            ? household.name.trim()
-            : 'Keluarga Kami';
+        ? household.name.trim()
+        : 'Keluarga Kami';
 
     // 2. Hitung total saldo kas dari semua akun aktif
-    final accounts = await (database.select(database.accounts)
-          ..where((a) =>
-              a.householdId.equals(householdId) &
-              a.isActive.equals(true) &
-              a.isArchived.equals(false)))
-        .get();
+    final accounts =
+        await (database.select(database.accounts)..where(
+              (a) =>
+                  a.householdId.equals(householdId) &
+                  a.isActive.equals(true) &
+                  a.isArchived.equals(false),
+            ))
+            .get();
 
-    final txAll = await (database.select(database.transactions)
-          ..where((t) =>
-              t.householdId.equals(householdId) &
-              t.isDeleted.equals(false) &
-              t.isArchived.equals(false)))
-        .get();
+    final txAll =
+        await (database.select(database.transactions)..where(
+              (t) =>
+                  t.householdId.equals(householdId) &
+                  t.isDeleted.equals(false) &
+                  t.isArchived.equals(false),
+            ))
+            .get();
 
-    final tfAll = await (database.select(database.transfers)
-          ..where((tf) =>
-              tf.householdId.equals(householdId) & tf.isDeleted.equals(false)))
-        .get();
+    final tfAll =
+        await (database.select(database.transfers)..where(
+              (tf) =>
+                  tf.householdId.equals(householdId) &
+                  tf.isDeleted.equals(false),
+            ))
+            .get();
 
     var grandTotal = 0;
     for (final acc in accounts) {
@@ -152,8 +159,11 @@ class ExecutiveMorningBriefingService {
 
     // 3. Pengeluaran kemarin (H-1)
     final yesterdayDate = current.subtract(const Duration(days: 1));
-    final yesterdayStart =
-        DateTime(yesterdayDate.year, yesterdayDate.month, yesterdayDate.day);
+    final yesterdayStart = DateTime(
+      yesterdayDate.year,
+      yesterdayDate.month,
+      yesterdayDate.day,
+    );
     final yesterdayEnd = DateTime(current.year, current.month, current.day);
     var yesterdayExpense = 0;
     for (final t in txAll) {
@@ -194,15 +204,23 @@ class ExecutiveMorningBriefingService {
     // Cek reminders hari ini
     try {
       final todayStart = DateTime(current.year, current.month, current.day);
-      final todayEnd =
-          DateTime(current.year, current.month, current.day, 23, 59, 59);
-      final reminders = await (database.select(database.reminders)
-            ..where((r) =>
-                r.householdId.equals(householdId) &
-                r.isActive.equals(true) &
-                r.scheduledAt.isBiggerOrEqualValue(todayStart) &
-                r.scheduledAt.isSmallerOrEqualValue(todayEnd)))
-          .get();
+      final todayEnd = DateTime(
+        current.year,
+        current.month,
+        current.day,
+        23,
+        59,
+        59,
+      );
+      final reminders =
+          await (database.select(database.reminders)..where(
+                (r) =>
+                    r.householdId.equals(householdId) &
+                    r.isActive.equals(true) &
+                    r.scheduledAt.isBiggerOrEqualValue(todayStart) &
+                    r.scheduledAt.isSmallerOrEqualValue(todayEnd),
+              ))
+              .get();
       for (final r in reminders) {
         dueItems.add('Pengingat: ${r.title}');
       }
@@ -212,25 +230,32 @@ class ExecutiveMorningBriefingService {
     final dueLiabilities = <String>[];
     final threeDaysLater = current.add(const Duration(days: 3));
     try {
-      final liabilities = await (database.select(database.liabilities)
-            ..where((l) =>
-                l.householdId.equals(householdId) &
-                l.isActive.equals(true) &
-                l.dueDate.isNotNull()))
-          .get();
+      final liabilities =
+          await (database.select(database.liabilities)..where(
+                (l) =>
+                    l.householdId.equals(householdId) &
+                    l.isActive.equals(true) &
+                    l.dueDate.isNotNull(),
+              ))
+              .get();
 
       for (final l in liabilities) {
         if (l.dueDate != null &&
-            !l.dueDate!.isBefore(DateTime(current.year, current.month, current.day)) &&
+            !l.dueDate!.isBefore(
+              DateTime(current.year, current.month, current.day),
+            ) &&
             !l.dueDate!.isAfter(threeDaysLater)) {
-          final diffDays =
-              l.dueDate!.difference(DateTime(current.year, current.month, current.day)).inDays;
+          final diffDays = l.dueDate!
+              .difference(DateTime(current.year, current.month, current.day))
+              .inDays;
           final timeStr = diffDays == 0
               ? 'hari ini'
               : (diffDays == 1 ? 'besok' : 'dalam $diffDays hari');
-          final amount =
-              l.monthlyInstallment > 0 ? l.monthlyInstallment : l.remainingBalance;
-          final text = 'Cicilan ${l.name} (${_formatRupiah(amount)}) jatuh tempo $timeStr';
+          final amount = l.monthlyInstallment > 0
+              ? l.monthlyInstallment
+              : l.remainingBalance;
+          final text =
+              'Cicilan ${l.name} (${_formatRupiah(amount)}) jatuh tempo $timeStr';
           dueLiabilities.add(text);
           dueItems.add(text);
         }
@@ -247,13 +272,16 @@ class ExecutiveMorningBriefingService {
 
     final textSummaryBuffer = StringBuffer();
     textSummaryBuffer.writeln('🌅 **Executive Morning Briefing**');
-    textSummaryBuffer
-        .writeln('Halo **$familyName**, berikut rangkuman keuangan pagi ini:');
+    textSummaryBuffer.writeln(
+      'Halo **$familyName**, berikut rangkuman keuangan pagi ini:',
+    );
     textSummaryBuffer.writeln('• 💳 **Saldo Kas Tersedia**: $balanceText');
     textSummaryBuffer.writeln('• 📉 **Pengeluaran Kemarin**: $yesterdayText');
     textSummaryBuffer.writeln('• 📊 **Total Belanja Bulan Ini**: $monthText');
     if (dueLiabilities.isNotEmpty) {
-      textSummaryBuffer.writeln('• ⚠️ **Jatuh Tempo Hutang / Piutang (3 Hari)**:');
+      textSummaryBuffer.writeln(
+        '• ⚠️ **Jatuh Tempo Hutang / Piutang (3 Hari)**:',
+      );
       for (final debt in dueLiabilities) {
         textSummaryBuffer.writeln('  - $debt');
       }
@@ -265,37 +293,47 @@ class ExecutiveMorningBriefingService {
       }
     } else {
       textSummaryBuffer.writeln(
-          '• ✨ **Agenda / Tagihan**: Tidak ada tagihan jatuh tempo hari ini.');
+        '• ✨ **Agenda / Tagihan**: Tidak ada tagihan jatuh tempo hari ini.',
+      );
     }
     textSummaryBuffer.writeln(
-        '\nSemoga hari ini penuh berkah dan pengeluaran tetap terkendali!');
+      '\nSemoga hari ini penuh berkah dan pengeluaran tetap terkendali!',
+    );
 
     // Skrip Audio Natural Bahasa Indonesia untuk Text-To-Speech
     final scriptBuffer = StringBuffer();
     scriptBuffer.write('Selamat pagi, $familyName. ');
-    scriptBuffer.write('Total saldo kas keluarga saat ini sebesar $balanceText. ');
+    scriptBuffer.write(
+      'Total saldo kas keluarga saat ini sebesar $balanceText. ',
+    );
     if (yesterdayExpense > 0) {
-      scriptBuffer.write('Pengeluaran kemarin tercatat sebesar $yesterdayText. ');
+      scriptBuffer.write(
+        'Pengeluaran kemarin tercatat sebesar $yesterdayText. ',
+      );
     } else {
       scriptBuffer.write('Kemarin tidak ada catatan pengeluaran. ');
     }
     if (dueLiabilities.isNotEmpty) {
       scriptBuffer.write(
-          'Perhatian, ada ${dueLiabilities.length} kewajiban cicilan yang jatuh tempo dalam tiga hari ke depan: ');
+        'Perhatian, ada ${dueLiabilities.length} kewajiban cicilan yang jatuh tempo dalam tiga hari ke depan: ',
+      );
       scriptBuffer.write(dueLiabilities.join(', '));
       scriptBuffer.write('. ');
     }
     if (dueItems.isNotEmpty) {
       scriptBuffer.write(
-          'Untuk hari ini, ada agenda atau pola rutin yang perlu diperhatikan, yaitu: ');
+        'Untuk hari ini, ada agenda atau pola rutin yang perlu diperhatikan, yaitu: ',
+      );
       scriptBuffer.write(dueItems.join(', '));
       scriptBuffer.write('. ');
     } else {
       scriptBuffer.write(
-          'Hari ini tidak ada tagihan atau pengeluaran rutin yang jatuh tempo. ');
+        'Hari ini tidak ada tagihan atau pengeluaran rutin yang jatuh tempo. ',
+      );
     }
     scriptBuffer.write(
-        'Semoga hari ini penuh keberkahan dan keuangan keluarga tetap terjaga.');
+      'Semoga hari ini penuh keberkahan dan keuangan keluarga tetap terjaga.',
+    );
 
     return ExecutiveMorningBriefing(
       greeting: greeting,

@@ -68,16 +68,23 @@ void main() {
         ),
       ];
 
-      final baselines = engine.calculateDynamicBaselines(transactions: txs, now: now);
+      final baselines = engine.calculateDynamicBaselines(
+        transactions: txs,
+        now: now,
+      );
 
       expect(baselines.length, equals(2));
 
-      final foodBaseline = baselines.firstWhere((b) => b.categoryName == 'Makanan & Minuman');
+      final foodBaseline = baselines.firstWhere(
+        (b) => b.categoryName == 'Makanan & Minuman',
+      );
       // Rata-rata Makanan: (3.000.000 + 2.000.000 + 2.500.000) / 3 bulan = 2.500.000
       expect(foodBaseline.averageMonthlyAmount, equals(2500000.0));
       expect(foodBaseline.dataPointMonths, equals(3));
 
-      final transportBaseline = baselines.firstWhere((b) => b.categoryName == 'Transportasi');
+      final transportBaseline = baselines.firstWhere(
+        (b) => b.categoryName == 'Transportasi',
+      );
       // Rata-rata Transportasi: (1.000.000 + 800.000) / 2 bulan = 900.000
       expect(transportBaseline.averageMonthlyAmount, equals(900000.0));
       expect(transportBaseline.dataPointMonths, equals(2));
@@ -117,12 +124,21 @@ void main() {
       expect(analysis.totalExpenseSoFar, equals(2500000.0));
       expect(analysis.daysElapsed, equals(15));
       expect(analysis.remainingDays, equals(15));
-      expect(analysis.dailyAverageExpense, equals(2500000 / 15)); // ~166.666/hari
-      expect(analysis.projectedMonthlyExpense, equals(5000000.0)); // Proyeksi 5 juta (Jebol)
+      expect(
+        analysis.dailyAverageExpense,
+        equals(2500000 / 15),
+      ); // ~166.666/hari
+      expect(
+        analysis.projectedMonthlyExpense,
+        equals(5000000.0),
+      ); // Proyeksi 5 juta (Jebol)
       expect(analysis.isOnTrack, isFalse);
 
       // Sisa anggaran = 3.000.000 - 2.500.000 = 500.000 untuk 15 hari
-      expect(analysis.safeDailySpendingLimit, equals(5000000 / 150)); // ~33.333/hari
+      expect(
+        analysis.safeDailySpendingLimit,
+        equals(5000000 / 150),
+      ); // ~33.333/hari
     });
   });
 

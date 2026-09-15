@@ -37,8 +37,11 @@ class ProactiveCashFlowCheckInService {
 
     if (target.profileType == CashFlowProfileType.agriculture) {
       final days = target.daysRemaining;
-      final daysText = days > 0 ? '~ $days hari lagi estimasi panen' : 'sudah mendekati waktu panen';
-      final msg = '🌾 **Wawancara Status Tani & Kebun**\n\n'
+      final daysText = days > 0
+          ? '~ $days hari lagi estimasi panen'
+          : 'sudah mendekati waktu panen';
+      final msg =
+          '🌾 **Wawancara Status Tani & Kebun**\n\n'
           'Siklus **${target.name}** (${target.commodityOrBusinessType}) saat ini berada pada **${target.phaseLabel}** ($daysText).\n\n'
           'Bagaimana perkembangan tanaman minggu ini? Apakah ada belanja pupuk/bibit tak terduga, atau ada pembaruan tanggal panen?';
 
@@ -54,7 +57,8 @@ class ProactiveCashFlowCheckInService {
         suggestedQuestions: suggestions,
       );
     } else if (target.profileType == CashFlowProfileType.business) {
-      final msg = '💼 **Wawancara Status Usaha & Operasional**\n\n'
+      final msg =
+          '💼 **Wawancara Status Usaha & Operasional**\n\n'
           'Siklus modal kerja **${target.name}** (${target.commodityOrBusinessType}) sedang aktif berjalan.\n\n'
           'Bagaimana perputaran omzet dan belanja operasional minggu ini? Apakah ada tagihan pelanggan yang sudah cair?';
 
@@ -71,7 +75,8 @@ class ProactiveCashFlowCheckInService {
       );
     }
 
-    final msg = '📊 **Wawancara Arus Kas**\n\n'
+    final msg =
+        '📊 **Wawancara Arus Kas**\n\n'
         'Siklus keuangan **${target.name}** sedang aktif.\n\n'
         'Apakah ada pemasukan atau pengeluaran penting yang ingin diselaraskan hari ini?';
 

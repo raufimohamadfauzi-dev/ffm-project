@@ -24,9 +24,7 @@ class FfmAssistantFeedbackToolbar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: isDark 
-            ? const Color(0xFF2A2A2A)
-            : const Color(0xFFF5F5F5),
+        color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF5F5F5),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -35,18 +33,14 @@ class FfmAssistantFeedbackToolbar extends StatelessWidget {
           _buildIconButton(
             icon: Icons.thumb_up,
             label: 'Berguna',
-            color: isDark 
-                ? const Color(0xFF4CAF50)
-                : const Color(0xFF2E7D32),
+            color: isDark ? const Color(0xFF4CAF50) : const Color(0xFF2E7D32),
             onTap: onThumbsUp,
           ),
           const SizedBox(width: 8),
           _buildIconButton(
             icon: Icons.thumb_down,
             label: 'Tidak berguna',
-            color: isDark 
-                ? const Color(0xFFF44336)
-                : const Color(0xFFC62828),
+            color: isDark ? const Color(0xFFF44336) : const Color(0xFFC62828),
             onTap: onThumbsDown,
           ),
           if (onMarkIncorrect != null) ...[
@@ -54,9 +48,7 @@ class FfmAssistantFeedbackToolbar extends StatelessWidget {
             _buildIconButton(
               icon: Icons.error_outline,
               label: 'Salah',
-              color: isDark 
-                  ? const Color(0xFFFF9800)
-                  : const Color(0xFFEF6C00),
+              color: isDark ? const Color(0xFFFF9800) : const Color(0xFFEF6C00),
               onTap: onMarkIncorrect!,
             ),
           ],
@@ -65,9 +57,7 @@ class FfmAssistantFeedbackToolbar extends StatelessWidget {
             _buildIconButton(
               icon: Icons.flag,
               label: 'Lapor',
-              color: isDark 
-                  ? const Color(0xFF2196F3)
-                  : const Color(0xFF1565C0),
+              color: isDark ? const Color(0xFF2196F3) : const Color(0xFF1565C0),
               onTap: onReportIssue!,
             ),
           ],
@@ -76,9 +66,7 @@ class FfmAssistantFeedbackToolbar extends StatelessWidget {
             _buildIconButton(
               icon: Icons.edit,
               label: 'Koreksi',
-              color: isDark 
-                  ? const Color(0xFFE1BEE7)
-                  : const Color(0xFF6A1B9A),
+              color: isDark ? const Color(0xFFE1BEE7) : const Color(0xFF6A1B9A),
               onTap: onProvideCorrection!,
             ),
           ],
@@ -101,11 +89,7 @@ class FfmAssistantFeedbackToolbar extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: color,
-            ),
+            Icon(icon, size: 16, color: color),
             const SizedBox(width: 4),
             Text(
               label,

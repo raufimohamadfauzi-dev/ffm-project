@@ -44,8 +44,7 @@ class AnalysisExportService {
         return false;
       }
       if (typeFilter != 'all' && transaction.type != typeFilter) return false;
-      if (categoryFilter != 'all' &&
-          transaction.categoryId != categoryFilter) {
+      if (categoryFilter != 'all' && transaction.categoryId != categoryFilter) {
         return false;
       }
       return true;

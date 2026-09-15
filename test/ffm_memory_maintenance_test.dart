@@ -36,11 +36,8 @@ void main() {
     );
     if (archived) await repo.archive(record.id);
     // Paksa createdAt tua langsung di database untuk simulasi usia.
-    await (db.update(
-      db.assistantMemories,
-    )..where((row) => row.id.equals(id))).write(
-      AssistantMemoriesCompanion(createdAt: Value(createdAt)),
-    );
+    await (db.update(db.assistantMemories)..where((row) => row.id.equals(id)))
+        .write(AssistantMemoriesCompanion(createdAt: Value(createdAt)));
     return record.id;
   }
 
@@ -89,25 +86,27 @@ void main() {
     expect(all.firstWhere((row) => row.id == usedId).isArchived, isFalse);
   });
 
-  test('jadwal start(): decay jalan setelah delay lalu berulang tiap interval',
-      () async {
-    fakeAsync((async) {
-      final service = FfmMemoryMaintenanceService(
-        learning: FfmMemoryLearningService(memoryRepository: repo),
-        repository: repo,
-      );
-      service.start(initialDelay: Duration.zero);
-      // runDecayOnce async; beri kesempatan microtask+timer.
-      async.elapse(const Duration(milliseconds: 5));
-      service.stop();
+  test(
+    'jadwal start(): decay jalan setelah delay lalu berulang tiap interval',
+    () async {
+      fakeAsync((async) {
+        final service = FfmMemoryMaintenanceService(
+          learning: FfmMemoryLearningService(memoryRepository: repo),
+          repository: repo,
+        );
+        service.start(initialDelay: Duration.zero);
+        // runDecayOnce async; beri kesempatan microtask+timer.
+        async.elapse(const Duration(milliseconds: 5));
+        service.stop();
 
-      // Tidak ada exception; timer periodik terpasang lalu dibersihkan.
-      service.start(initialDelay: const Duration(hours: 25));
-      async.elapse(const Duration(hours: 26));
-      service.dispose();
-      service.dispose(); // dispose ganda aman
-    });
-  });
+        // Tidak ada exception; timer periodik terpasang lalu dibersihkan.
+        service.start(initialDelay: const Duration(hours: 25));
+        async.elapse(const Duration(hours: 26));
+        service.dispose();
+        service.dispose(); // dispose ganda aman
+      });
+    },
+  );
 
   test('runDecayOnce tidak menumpuk saat siklus masih berjalan', () async {
     var calls = 0;

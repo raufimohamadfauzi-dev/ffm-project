@@ -113,7 +113,9 @@ void main() {
       final merchantId = 'merchant-coffee';
       final categoryId = 'category-drinks';
       final now = DateTime.now();
-      await database.into(database.merchants).insert(
+      await database
+          .into(database.merchants)
+          .insert(
             MerchantsCompanion.insert(
               id: merchantId,
               householdId: householdId,
@@ -121,7 +123,9 @@ void main() {
               createdAt: now,
             ),
           );
-      await database.into(database.categories).insert(
+      await database
+          .into(database.categories)
+          .insert(
             CategoriesCompanion.insert(
               id: categoryId,
               householdId: householdId,
@@ -132,7 +136,9 @@ void main() {
           );
 
       for (var index = 0; index < 3; index++) {
-        await database.into(database.transactions).insert(
+        await database
+            .into(database.transactions)
+            .insert(
               TransactionsCompanion.insert(
                 id: 'memory-tx-$index',
                 householdId: householdId,
@@ -165,9 +171,7 @@ void main() {
       expect(pending.single.source, 'background-autonomy-memory');
       expect(
         pending.single.workflowJson['steps'],
-        contains(
-          containsPair('capabilityId', 'system.set_merchant_category'),
-        ),
+        contains(containsPair('capabilityId', 'system.set_merchant_category')),
       );
     },
   );

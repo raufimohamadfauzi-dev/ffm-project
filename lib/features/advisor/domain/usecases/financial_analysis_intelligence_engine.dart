@@ -127,7 +127,9 @@ class FinancialAnalysisIntelligenceEngine {
 
     for (final item in transactions) {
       final t = item.transaction;
-      if (t.date.year == year && t.date.month == month && t.date.day <= currentDay) {
+      if (t.date.year == year &&
+          t.date.month == month &&
+          t.date.day <= currentDay) {
         if (t.amount > 0 && manualIncome == null) {
           income += t.amount;
         } else if (t.amount < 0) {
@@ -184,7 +186,9 @@ class FinancialAnalysisIntelligenceEngine {
     var totalIncome = 0;
     for (final item in transactions) {
       final t = item.transaction;
-      if (t.amount > 0 && t.date.isAfter(cutoff) && !t.date.isAfter(referenceDate)) {
+      if (t.amount > 0 &&
+          t.date.isAfter(cutoff) &&
+          !t.date.isAfter(referenceDate)) {
         totalIncome += t.amount;
       }
     }
@@ -204,7 +208,10 @@ class FinancialAnalysisIntelligenceEngine {
 
     groups.forEach((key, items) {
       if (items.length >= minFrequency) {
-        final total = items.fold<int>(0, (sum, it) => sum + it.transaction.amount.abs());
+        final total = items.fold<int>(
+          0,
+          (sum, it) => sum + it.transaction.amount.abs(),
+        );
         final avg = (total / items.length).round();
         final catId = items.first.transaction.categoryId ?? '';
         final categoryName = categoryNamesById[catId] ?? 'Umum';
@@ -262,7 +269,8 @@ class FinancialAnalysisIntelligenceEngine {
 
     final result = <CategoryExpenseShare>[];
     for (final entry in sortedEntries.take(maxCategories)) {
-      final name = categoryNamesById[entry.key] ??
+      final name =
+          categoryNamesById[entry.key] ??
           (entry.key == 'uncategorized' ? 'Tanpa Kategori' : 'Kategori Lain');
       final percentage = entry.value / grandTotalExpense;
 
@@ -285,7 +293,9 @@ class FinancialAnalysisIntelligenceEngine {
     required int currentLiquidCash,
     int delayedDays = 14,
   }) {
-    final delayedDate = profile.targetHarvestDate.add(Duration(days: delayedDays));
+    final delayedDate = profile.targetHarvestDate.add(
+      Duration(days: delayedDays),
+    );
     final burnRate = profile.dailyLivingBudget + profile.dailyOperationalBudget;
     final additionalLivingCost = burnRate * delayedDays;
 
@@ -294,7 +304,9 @@ class FinancialAnalysisIntelligenceEngine {
       delayedDate.difference(DateTime.now()).inDays,
     );
 
-    final newRunwayDays = burnRate > 0 ? (currentLiquidCash / burnRate).floor() : 999;
+    final newRunwayDays = burnRate > 0
+        ? (currentLiquidCash / burnRate).floor()
+        : 999;
     final isStillSafe = newRunwayDays >= newDaysRemaining;
 
     final message = isStillSafe

@@ -88,28 +88,31 @@ void main() {
     expect(parameters['uiOnly'], 'preserved');
   });
 
-  test('prefill mempertahankan metadata tetapi memprioritaskan field canonical', () {
-    final draft = FfmAssistantDraft(
-      kind: FfmAssistantDraftKind.expense,
-      createdAt: DateTime(2026, 8, 23),
-      amount: 75000,
-      fromAccountName: 'BCA',
-      categoryName: 'Belanja',
-      receiptRawText: 'TOTAL 75.000',
-      formValues: const {
-        'amount': '999',
-        'fromAccountName': 'Rekening Salah',
-        'uiOnly': 'preserved',
-      },
-    );
+  test(
+    'prefill mempertahankan metadata tetapi memprioritaskan field canonical',
+    () {
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.expense,
+        createdAt: DateTime(2026, 8, 23),
+        amount: 75000,
+        fromAccountName: 'BCA',
+        categoryName: 'Belanja',
+        receiptRawText: 'TOTAL 75.000',
+        formValues: const {
+          'amount': '999',
+          'fromAccountName': 'Rekening Salah',
+          'uiOnly': 'preserved',
+        },
+      );
 
-    final prefill = FfmAssistantFormPrefillMapper.fromDraft(draft);
+      final prefill = FfmAssistantFormPrefillMapper.fromDraft(draft);
 
-    expect(prefill.values['amount'], '75000');
-    expect(prefill.values['fromAccountName'], 'BCA');
-    expect(prefill.values['receiptRawText'], 'TOTAL 75.000');
-    expect(prefill.values['uiOnly'], 'preserved');
-  });
+      expect(prefill.values['amount'], '75000');
+      expect(prefill.values['fromAccountName'], 'BCA');
+      expect(prefill.values['receiptRawText'], 'TOTAL 75.000');
+      expect(prefill.values['uiOnly'], 'preserved');
+    },
+  );
 
   test('reference resolver membedakan resolved, missing, dan ambiguous', () {
     const candidates = ['BCA', 'Tunai', 'BCA'];
@@ -157,7 +160,9 @@ void main() {
       ),
     );
 
-    final liabilityPlan = const FfmAssistantActionPlanner().planFor(liabilityIntent)!;
+    final liabilityPlan = const FfmAssistantActionPlanner().planFor(
+      liabilityIntent,
+    )!;
     expect(liabilityPlan.steps.map((step) => step.capabilityId), [
       'read.liabilities',
       'navigate.liabilities',
@@ -187,7 +192,9 @@ void main() {
       ),
     );
 
-    final receivablePlan = const FfmAssistantActionPlanner().planFor(receivableIntent)!;
+    final receivablePlan = const FfmAssistantActionPlanner().planFor(
+      receivableIntent,
+    )!;
     expect(receivablePlan.steps.map((step) => step.capabilityId), [
       'read.receivable',
       'navigate.liabilities',

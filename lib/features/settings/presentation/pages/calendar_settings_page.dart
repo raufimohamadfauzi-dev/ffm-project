@@ -41,17 +41,19 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     try {
       final available = await _calendarBridge.isCalendarAvailable();
       final calendarId = await _calendarBridge.getDefaultCalendarId();
-      
+
       // Check sync status
-      final reminders = await _billReminderRepository.getBillReminders('local-household');
+      final reminders = await _billReminderRepository.getBillReminders(
+        'local-household',
+      );
       final unsynced = reminders.where((r) => !r.isSyncedToCalendar).length;
 
       setState(() {
         _isCalendarAvailable = available;
         _defaultCalendarId = calendarId;
         _unsyncedCount = unsynced;
-        _syncStatus = available 
-            ? 'Terhubung ke Google Calendar ✅' 
+        _syncStatus = available
+            ? 'Terhubung ke Google Calendar ✅'
             : 'Tidak terhubung ❌';
         _isLoading = false;
       });
@@ -70,7 +72,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     try {
       await _billReminderRepository.retrySyncForUnsynced('local-household');
       await _loadCalendarStatus();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Sinkronisasi ulang berhasil')),
@@ -78,9 +80,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal sinkronisasi: $e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Gagal sinkronisasi: $e')));
       }
       setState(() => _isLoading = false);
     }
@@ -134,8 +135,8 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
               children: [
                 Icon(
                   _isCalendarAvailable ? Icons.check_circle : Icons.error,
-                  color: _isCalendarAvailable 
-                      ? colorScheme.primary 
+                  color: _isCalendarAvailable
+                      ? colorScheme.primary
                       : colorScheme.error,
                   size: 32,
                 ),
@@ -230,14 +231,9 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
             ),
             const SizedBox(height: 16),
             ListTile(
-              leading: Icon(
-                Icons.sync,
-                color: colorScheme.primary,
-              ),
+              leading: Icon(Icons.sync, color: colorScheme.primary),
               title: const Text('Sinkronisasi Ulang'),
-              subtitle: Text(
-                '$_unsyncedCount pengingat belum disinkronkan',
-              ),
+              subtitle: Text('$_unsyncedCount pengingat belum disinkronkan'),
               trailing: ElevatedButton(
                 onPressed: _unsyncedCount > 0 ? _retrySync : null,
                 child: const Text('Mulai'),
@@ -261,11 +257,7 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.info_outline,
-                  color: colorScheme.primary,
-                  size: 24,
-                ),
+                Icon(Icons.info_outline, color: colorScheme.primary, size: 24),
                 const SizedBox(width: 8),
                 Text(
                   'Informasi Sinkronisasi',

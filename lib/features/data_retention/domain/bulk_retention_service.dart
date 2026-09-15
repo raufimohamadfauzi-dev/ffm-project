@@ -52,8 +52,14 @@ class BulkRetentionService {
 
   /// Menghitung data NON-arsip sebelum [beforeDate] untuk preview archive.
   Future<BulkRetentionPreview> previewArchive(DateTime beforeDate) async {
-    final transactions = await _countTransactions(beforeDate, archivedOnly: false);
-    final activitySessions = await _countSessions(beforeDate, archivedOnly: false);
+    final transactions = await _countTransactions(
+      beforeDate,
+      archivedOnly: false,
+    );
+    final activitySessions = await _countSessions(
+      beforeDate,
+      archivedOnly: false,
+    );
     final dailyNotes = await _countDailyNotes(beforeDate, archivedOnly: false);
     return BulkRetentionPreview(
       beforeDate: beforeDate,
@@ -66,7 +72,10 @@ class BulkRetentionService {
   /// Menghitung data SUDAH-arsip sebelum [beforeDate] untuk preview hapus permanen.
   Future<BulkRetentionPreview> previewDelete(DateTime beforeDate) async {
     final transactions = await _countArchivedTransactions(beforeDate);
-    final activitySessions = await _countSessions(beforeDate, archivedOnly: true);
+    final activitySessions = await _countSessions(
+      beforeDate,
+      archivedOnly: true,
+    );
     final dailyNotes = await _countDailyNotes(beforeDate, archivedOnly: true);
     return BulkRetentionPreview(
       beforeDate: beforeDate,
@@ -81,37 +90,33 @@ class BulkRetentionService {
   Future<BulkRetentionResult> archiveBefore(DateTime beforeDate) async {
     final audit = AuditLogger(database);
     final result = await database.transaction(() async {
-      final txCount = await (database.update(database.transactions)..where((
-            row,
-          ) =>
-              row.householdId.equals(AppContext.householdId) &
-              row.date.isSmallerThanValue(beforeDate) &
-              row.isArchived.equals(false) &
-              row.isDeleted.equals(false)))
-          .write(
-            const TransactionsCompanion(isArchived: Value(true)),
-          );
+      final txCount =
+          await (database.update(database.transactions)..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.date.isSmallerThanValue(beforeDate) &
+                    row.isArchived.equals(false) &
+                    row.isDeleted.equals(false),
+              ))
+              .write(const TransactionsCompanion(isArchived: Value(true)));
 
-      final sessionCount = await (database.update(database.activitySessions)
-            ..where((
-              row,
-            ) =>
-                row.householdId.equals(AppContext.householdId) &
-                row.startedAt.isSmallerThanValue(beforeDate) &
-                row.isArchived.equals(false)))
-          .write(
-            const ActivitySessionsCompanion(isArchived: Value(true)),
-          );
+      final sessionCount =
+          await (database.update(database.activitySessions)..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.startedAt.isSmallerThanValue(beforeDate) &
+                    row.isArchived.equals(false),
+              ))
+              .write(const ActivitySessionsCompanion(isArchived: Value(true)));
 
-      final noteCount = await (database.update(database.dailyNotes)..where((
-            row,
-          ) =>
-              row.householdId.equals(AppContext.householdId) &
-              row.noteDate.isSmallerThanValue(beforeDate) &
-              row.isArchived.equals(false)))
-          .write(
-            const DailyNotesCompanion(isArchived: Value(true)),
-          );
+      final noteCount =
+          await (database.update(database.dailyNotes)..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.noteDate.isSmallerThanValue(beforeDate) &
+                    row.isArchived.equals(false),
+              ))
+              .write(const DailyNotesCompanion(isArchived: Value(true)));
 
       return BulkRetentionResult(
         transactions: txCount,
@@ -121,7 +126,9 @@ class BulkRetentionService {
     });
 
     if (result.total == 0) {
-      throw StateError('Tidak ada data sebelum tanggal tersebut untuk diarsipkan.');
+      throw StateError(
+        'Tidak ada data sebelum tanggal tersebut untuk diarsipkan.',
+      );
     }
 
     await audit.record(
@@ -166,40 +173,37 @@ class BulkRetentionService {
     }
     final audit = AuditLogger(database);
     final result = await database.transaction(() async {
-      final txCount = await (database.update(database.transactions)..where((
-            row,
-          ) =>
-              row.householdId.equals(AppContext.householdId) &
-              row.date.isSmallerThanValue(beforeDate) &
-              row.isArchived.equals(true) &
-              row.isDeleted.equals(false)))
-          .write(
-            const TransactionsCompanion(isDeleted: Value(true)),
-          );
+      final txCount =
+          await (database.update(database.transactions)..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.date.isSmallerThanValue(beforeDate) &
+                    row.isArchived.equals(true) &
+                    row.isDeleted.equals(false),
+              ))
+              .write(const TransactionsCompanion(isDeleted: Value(true)));
 
       final sessionIds = await _archivedSessionIdsBefore(beforeDate);
       if (sessionIds.isNotEmpty) {
-        await (database.delete(database.activityCheckpoints)..where(
-              (row) => row.sessionId.isIn(sessionIds),
-            ))
-            .go();
-        await (database.delete(database.activityEntries)..where(
-              (row) => row.sessionId.isIn(sessionIds),
-            ))
-            .go();
-        await (database.delete(database.activitySessions)..where(
-              (row) => row.id.isIn(sessionIds),
-            ))
-            .go();
+        await (database.delete(
+          database.activityCheckpoints,
+        )..where((row) => row.sessionId.isIn(sessionIds))).go();
+        await (database.delete(
+          database.activityEntries,
+        )..where((row) => row.sessionId.isIn(sessionIds))).go();
+        await (database.delete(
+          database.activitySessions,
+        )..where((row) => row.id.isIn(sessionIds))).go();
       }
 
-      final noteCount = await (database.delete(database.dailyNotes)..where((
-            row,
-          ) =>
-              row.householdId.equals(AppContext.householdId) &
-              row.noteDate.isSmallerThanValue(beforeDate) &
-              row.isArchived.equals(true)))
-          .go();
+      final noteCount =
+          await (database.delete(database.dailyNotes)..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.noteDate.isSmallerThanValue(beforeDate) &
+                    row.isArchived.equals(true),
+              ))
+              .go();
 
       return BulkRetentionResult(
         transactions: txCount,
@@ -271,9 +275,9 @@ class BulkRetentionService {
       ..addColumns([database.transactions.id.count()])
       ..where(
         database.transactions.householdId.equals(AppContext.householdId) &
-        database.transactions.date.isSmallerThanValue(beforeDate) &
-        database.transactions.isDeleted.equals(false) &
-        database.transactions.isArchived.equals(archivedOnly),
+            database.transactions.date.isSmallerThanValue(beforeDate) &
+            database.transactions.isDeleted.equals(false) &
+            database.transactions.isArchived.equals(archivedOnly),
       );
     final row = await query.getSingle();
     return row.read(database.transactions.id.count()) ?? 0;
@@ -284,9 +288,9 @@ class BulkRetentionService {
       ..addColumns([database.transactions.id.count()])
       ..where(
         database.transactions.householdId.equals(AppContext.householdId) &
-        database.transactions.date.isSmallerThanValue(beforeDate) &
-        database.transactions.isDeleted.equals(false) &
-        database.transactions.isArchived.equals(true),
+            database.transactions.date.isSmallerThanValue(beforeDate) &
+            database.transactions.isDeleted.equals(false) &
+            database.transactions.isArchived.equals(true),
       );
     final row = await query.getSingle();
     return row.read(database.transactions.id.count()) ?? 0;
@@ -300,8 +304,8 @@ class BulkRetentionService {
       ..addColumns([database.activitySessions.id.count()])
       ..where(
         database.activitySessions.householdId.equals(AppContext.householdId) &
-        database.activitySessions.startedAt.isSmallerThanValue(beforeDate) &
-        database.activitySessions.isArchived.equals(archivedOnly),
+            database.activitySessions.startedAt.isSmallerThanValue(beforeDate) &
+            database.activitySessions.isArchived.equals(archivedOnly),
       );
     final row = await query.getSingle();
     return row.read(database.activitySessions.id.count()) ?? 0;
@@ -315,8 +319,8 @@ class BulkRetentionService {
       ..addColumns([database.dailyNotes.id.count()])
       ..where(
         database.dailyNotes.householdId.equals(AppContext.householdId) &
-        database.dailyNotes.noteDate.isSmallerThanValue(beforeDate) &
-        database.dailyNotes.isArchived.equals(archivedOnly),
+            database.dailyNotes.noteDate.isSmallerThanValue(beforeDate) &
+            database.dailyNotes.isArchived.equals(archivedOnly),
       );
     final row = await query.getSingle();
     return row.read(database.dailyNotes.id.count()) ?? 0;
@@ -325,14 +329,14 @@ class BulkRetentionService {
   /// Semua sesi arsip sebelum [beforeDate] beserta turunannya (parentSessionId)
   /// agar cascade penghapusan ikut menyapu checkpoint dan entry tertaut.
   Future<Set<String>> _archivedSessionIdsBefore(DateTime beforeDate) async {
-    final rows = await (database.select(database.activitySessions)
-          ..where(
-            (row) =>
-                row.householdId.equals(AppContext.householdId) &
-                row.isArchived.equals(true) &
-                row.startedAt.isSmallerThanValue(beforeDate),
-          ))
-        .get();
+    final rows =
+        await (database.select(database.activitySessions)..where(
+              (row) =>
+                  row.householdId.equals(AppContext.householdId) &
+                  row.isArchived.equals(true) &
+                  row.startedAt.isSmallerThanValue(beforeDate),
+            ))
+            .get();
     final byParent = <String, List<String>>{};
     for (final row in rows) {
       final parent = row.parentSessionId;

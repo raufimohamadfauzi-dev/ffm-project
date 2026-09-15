@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -42,7 +43,9 @@ class AutonomousActivityRepository {
     try {
       final list = jsonDecode(raw) as List<dynamic>;
       final activities = list
-          .map((e) => AutonomousActivityRecord.fromJson(e as Map<String, dynamic>))
+          .map(
+            (e) => AutonomousActivityRecord.fromJson(e as Map<String, dynamic>),
+          )
           .toList();
       activities.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
       return activities;
@@ -85,9 +88,9 @@ class AutonomousActivityRepository {
         case AutonomousActivityType.envelopeRebalance:
           final transferId = target.payload['transferId']?.toString();
           if (transferId != null && database != null) {
-            await (database!.delete(database!.envelopeTransfers)
-                  ..where((row) => row.id.equals(transferId)))
-                .go();
+            await (database!.delete(
+              database!.envelopeTransfers,
+            )..where((row) => row.id.equals(transferId))).go();
           }
           break;
 
@@ -105,13 +108,20 @@ class AutonomousActivityRepository {
 
         case AutonomousActivityType.harvestShift:
           final profileId = target.payload['profileId']?.toString();
-          final previousDateStr = target.payload['previousHarvestDate']?.toString();
-          if (profileId != null && previousDateStr != null && cashFlowProfileRepository != null) {
-            final profiles = await cashFlowProfileRepository!.getAllProfiles(householdId);
+          final previousDateStr = target.payload['previousHarvestDate']
+              ?.toString();
+          if (profileId != null &&
+              previousDateStr != null &&
+              cashFlowProfileRepository != null) {
+            final profiles = await cashFlowProfileRepository!.getAllProfiles(
+              householdId,
+            );
             final pIdx = profiles.indexWhere((p) => p.id == profileId);
             if (pIdx >= 0) {
               final previousDate = DateTime.parse(previousDateStr);
-              final restoredProfile = profiles[pIdx].copyWith(targetHarvestDate: previousDate);
+              final restoredProfile = profiles[pIdx].copyWith(
+                targetHarvestDate: previousDate,
+              );
               await cashFlowProfileRepository!.saveProfile(restoredProfile);
             }
           }
@@ -132,14 +142,21 @@ class AutonomousActivityRepository {
           break;
 
         case AutonomousActivityType.assetRevaluation:
-          final prevValues = target.payload['previousValues'] as Map<String, dynamic>?;
+          final prevValues =
+              target.payload['previousValues'] as Map<String, dynamic>?;
           if (prevValues != null && database != null) {
             for (final entry in prevValues.entries) {
               final assetId = entry.key;
               final oldVal = (entry.value as num?)?.toInt();
               if (oldVal != null) {
-                await (database!.update(database!.assets)..where((row) => row.id.equals(assetId)))
-                    .write(AssetsCompanion(value: Value(oldVal), updatedAt: Value(DateTime.now())));
+                await (database!.update(
+                  database!.assets,
+                )..where((row) => row.id.equals(assetId))).write(
+                  AssetsCompanion(
+                    value: Value(oldVal),
+                    updatedAt: Value(DateTime.now()),
+                  ),
+                );
               }
             }
           }
@@ -148,7 +165,9 @@ class AutonomousActivityRepository {
         case AutonomousActivityType.debtPayoff:
           final transferId = target.payload['transferId']?.toString();
           if (transferId != null && database != null) {
-            await (database!.delete(database!.transactions)..where((row) => row.id.equals(transferId))).go();
+            await (database!.delete(
+              database!.transactions,
+            )..where((row) => row.id.equals(transferId))).go();
           }
           break;
 
@@ -205,8 +224,12 @@ class AutonomousActivityRepository {
         case AutonomousActivityType.fuelLog:
           final vehicleId = mergedPayload['vehicleId']?.toString();
           final fuelLogId = mergedPayload['fuelLogId']?.toString();
-          if (vehicleId != null && fuelLogId != null && vehicleRepository != null) {
-            final vehicles = await vehicleRepository!.getAllVehicles(householdId);
+          if (vehicleId != null &&
+              fuelLogId != null &&
+              vehicleRepository != null) {
+            final vehicles = await vehicleRepository!.getAllVehicles(
+              householdId,
+            );
             final vIdx = vehicles.indexWhere((v) => v.id == vehicleId);
             if (vIdx >= 0) {
               final v = vehicles[vIdx];
@@ -217,13 +240,17 @@ class AutonomousActivityRepository {
                 if (l.id == fuelLogId) {
                   return l.copyWith(
                     liters: newLiters ?? l.liters,
-                    totalAmount: newCost != null ? newCost.toDouble() : l.totalAmount,
+                    totalAmount: newCost != null
+                        ? newCost.toDouble()
+                        : l.totalAmount,
                     odometerKm: newOdo ?? l.odometerKm,
                   );
                 }
                 return l;
               }).toList();
-              await vehicleRepository!.saveVehicle(v.copyWith(fuelLogs: updatedLogs));
+              await vehicleRepository!.saveVehicle(
+                v.copyWith(fuelLogs: updatedLogs),
+              );
             }
           }
           break;
@@ -238,11 +265,13 @@ class AutonomousActivityRepository {
             final mIdx = meters.indexWhere((m) => m.id == meterId);
             if (mIdx >= 0) {
               final m = meters[mIdx];
-              await meterRepository!.saveMeter(m.copyWith(
-                meterNumber: meterNumber ?? m.meterNumber,
-                name: alias ?? m.name,
-                tariffPower: tariffPower ?? m.tariffPower,
-              ));
+              await meterRepository!.saveMeter(
+                m.copyWith(
+                  meterNumber: meterNumber ?? m.meterNumber,
+                  name: alias ?? m.name,
+                  tariffPower: tariffPower ?? m.tariffPower,
+                ),
+              );
             }
           }
           break;
@@ -252,7 +281,9 @@ class AutonomousActivityRepository {
           if (newDateStr != null && cashFlowProfileRepository != null) {
             final newDate = DateTime.tryParse(newDateStr);
             if (newDate != null) {
-              final profile = await cashFlowProfileRepository!.getActiveProfile(householdId);
+              final profile = await cashFlowProfileRepository!.getActiveProfile(
+                householdId,
+              );
               if (profile != null) {
                 await cashFlowProfileRepository!.saveProfile(
                   profile.copyWith(targetHarvestDate: newDate),

@@ -29,7 +29,7 @@ class FfmPersonalContext {
   final String? detectedTopic;
   final Map<String, String> detectedEntities;
   final String? detectedIntent;
-  
+
   final List<FfmMemoryCandidate> workingContext;
   final List<FfmMemoryCandidate> personalFacts;
   final List<FfmMemoryCandidate> preferences;
@@ -37,10 +37,10 @@ class FfmPersonalContext {
   final List<FfmMemoryCandidate> behaviorPatterns;
   final List<FfmMemoryCandidate> episodes;
   final List<FfmMemoryCandidate> corrections;
-  
+
   final FfmDataContext dataContext;
   final FfmResponsePreferences responsePreferences;
-  
+
   final DateTime capturedAt;
   final Map<String, dynamic> processingMetadata;
 
@@ -81,14 +81,14 @@ class FfmPersonalContext {
   );
 
   /// Total jumlah memory dalam context
-  int get totalMemoryCount => 
-    workingContext.length +
-    personalFacts.length +
-    preferences.length +
-    goals.length +
-    behaviorPatterns.length +
-    episodes.length +
-    corrections.length;
+  int get totalMemoryCount =>
+      workingContext.length +
+      personalFacts.length +
+      preferences.length +
+      goals.length +
+      behaviorPatterns.length +
+      episodes.length +
+      corrections.length;
 
   /// Cek apakah context kosong
   bool get isEmpty => totalMemoryCount == 0;
@@ -118,9 +118,11 @@ class FfmDataContext {
     List<String>? customRequests,
   }) => FfmDataContext(
     period: period ?? this.period,
-    requiresFinancialSummary: requiresFinancialSummary ?? this.requiresFinancialSummary,
+    requiresFinancialSummary:
+        requiresFinancialSummary ?? this.requiresFinancialSummary,
     requiresMasterData: requiresMasterData ?? this.requiresMasterData,
-    requiresRecentTransactions: requiresRecentTransactions ?? this.requiresRecentTransactions,
+    requiresRecentTransactions:
+        requiresRecentTransactions ?? this.requiresRecentTransactions,
     customRequests: customRequests ?? this.customRequests,
   );
 }
@@ -156,11 +158,7 @@ class FfmResponsePreferences {
   );
 }
 
-enum FfmClarificationStyle {
-  standard,
-  minimal,
-  detailed,
-}
+enum FfmClarificationStyle { standard, minimal, detailed }
 
 /// Working context untuk tracking percakapan aktif.
 ///
@@ -218,15 +216,18 @@ class FfmWorkingContext {
 
   Map<String, dynamic> toJson() => {
     if (lastUserIntent != null) 'lastUserIntent': lastUserIntent,
-    if (lastReferencedEntity != null) 'lastReferencedEntity': lastReferencedEntity,
+    if (lastReferencedEntity != null)
+      'lastReferencedEntity': lastReferencedEntity,
     if (currentTopic != null) 'currentTopic': currentTopic,
     if (currentPeriod != null) 'currentPeriod': currentPeriod,
     if (currentGoal != null) 'currentGoal': currentGoal,
     if (lastActivityId != null) 'lastActivityId': lastActivityId,
     if (lastActivityTitle != null) 'lastActivityTitle': lastActivityTitle,
-    if (pendingClarification != null) 'pendingClarification': pendingClarification,
+    if (pendingClarification != null)
+      'pendingClarification': pendingClarification,
     if (lastActionResult != null) 'lastActionResult': lastActionResult,
-    if (lastUpdatedAt != null) 'lastUpdatedAt': lastUpdatedAt!.toIso8601String(),
+    if (lastUpdatedAt != null)
+      'lastUpdatedAt': lastUpdatedAt!.toIso8601String(),
   };
 
   factory FfmWorkingContext.fromJson(Map<String, dynamic> json) {

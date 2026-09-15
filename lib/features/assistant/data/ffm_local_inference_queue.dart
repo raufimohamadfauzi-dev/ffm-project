@@ -23,10 +23,7 @@ class FfmInferenceCancellationToken {
 }
 
 class FfmInferenceRequest<T> {
-  const FfmInferenceRequest({
-    required this.future,
-    required this._cancel,
-  });
+  const FfmInferenceRequest({required this.future, required this._cancel});
 
   final Future<T> future;
   final void Function() _cancel;

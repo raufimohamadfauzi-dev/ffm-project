@@ -46,7 +46,10 @@ void main() {
     test('menambah catatan menjaga catatan lama', () {
       final draft = VoiceActivityDraft(title: 'Memupuk', notes: 'hari pertama');
 
-      expect(draft.applyTextCorrection('tambah catatan pakai NPK 2 kg'), isTrue);
+      expect(
+        draft.applyTextCorrection('tambah catatan pakai NPK 2 kg'),
+        isTrue,
+      );
 
       expect(draft.notes, 'hari pertama; pakai NPK 2 kg');
     });
@@ -54,14 +57,19 @@ void main() {
     test('menambah catatan pertama tanpa catatan sebelumnya', () {
       final draft = VoiceActivityDraft(title: 'Memupuk');
 
-      expect(draft.applyTextCorrection('tambah catatan pakai NPK 2 kg'), isTrue);
+      expect(
+        draft.applyTextCorrection('tambah catatan pakai NPK 2 kg'),
+        isTrue,
+      );
 
       expect(draft.notes, 'pakai NPK 2 kg');
     });
 
     test('menghapus catatan', () {
-      final draft =
-          VoiceActivityDraft(title: 'Memupuk', notes: 'pakai NPK 2 kg');
+      final draft = VoiceActivityDraft(
+        title: 'Memupuk',
+        notes: 'pakai NPK 2 kg',
+      );
 
       expect(draft.applyTextCorrection('hapus catatannya'), isTrue);
 

@@ -140,84 +140,97 @@ void main() {
       expect(events, 0); // Belum due karena next run di masa depan
     });
 
-    test('pauseJob, resumeJob, and cancelJob update status correctly',
-        () async {
-      final now = DateTime(2026, 9, 12, 10, 0);
-      final job = FfmAssistantMonitoringJob.create(
-        householdId: AppContext.householdId,
-        preset: FfmAssistantMonitoringPreset.dueCheck,
-        now: now,
-      );
-      await service.createJob(job);
+    test(
+      'pauseJob, resumeJob, and cancelJob update status correctly',
+      () async {
+        final now = DateTime(2026, 9, 12, 10, 0);
+        final job = FfmAssistantMonitoringJob.create(
+          householdId: AppContext.householdId,
+          preset: FfmAssistantMonitoringPreset.dueCheck,
+          now: now,
+        );
+        await service.createJob(job);
 
-      // Pause
-      final paused = await service.pauseJob(job.id);
-      expect(paused, isTrue);
-      var current = await service.jobById(job.id);
-      expect(current!.status, FfmAssistantJobStatus.paused);
+        // Pause
+        final paused = await service.pauseJob(job.id);
+        expect(paused, isTrue);
+        var current = await service.jobById(job.id);
+        expect(current!.status, FfmAssistantJobStatus.paused);
 
-      // Resume
-      final resumed = await service.resumeJob(job.id);
-      expect(resumed, isTrue);
-      current = await service.jobById(job.id);
-      expect(current!.status, FfmAssistantJobStatus.active);
+        // Resume
+        final resumed = await service.resumeJob(job.id);
+        expect(resumed, isTrue);
+        current = await service.jobById(job.id);
+        expect(current!.status, FfmAssistantJobStatus.active);
 
-      // Cancel
-      final cancelled = await service.cancelJob(job.id);
-      expect(cancelled, isTrue);
-      current = await service.jobById(job.id);
-      expect(current!.status, FfmAssistantJobStatus.cancelled);
-    });
+        // Cancel
+        final cancelled = await service.cancelJob(job.id);
+        expect(cancelled, isTrue);
+        current = await service.jobById(job.id);
+        expect(current!.status, FfmAssistantJobStatus.cancelled);
+      },
+    );
 
-    test('Weekly evaluation produces structured report without hallucination',
-        () async {
-      final now = DateTime(2026, 9, 15);
-      // Pemasukan 5jt
-      await database.into(database.transactions).insert(
-            TransactionsCompanion.insert(
-              id: 'tx-inc',
-              householdId: AppContext.householdId,
-              type: 'income',
-              amount: 5000000,
-              date: now.subtract(const Duration(days: 2)),
-              recordedAt: now,
-              createdAt: now,
-            ),
-          );
-      // Pengeluaran 1jt
-      await database.into(database.transactions).insert(
-            TransactionsCompanion.insert(
-              id: 'tx-exp-1',
-              householdId: AppContext.householdId,
-              type: 'expense',
-              amount: -1000000,
-              date: now.subtract(const Duration(days: 1)),
-              note: const Value('Belanja Mingguan'),
-              recordedAt: now,
-              createdAt: now,
-            ),
-          );
+    test(
+      'Weekly evaluation produces structured report without hallucination',
+      () async {
+        final now = DateTime(2026, 9, 15);
+        // Pemasukan 5jt
+        await database
+            .into(database.transactions)
+            .insert(
+              TransactionsCompanion.insert(
+                id: 'tx-inc',
+                householdId: AppContext.householdId,
+                type: 'income',
+                amount: 5000000,
+                date: now.subtract(const Duration(days: 2)),
+                recordedAt: now,
+                createdAt: now,
+              ),
+            );
+        // Pengeluaran 1jt
+        await database
+            .into(database.transactions)
+            .insert(
+              TransactionsCompanion.insert(
+                id: 'tx-exp-1',
+                householdId: AppContext.householdId,
+                type: 'expense',
+                amount: -1000000,
+                date: now.subtract(const Duration(days: 1)),
+                note: const Value('Belanja Mingguan'),
+                recordedAt: now,
+                createdAt: now,
+              ),
+            );
 
-      final job = FfmAssistantMonitoringJob.create(
-        householdId: AppContext.householdId,
-        preset: FfmAssistantMonitoringPreset.weeklyEvaluation,
-        now: now,
-      );
-      await service.createJob(job);
+        final job = FfmAssistantMonitoringJob.create(
+          householdId: AppContext.householdId,
+          preset: FfmAssistantMonitoringPreset.weeklyEvaluation,
+          now: now,
+        );
+        await service.createJob(job);
 
-      final report = await service.runJobNow(job.id);
-      expect(report.title, 'Laporan Evaluasi Mingguan');
-      expect(report.content, contains('Total Pemasukan: Rp5.000.000'));
-      expect(report.content, contains('Total Pengeluaran: Rp1.000.000'));
-      expect(report.content, contains('Arus Kas Bersih: Rp4.000.000 (Surplus)'));
-      expect(report.content, contains('Belanja Mingguan'));
-      expect(report.isActionRequired, isFalse);
-    });
+        final report = await service.runJobNow(job.id);
+        expect(report.title, 'Laporan Evaluasi Mingguan');
+        expect(report.content, contains('Total Pemasukan: Rp5.000.000'));
+        expect(report.content, contains('Total Pengeluaran: Rp1.000.000'));
+        expect(
+          report.content,
+          contains('Arus Kas Bersih: Rp4.000.000 (Surplus)'),
+        );
+        expect(report.content, contains('Belanja Mingguan'));
+        expect(report.isActionRequired, isFalse);
+      },
+    );
 
     test('Due check evaluation reports near due liabilities', () async {
       final now = DateTime(2026, 9, 15);
       // Cicilan jatuh tempo 3 hari lagi (18 Sep 2026)
-      await database.into(database.liabilities).insert(
+      await database
+          .into(database.liabilities)
+          .insert(
             LiabilitiesCompanion.insert(
               id: 'liab-due',
               householdId: AppContext.householdId,
@@ -247,28 +260,27 @@ void main() {
   });
 
   group('F3.3 & F3.4 Natural Language & Capability Integration', () {
-    test('Interpreter creates monitoring job draft from Indonesian query',
-        () async {
-      final now = DateTime(2026, 9, 12, 10, 0);
-      final interpreter = FfmAssistantInterpreter(database, clock: () => now);
+    test(
+      'Interpreter creates monitoring job draft from Indonesian query',
+      () async {
+        final now = DateTime(2026, 9, 12, 10, 0);
+        final interpreter = FfmAssistantInterpreter(database, clock: () => now);
 
-      final intent = await interpreter.interpret(
-        'Jadwalkan evaluasi mingguan setiap Minggu jam 9 pagi',
-      );
+        final intent = await interpreter.interpret(
+          'Jadwalkan evaluasi mingguan setiap Minggu jam 9 pagi',
+        );
 
-      expect(intent.type, FfmAssistantIntentType.createMonitoringJob);
-      expect(intent.draft, isNotNull);
-      expect(intent.draft!.kind, FfmAssistantDraftKind.monitoringJob);
-      expect(
-        intent.draft!.formValues['preset'],
-        'weeklyEvaluation',
-      );
-      expect(intent.draft!.formValues['cadence'], 'weekly');
-      expect(intent.draft!.formValues['targetTimeMinutes'], 540);
-      expect(intent.draft!.formValues['targetDay'], DateTime.sunday);
-      expect(intent.response, contains('Evaluasi Mingguan'));
-      expect(intent.response, contains('pukul 9:00'));
-    });
+        expect(intent.type, FfmAssistantIntentType.createMonitoringJob);
+        expect(intent.draft, isNotNull);
+        expect(intent.draft!.kind, FfmAssistantDraftKind.monitoringJob);
+        expect(intent.draft!.formValues['preset'], 'weeklyEvaluation');
+        expect(intent.draft!.formValues['cadence'], 'weekly');
+        expect(intent.draft!.formValues['targetTimeMinutes'], 540);
+        expect(intent.draft!.formValues['targetDay'], DateTime.sunday);
+        expect(intent.response, contains('Evaluasi Mingguan'));
+        expect(intent.response, contains('pukul 9:00'));
+      },
+    );
 
     test('Interpreter handles list, pause, and cancel requests', () async {
       final now = DateTime(2026, 9, 12, 10, 0);
@@ -282,8 +294,9 @@ void main() {
       final interpreter = FfmAssistantInterpreter(database, clock: () => now);
 
       // List
-      final listIntent =
-          await interpreter.interpret('lihat daftar jadwal monitoring');
+      final listIntent = await interpreter.interpret(
+        'lihat daftar jadwal monitoring',
+      );
       expect(listIntent.type, FfmAssistantIntentType.listMonitoringJobs);
       expect(listIntent.response, contains('Evaluasi Mingguan'));
 
@@ -303,88 +316,94 @@ void main() {
       expect(cancelIntent.response, contains('telah dibatalkan'));
     });
 
-    test('Capability adapter saves monitoring job and executes evaluation',
-        () async {
-      final now = DateTime(2026, 9, 12, 10, 0);
-      final adapters = FfmAssistantCapabilityAdapterRegistry(
-        database: database,
-        householdId: AppContext.householdId,
-        clock: () => now,
-      );
+    test(
+      'Capability adapter saves monitoring job and executes evaluation',
+      () async {
+        final now = DateTime(2026, 9, 12, 10, 0);
+        final adapters = FfmAssistantCapabilityAdapterRegistry(
+          database: database,
+          householdId: AppContext.householdId,
+          clock: () => now,
+        );
 
-      // Save capability
-      final saveResult = await adapters.handlers['mutate.monitoring_job_save']!(
-        const FfmAssistantActionStep(
-          id: 'step-1',
-          capabilityId: 'mutate.monitoring_job_save',
-          parameters: {
-            'preset': 'budgetMonitor',
-            'cadence': 'daily',
-            'targetTimeMinutes': 540,
-            'categoryFilter': 'Makan',
-            'title': 'Pantau Anggaran Makan Harian',
-          },
-        ),
-      );
-      expect(saveResult.isSuccess, isTrue);
-      expect(saveResult.message, contains('berhasil disimpan'));
+        // Save capability
+        final saveResult =
+            await adapters.handlers['mutate.monitoring_job_save']!(
+              const FfmAssistantActionStep(
+                id: 'step-1',
+                capabilityId: 'mutate.monitoring_job_save',
+                parameters: {
+                  'preset': 'budgetMonitor',
+                  'cadence': 'daily',
+                  'targetTimeMinutes': 540,
+                  'categoryFilter': 'Makan',
+                  'title': 'Pantau Anggaran Makan Harian',
+                },
+              ),
+            );
+        expect(saveResult.isSuccess, isTrue);
+        expect(saveResult.message, contains('berhasil disimpan'));
 
-      // Read jobs capability
-      final readResult = await adapters.handlers['read.monitoring_jobs']!(
-        const FfmAssistantActionStep(
-          id: 'step-2',
-          capabilityId: 'read.monitoring_jobs',
-          parameters: {},
-        ),
-      );
-      expect(readResult.isSuccess, isTrue);
-      expect(readResult.message, contains('Pantau Anggaran Makan Harian'));
+        // Read jobs capability
+        final readResult = await adapters.handlers['read.monitoring_jobs']!(
+          const FfmAssistantActionStep(
+            id: 'step-2',
+            capabilityId: 'read.monitoring_jobs',
+            parameters: {},
+          ),
+        );
+        expect(readResult.isSuccess, isTrue);
+        expect(readResult.message, contains('Pantau Anggaran Makan Harian'));
 
-      // Evaluate capability
-      final evalResult =
-          await adapters.handlers['read.monitoring_evaluation']!(
-        const FfmAssistantActionStep(
-          id: 'step-3',
-          capabilityId: 'read.monitoring_evaluation',
-          parameters: {},
-        ),
-      );
-      expect(evalResult.isSuccess, isTrue);
-      expect(evalResult.message, contains('Laporan Evaluasi Mingguan'));
-    });
+        // Evaluate capability
+        final evalResult =
+            await adapters.handlers['read.monitoring_evaluation']!(
+              const FfmAssistantActionStep(
+                id: 'step-3',
+                capabilityId: 'read.monitoring_evaluation',
+                parameters: {},
+              ),
+            );
+        expect(evalResult.isSuccess, isTrue);
+        expect(evalResult.message, contains('Laporan Evaluasi Mingguan'));
+      },
+    );
 
-    test('F3.6: Task plan resolver resolves read.monitoring_evaluation safely',
-        () async {
-      final now = DateTime(2026, 9, 12, 10, 0);
-      final job = FfmAssistantMonitoringJob.create(
-        householdId: AppContext.householdId,
-        preset: FfmAssistantMonitoringPreset.weeklyEvaluation,
-        now: now,
-      );
-      await service.createJob(job);
+    test(
+      'F3.6: Task plan resolver resolves read.monitoring_evaluation safely',
+      () async {
+        final now = DateTime(2026, 9, 12, 10, 0);
+        final job = FfmAssistantMonitoringJob.create(
+          householdId: AppContext.householdId,
+          preset: FfmAssistantMonitoringPreset.weeklyEvaluation,
+          now: now,
+        );
+        await service.createJob(job);
 
-      final tasks = await autonomyRepo.tasksForGoal(job.id);
-      expect(tasks, isNotEmpty);
-      final task = tasks.first;
+        final tasks = await autonomyRepo.tasksForGoal(job.id);
+        expect(tasks, isNotEmpty);
+        final task = tasks.first;
 
-      final resolver =
-          FfmAssistantAgentTaskPlanResolver(autonomyRepo, now: () => now);
-      final event = FfmAssistantAutonomyEvent(
-        id: 'event-1',
-        type: 'agent.task.due',
-        occurredAt: now,
-        entityId: job.id,
-        payload: {'taskId': task.id, 'goalId': job.id},
-      );
+        final resolver = FfmAssistantAgentTaskPlanResolver(
+          autonomyRepo,
+          now: () => now,
+        );
+        final event = FfmAssistantAutonomyEvent(
+          id: 'event-1',
+          type: 'agent.task.due',
+          occurredAt: now,
+          entityId: job.id,
+          payload: {'taskId': task.id, 'goalId': job.id},
+        );
 
-      final plan = await resolver.resolve(event);
-      expect(plan, isNotNull);
-      expect(plan!.requiresConfirmation, isFalse);
-      expect(plan.steps.first.capabilityId, 'read.monitoring_evaluation');
-    });
+        final plan = await resolver.resolve(event);
+        expect(plan, isNotNull);
+        expect(plan!.requiresConfirmation, isFalse);
+        expect(plan.steps.first.capabilityId, 'read.monitoring_evaluation');
+      },
+    );
 
-    test('F3.8: buildMonitoringDigest compiles active jobs and execution summary for conversation',
-        () async {
+    test('F3.8: buildMonitoringDigest compiles active jobs and execution summary for conversation', () async {
       final now = DateTime(2026, 9, 12, 10, 0);
       final job = FfmAssistantMonitoringJob.create(
         householdId: AppContext.householdId,
@@ -404,8 +423,7 @@ void main() {
       expect(digest, contains('Evaluasi terakhir'));
     });
 
-    test('F4.7: Goal cancellation cascades cancellation to pending tasks and stops execution',
-        () async {
+    test('F4.7: Goal cancellation cascades cancellation to pending tasks and stops execution', () async {
       final now = DateTime(2026, 9, 12, 10, 0);
       final job = FfmAssistantMonitoringJob.create(
         householdId: AppContext.householdId,
@@ -427,8 +445,10 @@ void main() {
       expect(tasks.first.status, 'cancelled');
 
       // Plan resolver harus menolak task yang goal-nya sudah batal
-      final resolver =
-          FfmAssistantAgentTaskPlanResolver(autonomyRepo, now: () => now);
+      final resolver = FfmAssistantAgentTaskPlanResolver(
+        autonomyRepo,
+        now: () => now,
+      );
       final event = FfmAssistantAutonomyEvent(
         id: 'event-cancel-test',
         type: 'agent.task.due',
@@ -440,8 +460,7 @@ void main() {
       expect(plan, isNull);
     });
 
-    test('F4.6: Autonomous task creation rejects unknown capabilities and mutations',
-        () async {
+    test('F4.6: Autonomous task creation rejects unknown capabilities and mutations', () async {
       final now = DateTime(2026, 9, 12, 10, 0);
       final goal = FfmAssistantAgentGoal(
         id: 'safety-goal-1',

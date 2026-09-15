@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 
@@ -27,27 +28,26 @@ class NfcCardAccount {
   final String? accountId;
 
   /// Nama tampilan kartu (mengutamakan alias kustom pengguna, misal "Flazz Avanza Ayah").
-  String get displayName => (issuer != null && issuer!.trim().isNotEmpty)
-      ? issuer!.trim()
-      : cardType;
+  String get displayName =>
+      (issuer != null && issuer!.trim().isNotEmpty) ? issuer!.trim() : cardType;
 
   Map<String, dynamic> toJson() => {
-        'cardId': cardId,
-        'cardType': cardType,
-        'lastKnownBalance': lastKnownBalance,
-        'lastScannedAt': lastScannedAt.toIso8601String(),
-        'issuer': issuer,
-        'accountId': accountId,
-      };
+    'cardId': cardId,
+    'cardType': cardType,
+    'lastKnownBalance': lastKnownBalance,
+    'lastScannedAt': lastScannedAt.toIso8601String(),
+    'issuer': issuer,
+    'accountId': accountId,
+  };
 
   factory NfcCardAccount.fromJson(Map<String, dynamic> json) => NfcCardAccount(
-        cardId: json['cardId'] as String,
-        cardType: json['cardType'] as String? ?? 'emoney_generic',
-        lastKnownBalance: (json['lastKnownBalance'] as num).toDouble(),
-        lastScannedAt: DateTime.parse(json['lastScannedAt'] as String),
-        issuer: json['issuer'] as String?,
-        accountId: json['accountId'] as String?,
-      );
+    cardId: json['cardId'] as String,
+    cardType: json['cardType'] as String? ?? 'emoney_generic',
+    lastKnownBalance: (json['lastKnownBalance'] as num).toDouble(),
+    lastScannedAt: DateTime.parse(json['lastScannedAt'] as String),
+    issuer: json['issuer'] as String?,
+    accountId: json['accountId'] as String?,
+  );
 
   NfcCardAccount copyWith({
     double? lastKnownBalance,
@@ -130,9 +130,9 @@ class NfcCardRepository {
     AppDatabase? database,
     String householdId = AppContext.householdId,
     DateTime Function()? clock,
-  })  : _database = database, // ignore: prefer_initializing_formals
-        _householdId = householdId, // ignore: prefer_initializing_formals
-        _clock = clock ?? DateTime.now;
+  }) : _database = database, // ignore: prefer_initializing_formals
+       _householdId = householdId, // ignore: prefer_initializing_formals
+       _clock = clock ?? DateTime.now;
 
   final PaymentDraftRepository _draftRepository;
   final AppDatabase? _database;
@@ -179,7 +179,8 @@ class NfcCardRepository {
 
     // Periode baru dimulai dari baseline scan pertama pada bulan tersebut.
     // Perubahan saldo bulan lalu tidak boleh ikut menjadi draft bulan ini.
-    final isNewMonth = oldAccount.lastScannedAt.year != now.year ||
+    final isNewMonth =
+        oldAccount.lastScannedAt.year != now.year ||
         oldAccount.lastScannedAt.month != now.month;
     if (isNewMonth) {
       final updatedAccount = oldAccount.copyWith(
@@ -268,13 +269,15 @@ class NfcCardRepository {
         ? cardIdOrHash
         : sha256.convert(utf8.encode(cardIdOrHash)).toString();
 
-    final row = await (database.select(database.nfcCardAccounts)
-          ..where((r) =>
-              r.householdId.equals(_householdId) &
-              (r.cardUidHash.equals(cardHash) |
-                  r.cardUidHash.equals(cardIdOrHash) |
-                  r.id.equals(cardIdOrHash))))
-        .getSingleOrNull();
+    final row =
+        await (database.select(database.nfcCardAccounts)..where(
+              (r) =>
+                  r.householdId.equals(_householdId) &
+                  (r.cardUidHash.equals(cardHash) |
+                      r.cardUidHash.equals(cardIdOrHash) |
+                      r.id.equals(cardIdOrHash)),
+            ))
+            .getSingleOrNull();
     if (row == null) return false;
 
     await database.transaction(() async {
@@ -313,34 +316,39 @@ class NfcCardRepository {
         ? cardIdOrHash
         : sha256.convert(utf8.encode(cardIdOrHash)).toString();
 
-    final row = await (database.select(database.nfcCardAccounts)
-          ..where((r) =>
-              r.householdId.equals(_householdId) &
-              (r.cardUidHash.equals(cardHash) |
-                  r.cardUidHash.equals(cardIdOrHash) |
-                  r.id.equals(cardIdOrHash))))
-        .getSingleOrNull();
+    final row =
+        await (database.select(database.nfcCardAccounts)..where(
+              (r) =>
+                  r.householdId.equals(_householdId) &
+                  (r.cardUidHash.equals(cardHash) |
+                      r.cardUidHash.equals(cardIdOrHash) |
+                      r.id.equals(cardIdOrHash)),
+            ))
+            .getSingleOrNull();
     if (row == null) return false;
 
     final oldAccountId = row.accountId;
 
     await database.transaction(() async {
-      await (database.update(database.nfcCardAccounts)
-            ..where((r) => r.id.equals(row.id)))
-          .write(NfcCardAccountsCompanion(
-            accountId: Value(targetAccountId),
-            issuer: Value(cleanName.isNotEmpty ? cleanName : null),
-          ));
+      await (database.update(
+        database.nfcCardAccounts,
+      )..where((r) => r.id.equals(row.id))).write(
+        NfcCardAccountsCompanion(
+          accountId: Value(targetAccountId),
+          issuer: Value(cleanName.isNotEmpty ? cleanName : null),
+        ),
+      );
 
       // Jika oldAccountId adalah dummy auto-generated akun tanpa transaksi, bersihkan
-      if (oldAccountId != targetAccountId && oldAccountId.startsWith('nfc-account-')) {
-        final txCount = await (database.select(database.transactions)
-              ..where((t) => t.accountId.equals(oldAccountId)))
-            .get();
+      if (oldAccountId != targetAccountId &&
+          oldAccountId.startsWith('nfc-account-')) {
+        final txCount = await (database.select(
+          database.transactions,
+        )..where((t) => t.accountId.equals(oldAccountId))).get();
         if (txCount.isEmpty) {
-          await (database.delete(database.accounts)
-                ..where((a) => a.id.equals(oldAccountId)))
-              .go();
+          await (database.delete(
+            database.accounts,
+          )..where((a) => a.id.equals(oldAccountId))).go();
         }
       }
     });
@@ -350,9 +358,9 @@ class NfcCardRepository {
   /// Mengambil semua daftar kartu e-Money yang pernah di-scan.
   Future<List<NfcCardAccount>> getCardAccounts() async {
     if (_database case final AppDatabase database) {
-      final rows = await (database.select(database.nfcCardAccounts)
-            ..where((row) => row.householdId.equals(_householdId)))
-          .get();
+      final rows = await (database.select(
+        database.nfcCardAccounts,
+      )..where((row) => row.householdId.equals(_householdId))).get();
       return rows
           .map(
             (row) => NfcCardAccount(
@@ -375,13 +383,13 @@ class NfcCardRepository {
     DateTime now,
   ) async {
     final cardHash = sha256.convert(utf8.encode(scan.cardId)).toString();
-    final previous = await (database.select(database.nfcCardAccounts)
-          ..where(
-            (row) =>
-                row.householdId.equals(_householdId) &
-                row.cardUidHash.equals(cardHash),
-          ))
-        .getSingleOrNull();
+    final previous =
+        await (database.select(database.nfcCardAccounts)..where(
+              (row) =>
+                  row.householdId.equals(_householdId) &
+                  row.cardUidHash.equals(cardHash),
+            ))
+            .getSingleOrNull();
 
     final card = NfcCardAccount(
       cardId: cardHash,
@@ -398,7 +406,10 @@ class NfcCardRepository {
       for (final item in scan.history) {
         if (item.amount > 0) {
           final recordSig = item.rawHex != null && item.rawHex!.isNotEmpty
-              ? sha256.convert(utf8.encode(item.rawHex!)).toString().substring(0, 12)
+              ? sha256
+                    .convert(utf8.encode(item.rawHex!))
+                    .toString()
+                    .substring(0, 12)
               : 'rec${item.recordIndex}_${item.amount.toInt()}';
           final draftId = 'nfc_hist_${cardHash.substring(0, 8)}_$recordSig';
           final hDraft = await _draftRepository.addIfNotDuplicate(
@@ -422,7 +433,8 @@ class NfcCardRepository {
     }
 
     final oldBalance = previous?.lastKnownBalance?.toDouble();
-    final isNewMonth = previous == null ||
+    final isNewMonth =
+        previous == null ||
         previous.lastScannedAt == null ||
         previous.lastScannedAt!.year != now.year ||
         previous.lastScannedAt!.month != now.month ||
@@ -470,7 +482,8 @@ class NfcCardRepository {
         id: 'nfc_${now.microsecondsSinceEpoch}_${_draftCounter++}',
         sourceApp: 'nfc_${scan.cardType}',
         rawTitle: 'NFC $displayName',
-        rawBody: '${isDebit ? 'Pengeluaran' : 'Isi ulang'} e-Money sebesar ${scan.formattedBalance}',
+        rawBody:
+            '${isDebit ? 'Pengeluaran' : 'Isi ulang'} e-Money sebesar ${scan.formattedBalance}',
         amount: difference.abs(),
         merchantName: '${isDebit ? 'Pengeluaran' : 'Isi Ulang'} $displayName',
         mutationType: isDebit
@@ -494,78 +507,99 @@ class NfcCardRepository {
     final cardId = 'nfc-card-${cardHash.substring(0, 24)}';
 
     // Periksa apakah kartu sudah terdaftar
-    final existingCard = await (database.select(database.nfcCardAccounts)
-          ..where((n) => n.cardUidHash.equals(cardHash)))
-        .getSingleOrNull();
+    final existingCard = await (database.select(
+      database.nfcCardAccounts,
+    )..where((n) => n.cardUidHash.equals(cardHash))).getSingleOrNull();
 
     if (existingCard != null) {
       // Kartu sudah terdaftar, hanya update scan terakhir
-      await database.update(database.nfcCardAccounts).replace(
-        NfcCardAccountsCompanion.insert(
-          id: existingCard.id,
-          householdId: existingCard.householdId,
-          accountId: existingCard.accountId,
-          cardUidHash: cardHash,
-          issuer: existingCard.issuer != null ? Value(existingCard.issuer) : const Value.absent(),
-          cardType: existingCard.cardType,
-          lastKnownBalance: existingCard.lastKnownBalance != null ? Value(existingCard.lastKnownBalance) : const Value.absent(),
-          balanceAvailable: Value(existingCard.balanceAvailable),
-          lastScannedAt: existingCard.lastScannedAt != null ? Value(existingCard.lastScannedAt) : const Value.absent(),
-          createdAt: existingCard.createdAt,
-        ),
-      );
-      
+      await database
+          .update(database.nfcCardAccounts)
+          .replace(
+            NfcCardAccountsCompanion.insert(
+              id: existingCard.id,
+              householdId: existingCard.householdId,
+              accountId: existingCard.accountId,
+              cardUidHash: cardHash,
+              issuer: existingCard.issuer != null
+                  ? Value(existingCard.issuer)
+                  : const Value.absent(),
+              cardType: existingCard.cardType,
+              lastKnownBalance: existingCard.lastKnownBalance != null
+                  ? Value(existingCard.lastKnownBalance)
+                  : const Value.absent(),
+              balanceAvailable: Value(existingCard.balanceAvailable),
+              lastScannedAt: existingCard.lastScannedAt != null
+                  ? Value(existingCard.lastScannedAt)
+                  : const Value.absent(),
+              createdAt: existingCard.createdAt,
+            ),
+          );
+
       // Catat snapshot
-      await database.into(database.nfcScanSnapshots).insertOnConflictUpdate(
-        NfcScanSnapshotsCompanion.insert(
-          id: '$cardId-${scannedAt.microsecondsSinceEpoch}',
-          householdId: _householdId,
-          nfcCardAccountId: cardId,
-          balance: Value(scan.balanceAvailable ? scan.balance.round() : null),
-          balanceAvailable: Value(scan.balanceAvailable),
-          periodKey: '${scannedAt.year}-${scannedAt.month.toString().padLeft(2, '0')}',
-          scannedAt: scannedAt,
-        ),
-      );
+      await database
+          .into(database.nfcScanSnapshots)
+          .insertOnConflictUpdate(
+            NfcScanSnapshotsCompanion.insert(
+              id: '$cardId-${scannedAt.microsecondsSinceEpoch}',
+              householdId: _householdId,
+              nfcCardAccountId: cardId,
+              balance: Value(
+                scan.balanceAvailable ? scan.balance.round() : null,
+              ),
+              balanceAvailable: Value(scan.balanceAvailable),
+              periodKey:
+                  '${scannedAt.year}-${scannedAt.month.toString().padLeft(2, '0')}',
+              scannedAt: scannedAt,
+            ),
+          );
       return;
     }
 
     // Kartu baru - hanya simpan info kartu, jangan buat rekening otomatis
     // Rekening akan dibuat saat user menekan tombol "Buka/Daftarkan di Data Utama"
-    final accountName = existingCustomIssuer ??
+    final accountName =
+        existingCustomIssuer ??
         (scan.cardType == 'emoney_generic' ? 'Kartu NFC' : scan.cardTypeLabel);
 
     await database.transaction(() async {
       // Simpan kartu tanpa account terkait (accountId akan diisi nanti)
-      await database.into(database.nfcCardAccounts).insertOnConflictUpdate(
-        NfcCardAccountsCompanion.insert(
-          id: cardId,
-          householdId: _householdId,
-          accountId: 'pending-$cardId', // Temporary placeholder, akan diisi saat registrasi
-          cardUidHash: cardHash,
-          issuer: Value(accountName),
-          cardType: scan.cardType,
-          lastKnownBalance: Value(
-            scan.balanceAvailable ? scan.balance.round() : null,
-          ),
-          balanceAvailable: Value(scan.balanceAvailable),
-          lastScannedAt: Value(scannedAt),
-          createdAt: scannedAt,
-        ),
-      );
-      
+      await database
+          .into(database.nfcCardAccounts)
+          .insertOnConflictUpdate(
+            NfcCardAccountsCompanion.insert(
+              id: cardId,
+              householdId: _householdId,
+              accountId: 'pending-$cardId', // Temporary placeholder, akan diisi saat registrasi
+              cardUidHash: cardHash,
+              issuer: Value(accountName),
+              cardType: scan.cardType,
+              lastKnownBalance: Value(
+                scan.balanceAvailable ? scan.balance.round() : null,
+              ),
+              balanceAvailable: Value(scan.balanceAvailable),
+              lastScannedAt: Value(scannedAt),
+              createdAt: scannedAt,
+            ),
+          );
+
       // Catat snapshot
-      await database.into(database.nfcScanSnapshots).insertOnConflictUpdate(
-        NfcScanSnapshotsCompanion.insert(
-          id: '$cardId-${scannedAt.microsecondsSinceEpoch}',
-          householdId: _householdId,
-          nfcCardAccountId: cardId,
-          balance: Value(scan.balanceAvailable ? scan.balance.round() : null),
-          balanceAvailable: Value(scan.balanceAvailable),
-          periodKey: '${scannedAt.year}-${scannedAt.month.toString().padLeft(2, '0')}',
-          scannedAt: scannedAt,
-        ),
-      );
+      await database
+          .into(database.nfcScanSnapshots)
+          .insertOnConflictUpdate(
+            NfcScanSnapshotsCompanion.insert(
+              id: '$cardId-${scannedAt.microsecondsSinceEpoch}',
+              householdId: _householdId,
+              nfcCardAccountId: cardId,
+              balance: Value(
+                scan.balanceAvailable ? scan.balance.round() : null,
+              ),
+              balanceAvailable: Value(scan.balanceAvailable),
+              periodKey:
+                  '${scannedAt.year}-${scannedAt.month.toString().padLeft(2, '0')}',
+              scannedAt: scannedAt,
+            ),
+          );
     });
   }
 }

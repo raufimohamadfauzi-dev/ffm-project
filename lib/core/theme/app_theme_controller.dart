@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+
 import 'theme_preference.dart';
 
 /// Pengendali tema global aplikasi FFM yang dapat dikendalikan via AI Assistant.
 class AppThemeController extends ChangeNotifier {
   AppThemeController({ThemeMode initialMode = ThemeMode.light})
-      : _themeMode = initialMode;
+    : _themeMode = initialMode;
 
   ThemeMode _themeMode;
 

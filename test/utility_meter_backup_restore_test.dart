@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/backup/data/json_backup_service.dart';
 import 'package:ffm_manager/features/settings/data/utility_meter_repository.dart';
@@ -35,9 +36,7 @@ void main() {
     final rawMeters = <Map<String, Object?>>[originalMeter.toJson()];
 
     // Export to JSON
-    final jsonString = await backupService.exportJson(
-      utilityMeters: rawMeters,
-    );
+    final jsonString = await backupService.exportJson(utilityMeters: rawMeters);
 
     expect(jsonString, contains('Pompa Sawah Barat'));
     expect(jsonString, contains('14123456789'));
@@ -52,7 +51,9 @@ void main() {
     final exportedList = modules['utility_meters'] as List;
     expect(exportedList, hasLength(1));
 
-    final restoredMeter = UtilityMeter.fromJson(exportedList.first as Map<String, dynamic>);
+    final restoredMeter = UtilityMeter.fromJson(
+      exportedList.first as Map<String, dynamic>,
+    );
     expect(restoredMeter.id, 'meter-test-1');
     expect(restoredMeter.name, 'Pompa Sawah Barat');
     expect(restoredMeter.lastTokenNumber, '12345678901234567890');

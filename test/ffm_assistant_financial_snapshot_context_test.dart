@@ -168,9 +168,9 @@ void main() {
           database,
           HijriCalendarService(database),
         ).buildHarvestContext(
-              householdId: AppContext.householdId,
-              includeBuyer: true,
-            );
+          householdId: AppContext.householdId,
+          includeBuyer: true,
+        );
     expect(harvestWithBuyer, contains('Pak Budi'));
   });
 }

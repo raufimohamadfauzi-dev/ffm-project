@@ -120,66 +120,72 @@ void main() {
     );
   });
 
-  test('engine tidak menyimpan kandidat yang masih menunggu persetujuan',
-      () async {
-    final engine = FfmPersonalContextEngineImpl(
-      database: database,
-      memoryRepository: memories,
-    );
+  test(
+    'engine tidak menyimpan kandidat yang masih menunggu persetujuan',
+    () async {
+      final engine = FfmPersonalContextEngineImpl(
+        database: database,
+        memoryRepository: memories,
+      );
 
-    final promoted = await engine.promoteCandidates(
-      candidates: const [
-        FfmMemoryPromotionCandidate(
-          type: FfmMemoryType.preference,
-          key: 'gaya_jawaban',
-          value: 'ringkas',
-          confidence: .9,
-          requiresApproval: true,
-        ),
-      ],
-      requireApproval: true,
-    );
+      final promoted = await engine.promoteCandidates(
+        candidates: const [
+          FfmMemoryPromotionCandidate(
+            type: FfmMemoryType.preference,
+            key: 'gaya_jawaban',
+            value: 'ringkas',
+            confidence: .9,
+            requiresApproval: true,
+          ),
+        ],
+        requireApproval: true,
+      );
 
-    expect(promoted, isEmpty);
-    expect(await memories.readAll(), isEmpty);
-  });
+      expect(promoted, isEmpty);
+      expect(await memories.readAll(), isEmpty);
+    },
+  );
 
-  test('engine memperbarui penggunaan memori yang benar-benar dipakai',
-      () async {
-    final memory = await memories.save(
-      kind: 'answer',
-      triggerText: 'ringkasan',
-      valueText: 'Jawaban singkat',
-      metadata: const {'useCount': 0},
-    );
-    final engine = FfmPersonalContextEngineImpl(
-      database: database,
-      memoryRepository: memories,
-    );
+  test(
+    'engine memperbarui penggunaan memori yang benar-benar dipakai',
+    () async {
+      final memory = await memories.save(
+        kind: 'answer',
+        triggerText: 'ringkasan',
+        valueText: 'Jawaban singkat',
+        metadata: const {'useCount': 0},
+      );
+      final engine = FfmPersonalContextEngineImpl(
+        database: database,
+        memoryRepository: memories,
+      );
 
-    await engine.updateMemoryUsage(memoryIds: [memory.id, memory.id]);
+      await engine.updateMemoryUsage(memoryIds: [memory.id, memory.id]);
 
-    final updated = (await memories.readAll()).single;
-    expect(updated.metadata['useCount'], 1);
-    expect(updated.metadata['lastUsedAt'], isA<String>());
-  });
+      final updated = (await memories.readAll()).single;
+      expect(updated.metadata['useCount'], 1);
+      expect(updated.metadata['lastUsedAt'], isA<String>());
+    },
+  );
 
-  test('save beruntun cepat tetap menghasilkan id unik tanpa saling menimpa',
-      () async {
-    final records = await Future.wait(
-      List.generate(64, (index) {
-        return memories.save(
-          kind: 'answer',
-          triggerText: 'contoh-$index',
-          valueText: 'nilai-$index',
-        );
-      }),
-    );
+  test(
+    'save beruntun cepat tetap menghasilkan id unik tanpa saling menimpa',
+    () async {
+      final records = await Future.wait(
+        List.generate(64, (index) {
+          return memories.save(
+            kind: 'answer',
+            triggerText: 'contoh-$index',
+            valueText: 'nilai-$index',
+          );
+        }),
+      );
 
-    final distinctIds = records.map((record) => record.id).toSet();
-    expect(distinctIds, hasLength(64));
-    expect(await memories.readActive(), hasLength(64));
-  });
+      final distinctIds = records.map((record) => record.id).toSet();
+      expect(distinctIds, hasLength(64));
+      expect(await memories.readActive(), hasLength(64));
+    },
+  );
 
   group('saveManualMemory', () {
     test('menyimpan profil (userModel) langsung aktif dan disetujui', () async {
@@ -197,35 +203,41 @@ void main() {
       expect(visible.map((e) => e.label), contains('Nama panggilan'));
     });
 
-    test('menyimpan preferensi (personalMemory) langsung aktif dan disetujui', () async {
-      final item = await service.saveManualMemory(
-        label: 'Gaya Bahasa',
-        value: 'Santai dan ramah',
-        scope: FfmPersonalMemoryControlScope.personalMemory,
-      );
+    test(
+      'menyimpan preferensi (personalMemory) langsung aktif dan disetujui',
+      () async {
+        final item = await service.saveManualMemory(
+          label: 'Gaya Bahasa',
+          value: 'Santai dan ramah',
+          scope: FfmPersonalMemoryControlScope.personalMemory,
+        );
 
-      expect(item.label, 'Gaya Bahasa');
-      expect(item.value, 'Santai dan ramah');
-      expect(item.scope, FfmPersonalMemoryControlScope.personalMemory);
+        expect(item.label, 'Gaya Bahasa');
+        expect(item.value, 'Santai dan ramah');
+        expect(item.scope, FfmPersonalMemoryControlScope.personalMemory);
 
-      final visible = await service.readVisible();
-      expect(visible.map((e) => e.label), contains('Gaya Bahasa'));
-    });
+        final visible = await service.readVisible();
+        expect(visible.map((e) => e.label), contains('Gaya Bahasa'));
+      },
+    );
 
-    test('menyimpan koreksi (aliasCorrection) langsung aktif dan berlabel Koreksi', () async {
-      final item = await service.saveManualMemory(
-        label: 'mamam',
-        value: 'makan siang',
-        scope: FfmPersonalMemoryControlScope.aliasCorrection,
-      );
+    test(
+      'menyimpan koreksi (aliasCorrection) langsung aktif dan berlabel Koreksi',
+      () async {
+        final item = await service.saveManualMemory(
+          label: 'mamam',
+          value: 'makan siang',
+          scope: FfmPersonalMemoryControlScope.aliasCorrection,
+        );
 
-      expect(item.label, 'Koreksi: mamam');
-      expect(item.value, 'makan siang');
-      expect(item.scope, FfmPersonalMemoryControlScope.aliasCorrection);
+        expect(item.label, 'Koreksi: mamam');
+        expect(item.value, 'makan siang');
+        expect(item.scope, FfmPersonalMemoryControlScope.aliasCorrection);
 
-      final visible = await service.readVisible();
-      expect(visible.map((e) => e.label), contains('Koreksi: mamam'));
-    });
+        final visible = await service.readVisible();
+        expect(visible.map((e) => e.label), contains('Koreksi: mamam'));
+      },
+    );
 
     test('menolak input kosong', () async {
       expect(
@@ -246,23 +258,26 @@ void main() {
       );
     });
 
-    test('menolak input yang mengandung data sensitif atau angka nominal besar', () async {
-      expect(
-        () => service.saveManualMemory(
-          label: 'pin atm',
-          value: '123456',
-          scope: FfmPersonalMemoryControlScope.userModel,
-        ),
-        throwsArgumentError,
-      );
-      expect(
-        () => service.saveManualMemory(
-          label: 'catatan gaji',
-          value: '5000000',
-          scope: FfmPersonalMemoryControlScope.personalMemory,
-        ),
-        throwsArgumentError,
-      );
-    });
+    test(
+      'menolak input yang mengandung data sensitif atau angka nominal besar',
+      () async {
+        expect(
+          () => service.saveManualMemory(
+            label: 'pin atm',
+            value: '123456',
+            scope: FfmPersonalMemoryControlScope.userModel,
+          ),
+          throwsArgumentError,
+        );
+        expect(
+          () => service.saveManualMemory(
+            label: 'catatan gaji',
+            value: '5000000',
+            scope: FfmPersonalMemoryControlScope.personalMemory,
+          ),
+          throwsArgumentError,
+        );
+      },
+    );
   });
 }

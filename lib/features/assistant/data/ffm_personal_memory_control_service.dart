@@ -132,10 +132,13 @@ class FfmPersonalMemoryControlService {
     }
 
     final (kind, scopeStr) = switch (scope) {
-      FfmPersonalMemoryControlScope.userModel => ('user_identity', 'user-model'),
+      FfmPersonalMemoryControlScope.userModel => (
+        'user_identity',
+        'user-model',
+      ),
       FfmPersonalMemoryControlScope.personalMemory => (
         'personal_memory_preference',
-        'personal-memory'
+        'personal-memory',
       ),
       FfmPersonalMemoryControlScope.aliasCorrection => ('alias', 'alias'),
     };

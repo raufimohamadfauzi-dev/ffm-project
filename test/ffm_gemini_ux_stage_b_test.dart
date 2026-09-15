@@ -34,8 +34,7 @@ class _FakeGemini extends GeminiService {
     List<Map<String, dynamic>>? tools,
     GeminiImageInput? image,
     int? maxOutputTokens,
-  }) async =>
-      result;
+  }) async => result;
 }
 
 void main() {
@@ -49,8 +48,7 @@ void main() {
         model: 'gemini-2.5-flash',
         statusCode: 200,
         message: 'ok',
-        text:
-            '{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"transaction","kind":"expense","amount":25000,"title":"Kopi","category":"Makanan","fromAccount":"Tunai","date":"2026-08-28"}}',
+        text: '{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"transaction","kind":"expense","amount":25000,"title":"Kopi","category":"Makanan","fromAccount":"Tunai","date":"2026-08-28"}}',
       ),
     );
     final interpreter = FfmAssistantInterpreter(
@@ -66,28 +64,39 @@ void main() {
     // UI sheet harus menampilkan draft sebagai Menunggu konfirmasi, bukan langsung disimpan
     expect(intent.type, isNot(FfmAssistantIntentType.unknown));
     final rows = await database.select(database.transactions).get();
-    expect(rows, isEmpty, reason: 'draft tidak boleh persist sebelum konfirmasi');
-  });
-
-  test('Tahap B: capability yang dipakai hanya sebagai metadata aman', () async {
-    const trace = FfmAssistantProcessTrace(
-      origin: FfmAssistantResponseOrigin.geminiCloud,
-      elapsed: Duration(milliseconds: 100),
-      events: [],
-      pluginCategory: 'read.summary',
+    expect(
+      rows,
+      isEmpty,
+      reason: 'draft tidak boleh persist sebelum konfirmasi',
     );
-    expect(trace.pluginCategory, isNot(contains('SELECT')));
-    expect(trace.pluginCategory, isNot(contains('rekening')));
   });
 
-  testWidgets('Tahap B: error Gemini tidak menyebut data lokal', (tester) async {
+  test(
+    'Tahap B: capability yang dipakai hanya sebagai metadata aman',
+    () async {
+      const trace = FfmAssistantProcessTrace(
+        origin: FfmAssistantResponseOrigin.geminiCloud,
+        elapsed: Duration(milliseconds: 100),
+        events: [],
+        pluginCategory: 'read.summary',
+      );
+      expect(trace.pluginCategory, isNot(contains('SELECT')));
+      expect(trace.pluginCategory, isNot(contains('rekening')));
+    },
+  );
+
+  testWidgets('Tahap B: error Gemini tidak menyebut data lokal', (
+    tester,
+  ) async {
     const trace = FfmAssistantProcessTrace(
       origin: FfmAssistantResponseOrigin.cloudError,
       elapsed: Duration(milliseconds: 10),
       events: [],
     );
     await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: FfmAssistantProcessDisclosure(trace: trace))),
+      const MaterialApp(
+        home: Scaffold(body: FfmAssistantProcessDisclosure(trace: trace)),
+      ),
     );
     expect(find.textContaining('Gemini Cloud gagal'), findsOneWidget);
     expect(find.textContaining('Data lokal FFM'), findsNothing);
@@ -100,7 +109,9 @@ void main() {
       events: [],
     );
     await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: FfmAssistantProcessDisclosure(trace: trace))),
+      const MaterialApp(
+        home: Scaffold(body: FfmAssistantProcessDisclosure(trace: trace)),
+      ),
     );
     expect(find.textContaining('Data lokal FFM'), findsOneWidget);
     expect(find.textContaining('Gemini Cloud'), findsNothing);

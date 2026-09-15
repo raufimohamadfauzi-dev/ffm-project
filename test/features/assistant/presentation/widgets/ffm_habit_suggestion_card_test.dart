@@ -33,7 +33,9 @@ void main() {
   }
 
   group('FfmHabitSuggestionCard', () {
-    testWidgets('renders title, prompt message, and buttons properly', (tester) async {
+    testWidgets('renders title, prompt message, and buttons properly', (
+      tester,
+    ) async {
       await tester.pumpWidget(createWidget());
 
       expect(find.text('Saran Rutin Hari Ini'), findsOneWidget);
@@ -56,7 +58,9 @@ void main() {
       expect(accepted, isTrue);
     });
 
-    testWidgets('triggers onSnooze when Lewati Minggu Ini tapped', (tester) async {
+    testWidgets('triggers onSnooze when Lewati Minggu Ini tapped', (
+      tester,
+    ) async {
       var snoozed = false;
       await tester.pumpWidget(createWidget(onSnooze: () => snoozed = true));
 
@@ -66,7 +70,9 @@ void main() {
       expect(snoozed, isTrue);
     });
 
-    testWidgets('triggers onDismiss when Matikan Saran confirmed', (tester) async {
+    testWidgets('triggers onDismiss when Matikan Saran confirmed', (
+      tester,
+    ) async {
       var dismissed = false;
       await tester.pumpWidget(createWidget(onDismiss: () => dismissed = true));
 

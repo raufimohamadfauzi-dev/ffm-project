@@ -88,7 +88,9 @@ class _FfmAssistantAnswerCorrectionDialogState
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  color: colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.5,
+                  ),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: colorScheme.outlineVariant.withValues(alpha: 0.5),
@@ -124,12 +126,14 @@ class _FfmAssistantAnswerCorrectionDialogState
                 onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
                   labelText: 'Jawaban / Fakta yang Benar *',
-                  hintText:
-                      'Contoh: Tabel database untuk transaksi bernama "transactions", dan rekening bernama "accounts".',
+                  hintText: 'Contoh: Tabel database untuk transaksi bernama "transactions", dan rekening bernama "accounts".',
                   alignLabelWithHint: true,
                   border: const OutlineInputBorder(),
                   focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                    borderSide: BorderSide(
+                      color: colorScheme.primary,
+                      width: 2,
+                    ),
                   ),
                 ),
               ),

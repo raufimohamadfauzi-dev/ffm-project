@@ -73,10 +73,7 @@ void main() {
         topCategory: 'Belanja dapur',
         mostFrequentCategory: 'Belanja dapur',
         mostFrequentMerchant: 'Supermarket',
-        categoryBreakdown: {
-          'Belanja dapur': 9000000,
-          'Transportasi': 3000000,
-        },
+        categoryBreakdown: {'Belanja dapur': 9000000, 'Transportasi': 3000000},
         categoryFrequency: {'Belanja dapur': 30, 'Transportasi': 15},
         capturedAt: DateTime(2026, 9, 3),
       );
@@ -89,10 +86,19 @@ void main() {
       // Rata-rata bulanan deterministik (dibagi 3)
       expect(llmContext, contains('- Monthly Average Income: Rp10.000.000'));
       expect(llmContext, contains('- Monthly Average Expense: Rp5.000.000'));
-      expect(llmContext, contains('- Monthly Average Net Cashflow: Rp5.000.000'));
+      expect(
+        llmContext,
+        contains('- Monthly Average Net Cashflow: Rp5.000.000'),
+      );
       // Rata-rata run-rate kategori bulanan
-      expect(llmContext, contains('Belanja dapur: Rp9.000.000 (avg: Rp3.000.000/month)'));
-      expect(llmContext, contains('Transportasi: Rp3.000.000 (avg: Rp1.000.000/month)'));
+      expect(
+        llmContext,
+        contains('Belanja dapur: Rp9.000.000 (avg: Rp3.000.000/month)'),
+      );
+      expect(
+        llmContext,
+        contains('Transportasi: Rp3.000.000 (avg: Rp1.000.000/month)'),
+      );
     });
 
     test('FfmAnalysisFacts menyertakan Diagnosis Kesehatan Finansial & Siklus AgroTrack', () {
@@ -133,12 +139,24 @@ void main() {
       expect(llmContext, contains('- Debt-to-Income (DSR): 15%'));
       expect(llmContext, contains('- Emergency Fund: 4.5 months coverage'));
       expect(llmContext, contains('- Net Worth: Rp50.000.000'));
-      expect(llmContext, contains('- Health Warnings: Evaluasi belanja non-pokok'));
-      expect(llmContext, contains('- Key Recommendations: Tingkatkan alokasi tabungan darurat'));
+      expect(
+        llmContext,
+        contains('- Health Warnings: Evaluasi belanja non-pokok'),
+      );
+      expect(
+        llmContext,
+        contains('- Key Recommendations: Tingkatkan alokasi tabungan darurat'),
+      );
 
-      expect(llmContext, contains('Active Cash Flow Cycle (AgroTrack/Business):'));
+      expect(
+        llmContext,
+        contains('Active Cash Flow Cycle (AgroTrack/Business):'),
+      );
       expect(llmContext, contains('- Cycle: Musim Tanam Padi Ciherang (Padi)'));
-      expect(llmContext, contains('- Days Remaining to Inflow/Harvest: 60 days'));
+      expect(
+        llmContext,
+        contains('- Days Remaining to Inflow/Harvest: 60 days'),
+      );
       expect(llmContext, contains('- Cash Runway: 75 days'));
       expect(llmContext, contains('- Safe Daily Living Spend: Rp150.000/day'));
       expect(llmContext, contains('- Cycle Health: Aman'));
@@ -154,55 +172,62 @@ void main() {
       final d3 = DateTime(2026, 8, 5);
       final d4 = DateTime(2026, 8, 15);
       // Bulan 1 (Juli)
-      await db.into(db.transactions).insert(
-        TransactionsCompanion.insert(
-          id: 'tx-1',
-          householdId: 'local-household',
-          amount: 10000000,
-          type: 'income',
-          date: d1,
-          recordedAt: d1,
-          createdAt: now,
-        ),
-      );
-      await db.into(db.transactions).insert(
-        TransactionsCompanion.insert(
-          id: 'tx-2',
-          householdId: 'local-household',
-          amount: 4000000,
-          type: 'expense',
-          date: d2,
-          recordedAt: d2,
-          createdAt: now,
-        ),
-      );
+      await db
+          .into(db.transactions)
+          .insert(
+            TransactionsCompanion.insert(
+              id: 'tx-1',
+              householdId: 'local-household',
+              amount: 10000000,
+              type: 'income',
+              date: d1,
+              recordedAt: d1,
+              createdAt: now,
+            ),
+          );
+      await db
+          .into(db.transactions)
+          .insert(
+            TransactionsCompanion.insert(
+              id: 'tx-2',
+              householdId: 'local-household',
+              amount: 4000000,
+              type: 'expense',
+              date: d2,
+              recordedAt: d2,
+              createdAt: now,
+            ),
+          );
       // Bulan 2 (Agustus)
-      await db.into(db.transactions).insert(
-        TransactionsCompanion.insert(
-          id: 'tx-3',
-          householdId: 'local-household',
-          amount: 10000000,
-          type: 'income',
-          date: d3,
-          recordedAt: d3,
-          createdAt: now,
-        ),
-      );
-      await db.into(db.transactions).insert(
-        TransactionsCompanion.insert(
-          id: 'tx-4',
-          householdId: 'local-household',
-          amount: 5000000,
-          type: 'expense',
-          date: d4,
-          recordedAt: d4,
-          createdAt: now,
-        ),
-      );
+      await db
+          .into(db.transactions)
+          .insert(
+            TransactionsCompanion.insert(
+              id: 'tx-3',
+              householdId: 'local-household',
+              amount: 10000000,
+              type: 'income',
+              date: d3,
+              recordedAt: d3,
+              createdAt: now,
+            ),
+          );
+      await db
+          .into(db.transactions)
+          .insert(
+            TransactionsCompanion.insert(
+              id: 'tx-4',
+              householdId: 'local-household',
+              amount: 5000000,
+              type: 'expense',
+              date: d4,
+              recordedAt: d4,
+              createdAt: now,
+            ),
+          );
 
       final gemini = _SpyGeminiService(
-        responseToReturn:
-            'Berdasarkan evaluasi 3 bulan ke belakang, rata-rata pengeluaran Anda adalah Rp 3.000.000/bulan dengan pemasukan rata-rata Rp 6.666.666. Saran untuk bulan depan: batasi anggaran belanja dan sisihkan dana darurat.',
+        responseToReturn: 'Berdasarkan evaluasi 3 bulan ke belakang, rata-rata pengeluaran Anda adalah Rp 3.000.000/bulan dengan pemasukan rata-rata Rp 6.666.666. Saran untuk bulan depan: batasi anggaran belanja dan sisihkan dana darurat.',
       );
 
       final interpreter = FfmAssistantInterpreter(
@@ -233,95 +258,99 @@ void main() {
       expect(intent.response, isNotNull);
     });
 
-    test('Pertanyaan laporan bulan lalu mengikutsertakan fakta agregat lastMonth', () async {
-      final now = DateTime(2026, 9, 3);
-      final d1 = DateTime(2026, 8, 1);
-      final d2 = DateTime(2026, 8, 15);
-      // Transaksi bulan Agustus (bulan lalu)
-      await db.into(db.transactions).insert(
-        TransactionsCompanion.insert(
-          id: 'tx-last-month-1',
-          householdId: 'local-household',
-          amount: 8000000,
-          type: 'income',
-          date: d1,
-          recordedAt: d1,
-          createdAt: now,
-        ),
-      );
-      await db.into(db.transactions).insert(
-        TransactionsCompanion.insert(
-          id: 'tx-last-month-2',
-          householdId: 'local-household',
-          amount: 3500000,
-          type: 'expense',
-          date: d2,
-          recordedAt: d2,
-          createdAt: now,
-        ),
-      );
+    test(
+      'Pertanyaan laporan bulan lalu mengikutsertakan fakta agregat lastMonth',
+      () async {
+        final now = DateTime(2026, 9, 3);
+        final d1 = DateTime(2026, 8, 1);
+        final d2 = DateTime(2026, 8, 15);
+        // Transaksi bulan Agustus (bulan lalu)
+        await db
+            .into(db.transactions)
+            .insert(
+              TransactionsCompanion.insert(
+                id: 'tx-last-month-1',
+                householdId: 'local-household',
+                amount: 8000000,
+                type: 'income',
+                date: d1,
+                recordedAt: d1,
+                createdAt: now,
+              ),
+            );
+        await db
+            .into(db.transactions)
+            .insert(
+              TransactionsCompanion.insert(
+                id: 'tx-last-month-2',
+                householdId: 'local-household',
+                amount: 3500000,
+                type: 'expense',
+                date: d2,
+                recordedAt: d2,
+                createdAt: now,
+              ),
+            );
 
-      final gemini = _SpyGeminiService(
-        responseToReturn:
-            'Laporan bulan lalu menunjukkan pemasukan sebesar Rp 8.000.000 dan pengeluaran Rp 3.500.000 dengan surplus Rp 4.500.000.',
-      );
+        final gemini = _SpyGeminiService(
+          responseToReturn: 'Laporan bulan lalu menunjukkan pemasukan sebesar Rp 8.000.000 dan pengeluaran Rp 3.500.000 dengan surplus Rp 4.500.000.',
+        );
 
-      final interpreter = FfmAssistantInterpreter(
-        db,
-        config: _FakeConfig(),
-        geminiService: gemini,
-        clock: () => now,
-      );
+        final interpreter = FfmAssistantInterpreter(
+          db,
+          config: _FakeConfig(),
+          geminiService: gemini,
+          clock: () => now,
+        );
 
-      final intent = await interpreter.interpret(
-        'bagaimana laporan bulan lalu?',
-        routingMode: FfmAssistantRoutingMode.geminiCloud,
-      );
+        final intent = await interpreter.interpret(
+          'bagaimana laporan bulan lalu?',
+          routingMode: FfmAssistantRoutingMode.geminiCloud,
+        );
 
-      expect(gemini.calls, 1);
-      expect(gemini.lastSystemInstruction, isNotNull);
-      // Memastikan fakta analisis bulan lalu disuplai ke konteks Gemini
-      expect(
-        gemini.lastSystemInstruction,
-        contains('ANALYSIS FACTS (bulan lalu'),
-      );
-      expect(
-        gemini.lastSystemInstruction,
-        contains('Income: Rp8.000.000'),
-      );
-      expect(
-        gemini.lastSystemInstruction,
-        contains('Expense: Rp3.500.000'),
-      );
-      expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
-    });
+        expect(gemini.calls, 1);
+        expect(gemini.lastSystemInstruction, isNotNull);
+        // Memastikan fakta analisis bulan lalu disuplai ke konteks Gemini
+        expect(
+          gemini.lastSystemInstruction,
+          contains('ANALYSIS FACTS (bulan lalu'),
+        );
+        expect(gemini.lastSystemInstruction, contains('Income: Rp8.000.000'));
+        expect(gemini.lastSystemInstruction, contains('Expense: Rp3.500.000'));
+        expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
+      },
+    );
 
-    test('Pertanyaan pupuk & kebun memicu konteks panen dan panduan holistik', () async {
-      final now = DateTime(2026, 9, 3);
-      final gemini = _SpyGeminiService(
-        responseToReturn:
-            'Biaya pembelian pupuk dan pestisida bulan ini tergolong investasi modal kebun. Pastikan dicatat bersama estimasi panen berikutnya.',
-      );
+    test(
+      'Pertanyaan pupuk & kebun memicu konteks panen dan panduan holistik',
+      () async {
+        final now = DateTime(2026, 9, 3);
+        final gemini = _SpyGeminiService(
+          responseToReturn: 'Biaya pembelian pupuk dan pestisida bulan ini tergolong investasi modal kebun. Pastikan dicatat bersama estimasi panen berikutnya.',
+        );
 
-      final interpreter = FfmAssistantInterpreter(
-        db,
-        config: _FakeConfig(),
-        geminiService: gemini,
-        clock: () => now,
-      );
+        final interpreter = FfmAssistantInterpreter(
+          db,
+          config: _FakeConfig(),
+          geminiService: gemini,
+          clock: () => now,
+        );
 
-      final intent = await interpreter.interpret(
-        'berapa total biaya pembelian pupuk dan bibit kebun bulan ini?',
-        routingMode: FfmAssistantRoutingMode.geminiCloud,
-      );
+        final intent = await interpreter.interpret(
+          'berapa total biaya pembelian pupuk dan bibit kebun bulan ini?',
+          routingMode: FfmAssistantRoutingMode.geminiCloud,
+        );
 
-      expect(gemini.calls, 1);
-      expect(gemini.lastSystemInstruction, isNotNull);
-      expect(
-        gemini.lastSystemInstruction,
-        contains('CAKUPAN LENGKAP PENGELOLA FINANSIAL & OPERASIONAL KELUARGA'),
-      );
-      expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
-    });
+        expect(gemini.calls, 1);
+        expect(gemini.lastSystemInstruction, isNotNull);
+        expect(
+          gemini.lastSystemInstruction,
+          contains(
+            'CAKUPAN LENGKAP PENGELOLA FINANSIAL & OPERASIONAL KELUARGA',
+          ),
+        );
+        expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
+      },
+    );
   });
 }

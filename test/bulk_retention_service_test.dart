@@ -16,7 +16,9 @@ void main() {
     database = createInMemoryDatabaseForTests();
     service = BulkRetentionService(database);
 
-    await database.into(database.transactions).insert(
+    await database
+        .into(database.transactions)
+        .insert(
           TransactionsCompanion.insert(
             id: 'tx-before',
             householdId: AppContext.householdId,
@@ -28,7 +30,9 @@ void main() {
             createdAt: DateTime.now(),
           ),
         );
-    await database.into(database.transactions).insert(
+    await database
+        .into(database.transactions)
+        .insert(
           TransactionsCompanion.insert(
             id: 'tx-after',
             householdId: AppContext.householdId,
@@ -40,7 +44,9 @@ void main() {
             createdAt: DateTime.now(),
           ),
         );
-    await database.into(database.transactions).insert(
+    await database
+        .into(database.transactions)
+        .insert(
           TransactionsCompanion.insert(
             id: 'tx-archived-before',
             householdId: AppContext.householdId,
@@ -53,7 +59,9 @@ void main() {
             isArchived: const Value(true),
           ),
         );
-    await database.into(database.transactions).insert(
+    await database
+        .into(database.transactions)
+        .insert(
           TransactionsCompanion.insert(
             id: 'tx-deleted',
             householdId: AppContext.householdId,
@@ -67,7 +75,9 @@ void main() {
           ),
         );
 
-    await database.into(database.activitySessions).insert(
+    await database
+        .into(database.activitySessions)
+        .insert(
           ActivitySessionsCompanion.insert(
             id: 'sess-before',
             householdId: AppContext.householdId,
@@ -80,7 +90,9 @@ void main() {
             createdAt: DateTime.now(),
           ),
         );
-    await database.into(database.activitySessions).insert(
+    await database
+        .into(database.activitySessions)
+        .insert(
           ActivitySessionsCompanion.insert(
             id: 'sess-before-archived',
             householdId: AppContext.householdId,
@@ -93,7 +105,9 @@ void main() {
             createdAt: DateTime.now(),
           ),
         );
-    await database.into(database.activitySessions).insert(
+    await database
+        .into(database.activitySessions)
+        .insert(
           ActivitySessionsCompanion.insert(
             id: 'sess-after',
             householdId: AppContext.householdId,
@@ -106,7 +120,9 @@ void main() {
             createdAt: DateTime.now(),
           ),
         );
-    await database.into(database.activityCheckpoints).insert(
+    await database
+        .into(database.activityCheckpoints)
+        .insert(
           ActivityCheckpointsCompanion.insert(
             id: 'cp-before',
             sessionId: 'sess-before-archived',
@@ -116,7 +132,9 @@ void main() {
             createdAt: DateTime.now(),
           ),
         );
-    await database.into(database.activityEntries).insert(
+    await database
+        .into(database.activityEntries)
+        .insert(
           ActivityEntriesCompanion.insert(
             id: 'ent-before',
             sessionId: const Value('sess-before-archived'),
@@ -128,7 +146,9 @@ void main() {
           ),
         );
 
-    await database.into(database.dailyNotes).insert(
+    await database
+        .into(database.dailyNotes)
+        .insert(
           DailyNotesCompanion.insert(
             id: 'note-before',
             householdId: AppContext.householdId,
@@ -137,7 +157,9 @@ void main() {
             createdAt: DateTime.now(),
           ),
         );
-    await database.into(database.dailyNotes).insert(
+    await database
+        .into(database.dailyNotes)
+        .insert(
           DailyNotesCompanion.insert(
             id: 'note-before-archived',
             householdId: AppContext.householdId,
@@ -147,7 +169,9 @@ void main() {
             isArchived: const Value(true),
           ),
         );
-    await database.into(database.dailyNotes).insert(
+    await database
+        .into(database.dailyNotes)
+        .insert(
           DailyNotesCompanion.insert(
             id: 'note-after',
             householdId: AppContext.householdId,
@@ -160,22 +184,31 @@ void main() {
 
   tearDown(() async => database.close());
 
-  test('preview archive menghitung hanya data non-arsip sebelum tanggal', () async {
-    final preview = await service.previewArchive(cutoff);
+  test(
+    'preview archive menghitung hanya data non-arsip sebelum tanggal',
+    () async {
+      final preview = await service.previewArchive(cutoff);
 
-    expect(preview.transactions, 1); // tx-before (tx-archived & tx-deleted dikecualikan)
-    expect(preview.activitySessions, 1); // sess-before
-    expect(preview.dailyNotes, 1); // note-before
-    expect(preview.isEmpty, isFalse);
-  });
+      expect(
+        preview.transactions,
+        1,
+      ); // tx-before (tx-archived & tx-deleted dikecualikan)
+      expect(preview.activitySessions, 1); // sess-before
+      expect(preview.dailyNotes, 1); // note-before
+      expect(preview.isEmpty, isFalse);
+    },
+  );
 
-  test('preview delete menghitung hanya data terarsip sebelum tanggal', () async {
-    final preview = await service.previewDelete(cutoff);
+  test(
+    'preview delete menghitung hanya data terarsip sebelum tanggal',
+    () async {
+      final preview = await service.previewDelete(cutoff);
 
-    expect(preview.transactions, 1); // tx-archived-before
-    expect(preview.activitySessions, 1); // sess-before-archived
-    expect(preview.dailyNotes, 1); // note-before-archived
-  });
+      expect(preview.transactions, 1); // tx-archived-before
+      expect(preview.activitySessions, 1); // sess-before-archived
+      expect(preview.dailyNotes, 1); // note-before-archived
+    },
+  );
 
   test('archiveBefore mengarsipkan lintas entity dan diverifikasi', () async {
     final result = await service.archiveBefore(cutoff);
@@ -187,17 +220,17 @@ void main() {
     final remaining = await service.previewArchive(cutoff);
     expect(remaining.total, 0);
 
-    final tx = await (database.select(database.transactions)
-          ..where((row) => row.id.equals('tx-before')))
-        .getSingle();
+    final tx = await (database.select(
+      database.transactions,
+    )..where((row) => row.id.equals('tx-before'))).getSingle();
     expect(tx.isArchived, isTrue);
-    final sess = await (database.select(database.activitySessions)
-          ..where((row) => row.id.equals('sess-before')))
-        .getSingle();
+    final sess = await (database.select(
+      database.activitySessions,
+    )..where((row) => row.id.equals('sess-before'))).getSingle();
     expect(sess.isArchived, isTrue);
-    final note = await (database.select(database.dailyNotes)
-          ..where((row) => row.id.equals('note-before')))
-        .getSingle();
+    final note = await (database.select(
+      database.dailyNotes,
+    )..where((row) => row.id.equals('note-before'))).getSingle();
     expect(note.isArchived, isTrue);
   });
 
@@ -210,56 +243,63 @@ void main() {
     );
   });
 
-  test('deleteBefore menghapus permanen data arsip dan meng-cascade sesi', () async {
-    await service.archiveBefore(cutoff);
-    await service.deleteBefore(cutoff, backupVerified: true);
+  test(
+    'deleteBefore menghapus permanen data arsip dan meng-cascade sesi',
+    () async {
+      await service.archiveBefore(cutoff);
+      await service.deleteBefore(cutoff, backupVerified: true);
 
-    final remaining = await service.previewDelete(cutoff);
-    expect(remaining.total, 0);
+      final remaining = await service.previewDelete(cutoff);
+      expect(remaining.total, 0);
 
-    final txCount = await (database.select(database.transactions)
-          ..where((row) => row.id.equals('tx-before')))
-        .get();
-    // Transaksi lama di-soft-delete (isDeleted) sesuai konvensi aplikasi.
-    expect(txCount.single.isDeleted, isTrue);
+      final txCount = await (database.select(
+        database.transactions,
+      )..where((row) => row.id.equals('tx-before'))).get();
+      // Transaksi lama di-soft-delete (isDeleted) sesuai konvensi aplikasi.
+      expect(txCount.single.isDeleted, isTrue);
 
-    final sess = await (database.select(database.activitySessions)
-          ..where((row) => row.id.isIn(['sess-before', 'sess-before-archived'])))
-        .get();
-    expect(sess, isEmpty);
-    final notes = await (database.select(database.dailyNotes)
-          ..where((row) => row.id.isIn(['note-before', 'note-before-archived'])))
-        .get();
-    expect(notes, isEmpty);
-  });
+      final sess =
+          await (database.select(database.activitySessions)..where(
+                (row) => row.id.isIn(['sess-before', 'sess-before-archived']),
+              ))
+              .get();
+      expect(sess, isEmpty);
+      final notes =
+          await (database.select(database.dailyNotes)..where(
+                (row) => row.id.isIn(['note-before', 'note-before-archived']),
+              ))
+              .get();
+      expect(notes, isEmpty);
+    },
+  );
 
   test('hapus permanen tidak menyentuh data setelah tanggal', () async {
     await service.deleteBefore(cutoff, backupVerified: true);
 
-    final afterTx = await (database.select(database.transactions)
-          ..where((row) => row.id.equals('tx-after')))
-        .getSingle();
+    final afterTx = await (database.select(
+      database.transactions,
+    )..where((row) => row.id.equals('tx-after'))).getSingle();
     expect(afterTx.isDeleted, isFalse);
-    final afterSess = await (database.select(database.activitySessions)
-          ..where((row) => row.id.equals('sess-after')))
-        .getSingle();
+    final afterSess = await (database.select(
+      database.activitySessions,
+    )..where((row) => row.id.equals('sess-after'))).getSingle();
     expect(afterSess.isArchived, isFalse);
-    final afterNote = await (database.select(database.dailyNotes)
-          ..where((row) => row.id.equals('note-after')))
-        .getSingle();
+    final afterNote = await (database.select(
+      database.dailyNotes,
+    )..where((row) => row.id.equals('note-after'))).getSingle();
     expect(afterNote.isArchived, isFalse);
   });
 
   test('deleteBefore data arsip ikut menghapus checkpoint dan entry', () async {
     await service.deleteBefore(cutoff, backupVerified: true);
 
-    final checkpoints = await (database.select(database.activityCheckpoints)
-          ..where((row) => row.sessionId.equals('sess-before-archived')))
-        .get();
+    final checkpoints = await (database.select(
+      database.activityCheckpoints,
+    )..where((row) => row.sessionId.equals('sess-before-archived'))).get();
     expect(checkpoints, isEmpty);
-    final entries = await (database.select(database.activityEntries)
-          ..where((row) => row.sessionId.equals('sess-before-archived')))
-        .get();
+    final entries = await (database.select(
+      database.activityEntries,
+    )..where((row) => row.sessionId.equals('sess-before-archived'))).get();
     expect(entries, isEmpty);
   });
 }

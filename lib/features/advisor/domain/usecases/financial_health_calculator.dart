@@ -19,7 +19,8 @@ class FinancialHealthPillar {
   final String factDescription;
   final String suggestion;
 
-  double get percentage => maxScore > 0 ? (score / maxScore).clamp(0.0, 1.0) : 0.0;
+  double get percentage =>
+      maxScore > 0 ? (score / maxScore).clamp(0.0, 1.0) : 0.0;
 }
 
 class FinancialHealthInput {
@@ -130,14 +131,17 @@ class FinancialHealthCalculator {
       p1Score = 15;
       p1Status = FinancialHealthStatus.fair;
       p1Fact = 'Belum ada transaksi pemasukan & pengeluaran bulan ini.';
-      p1Sugg = 'Catat transaksi rutin keluarga untuk memulai pemantauan arus kas.';
+      p1Sugg =
+          'Catat transaksi rutin keluarga untuk memulai pemantauan arus kas.';
     } else if (income <= 0 && expenses > 0) {
       p1Score = 0;
       p1Status = FinancialHealthStatus.critical;
       p1Fact = 'Pengeluaran berjalan tanpa ada catatan pemasukan.';
       p1Sugg = 'Segera catat sumber pemasukan keluarga agar arus kas terukur.';
       warnings.add('Pemasukan belum tercatat padahal ada pengeluaran.');
-      recommendations.add('Catat pemasukan bulan ini untuk melihat surplus riil.');
+      recommendations.add(
+        'Catat pemasukan bulan ini untuk melihat surplus riil.',
+      );
     } else if (savingsRate >= 0.20) {
       p1Score = 25;
       p1Status = FinancialHealthStatus.excellent;
@@ -156,9 +160,12 @@ class FinancialHealthCalculator {
       p1Score = 15;
       p1Status = FinancialHealthStatus.fair;
       p1Fact = 'Arus kas seimbang tipis (hampir impas / pas-pasan).';
-      p1Sugg = 'Cermati pos belanja kecil yang berulang agar sisa dana bertambah.';
+      p1Sugg =
+          'Cermati pos belanja kecil yang berulang agar sisa dana bertambah.';
       warnings.add('Sisa arus kas sangat tipis mendekati batas pengeluaran.');
-      recommendations.add('Sisihkan minimal 5-10% di awal gajian sebelum berbelanja.');
+      recommendations.add(
+        'Sisihkan minimal 5-10% di awal gajian sebelum berbelanja.',
+      );
     } else if (savingsRate >= -0.10) {
       p1Score = 8;
       p1Status = FinancialHealthStatus.warning;
@@ -166,15 +173,20 @@ class FinancialHealthCalculator {
       p1Fact = 'Defisit ringan: pengeluaran melebihi pemasukan sebesar $pct%.';
       p1Sugg = 'Tunda pengeluaran non-primer hingga bulan depan.';
       warnings.add('Arus kas bulan ini mengalami defisit ringan ($pct%).');
-      recommendations.add('Evaluasi pengeluaran non-primer untuk menambal defisit.');
+      recommendations.add(
+        'Evaluasi pengeluaran non-primer untuk menambal defisit.',
+      );
     } else {
       p1Score = 0;
       p1Status = FinancialHealthStatus.critical;
       final pct = (savingsRate.abs() * 100).round();
       p1Fact = 'Defisit berat: pengeluaran melampaui pemasukan sebesar $pct%.';
-      p1Sugg = 'Perlu rem belanja darurat dan evaluasi pos pengeluaran terbesar.';
+      p1Sugg =
+          'Perlu rem belanja darurat dan evaluasi pos pengeluaran terbesar.';
       warnings.add('Arus kas defisit signifikan melampaui pemasukan ($pct%).');
-      recommendations.add('Gunakan Budget Guard / Anggaran untuk membatasi belanja harian.');
+      recommendations.add(
+        'Gunakan Budget Guard / Anggaran untuk membatasi belanja harian.',
+      );
     }
 
     final p1 = FinancialHealthPillar(
@@ -206,26 +218,33 @@ class FinancialHealthCalculator {
       p2Status = FinancialHealthStatus.excellent;
       p2Fact = 'Biaya hidup sangat hemat ($expPct% dari pemasukan).';
       p2Sugg = 'Alokasi pengeluaran sangat terkendali, ada ruang besar untuk tabungan.';
-      strengths.add('Biaya hidup sangat hemat (hanya $expPct% dari pemasukan).');
+      strengths.add(
+        'Biaya hidup sangat hemat (hanya $expPct% dari pemasukan).',
+      );
     } else if (expenseRatio <= 0.70) {
       p2Score = 17;
       p2Status = FinancialHealthStatus.good;
       p2Fact = 'Biaya hidup ideal & proporsional ($expPct% dari pemasukan).';
-      p2Sugg = 'Proporsi belanja berada dalam rentang ideal perencanaan keluarga.';
+      p2Sugg =
+          'Proporsi belanja berada dalam rentang ideal perencanaan keluarga.';
       strengths.add('Rasio pengeluaran berada di batas ideal ($expPct%).');
     } else if (expenseRatio <= 0.85) {
       p2Score = 12;
       p2Status = FinancialHealthStatus.fair;
       p2Fact = 'Biaya hidup agak tinggi ($expPct% dari pemasukan).';
       p2Sugg = 'Waspadai kebocoran belanja kebutuhan tersier/hiburan.';
-      recommendations.add('Kunci anggaran pada pos belanja terbesar agar tidak melebihi 70%.');
+      recommendations.add(
+        'Kunci anggaran pada pos belanja terbesar agar tidak melebihi 70%.',
+      );
     } else if (expenseRatio <= 1.0) {
       p2Score = 6;
       p2Status = FinancialHealthStatus.warning;
       p2Fact = 'Biaya hidup sangat ketat ($expPct% dari pemasukan).';
       p2Sugg = 'Pangkas pos keinginan untuk memberi ruang tabungan darurat.';
       warnings.add('Biaya hidup mendekati seluruh pemasukan ($expPct%).');
-      recommendations.add('Kurangi pos pengeluaran gaya hidup/keinginan minimal 10%.');
+      recommendations.add(
+        'Kurangi pos pengeluaran gaya hidup/keinginan minimal 10%.',
+      );
     } else {
       p2Score = 0;
       p2Status = FinancialHealthStatus.critical;
@@ -257,7 +276,8 @@ class FinancialHealthCalculator {
       p3Score = 20;
       p3Status = FinancialHealthStatus.excellent;
       p3Fact = 'Bebas dari beban cicilan bulanan.';
-      p3Sugg = 'Kondisi bebas utang memberikan ketahanan finansial yang luar biasa.';
+      p3Sugg =
+          'Kondisi bebas utang memberikan ketahanan finansial yang luar biasa.';
       strengths.add('Bebas dari beban cicilan utang bulanan.');
     } else if (income <= 0) {
       p3Score = 5;
@@ -281,15 +301,22 @@ class FinancialHealthCalculator {
       p3Status = FinancialHealthStatus.warning;
       p3Fact = 'Beban cicilan mulai berat ($debtPct% dari pemasukan).';
       p3Sugg = 'Prioritaskan pelunasan pinjaman terkecil (metode snowball).';
-      warnings.add('Cicilan bulanan sudah memakan $debtPct% dari pemasukan keluarga.');
-      recommendations.add('Fokus lunasi salah satu hutang untuk melonggarkan arus kas bulanan.');
+      warnings.add(
+        'Cicilan bulanan sudah memakan $debtPct% dari pemasukan keluarga.',
+      );
+      recommendations.add(
+        'Fokus lunasi salah satu hutang untuk melonggarkan arus kas bulanan.',
+      );
     } else {
       p3Score = 0;
       p3Status = FinancialHealthStatus.critical;
-      p3Fact = 'Beban cicilan sangat berisiko tinggi ($debtPct% dari pemasukan).';
+      p3Fact =
+          'Beban cicilan sangat berisiko tinggi ($debtPct% dari pemasukan).';
       p3Sugg = 'Lakukan restrukturisasi utang segera agar tidak gagal bayar.';
       warnings.add('Beban cicilan kritis melebihi 40% pemasukan ($debtPct%).');
-      recommendations.add('Hindari pinjaman baru dan konsultasikan strategi pelunasan utang.');
+      recommendations.add(
+        'Hindari pinjaman baru dan konsultasikan strategi pelunasan utang.',
+      );
     }
 
     final p3 = FinancialHealthPillar(
@@ -316,33 +343,48 @@ class FinancialHealthCalculator {
       p4Status = FinancialHealthStatus.excellent;
       p4Fact = 'Dana darurat sangat kokoh ($mString bulan biaya hidup).';
       p4Sugg = 'Ketahanan dana darurat sangat aman untuk menghadapi hal tak terduga.';
-      strengths.add('Dana darurat sangat kokoh mencukupi $mString bulan kebutuhan.');
+      strengths.add(
+        'Dana darurat sangat kokoh mencukupi $mString bulan kebutuhan.',
+      );
     } else if (emergencyMonths >= 3.0) {
       p4Score = 16;
       p4Status = FinancialHealthStatus.good;
-      p4Fact = 'Dana darurat memenuhi standar keluarga ($mString bulan biaya hidup).';
-      p4Sugg = 'Tingkatkan bertahap menuju target 6 bulan untuk keamanan ekstra.';
+      p4Fact =
+          'Dana darurat memenuhi standar keluarga ($mString bulan biaya hidup).';
+      p4Sugg =
+          'Tingkatkan bertahap menuju target 6 bulan untuk keamanan ekstra.';
       strengths.add('Dana darurat mencukupi standar 3 bulan ($mString bulan).');
     } else if (emergencyMonths >= 1.0) {
       p4Score = 10;
       p4Status = FinancialHealthStatus.fair;
-      p4Fact = 'Dana darurat mencukupi kebutuhan dasar ($mString bulan biaya hidup).';
-      p4Sugg = 'Sisihkan sebagian surplus bulanan untuk memperkuat dana cadangan.';
-      recommendations.add('Tambahkan alokasi tabungan untuk mencapai minimal 3 bulan dana darurat.');
+      p4Fact =
+          'Dana darurat mencukupi kebutuhan dasar ($mString bulan biaya hidup).';
+      p4Sugg =
+          'Sisihkan sebagian surplus bulanan untuk memperkuat dana cadangan.';
+      recommendations.add(
+        'Tambahkan alokasi tabungan untuk mencapai minimal 3 bulan dana darurat.',
+      );
     } else if (emergencyMonths > 0.0) {
       p4Score = 4;
       p4Status = FinancialHealthStatus.warning;
       p4Fact = 'Dana darurat masih tipis ($mString bulan biaya hidup).';
-      p4Sugg = 'Sangat disarankan menambah cadangan kas likuid untuk antisipasi.';
-      warnings.add('Dana darurat masih di bawah 1 bulan biaya hidup ($mString bulan).');
-      recommendations.add('Sisihkan minimal Rp100-500rb per bulan khusus untuk pos Dana Darurat.');
+      p4Sugg =
+          'Sangat disarankan menambah cadangan kas likuid untuk antisipasi.';
+      warnings.add(
+        'Dana darurat masih di bawah 1 bulan biaya hidup ($mString bulan).',
+      );
+      recommendations.add(
+        'Sisihkan minimal Rp100-500rb per bulan khusus untuk pos Dana Darurat.',
+      );
     } else {
       p4Score = 0;
       p4Status = FinancialHealthStatus.critical;
       p4Fact = 'Belum memiliki cadangan dana darurat likuid.';
       p4Sugg = 'Mulai tabung dana darurat pertama di rekening terpisah.';
       warnings.add('Belum ada dana darurat likuid yang tercatat.');
-      recommendations.add('Buat target tabungan Dana Darurat di menu Target (Goals).');
+      recommendations.add(
+        'Buat target tabungan Dana Darurat di menu Target (Goals).',
+      );
     }
 
     final p4 = FinancialHealthPillar(
@@ -378,13 +420,15 @@ class FinancialHealthCalculator {
       p5Score = 15;
       p5Status = FinancialHealthStatus.excellent;
       p5Fact = 'Total aset melampaui 2x total kewajiban.';
-      p5Sugg = 'Neraca keuangan sangat sehat dan memiliki bantalan aset yang kuat.';
+      p5Sugg =
+          'Neraca keuangan sangat sehat dan memiliki bantalan aset yang kuat.';
       strengths.add('Aset bernilai lebih dari 2x total kewajiban.');
     } else if (netWorth > 0) {
       p5Score = 10;
       p5Status = FinancialHealthStatus.good;
       p5Fact = 'Kekayaan bersih bernilai positif (aset melebihi hutang).';
-      p5Sugg = 'Pertahankan pertumbuhan aset dan kurangi porsi hutang konsumtif.';
+      p5Sugg =
+          'Pertahankan pertumbuhan aset dan kurangi porsi hutang konsumtif.';
     } else if (netWorth == 0) {
       p5Score = 5;
       p5Status = FinancialHealthStatus.fair;
@@ -397,7 +441,9 @@ class FinancialHealthCalculator {
       p5Fact = 'Kekayaan bersih bernilai negatif (hutang melampaui aset).';
       p5Sugg = 'Fokuskan rencana keuangan untuk mereduksi beban hutang.';
       warnings.add('Total hutang lebih besar dari total aset yang dimiliki.');
-      recommendations.add('Buat rencana percepatan pelunasan hutang untuk mengembalikan nilai kekayaan bersih.');
+      recommendations.add(
+        'Buat rencana percepatan pelunasan hutang untuk mengembalikan nilai kekayaan bersih.',
+      );
     }
 
     final p5 = FinancialHealthPillar(
@@ -411,7 +457,10 @@ class FinancialHealthCalculator {
     );
 
     final pillars = [p1, p2, p3, p4, p5];
-    final totalScore = (p1Score + p2Score + p3Score + p4Score + p5Score).clamp(0, 100);
+    final totalScore = (p1Score + p2Score + p3Score + p4Score + p5Score).clamp(
+      0,
+      100,
+    );
 
     final status = switch (totalScore) {
       >= 85 => FinancialHealthStatus.excellent,
@@ -423,16 +472,11 @@ class FinancialHealthCalculator {
 
     // Pembangkit headline naratif ramah bahasa Indonesia
     final headline = switch (status) {
-      FinancialHealthStatus.excellent =>
-        'Keuangan keluarga berada dalam kondisi prima! Arus kas aman dan fondasi aset sangat kokoh.',
-      FinancialHealthStatus.good =>
-        'Kondisi keuangan sehat. Pemasukan dan belanja terkendali dengan ruang tabungan yang baik.',
-      FinancialHealthStatus.fair =>
-        'Kondisi keuangan cukup stabil, namun ada beberapa pilar yang perlu diperkuat agar lebih aman.',
-      FinancialHealthStatus.warning =>
-        'Perlu kewaspadaan: arus kas atau cicilan mulai menekan ruang tabungan keluarga.',
-      FinancialHealthStatus.critical =>
-        'Kondisi keuangan butuh perhatian segera. Rapikan pengeluaran dan prioritaskan pemulihan arus kas.',
+      FinancialHealthStatus.excellent => 'Keuangan keluarga berada dalam kondisi prima! Arus kas aman dan fondasi aset sangat kokoh.',
+      FinancialHealthStatus.good => 'Kondisi keuangan sehat. Pemasukan dan belanja terkendali dengan ruang tabungan yang baik.',
+      FinancialHealthStatus.fair => 'Kondisi keuangan cukup stabil, namun ada beberapa pilar yang perlu diperkuat agar lebih aman.',
+      FinancialHealthStatus.warning => 'Perlu kewaspadaan: arus kas atau cicilan mulai menekan ruang tabungan keluarga.',
+      FinancialHealthStatus.critical => 'Kondisi keuangan butuh perhatian segera. Rapikan pengeluaran dan prioritaskan pemulihan arus kas.',
     };
 
     return FinancialHealthScore(

@@ -21,11 +21,7 @@ void main() {
       final analysis = FfmFrequencyAnalysis(
         period: 'Test Period',
         totalTransactions: 10,
-        categoryFrequency: {
-          'Makanan': 5,
-          'Transport': 3,
-          'Hiburan': 2,
-        },
+        categoryFrequency: {'Makanan': 5, 'Transport': 3, 'Hiburan': 2},
         merchantFrequency: {},
         dayOfWeekFrequency: {},
       );
@@ -38,11 +34,7 @@ void main() {
         period: 'Test Period',
         totalTransactions: 10,
         categoryFrequency: {},
-        merchantFrequency: {
-          'Warung A': 4,
-          'Warung B': 3,
-          'Toko C': 3,
-        },
+        merchantFrequency: {'Warung A': 4, 'Warung B': 3, 'Toko C': 3},
         dayOfWeekFrequency: {},
       );
 
@@ -129,10 +121,7 @@ void main() {
         income: 2000000,
         expense: 800000,
         transactionCount: 15,
-        categoryBreakdown: {
-          'Makanan': 500000,
-          'Transport': 300000,
-        },
+        categoryBreakdown: {'Makanan': 500000, 'Transport': 300000},
       );
 
       expect(analysis.netCashflow, equals(1200000));

@@ -139,7 +139,9 @@ class TelegramConfigRepository {
   /// rahasia. Dipakai untuk mengikat status verifikasi dan pesan antrean ke
   /// pasangan kredensial yang saat itu aktif.
   static String credentialFingerprintFor(String botToken, String chatId) =>
-      sha256.convert(utf8.encode('${botToken.trim()}#${chatId.trim()}')).toString();
+      sha256
+          .convert(utf8.encode('${botToken.trim()}#${chatId.trim()}'))
+          .toString();
 
   Future<SharedPreferences> get _prefs async =>
       preferences ?? await SharedPreferences.getInstance();
@@ -459,8 +461,9 @@ class TelegramConfigRepository {
         break;
       }
     }
-    final fingerprintValue =
-        fingerprint == null || fingerprint.isEmpty ? null : fingerprint;
+    final fingerprintValue = fingerprint == null || fingerprint.isEmpty
+        ? null
+        : fingerprint;
     return TelegramOperationalStatus(
       lastVerifiedAt: atString == null ? null : DateTime.tryParse(atString),
       lastVerifiedOk: ok,

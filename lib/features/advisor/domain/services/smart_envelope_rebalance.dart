@@ -11,10 +11,12 @@ class CategoryBudgetStatus {
   final double spentAmount;
 
   /// Persentase anggaran yang telah terpakai (0.0 – 1.0+).
-  double get spentPercentage => budgetLimit > 0 ? (spentAmount / budgetLimit) : 0.0;
+  double get spentPercentage =>
+      budgetLimit > 0 ? (spentAmount / budgetLimit) : 0.0;
 
   /// Sisa anggaran yang belum terpakai (Rupiah).
-  double get remainingBudget => (budgetLimit - spentAmount).clamp(0.0, double.infinity);
+  double get remainingBudget =>
+      (budgetLimit - spentAmount).clamp(0.0, double.infinity);
 }
 
 /// Rekomendasi proposal pergeseran dana antar-pos anggaran (Rebalance Proposal).
@@ -66,16 +68,23 @@ class SmartEnvelopeRebalance {
     if (categoryStatuses.length < 2) return const [];
 
     // Cari kategori tujuan yang hampir habis / melampaui (terpakai >= 85%)
-    final targetCategories = categoryStatuses
-        .where((c) => c.budgetLimit > 0 && c.spentPercentage >= 0.85)
-        .toList()
-      ..sort((a, b) => b.spentPercentage.compareTo(a.spentPercentage));
+    final targetCategories =
+        categoryStatuses
+            .where((c) => c.budgetLimit > 0 && c.spentPercentage >= 0.85)
+            .toList()
+          ..sort((a, b) => b.spentPercentage.compareTo(a.spentPercentage));
 
     // Cari kategori sumber yang masih aman (terpakai <= 40% dan sisa > Rp 50.000)
-    final sourceCategories = categoryStatuses
-        .where((c) => c.budgetLimit > 0 && c.spentPercentage <= 0.40 && c.remainingBudget >= 50000)
-        .toList()
-      ..sort((a, b) => b.remainingBudget.compareTo(a.remainingBudget));
+    final sourceCategories =
+        categoryStatuses
+            .where(
+              (c) =>
+                  c.budgetLimit > 0 &&
+                  c.spentPercentage <= 0.40 &&
+                  c.remainingBudget >= 50000,
+            )
+            .toList()
+          ..sort((a, b) => b.remainingBudget.compareTo(a.remainingBudget));
 
     if (targetCategories.isEmpty || sourceCategories.isEmpty) return const [];
 
@@ -87,25 +96,31 @@ class SmartEnvelopeRebalance {
 
       // Hitung nominal rebalance yang disarankan (maksimal 50% dari sisa pos sumber)
       final neededForTarget = (target.spentAmount - target.budgetLimit) > 0
-          ? (target.spentAmount - target.budgetLimit) + (target.budgetLimit * 0.15)
+          ? (target.spentAmount - target.budgetLimit) +
+                (target.budgetLimit * 0.15)
           : (target.budgetLimit * 0.20);
 
       final availableFromSource = source.remainingBudget * 0.50;
       final rebalanceAmount = _roundToThousands(
-        neededForTarget < availableFromSource ? neededForTarget : availableFromSource,
+        neededForTarget < availableFromSource
+            ? neededForTarget
+            : availableFromSource,
       );
 
       if (rebalanceAmount >= 10000) {
         final targetPctStr = (target.spentPercentage * 100).toStringAsFixed(0);
         final sourcePctStr = (source.spentPercentage * 100).toStringAsFixed(0);
 
-        proposals.add(RebalanceProposal(
-          id: 'rebalance_${DateTime.now().millisecondsSinceEpoch}_${target.categoryName}',
-          sourceCategory: source.categoryName,
-          targetCategory: target.categoryName,
-          suggestedAmount: rebalanceAmount,
-          reason: 'Anggaran ${target.categoryName} sudah terpakai $targetPctStr%, sedangkan ${source.categoryName} baru terpakai $sourcePctStr%.',
-        ));
+        proposals.add(
+          RebalanceProposal(
+            id: 'rebalance_${DateTime.now().millisecondsSinceEpoch}_${target.categoryName}',
+            sourceCategory: source.categoryName,
+            targetCategory: target.categoryName,
+            suggestedAmount: rebalanceAmount,
+            reason:
+                'Anggaran ${target.categoryName} sudah terpakai $targetPctStr%, sedangkan ${source.categoryName} baru terpakai $sourcePctStr%.',
+          ),
+        );
       }
     }
 

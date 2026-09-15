@@ -362,21 +362,22 @@ class FfmAssistantAutonomyRepository {
 
     // Hormati pembatalan: ketika goal dibatalkan, batalkan seluruh task terkait yang belum selesai (F4.7)
     if (changed > 0 && status == FfmAssistantAgentGoalStatus.cancelled) {
-      await (_db.update(_db.assistantAgentTasks)
-            ..where((row) =>
+      await (_db.update(_db.assistantAgentTasks)..where(
+            (row) =>
                 row.goalId.equals(goalId) &
                 row.status.isIn([
                   FfmAssistantAgentTaskStatus.pending.name,
                   FfmAssistantAgentTaskStatus.waitingForData.name,
                   FfmAssistantAgentTaskStatus.waitingForTime.name,
                   FfmAssistantAgentTaskStatus.needsInput.name,
-                ])))
+                ]),
+          ))
           .write(
-        AssistantAgentTasksCompanion(
-          status: Value(FfmAssistantAgentTaskStatus.cancelled.name),
-          updatedAt: Value(now),
-        ),
-      );
+            AssistantAgentTasksCompanion(
+              status: Value(FfmAssistantAgentTaskStatus.cancelled.name),
+              updatedAt: Value(now),
+            ),
+          );
     }
 
     return changed > 0;

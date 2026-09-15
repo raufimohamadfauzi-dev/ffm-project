@@ -75,6 +75,7 @@ import '../../data/ffm_assistant_intent_classification_service.dart';
 import '../../../../core/network/supabase_config.dart';
 import '../../../../core/network/supabase_service.dart';
 import 'chat/ffm_assistant_draft_preview.dart';
+import '../../../reminder/domain/entities/reminder_entity.dart';
 
 import 'chat/ffm_assistant_message_card.dart';
 import 'chat/ffm_streaming_text_controller.dart';
@@ -294,10 +295,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final usedReadCapability =
         intent.pluginMetadata?['usedReadCapability'] as String?;
     final knowledgeIndexSources =
-      (intent.pluginMetadata?['knowledgeIndexSources'] as List?)
-        ?.map((item) => item.toString())
-        .toList(growable: false) ??
-      const <String>[];
+        (intent.pluginMetadata?['knowledgeIndexSources'] as List?)
+            ?.map((item) => item.toString())
+            .toList(growable: false) ??
+        const <String>[];
 
     final sourceEvent = switch (origin) {
       FfmAssistantResponseOrigin.agentOrchestrator =>
@@ -355,9 +356,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         ..._activeProcessEvents,
         if (knowledgeIndexSources.isNotEmpty)
           FfmAssistantProcessEvent(
-            label: 'Knowledge Index mencari: ${knowledgeIndexSources.join(', ')}',
-            detail:
-                'Sumber dipilih dari katalog read-only; LLM tidak mendapat akses SQL bebas.',
+            label:
+                'Knowledge Index mencari: ${knowledgeIndexSources.join(', ')}',
+            detail: 'Sumber dipilih dari katalog read-only; LLM tidak mendapat akses SQL bebas.',
             elapsed: _processStopwatch.elapsed,
           ),
         if (usedReadCapability != null)
@@ -774,12 +775,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (!getIt.isRegistered<AppDatabase>()) return const [];
     try {
       final db = getIt<AppDatabase>();
-      final tags = await (db.select(db.tags)
-            ..where((t) =>
-                t.householdId.equals(AppContext.householdId) &
-                t.isArchived.equals(false))
-            ..orderBy([(t) => OrderingTerm.asc(t.name)]))
-          .get();
+      final tags =
+          await (db.select(db.tags)
+                ..where(
+                  (t) =>
+                      t.householdId.equals(AppContext.householdId) &
+                      t.isArchived.equals(false),
+                )
+                ..orderBy([(t) => OrderingTerm.asc(t.name)]))
+              .get();
       return tags.map((t) => '#${t.name}').toList();
     } catch (_) {
       return const [];
@@ -1506,7 +1510,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     FfmAssistantDraftKind.transactionArchive ||
     FfmAssistantDraftKind.transactionDelete ||
     FfmAssistantDraftKind.activityArchive ||
-    FfmAssistantDraftKind.activityDelete => true,
+    FfmAssistantDraftKind.activityDelete ||
+    FfmAssistantDraftKind.reminder => true,
     _ => false,
   };
 
@@ -1515,7 +1520,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     String planId,
   ) async {
     final isActivity = intent.draft?.formValues['entity'] == 'activity_session';
-    final subject = isActivity ? 'Aktivitas' : 'Transaksi';
+    final isReminder = intent.draft?.kind == FfmAssistantDraftKind.reminder;
+    final subject = isActivity
+        ? 'Aktivitas'
+        : (isReminder ? 'Pengingat' : 'Transaksi');
     final plan = await _capabilityExecutor.execute(planId);
     if (!mounted || plan == null) return;
     final failed = plan.steps.where(
@@ -1523,13 +1531,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     );
     if (plan.status != FfmAssistantActionPlanStatus.completed ||
         failed.isNotEmpty) {
-      final failureLabel = failed.isEmpty
+      final failedStep = failed.isEmpty ? null : failed.first;
+      final failureLabel = failedStep == null
           ? (plan.blockedReason == null
                 ? 'batas proses'
                 : 'batas proses (${plan.blockedReason})')
-          : _capabilityLabel(failed.first.capabilityId);
-      final detail =
-          failed.first.error ?? 'Perubahan tidak dapat diverifikasi.';
+          : _capabilityLabel(failedStep.capabilityId);
+      final detail = failedStep?.error ?? 'Perubahan tidak dapat diverifikasi.';
       final message =
           'Perubahan ${subject.toLowerCase()} tidak selesai ($failureLabel). $detail';
       setState(() {
@@ -1543,9 +1551,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       (step) => step.status == FfmAssistantActionStepStatus.completed,
     );
     final message = verify.isEmpty
-        ? 'Perubahan ${subject.toLowerCase()} selesai dan sudah dicatat secara lokal.'
-        : verify.first.result ??
-              'Perubahan ${subject.toLowerCase()} selesai dan telah diverifikasi.';
+        ? 'Perubahan ${subject.toLowerCase()} berhasil disimpan.'
+        : (verify.last.result ??
+              verify.first.result ??
+              'Perubahan ${subject.toLowerCase()} selesai dan telah diverifikasi.');
     setState(() {
       widget.session.lastAssistantText = message;
       _appendEntry(FfmAssistantChatEntry(isUser: false, text: message));
@@ -1595,6 +1604,34 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   Future<bool> _confirmDirectMutation(FfmAssistantDraft draft) async {
+    if (draft.kind == FfmAssistantDraftKind.reminder) {
+      final isAlarm =
+          draft.reminderMode == ReminderMode.alarm ||
+          draft.formValues['reminderMode'] == 'alarm' ||
+          draft.formValues['mode'] == 'alarm';
+      final modeLabel = isAlarm ? 'alarm nyaring' : 'notifikasi biasa';
+      final title = draft.title ?? 'Pengingat';
+      return await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Konfirmasi simpan pengingat'),
+              content: Text(
+                'Pengingat: "$title"\nTipe: $modeLabel\n\nSimpan pengingat ini sekarang?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Batal'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text('Konfirmasi'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+    }
     final operation = draft.formValues['operation'] ?? 'perubahan';
     final isActivity = draft.formValues['entity'] == 'activity_session';
     final target =
@@ -2013,7 +2050,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         }
       }
 
-      final queryKeyword = text.length > 25 ? '${text.substring(0, 25)}...' : text;
+      final queryKeyword = text.length > 25
+          ? '${text.substring(0, 25)}...'
+          : text;
       _setActiveProcess('🔍 Menganalisis perintah: "$queryKeyword"...');
       await Future<void>.delayed(Duration.zero);
       if (_routingMode == FfmAssistantRoutingMode.geminiCloud && !_cloudReady) {
@@ -2056,7 +2095,29 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       FfmAssistantUnderstandingResult? understanding;
       final activeDraftForTurn = _activeDraftForTurn(text);
 
-      _setActiveProcess('📖 Membaca Data Finansial & Indeks Pencarian...');
+      String contextualProgressLabel(String input) {
+        final lower = input.toLowerCase();
+        if (RegExp(
+          r'\b(halaman apa|sedang di halaman|lagi di halaman|di halaman apa|halaman ini|halaman aktif)\b',
+        ).hasMatch(lower)) {
+          return '📄 Membaca konteks halaman aktif...';
+        }
+        if (RegExp(r'\b(catatan harian|catatan|jurnal)\b').hasMatch(lower)) {
+          return '📖 Membaca konteks Catatan Harian...';
+        }
+        if (RegExp(r'\b(pengingat|alarm|ingatkan|reminder)\b')
+            .hasMatch(lower)) {
+          return '⏰ Membaca konteks Pengingat...';
+        }
+        if (RegExp(
+          r'\b(transaksi|pengeluaran|pemasukan|saldo|anggaran|budget|rekening)\b',
+        ).hasMatch(lower)) {
+          return '🔍 Membaca ringkasan finansial...';
+        }
+        return '📖 Membaca konteks data & indeks pencarian...';
+      }
+
+      _setActiveProcess(contextualProgressLabel(text));
       _interpreter.onProgress = (message) {
         _setActiveProcess(message);
       };
@@ -2180,9 +2241,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           widget.session.lastAssistantText = response;
           final traceEventCount = _activeProcessEvents.length;
           final processTrace = _traceFor(entryIntent, stopwatch.elapsed);
-          final isThisTagClarification = intent.needsClarification &&
+          final isThisTagClarification =
+              intent.needsClarification &&
               ((response.toLowerCase().contains('tag')) ||
-                  (intent.clarification?.toLowerCase().contains('tag') == true));
+                  (intent.clarification?.toLowerCase().contains('tag') ==
+                      true));
           _appendEntry(
             FfmAssistantChatEntry(
               isUser: false,
@@ -2192,8 +2255,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               processTrace: processTrace,
               verifiedFacts: intent.verifiedFacts,
               analysisResults: intent.analysisResults,
-              suggestedQuestions:
-                  isThisTagClarification ? tagSuggestions : const [],
+              suggestedQuestions: isThisTagClarification
+                  ? tagSuggestions
+                  : const [],
             ),
           );
           traceSnapshots.add((processTrace, traceEventCount));
@@ -2244,8 +2308,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     } catch (_) {
       const errorEntry = FfmAssistantChatEntry(
         isUser: false,
-        text:
-            'Maaf, aku belum bisa memproses itu. Coba ulangi dengan kalimat lebih singkat, ya.',
+        text: 'Maaf, aku belum bisa memproses itu. Coba ulangi dengan kalimat lebih singkat, ya.',
       );
       if (mounted) {
         setState(() => _appendEntry(errorEntry));
@@ -4765,7 +4828,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   : const Color(0xFF2E7D32),
             ),
             const SizedBox(width: 8),
-            Text(blocked ? 'Verifikasi Gagal' : 'Fakta Sumber & Bukti Orkestrator'),
+            Text(
+              blocked ? 'Verifikasi Gagal' : 'Fakta Sumber & Bukti Orkestrator',
+            ),
           ],
         ),
         content: SingleChildScrollView(
@@ -4793,10 +4858,17 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       buffer.writeln();
     }
 
-    final tokenUsage = entry.processTrace?.tokenUsage ?? (entry.intent?.pluginMetadata?['tokenUsage'] as Map<String, dynamic>?);
-    final totalTokens = (tokenUsage?['totalTokenCount'] ?? tokenUsage?['totalTokens']) as int?;
-    final promptTokens = (tokenUsage?['promptTokenCount'] ?? tokenUsage?['promptTokens']) as int?;
-    final candidateTokens = (tokenUsage?['candidatesTokenCount'] ?? tokenUsage?['candidateTokens']) as int?;
+    final tokenUsage =
+        entry.processTrace?.tokenUsage ??
+        (entry.intent?.pluginMetadata?['tokenUsage'] as Map<String, dynamic>?);
+    final totalTokens =
+        (tokenUsage?['totalTokenCount'] ?? tokenUsage?['totalTokens']) as int?;
+    final promptTokens =
+        (tokenUsage?['promptTokenCount'] ?? tokenUsage?['promptTokens'])
+            as int?;
+    final candidateTokens =
+        (tokenUsage?['candidatesTokenCount'] ?? tokenUsage?['candidateTokens'])
+            as int?;
 
     if (totalTokens != null && totalTokens > 0) {
       buffer.writeln('🪙 KONSUMSI TOKEN AI:');
@@ -4841,7 +4913,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       buffer.writeln('• Memori Terserap: ${entry.absorbedMemory}');
     }
     if (trace != null) {
-      buffer.writeln('• Waktu Eksekusi Total: ${trace.elapsed.inMilliseconds} ms');
+      buffer.writeln(
+        '• Waktu Eksekusi Total: ${trace.elapsed.inMilliseconds} ms',
+      );
       if (trace.events.isNotEmpty) {
         buffer.writeln('• Tahap Orkestrator:');
         for (final ev in trace.events) {
@@ -4884,7 +4958,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (result == null || !mounted) return;
 
     try {
-      final correctionService = FfmAssistantCorrectionService(_memoryRepository);
+      final correctionService = FfmAssistantCorrectionService(
+        _memoryRepository,
+      );
       await correctionService.saveCorrection(
         userQuestion: feedback.userQuestion,
         correctedText: result.correctedText,
@@ -4904,7 +4980,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         _entries.add(
           FfmAssistantChatEntry(
             isUser: false,
-            text: 'Terima kasih atas koreksinya! Saya telah mencatat aturan ini di memori permanen:\n\n'
+            text:
+                'Terima kasih atas koreksinya! Saya telah mencatat aturan ini di memori permanen:\n\n'
                 '📌 Aturan baru: "${result.correctedText}"\n\n'
                 'Saya akan mematuhi aturan ini pada pertanyaan serupa berikutnya.',
             createdAt: DateTime.now(),
@@ -4915,7 +4992,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Koreksi tersimpan permanen di HP Anda! Asisten telah mempelajarinya.'),
+          content: Text(
+            'Koreksi tersimpan permanen di HP Anda! Asisten telah mempelajarinya.',
+          ),
         ),
       );
     } catch (_) {
@@ -5665,7 +5744,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                       ? null
                                       : _toggleListening,
                                   icon: Icon(
-                                    _listening ? Icons.stop_circle : Icons.mic_none,
+                                    _listening
+                                        ? Icons.stop_circle
+                                        : Icons.mic_none,
                                     color: _listening ? Colors.redAccent : null,
                                   ),
                                 ),

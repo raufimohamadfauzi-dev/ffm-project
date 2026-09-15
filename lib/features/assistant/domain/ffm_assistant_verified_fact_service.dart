@@ -116,7 +116,7 @@ class FfmAssistantVerifiedFactService {
           .where((a) => a.assetType == 'cash')
           .fold<int>(0, (sum, a) => sum + a.value);
 
-        final divisor = period == FfmAnalysisPeriod.last90Days
+      final divisor = period == FfmAnalysisPeriod.last90Days
           ? 3
           : period == FfmAnalysisPeriod.previousYear
           ? 12
@@ -698,9 +698,10 @@ class FfmAnalysisFacts {
       final sorted = categoryBreakdown.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
       for (final entry in sorted.take(5)) {
-        final avgPart = period == FfmAnalysisPeriod.last90Days ||
-            period == FfmAnalysisPeriod.previousYear
-          ? ' (avg: ${_formatCurrency(entry.value ~/ (period == FfmAnalysisPeriod.last90Days ? 3 : 12))}/month)'
+        final avgPart =
+            period == FfmAnalysisPeriod.last90Days ||
+                period == FfmAnalysisPeriod.previousYear
+            ? ' (avg: ${_formatCurrency(entry.value ~/ (period == FfmAnalysisPeriod.last90Days ? 3 : 12))}/month)'
             : '';
         sections.add(
           '  - ${entry.key}: ${_formatCurrency(entry.value)}$avgPart',

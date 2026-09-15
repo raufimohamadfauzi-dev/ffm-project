@@ -21,10 +21,10 @@ class NfcTransactionLogItem {
   }
 
   Map<String, dynamic> toMap() => {
-        'recordIndex': recordIndex,
-        'amount': amount,
-        'rawHex': rawHex,
-      };
+    'recordIndex': recordIndex,
+    'amount': amount,
+    'rawHex': rawHex,
+  };
 }
 
 /// Hasil pembacaan kartu e-Money via NFC.
@@ -43,6 +43,7 @@ class NfcCardScanResult {
   final double balance;
   final String cardType;
   final bool success;
+
   /// False untuk kartu yang terdeteksi tetapi tidak memberikan saldo melalui NFC.
   final bool balanceAvailable;
   final List<NfcTransactionLogItem> history;
@@ -52,9 +53,9 @@ class NfcCardScanResult {
     final rawHistory = map['history'] as List<dynamic>?;
     final parsedHistory = rawHistory != null
         ? rawHistory
-            .whereType<Map<dynamic, dynamic>>()
-            .map(NfcTransactionLogItem.fromMap)
-            .toList()
+              .whereType<Map<dynamic, dynamic>>()
+              .map(NfcTransactionLogItem.fromMap)
+              .toList()
         : const <NfcTransactionLogItem>[];
 
     return NfcCardScanResult(
@@ -160,10 +161,9 @@ class NfcBridge {
   /// Memprogram stiker koin NFC fisik dengan URI aksi cepat.
   Future<Map<String, dynamic>> writeTag(String uri) async {
     try {
-      final res = await _channel.invokeMapMethod<String, dynamic>(
-        'writeTag',
-        {'uri': uri},
-      );
+      final res = await _channel.invokeMapMethod<String, dynamic>('writeTag', {
+        'uri': uri,
+      });
       return res ?? {'success': false, 'error': 'Tidak ada respon dari NFC'};
     } on PlatformException catch (e) {
       return {'success': false, 'error': e.message ?? 'Gagal menulis tag NFC'};

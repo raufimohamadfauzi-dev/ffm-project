@@ -19,10 +19,7 @@ void main() {
     final canonicalDestinations = FfmAssistantDestination.values
         .map((d) => d.canonical)
         .toSet();
-    expect(
-      FfmAssistantCatalog.pages,
-      hasLength(canonicalDestinations.length),
-    );
+    expect(FfmAssistantCatalog.pages, hasLength(canonicalDestinations.length));
     expect(
       FfmAssistantCatalog.pages.map((page) => page.destination).toSet(),
       canonicalDestinations,

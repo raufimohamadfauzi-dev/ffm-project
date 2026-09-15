@@ -62,10 +62,16 @@ void main() {
 
     test('unignoring a pattern removes permanent suppression', () async {
       await repository.ignorePattern(householdId, 'pat_3');
-      expect(await repository.isPatternSuppressed(householdId, 'pat_3'), isTrue);
+      expect(
+        await repository.isPatternSuppressed(householdId, 'pat_3'),
+        isTrue,
+      );
 
       await repository.unignorePattern(householdId, 'pat_3');
-      expect(await repository.isPatternSuppressed(householdId, 'pat_3'), isFalse);
+      expect(
+        await repository.isPatternSuppressed(householdId, 'pat_3'),
+        isFalse,
+      );
     });
   });
 }

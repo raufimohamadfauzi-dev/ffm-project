@@ -75,8 +75,7 @@ class FfmBalanceSensePlugin extends FfmAgentPlugin {
       return const FfmHarnessResult(
         pluginName: 'balance_sense',
         category: FfmPluginCategory.sense,
-        text:
-            '💳 Belum ada rekening aktif yang terdaftar di FFM. Buat rekening baru melalui menu **Data Utama**.',
+        text: '💳 Belum ada rekening aktif yang terdaftar di FFM. Buat rekening baru melalui menu **Data Utama**.',
       );
     }
 
@@ -244,8 +243,7 @@ class FfmBudgetSensePlugin extends FfmAgentPlugin {
       return const FfmHarnessResult(
         pluginName: 'budget_sense',
         category: FfmPluginCategory.sense,
-        text:
-            '📋 Belum ada anggaran aktif yang dibuat. Atur anggaran kategori melalui menu **Anggaran**.',
+        text: '📋 Belum ada anggaran aktif yang dibuat. Atur anggaran kategori melalui menu **Anggaran**.',
       );
     }
 
@@ -296,8 +294,7 @@ class FfmBudgetSensePlugin extends FfmAgentPlugin {
     return FfmHarnessResult(
       pluginName: name,
       category: category,
-      text:
-          '📋 **Status Anggaran Bulan Ini**\n\n${lines.join('\n')}$alert',
+      text: '📋 **Status Anggaran Bulan Ini**\n\n${lines.join('\n')}$alert',
       metadata: {'budgetCount': budgets.length, 'overbudget': overbudgetCount},
     );
   }
@@ -329,7 +326,8 @@ class FfmDebtSensePlugin extends FfmAgentPlugin {
   @override
   Future<FfmHarnessResult?> execute(FfmHarnessContext context) async {
     // Jangan mencegat perintah mutasi (catat hutang baru atau bayar cicilan)
-    if (RegExp(r'\b(catat|buat|tambah|bayar|cicil|lunasi)\b').hasMatch(context.normalizedText) &&
+    if (RegExp(r'\b(catat|buat|tambah|bayar|cicil|lunasi)\b')
+            .hasMatch(context.normalizedText) &&
         RegExp(r'\d+').hasMatch(context.normalizedText)) {
       return null;
     }
@@ -345,8 +343,7 @@ class FfmDebtSensePlugin extends FfmAgentPlugin {
       return const FfmHarnessResult(
         pluginName: 'debt_sense',
         category: FfmPluginCategory.sense,
-        text:
-            '🎉 **Alhamdulillah!** Tidak ada catatan hutang aktif yang tercatat.',
+        text: '🎉 **Alhamdulillah!** Tidak ada catatan hutang aktif yang tercatat.',
       );
     }
 
@@ -415,8 +412,7 @@ class FfmAssetSensePlugin extends FfmAgentPlugin {
       return const FfmHarnessResult(
         pluginName: 'asset_sense',
         category: FfmPluginCategory.sense,
-        text:
-            '📦 Belum ada aset yang dicatat. Tambah aset (rumah, kendaraan, emas, dll) melalui menu **Aset**.',
+        text: '📦 Belum ada aset yang dicatat. Tambah aset (rumah, kendaraan, emas, dll) melalui menu **Aset**.',
       );
     }
 
@@ -425,7 +421,9 @@ class FfmAssetSensePlugin extends FfmAgentPlugin {
 
     for (final asset in assets) {
       totalValue += asset.value;
-      lines.add('- **${asset.name}** (${asset.assetType}): ${_rupiah(asset.value)}');
+      lines.add(
+        '- **${asset.name}** (${asset.assetType}): ${_rupiah(asset.value)}',
+      );
     }
 
     return FfmHarnessResult(
@@ -477,8 +475,7 @@ class FfmGoalSensePlugin extends FfmAgentPlugin {
       return const FfmHarnessResult(
         pluginName: 'goal_sense',
         category: FfmPluginCategory.sense,
-        text:
-            '🎯 Belum ada target tabungan aktif. Buat target impianmu (beli rumah, dana darurat, kurban, dll) di menu **Target**.',
+        text: '🎯 Belum ada target tabungan aktif. Buat target impianmu (beli rumah, dana darurat, kurban, dll) di menu **Target**.',
       );
     }
 
@@ -548,23 +545,27 @@ class FfmUserHabitsAndProfilePlugin extends FfmAgentPlugin {
     final now = context.now;
     final thirtyDaysAgo = now.subtract(const Duration(days: 30));
 
-    final households = await (_db.select(_db.households)
-          ..where((row) => row.id.equals(householdId)))
-        .get();
-    final familyName = households.isNotEmpty ? households.first.name : 'Keluarga FFM';
+    final households = await (_db.select(
+      _db.households,
+    )..where((row) => row.id.equals(householdId))).get();
+    final familyName = households.isNotEmpty
+        ? households.first.name
+        : 'Keluarga FFM';
 
     // 1. Ambil transaksi 30 hari terakhir
-    final transactions = await (_db.select(_db.transactions)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.isArchived.equals(false) &
-              row.isDeleted.equals(false) &
-              row.date.isBiggerOrEqualValue(thirtyDaysAgo)))
-        .get();
+    final transactions =
+        await (_db.select(_db.transactions)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false) &
+                  row.isDeleted.equals(false) &
+                  row.date.isBiggerOrEqualValue(thirtyDaysAgo),
+            ))
+            .get();
 
-    final categories = await (_db.select(_db.categories)
-          ..where((row) => row.householdId.equals(householdId)))
-        .get();
+    final categories = await (_db.select(
+      _db.categories,
+    )..where((row) => row.householdId.equals(householdId))).get();
     final catMap = {for (final c in categories) c.id: c.name};
 
     final hourCounts = <int, int>{};
@@ -589,12 +590,14 @@ class FfmUserHabitsAndProfilePlugin extends FfmAgentPlugin {
     }
 
     // 2. Ambil sesi aktivitas 30 hari terakhir
-    final activitySessions = await (_db.select(_db.activitySessions)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.isArchived.equals(false) &
-              row.startedAt.isBiggerOrEqualValue(thirtyDaysAgo)))
-        .get();
+    final activitySessions =
+        await (_db.select(_db.activitySessions)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false) &
+                  row.startedAt.isBiggerOrEqualValue(thirtyDaysAgo),
+            ))
+            .get();
 
     final activityCounts = <String, int>{};
     final activityMinutes = <String, int>{};
@@ -617,7 +620,9 @@ class FfmUserHabitsAndProfilePlugin extends FfmAgentPlugin {
       final h = totalMins ~/ 60;
       final m = totalMins % 60;
       final timeStr = h > 0 ? '$h jam $m mnt' : '$m mnt';
-      activityLines.add('- 🏃 **${a.key}**: ${a.value} kali tercatat (Total: $timeStr)');
+      activityLines.add(
+        '- 🏃 **${a.key}**: ${a.value} kali tercatat (Total: $timeStr)',
+      );
     }
 
     // Top transaksi kategori
@@ -640,7 +645,8 @@ class FfmUserHabitsAndProfilePlugin extends FfmAgentPlugin {
     return FfmHarnessResult(
       pluginName: name,
       category: category,
-      text: '👤 **Potret Kebiasaan & Aktivitas Kamu (1 Bulan Terakhir)**\n\n'
+      text:
+          '👤 **Potret Kebiasaan & Aktivitas Kamu (1 Bulan Terakhir)**\n\n'
           '🏠 **Profil:** $familyName\n'
           '📝 **Total Aktivitas:** ${activitySessions.length} sesi kegiatan & ${transactions.length} transaksi dalam 30 hari terakhir.\n\n'
           '$activitySummary'
@@ -657,7 +663,6 @@ class FfmUserHabitsAndProfilePlugin extends FfmAgentPlugin {
     );
   }
 }
-
 
 /// Plugin Mata: Membaca daftar piutang aktif (uang yang dipinjam orang ke keluarga).
 class FfmReceivableSensePlugin extends FfmAgentPlugin {
@@ -688,25 +693,28 @@ class FfmReceivableSensePlugin extends FfmAgentPlugin {
   @override
   Future<FfmHarnessResult?> execute(FfmHarnessContext context) async {
     // Jangan mencegat perintah mutasi (catat piutang baru atau terima pembayaran)
-    if (RegExp(r'\b(catat|buat|tambah|terima|bayar)\b').hasMatch(context.normalizedText) &&
+    if (RegExp(r'\b(catat|buat|tambah|terima|bayar)\b')
+            .hasMatch(context.normalizedText) &&
         RegExp(r'\d+').hasMatch(context.normalizedText)) {
       return null;
     }
     final householdId = _householdId();
-    final receivables = await (_db.select(_db.receivables)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isActive.equals(true),
-          )
-          ..orderBy([(row) => OrderingTerm.desc(row.startDate)]))
-        .get();
+    final receivables =
+        await (_db.select(_db.receivables)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isActive.equals(true),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.startDate)]))
+            .get();
 
     if (receivables.isEmpty) {
       return const FfmHarnessResult(
         pluginName: 'receivable_sense',
         category: FfmPluginCategory.sense,
-        text: '📋 Belum ada catatan piutang aktif di FFM. '
+        text:
+            '📋 Belum ada catatan piutang aktif di FFM. '
             'Catat piutang baru lewat chat dengan mengetik: '
             '*"catat piutang [nama] [nominal]"*.',
       );
@@ -727,7 +735,8 @@ class FfmReceivableSensePlugin extends FfmAgentPlugin {
     return FfmHarnessResult(
       pluginName: name,
       category: category,
-      text: '📋 **Daftar Piutang Aktif** (${receivables.length} entri)\n\n'
+      text:
+          '📋 **Daftar Piutang Aktif** (${receivables.length} entri)\n\n'
           '${lines.join('\n')}\n\n'
           '**Total Piutang Belum Kembali: ${_rupiah(totalRemaining)}**',
       metadata: {'totalRemaining': totalRemaining, 'count': receivables.length},
@@ -763,20 +772,22 @@ class FfmRecurringTransactionSensePlugin extends FfmAgentPlugin {
   @override
   Future<FfmHarnessResult?> execute(FfmHarnessContext context) async {
     final householdId = _householdId();
-    final recurring = await (_db.select(_db.recurringTransactions)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isActive.equals(true),
-          )
-          ..orderBy([(row) => OrderingTerm.asc(row.name)]))
-        .get();
+    final recurring =
+        await (_db.select(_db.recurringTransactions)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isActive.equals(true),
+              )
+              ..orderBy([(row) => OrderingTerm.asc(row.name)]))
+            .get();
 
     if (recurring.isEmpty) {
       return const FfmHarnessResult(
         pluginName: 'recurring_transaction_sense',
         category: FfmPluginCategory.sense,
-        text: '🔄 Belum ada transaksi berulang/langganan yang terdaftar. '
+        text:
+            '🔄 Belum ada transaksi berulang/langganan yang terdaftar. '
             'Tambahkan melalui menu **Transaksi Berulang** di halaman Lainnya.',
       );
     }
@@ -805,7 +816,8 @@ class FfmRecurringTransactionSensePlugin extends FfmAgentPlugin {
     return FfmHarnessResult(
       pluginName: name,
       category: category,
-      text: '🔄 **Transaksi Berulang Aktif** (${recurring.length} item)\n\n'
+      text:
+          '🔄 **Transaksi Berulang Aktif** (${recurring.length} item)\n\n'
           '${lines.join('\n')}\n\n'
           '📊 **Ringkasan Per Periode:**\n'
           '- Pemasukan rutin: ${_rupiah(totalIncome)}\n'
@@ -870,29 +882,31 @@ class FfmDailyNotesSensePlugin extends FfmAgentPlugin {
     final endOfDay = startOfDay.add(const Duration(days: 1));
 
     // Ambil catatan hari ini terlebih dahulu
-    var notes = await (_db.select(_db.dailyNotes)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isArchived.equals(false) &
-                row.noteDate.isBiggerOrEqualValue(startOfDay) &
-                row.noteDate.isSmallerThanValue(endOfDay),
-          )
-          ..orderBy([(row) => OrderingTerm.desc(row.noteDate)]))
-        .get();
+    var notes =
+        await (_db.select(_db.dailyNotes)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isArchived.equals(false) &
+                    row.noteDate.isBiggerOrEqualValue(startOfDay) &
+                    row.noteDate.isSmallerThanValue(endOfDay),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.noteDate)]))
+            .get();
 
     // Jika hari ini kosong, ambil 5 catatan terbaru
     String periodLabel = 'Hari Ini';
     if (notes.isEmpty) {
-      notes = await (_db.select(_db.dailyNotes)
-            ..where(
-              (row) =>
-                  row.householdId.equals(householdId) &
-                  row.isArchived.equals(false),
-            )
-            ..orderBy([(row) => OrderingTerm.desc(row.noteDate)])
-            ..limit(5))
-          .get();
+      notes =
+          await (_db.select(_db.dailyNotes)
+                ..where(
+                  (row) =>
+                      row.householdId.equals(householdId) &
+                      row.isArchived.equals(false),
+                )
+                ..orderBy([(row) => OrderingTerm.desc(row.noteDate)])
+                ..limit(5))
+              .get();
       periodLabel = '5 Catatan Terbaru';
     }
 
@@ -900,7 +914,8 @@ class FfmDailyNotesSensePlugin extends FfmAgentPlugin {
       return const FfmHarnessResult(
         pluginName: 'daily_notes_sense',
         category: FfmPluginCategory.sense,
-        text: '📓 Belum ada catatan harian. '
+        text:
+            '📓 Belum ada catatan harian. '
             'Tambahkan jurnal harianmu melalui menu **Catatan Harian** atau '
             'ketik: *"buat catatan harian [isi catatan]"*.',
       );
@@ -910,7 +925,9 @@ class FfmDailyNotesSensePlugin extends FfmAgentPlugin {
     for (final n in notes) {
       final tanggal =
           '${n.noteDate.day}/${n.noteDate.month}/${n.noteDate.year}';
-      final title = n.title != null && n.title!.isNotEmpty ? '**${n.title}**: ' : '';
+      final title = n.title != null && n.title!.isNotEmpty
+          ? '**${n.title}**: '
+          : '';
       final preview = n.body.length > 80
           ? '${n.body.substring(0, 80)}...'
           : n.body;
@@ -920,7 +937,8 @@ class FfmDailyNotesSensePlugin extends FfmAgentPlugin {
     return FfmHarnessResult(
       pluginName: name,
       category: category,
-      text: '📓 **Catatan Harian — $periodLabel** (${notes.length} entri)\n\n'
+      text:
+          '📓 **Catatan Harian — $periodLabel** (${notes.length} entri)\n\n'
           '${lines.join('\n')}',
       metadata: {'count': notes.length},
     );
@@ -973,21 +991,23 @@ class FfmTaskSensePlugin extends FfmAgentPlugin {
   @override
   Future<FfmHarnessResult?> execute(FfmHarnessContext context) async {
     final householdId = _householdId();
-    final tasks = await (_db.select(_db.tasks)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isArchived.equals(false) &
-                row.status.equals('open'),
-          )
-          ..orderBy([(row) => OrderingTerm.asc(row.dueDate)]))
-        .get();
+    final tasks =
+        await (_db.select(_db.tasks)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isArchived.equals(false) &
+                    row.status.equals('open'),
+              )
+              ..orderBy([(row) => OrderingTerm.asc(row.dueDate)]))
+            .get();
 
     if (tasks.isEmpty) {
       return const FfmHarnessResult(
         pluginName: 'task_sense',
         category: FfmPluginCategory.sense,
-        text: '✅ Hebat! Tidak ada tugas keluarga yang tertunda (semua selesai). '
+        text:
+            '✅ Hebat! Tidak ada tugas keluarga yang tertunda (semua selesai). '
             'Ketik: *"buat tugas [nama tugas]"* jika ada hal baru yang perlu dicatat.',
       );
     }
@@ -998,7 +1018,8 @@ class FfmTaskSensePlugin extends FfmAgentPlugin {
       String dueLabel = 'Tanpa batas waktu';
       if (t.dueDate != null) {
         final d = t.dueDate!;
-        final isOverdue = d.isBefore(now) &&
+        final isOverdue =
+            d.isBefore(now) &&
             (d.year != now.year || d.month != now.month || d.day != now.day);
         final isToday =
             d.year == now.year && d.month == now.month && d.day == now.day;
@@ -1017,7 +1038,8 @@ class FfmTaskSensePlugin extends FfmAgentPlugin {
     return FfmHarnessResult(
       pluginName: name,
       category: category,
-      text: '📋 **Daftar Tugas Keluarga Terbuka** (${tasks.length} tugas)\n\n'
+      text:
+          '📋 **Daftar Tugas Keluarga Terbuka** (${tasks.length} tugas)\n\n'
           '${lines.join('\n')}\n\n'
           '💡 Ketik: *"selesaikan tugas [nama tugas]"* setelah tugas dikerjakan.',
       metadata: {'count': tasks.length},
@@ -1057,22 +1079,24 @@ class FfmScheduleSensePlugin extends FfmAgentPlugin {
     final startOfDay = DateTime(now.year, now.month, now.day);
     final endOfWeek = startOfDay.add(const Duration(days: 7));
 
-    final schedules = await (_db.select(_db.scheduleEntries)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isArchived.equals(false) &
-                row.scheduledDate.isBiggerOrEqualValue(startOfDay) &
-                row.scheduledDate.isSmallerThanValue(endOfWeek),
-          )
-          ..orderBy([(row) => OrderingTerm.asc(row.scheduledDate)]))
-        .get();
+    final schedules =
+        await (_db.select(_db.scheduleEntries)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isArchived.equals(false) &
+                    row.scheduledDate.isBiggerOrEqualValue(startOfDay) &
+                    row.scheduledDate.isSmallerThanValue(endOfWeek),
+              )
+              ..orderBy([(row) => OrderingTerm.asc(row.scheduledDate)]))
+            .get();
 
     if (schedules.isEmpty) {
       return const FfmHarnessResult(
         pluginName: 'schedule_sense',
         category: FfmPluginCategory.sense,
-        text: '📅 Tidak ada agenda atau jadwal terdaftar untuk 7 hari ke depan. '
+        text:
+            '📅 Tidak ada agenda atau jadwal terdaftar untuk 7 hari ke depan. '
             'Tambah jadwal lewat menu **Jadwal** atau ketik: *"buat jadwal [nama agenda]"*.',
       );
     }
@@ -1082,7 +1106,9 @@ class FfmScheduleSensePlugin extends FfmAgentPlugin {
       final d = s.scheduledDate;
       final isToday =
           d.year == now.year && d.month == now.month && d.day == now.day;
-      final dayPrefix = isToday ? '🔴 **Hari Ini**' : '${d.day}/${d.month}/${d.year}';
+      final dayPrefix = isToday
+          ? '🔴 **Hari Ini**'
+          : '${d.day}/${d.month}/${d.year}';
       String timeLabel = s.isAllDay ? 'Sepanjang hari' : '';
       if (!s.isAllDay && s.startMinutes != null) {
         final h = (s.startMinutes! ~/ 60).toString().padLeft(2, '0');
@@ -1096,7 +1122,8 @@ class FfmScheduleSensePlugin extends FfmAgentPlugin {
     return FfmHarnessResult(
       pluginName: name,
       category: category,
-      text: '📅 **Agenda & Jadwal 7 Hari ke Depan** (${schedules.length} agenda)\n\n'
+      text:
+          '📅 **Agenda & Jadwal 7 Hari ke Depan** (${schedules.length} agenda)\n\n'
           '${lines.join('\n')}',
       metadata: {'count': schedules.length},
     );
@@ -1149,34 +1176,36 @@ class FfmRoutineSensePlugin extends FfmAgentPlugin {
     final startOfDay = DateTime(now.year, now.month, now.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
 
-    final routines = await (_db.select(_db.dailyRoutines)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isActive.equals(true) &
-                row.isArchived.equals(false),
-          )
-          ..orderBy([(row) => OrderingTerm.asc(row.title)]))
-        .get();
+    final routines =
+        await (_db.select(_db.dailyRoutines)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isActive.equals(true) &
+                    row.isArchived.equals(false),
+              )
+              ..orderBy([(row) => OrderingTerm.asc(row.title)]))
+            .get();
 
     if (routines.isEmpty) {
       return const FfmHarnessResult(
         pluginName: 'routine_sense',
         category: FfmPluginCategory.sense,
-        text: '🔁 Belum ada rutinitas harian yang aktif. '
+        text:
+            '🔁 Belum ada rutinitas harian yang aktif. '
             'Tambah rutinitas baru melalui menu **Rutinitas** di halaman Lainnya.',
       );
     }
 
     // Ambil penyelesaian rutinitas hari ini
-    final completions = await (_db.select(_db.dailyRoutineCompletions)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.routineDate.isBiggerOrEqualValue(startOfDay) &
-                row.routineDate.isSmallerThanValue(endOfDay),
-          ))
-        .get();
+    final completions =
+        await (_db.select(_db.dailyRoutineCompletions)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.routineDate.isBiggerOrEqualValue(startOfDay) &
+                  row.routineDate.isSmallerThanValue(endOfDay),
+            ))
+            .get();
 
     final completedIds = completions.map((c) => c.routineId).toSet();
 
@@ -1197,7 +1226,8 @@ class FfmRoutineSensePlugin extends FfmAgentPlugin {
     return FfmHarnessResult(
       pluginName: name,
       category: category,
-      text: '🔁 **Ceklis Rutinitas Harian Hari Ini**\n\n'
+      text:
+          '🔁 **Ceklis Rutinitas Harian Hari Ini**\n\n'
           '📊 **Progres:** $doneCount dari ${routines.length} selesai (**$percent%**)\n\n'
           '${lines.join('\n')}',
       metadata: {
@@ -1238,20 +1268,20 @@ class FfmTopMerchantSensePlugin extends FfmAgentPlugin {
     final now = context.now;
     final threeMonthsAgo = DateTime(now.year, now.month - 3, 1);
 
-    final transactions = await (_db.select(_db.transactions)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.type.equals('expense') &
-                row.isArchived.equals(false) &
-                row.isDeleted.equals(false) &
-                row.date.isBiggerOrEqualValue(threeMonthsAgo),
-          ))
-        .get();
+    final transactions =
+        await (_db.select(_db.transactions)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.type.equals('expense') &
+                  row.isArchived.equals(false) &
+                  row.isDeleted.equals(false) &
+                  row.date.isBiggerOrEqualValue(threeMonthsAgo),
+            ))
+            .get();
 
-    final merchants = await (_db.select(_db.merchants)
-          ..where((row) => row.householdId.equals(householdId)))
-        .get();
+    final merchants = await (_db.select(
+      _db.merchants,
+    )..where((row) => row.householdId.equals(householdId))).get();
     final merchantMap = {for (final m in merchants) m.id: m.name};
 
     final merchantSpend = <String, int>{};
@@ -1261,8 +1291,8 @@ class FfmTopMerchantSensePlugin extends FfmAgentPlugin {
       final name = t.merchantId != null && merchantMap.containsKey(t.merchantId)
           ? merchantMap[t.merchantId]!
           : (t.partyName != null && t.partyName!.isNotEmpty
-              ? t.partyName!
-              : 'Lainnya / Tanpa Nama Toko');
+                ? t.partyName!
+                : 'Lainnya / Tanpa Nama Toko');
       merchantSpend[name] = (merchantSpend[name] ?? 0) + t.amount.abs();
       merchantCount[name] = (merchantCount[name] ?? 0) + 1;
     }
@@ -1291,7 +1321,8 @@ class FfmTopMerchantSensePlugin extends FfmAgentPlugin {
     return FfmHarnessResult(
       pluginName: name,
       category: category,
-      text: '🏪 **5 Tempat Belanja Terbesar (3 Bulan Terakhir)**\n\n'
+      text:
+          '🏪 **5 Tempat Belanja Terbesar (3 Bulan Terakhir)**\n\n'
           '${lines.join('\n')}\n\n'
           '💡 *Tip: Mengetahui tempat belanja favorit membantumu mengontrol frekuensi jajan dan menemukan peluang hemat.*',
       metadata: {'count': top5.length},
@@ -1334,27 +1365,33 @@ class FfmWeeklyActivityReportPlugin extends FfmAgentPlugin {
         : DateTime(now.year, now.month, now.day - 7);
     final periodLabel = isMonthly ? 'Bulan Ini' : '7 Hari Terakhir';
 
-    final sessions = await (_db.select(_db.activitySessions)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isArchived.equals(false) &
-                row.startedAt.isBiggerOrEqualValue(startDate),
-          )
-          ..orderBy([(row) => OrderingTerm.desc(row.startedAt)]))
-        .get();
+    final sessions =
+        await (_db.select(_db.activitySessions)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isArchived.equals(false) &
+                    row.startedAt.isBiggerOrEqualValue(startDate),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.startedAt)]))
+            .get();
 
     if (sessions.isEmpty) {
       return FfmHarnessResult(
         pluginName: name,
         category: category,
-        text: '⏱️ Belum ada sesi aktivitas yang tercatat untuk periode **$periodLabel**. '
+        text:
+            '⏱️ Belum ada sesi aktivitas yang tercatat untuk periode **$periodLabel**. '
             'Mulai sesi aktivitas baru dengan mengetik: *"mulai aktivitas [nama]"*.',
       );
     }
 
-    final rootSessions = sessions.where((s) => s.parentSessionId == null).toList();
-    final childSessions = sessions.where((s) => s.parentSessionId != null).toList();
+    final rootSessions = sessions
+        .where((s) => s.parentSessionId == null)
+        .toList();
+    final childSessions = sessions
+        .where((s) => s.parentSessionId != null)
+        .toList();
 
     var rootTotalMinutes = 0;
     var completedCount = 0;
@@ -1375,9 +1412,11 @@ class FfmWeeklyActivityReportPlugin extends FfmAgentPlugin {
       }
 
       rootTotalMinutes += duration;
-      categoryMinutes[s.category] = (categoryMinutes[s.category] ?? 0) + duration;
+      categoryMinutes[s.category] =
+          (categoryMinutes[s.category] ?? 0) + duration;
 
-      final dayKey = '${s.startedAt.year}-${s.startedAt.month.toString().padLeft(2, "0")}-${s.startedAt.day.toString().padLeft(2, "0")}';
+      final dayKey =
+          '${s.startedAt.year}-${s.startedAt.month.toString().padLeft(2, "0")}-${s.startedAt.day.toString().padLeft(2, "0")}';
       dailyMinutes[dayKey] = (dailyMinutes[dayKey] ?? 0) + duration;
     }
 
@@ -1388,7 +1427,8 @@ class FfmWeeklyActivityReportPlugin extends FfmAgentPlugin {
       final duration = isCompleted
           ? c.endedAt!.difference(c.startedAt).inMinutes
           : now.difference(c.startedAt).inMinutes;
-      childCategoryMinutes[c.category] = (childCategoryMinutes[c.category] ?? 0) + duration;
+      childCategoryMinutes[c.category] =
+          (childCategoryMinutes[c.category] ?? 0) + duration;
     }
 
     final hours = rootTotalMinutes ~/ 60;
@@ -1409,7 +1449,8 @@ class FfmWeeklyActivityReportPlugin extends FfmAgentPlugin {
     if (childSessions.isNotEmpty) {
       nestedLines.add('\n📌 **Sub-Kegiatan (Nested Activities):**');
       for (final child in childSessions) {
-        final isCompleted = child.status == 'completed' && child.endedAt != null;
+        final isCompleted =
+            child.status == 'completed' && child.endedAt != null;
         final duration = isCompleted
             ? child.endedAt!.difference(child.startedAt).inMinutes
             : now.difference(child.startedAt).inMinutes;
@@ -1423,7 +1464,8 @@ class FfmWeeklyActivityReportPlugin extends FfmAgentPlugin {
     return FfmHarnessResult(
       pluginName: name,
       category: category,
-      text: '⏱️ **Rekap Laporan Aktivitas ($periodLabel)**\n\n'
+      text:
+          '⏱️ **Rekap Laporan Aktivitas ($periodLabel)**\n\n'
           '📊 **Statistik Utama:**\n'
           '- Total Waktu Utama: **$timeStr** (tanpa double counting sub-kegiatan)\n'
           '- Total Sesi Kegiatan: **${sessions.length} sesi** ($completedCount sesi utama selesai, $activeCount aktif, ${childSessions.length} sub-kegiatan)\n\n'
@@ -1442,6 +1484,3 @@ class FfmWeeklyActivityReportPlugin extends FfmAgentPlugin {
     );
   }
 }
-
-
-

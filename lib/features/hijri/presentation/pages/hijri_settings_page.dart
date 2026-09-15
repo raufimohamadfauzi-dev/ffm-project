@@ -110,18 +110,48 @@ class _HijriSettingsPageState extends State<HijriSettingsPage> {
                             labelText: 'Bulan Hijriah',
                           ),
                           items: const [
-                            DropdownMenuItem(value: 1, child: Text('1. Muharram')),
+                            DropdownMenuItem(
+                              value: 1,
+                              child: Text('1. Muharram'),
+                            ),
                             DropdownMenuItem(value: 2, child: Text('2. Safar')),
-                            DropdownMenuItem(value: 3, child: Text('3. Rabiul Awal')),
-                            DropdownMenuItem(value: 4, child: Text('4. Rabiul Akhir')),
-                            DropdownMenuItem(value: 5, child: Text('5. Jumadil Awal')),
-                            DropdownMenuItem(value: 6, child: Text('6. Jumadil Akhir')),
+                            DropdownMenuItem(
+                              value: 3,
+                              child: Text('3. Rabiul Awal'),
+                            ),
+                            DropdownMenuItem(
+                              value: 4,
+                              child: Text('4. Rabiul Akhir'),
+                            ),
+                            DropdownMenuItem(
+                              value: 5,
+                              child: Text('5. Jumadil Awal'),
+                            ),
+                            DropdownMenuItem(
+                              value: 6,
+                              child: Text('6. Jumadil Akhir'),
+                            ),
                             DropdownMenuItem(value: 7, child: Text('7. Rajab')),
-                            DropdownMenuItem(value: 8, child: Text('8. Sya\'ban')),
-                            DropdownMenuItem(value: 9, child: Text('9. Ramadan')),
-                            DropdownMenuItem(value: 10, child: Text('10. Syawal')),
-                            DropdownMenuItem(value: 11, child: Text('11. Zulkaidah')),
-                            DropdownMenuItem(value: 12, child: Text('12. Zulhijah')),
+                            DropdownMenuItem(
+                              value: 8,
+                              child: Text('8. Sya\'ban'),
+                            ),
+                            DropdownMenuItem(
+                              value: 9,
+                              child: Text('9. Ramadan'),
+                            ),
+                            DropdownMenuItem(
+                              value: 10,
+                              child: Text('10. Syawal'),
+                            ),
+                            DropdownMenuItem(
+                              value: 11,
+                              child: Text('11. Zulkaidah'),
+                            ),
+                            DropdownMenuItem(
+                              value: 12,
+                              child: Text('12. Zulhijah'),
+                            ),
                           ],
                           onChanged: (val) {
                             if (val != null) {
@@ -269,201 +299,200 @@ class _HijriSettingsPageState extends State<HijriSettingsPage> {
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.hijriSettings,
       child: Scaffold(
-      appBar: AppBar(
-        title: const Text('Kalender Hijriah & Hilal'),
-        actions: [
-          IconButton(
-            tooltip: 'Info Pengaturan Hilal',
-            onPressed: () => showAppInfoDialog(
-              context,
-              title: 'Tentang Kalender Hijriah & Hilal',
-              message:
-                  'Gunakan pengaturan ini untuk menyesuaikan tanggal Hijriah dengan penetapan Hilal / Rukyatul Hilal lokal (misal Sidang Isbat Kemenag).\n\nSetiap perubahan koreksi di sini akan otomatis memperbarui tanggal Hijriah di seluruh aplikasi FFM (Pengingat, Transaksi, Target, dll).',
+        appBar: AppBar(
+          title: const Text('Kalender Hijriah & Hilal'),
+          actions: [
+            IconButton(
+              tooltip: 'Info Pengaturan Hilal',
+              onPressed: () => showAppInfoDialog(
+                context,
+                title: 'Tentang Kalender Hijriah & Hilal',
+                message: 'Gunakan pengaturan ini untuk menyesuaikan tanggal Hijriah dengan penetapan Hilal / Rukyatul Hilal lokal (misal Sidang Isbat Kemenag).\n\nSetiap perubahan koreksi di sini akan otomatis memperbarui tanggal Hijriah di seluruh aplikasi FFM (Pengingat, Transaksi, Target, dll).',
+              ),
+              icon: const Icon(Icons.info_outline),
             ),
-            icon: const Icon(Icons.info_outline),
-          ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 36),
-              children: [
-                // 1. Preview Tanggal Hari Ini
-                if (todayDisplay != null) ...[
+          ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 36),
+                children: [
+                  // 1. Preview Tanggal Hari Ini
+                  if (todayDisplay != null) ...[
+                    AppCard(
+                      color: theme.colorScheme.primaryContainer.withValues(
+                        alpha: .45,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.nights_stay_outlined,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Tanggal Hari Ini',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Masehi: ${formatTanggalLengkap(todayDisplay.gregorian)}',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Hijriah: ${formatHijriDate(todayDisplay)}',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                          if (todayDisplay.manualOffsetDays != 0) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Status: Menggunakan koreksi offset (${todayDisplay.manualOffsetDays > 0 ? '+' : ''}${todayDisplay.manualOffsetDays} hari)',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // 2. Koreksi Hilal Global (Day Adjustment)
+                  AppSectionHeader(
+                    title: 'Koreksi Hilal Global (Offset Harian)',
+                    helpText: 'Geser penanggalan Hijriah umum (-2 s/d +2 hari) jika Hilal lokal masuk lebih cepat atau lebih lambat dari kalender standar.',
+                  ),
+                  const SizedBox(height: 8),
                   AppCard(
-                    color: theme.colorScheme.primaryContainer.withValues(alpha: .45),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [-2, -1, 0, 1, 2].map((days) {
+                            final isSelected = _selectedAdjustment == days;
+                            final label = days == 0
+                                ? '0 (Standar)'
+                                : days > 0
+                                ? '+$days Hari'
+                                : '$days Hari';
+                            return ChoiceChip(
+                              label: Text(label),
+                              selected: isSelected,
+                              onSelected: (selected) {
+                                if (selected) {
+                                  setState(() => _selectedAdjustment = days);
+                                  _saveAdjustment(days);
+                                }
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 3. Koreksi Spesifik Bulan (Hilal Override)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AppSectionHeader(
+                          title: 'Koreksi Awal Bulan (Hilal Override)',
+                          helpText: 'Penetapan khusus tanggal 1 untuk bulan Hijriah tertentu (misal 1 Ramadan / 1 Syawal sesuai Sidang Isbat).',
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Tambah penetapan awal bulan',
+                        onPressed: _openAddOverrideDialog,
+                        icon: const Icon(Icons.add_circle_outline),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (_overrides.isEmpty)
+                    AppCard(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
                           children: [
                             Icon(
-                              Icons.nights_stay_outlined,
-                              color: theme.colorScheme.primary,
+                              Icons.calendar_month_outlined,
+                              color: theme.colorScheme.outline,
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Tanggal Hari Ini',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Text(
+                                'Belum ada penetapan khusus awal bulan. Klik + di kanan untuk menambah.',
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Masehi: ${formatTanggalLengkap(todayDisplay.gregorian)}',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Hijriah: ${formatHijriDate(todayDisplay)}',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: theme.colorScheme.primary,
+                      ),
+                    )
+                  else
+                    ..._overrides.map(
+                      (item) => AppCard(
+                        child: ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.event_available_outlined),
+                          title: Text(
+                            '1 ${_monthName(item.hijriMonth)} ${item.hijriYear} H',
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          subtitle: Text(
+                            'Tgl Masehi: ${formatTanggalLengkap(item.gregorianStartDate)}${item.note != null ? ' · ${item.note}' : ''}',
+                          ),
+                          trailing: IconButton(
+                            tooltip: 'Hapus koreksi',
+                            onPressed: () => _deleteOverride(item.id),
+                            icon: const Icon(Icons.delete_outline),
                           ),
                         ),
-                        if (todayDisplay.manualOffsetDays != 0) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            'Status: Menggunakan koreksi offset (${todayDisplay.manualOffsetDays > 0 ? '+' : ''}${todayDisplay.manualOffsetDays} hari)',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w700,
-                            ),
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+
+                  // 4. Log Riwayat Koreksi Hilal
+                  if (_logs.isNotEmpty) ...[
+                    AppSectionHeader(
+                      title: 'Riwayat Koreksi Hilal',
+                      helpText: 'Catatan log historis penyesuaian yang pernah disimpan.',
+                    ),
+                    const SizedBox(height: 8),
+                    ..._logs.map(
+                      (log) => AppCard(
+                        child: ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.history_outlined),
+                          title: Text(
+                            'Koreksi ${log.action.replaceAll('_', ' ')}',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // 2. Koreksi Hilal Global (Day Adjustment)
-                AppSectionHeader(
-                  title: 'Koreksi Hilal Global (Offset Harian)',
-                  helpText:
-                      'Geser penanggalan Hijriah umum (-2 s/d +2 hari) jika Hilal lokal masuk lebih cepat atau lebih lambat dari kalender standar.',
-                ),
-                const SizedBox(height: 8),
-                AppCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [-2, -1, 0, 1, 2].map((days) {
-                          final isSelected = _selectedAdjustment == days;
-                          final label = days == 0
-                              ? '0 (Standar)'
-                              : days > 0
-                                  ? '+$days Hari'
-                                  : '$days Hari';
-                          return ChoiceChip(
-                            label: Text(label),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              if (selected) {
-                                setState(() => _selectedAdjustment = days);
-                                _saveAdjustment(days);
-                              }
-                            },
-                          );
-                        }).toList(),
+                          subtitle: Text(
+                            '${formatTanggalLengkap(log.timestamp)} · ${log.oldValue ?? '-'} ➔ ${log.newValue ?? '-'}',
+                          ),
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // 3. Koreksi Spesifik Bulan (Hilal Override)
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppSectionHeader(
-                        title: 'Koreksi Awal Bulan (Hilal Override)',
-                        helpText:
-                            'Penetapan khusus tanggal 1 untuk bulan Hijriah tertentu (misal 1 Ramadan / 1 Syawal sesuai Sidang Isbat).',
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Tambah penetapan awal bulan',
-                      onPressed: _openAddOverrideDialog,
-                      icon: const Icon(Icons.add_circle_outline),
                     ),
                   ],
-                ),
-                const SizedBox(height: 8),
-                if (_overrides.isEmpty)
-                  AppCard(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.calendar_month_outlined,
-                            color: theme.colorScheme.outline,
-                          ),
-                          const SizedBox(width: 10),
-                          const Expanded(
-                            child: Text(
-                              'Belum ada penetapan khusus awal bulan. Klik + di kanan untuk menambah.',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                else
-                  ..._overrides.map(
-                    (item) => AppCard(
-                      child: ListTile(
-                        dense: true,
-                        leading: const Icon(Icons.event_available_outlined),
-                        title: Text(
-                          '1 ${_monthName(item.hijriMonth)} ${item.hijriYear} H',
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        subtitle: Text(
-                          'Tgl Masehi: ${formatTanggalLengkap(item.gregorianStartDate)}${item.note != null ? ' · ${item.note}' : ''}',
-                        ),
-                        trailing: IconButton(
-                          tooltip: 'Hapus koreksi',
-                          onPressed: () => _deleteOverride(item.id),
-                          icon: const Icon(Icons.delete_outline),
-                        ),
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 20),
-
-                // 4. Log Riwayat Koreksi Hilal
-                if (_logs.isNotEmpty) ...[
-                  AppSectionHeader(
-                    title: 'Riwayat Koreksi Hilal',
-                    helpText: 'Catatan log historis penyesuaian yang pernah disimpan.',
-                  ),
-                  const SizedBox(height: 8),
-                  ..._logs.map(
-                    (log) => AppCard(
-                      child: ListTile(
-                        dense: true,
-                        leading: const Icon(Icons.history_outlined),
-                        title: Text(
-                          'Koreksi ${log.action.replaceAll('_', ' ')}',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        subtitle: Text(
-                          '${formatTanggalLengkap(log.timestamp)} · ${log.oldValue ?? '-'} ➔ ${log.newValue ?? '-'}',
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
-              ],
-            ),
+              ),
       ),
     );
   }

@@ -58,6 +58,7 @@ import '../domain/assistant_onboarding_orchestrator.dart';
 import 'ffm_assistant_work_item_service.dart';
 import '../../activity/domain/entities/activity_entity.dart';
 import '../../activity/domain/activity_mode_detector.dart';
+import '../../reminder/domain/entities/reminder_entity.dart';
 
 import '../domain/ffm_agent_harness.dart';
 import 'ffm_agent_plugins.dart';
@@ -303,7 +304,8 @@ class FfmAssistantInterpreter {
       }
       return FfmAssistantCloudRequestClass.summary;
     }
-    if (RegExp(r'\b(aktivitas|kegiatan|perjalanan|checkpoint|sesi)\b').hasMatch(normalized)) {
+    if (RegExp(r'\b(aktivitas|kegiatan|perjalanan|checkpoint|sesi)\b')
+        .hasMatch(normalized)) {
       return FfmAssistantCloudRequestClass.general;
     }
     if (RegExp(r'\b(rekening|akun)\b').hasMatch(normalized)) {
@@ -425,8 +427,9 @@ class FfmAssistantInterpreter {
     final evidenceScope = FfmAssistantReasoningEvidencePolicy.forRequest(
       normalized,
     );
-    final knowledgeIndexPlan =
-        FfmAssistantKnowledgeIndex.planForRequest(rawText);
+    final knowledgeIndexPlan = FfmAssistantKnowledgeIndex.planForRequest(
+      rawText,
+    );
     final requestClass = _classifyCloudRequest(
       normalized: normalized,
       evidenceScope: evidenceScope,
@@ -436,8 +439,20 @@ class FfmAssistantInterpreter {
         requestClass == FfmAssistantCloudRequestClass.draftReview
         ? activeDraft
         : null;
-    onProgress?.call('🔍 Membaca Ringkasan Finansial & Saldo Aktif...');
-    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (evidenceScope.includeFinancialSummary) {
+      onProgress?.call('🔍 Membaca Ringkasan Finansial & Saldo Aktif...');
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    } else if (RegExp(r'\b(catatan harian|catatan|jurnal)\b')
+        .hasMatch(normalized)) {
+      onProgress?.call('📖 Membaca konteks Catatan Harian...');
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    } else if (RegExp(r'\b(pengingat|alarm|ingatkan)\b').hasMatch(normalized)) {
+      onProgress?.call('⏰ Membaca konteks Pengingat...');
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    } else if (_isCurrentPageRequest(normalized)) {
+      onProgress?.call('📄 Membaca konteks halaman aktif...');
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    }
     final financialContext = evidenceScope.includeFinancialSummary
         ? _financialSnapshot.buildBoundedPrompt(
             await _financialSnapshot.readCurrentMonth(
@@ -446,8 +461,10 @@ class FfmAssistantInterpreter {
             ),
           )
         : '';
-    onProgress?.call('📖 Menghubungkan Profil Keluarga & Master Data...');
-    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (evidenceScope.includeMasterData) {
+      onProgress?.call('📖 Menghubungkan Profil Keluarga & Master Data...');
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    }
     final householdContext = await _financialSnapshot
         .buildHouseholdProfileContext(householdId: AppContext.householdId);
     final masterDataContext = evidenceScope.includeMasterData
@@ -565,26 +582,27 @@ class FfmAssistantInterpreter {
             householdId: AppContext.householdId,
           )
         : '';
-    final monitoringJobsContext = _containsAny(normalized, const [
-      'monitoring',
-      'pantau',
-      'jadwal pantau',
-      'evaluasi mingguan',
-      'laporan evaluasi',
-      'laporan kemarin',
-      'cek tagihan',
-      'budget monitor',
-      'kenapa begitu',
-      'kenapa evaluasi',
-      'kenapa laporan',
-    ])
+    final monitoringJobsContext =
+        _containsAny(normalized, const [
+          'monitoring',
+          'pantau',
+          'jadwal pantau',
+          'evaluasi mingguan',
+          'laporan evaluasi',
+          'laporan kemarin',
+          'cek tagihan',
+          'budget monitor',
+          'kenapa begitu',
+          'kenapa evaluasi',
+          'kenapa laporan',
+        ])
         ? (getIt.isRegistered<FfmAssistantMonitoringJobService>()
-            ? await getIt<FfmAssistantMonitoringJobService>()
-                .buildMonitoringDigest(
-                  householdId: AppContext.householdId,
-                  now: capturedAt,
-                )
-            : '')
+              ? await getIt<FfmAssistantMonitoringJobService>()
+                    .buildMonitoringDigest(
+                      householdId: AppContext.householdId,
+                      now: capturedAt,
+                    )
+              : '')
         : '';
     final correctionsContext = await FfmAssistantCorrectionService(
       _taughtMemory,
@@ -750,7 +768,7 @@ class FfmAssistantInterpreter {
       boundedContext: geminiContext,
       householdId: AppContext.householdId,
     );
-    onProgress?.call('🛡️ Memverifikasi Kebenaran Finansial & Grounding...');
+    onProgress?.call('🛡️ Memverifikasi jawaban dengan konteks lokal...');
     await Future<void>.delayed(const Duration(milliseconds: 120));
     if (!turn.ok) {
       return _InterpretResult.single(
@@ -1050,11 +1068,16 @@ class FfmAssistantInterpreter {
     }
 
     int? amount;
-    final parsedDigits = FfmAssistantGroundingValidator.expandTextNumbers(normalized);
+    final parsedDigits = FfmAssistantGroundingValidator.expandTextNumbers(
+      normalized,
+    );
     if (parsedDigits.isNotEmpty) {
       amount = int.tryParse(parsedDigits.first);
     } else {
-      final numbers = RegExp(r'\d+').allMatches(normalized).map((m) => m.group(0)!).toList();
+      final numbers = RegExp(r'\d+')
+          .allMatches(normalized)
+          .map((m) => m.group(0)!)
+          .toList();
       if (numbers.isNotEmpty) {
         amount = int.tryParse(numbers.first);
       }
@@ -1062,7 +1085,14 @@ class FfmAssistantInterpreter {
 
     if (amount != null && amount > 0) {
       final titleCategory = (categoryName != null && categoryName.isNotEmpty)
-          ? categoryName.split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' ')
+          ? categoryName
+                .split(' ')
+                .map(
+                  (w) => w.isNotEmpty
+                      ? '${w[0].toUpperCase()}${w.substring(1)}'
+                      : '',
+                )
+                .join(' ')
           : 'Anggaran Bulanan';
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.budget,
@@ -1474,10 +1504,7 @@ class FfmAssistantInterpreter {
       final cleanTag = rawText.replaceAll('#', '').trim().toLowerCase();
       if (cleanTag.isNotEmpty) {
         draft = draft.copyWith(
-          formValues: {
-            ...draft.formValues,
-            'tags': cleanTag,
-          },
+          formValues: {...draft.formValues, 'tags': cleanTag},
         );
       }
     }
@@ -1794,10 +1821,7 @@ class FfmAssistantInterpreter {
       final minuteStr = updatedTime.minute.toString().padLeft(2, '0');
       newFormValues['time'] = '$hourStr:$minuteStr';
       newFormValues['hasExplicitTime'] = true;
-      revised = revised.copyWith(
-        date: updatedTime,
-        formValues: newFormValues,
-      );
+      revised = revised.copyWith(date: updatedTime, formValues: newFormValues);
       changes.add('Jam diubah ke $hourStr:$minuteStr WIB');
     }
 
@@ -2091,20 +2115,14 @@ class FfmAssistantInterpreter {
             '',
           )
           .trim()
-          .replaceFirst(
-            RegExp(r'^(?:saya|aku)\s+', caseSensitive: false),
-            '',
-          );
+          .replaceFirst(RegExp(r'^(?:saya|aku)\s+', caseSensitive: false), '');
       final draft = FfmAssistantDraft(
         kind: FfmAssistantDraftKind.activity,
         createdAt: _clock(),
         title: title,
         note: rawText.trim(),
         date: activityDate,
-        formValues: const {
-          'activityMode': 'history',
-          'kind': 'event',
-        },
+        formValues: const {'activityMode': 'history', 'kind': 'event'},
       );
       return _intentForDraft(rawText, normalized, draft);
     }
@@ -2330,6 +2348,16 @@ class FfmAssistantInterpreter {
         confidence: 1,
         response: _randomGreeting(),
       );
+    }
+
+    // ── KONTEKS HALAMAN AKTIF (Deterministik) ─────────────────────────────────
+    // Jika user menanyakan posisi/label halaman aktif saat ini dan tidak ada
+    // perintah aksi eksplisit, jawab deterministik dari currentDestination sebelum
+    // dikirim ke Gemini Cloud agar selalu akurat dan instan.
+    if (_isCurrentPageRequest(normalized) &&
+        currentDestination != null &&
+        !_hasExplicitIntent(normalized)) {
+      return _currentPageContext(rawText, normalized, currentDestination);
     }
 
     // Gemini-first: semua percakapan biasa, termasuk sapaan, penjelasan
@@ -2834,8 +2862,10 @@ class FfmAssistantInterpreter {
       );
     }
 
-    final monitoringIntent =
-        await _parseMonitoringJobIntent(rawText, normalized);
+    final monitoringIntent = await _parseMonitoringJobIntent(
+      rawText,
+      normalized,
+    );
     if (monitoringIntent != null) return monitoringIntent;
 
     if (_containsAny(normalized, const [
@@ -3495,12 +3525,22 @@ class FfmAssistantInterpreter {
       final title = normalizedLast.contains('panen pepaya')
           ? 'Panen pepaya'
           : 'Kegiatan yang dibahas';
+      final hasAlarm = RegExp(
+        r'\balarm\b',
+        caseSensitive: false,
+      ).hasMatch(normalized);
+      final reminderMode = hasAlarm
+          ? ReminderMode.alarm
+          : ReminderMode.notification;
+      final modeStr = reminderMode.name;
       final draft = FfmAssistantDraft(
         kind: FfmAssistantDraftKind.reminder,
         createdAt: _clock(),
         title: title,
         note: 'Pengingat dibuat dari tawaran sebelumnya di percakapan.',
         date: reminderDate,
+        reminderMode: reminderMode,
+        formValues: {'reminderMode': modeStr, 'mode': modeStr},
       );
       return FfmAssistantIntent(
         rawText: rawText,
@@ -3508,9 +3548,11 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.createReminder,
         destination: FfmAssistantDestination.reminders,
         draft: draft,
-        clarification: 'Jam berapa biasanya ingin diingatkan pada hari tersebut?',
+        clarification:
+            'Jam berapa biasanya ingin diingatkan pada hari tersebut?',
         confidence: 0.98,
-        response: 'Siap, saya siapkan pengingat $title. Jam berapa biasanya ingin diingatkan?',
+        response:
+            'Siap, saya siapkan pengingat $title. Jam berapa biasanya ingin diingatkan?',
       );
     }
 
@@ -4639,7 +4681,8 @@ class FfmAssistantInterpreter {
     String rawText,
     String normalized,
   ) async {
-    final asksMonitoring = normalized.contains('monitoring') ||
+    final asksMonitoring =
+        normalized.contains('monitoring') ||
         normalized.contains('jadwal pantau') ||
         normalized.contains('evaluasi mingguan') ||
         normalized.contains('pantau anggaran') ||
@@ -4672,8 +4715,7 @@ class FfmAssistantInterpreter {
           type: FfmAssistantIntentType.listMonitoringJobs,
           destination: FfmAssistantDestination.autonomyMonitor,
           confidence: 1.0,
-          response:
-              'Belum ada jadwal pemantauan otonom aktif. Kamu bisa membuat jadwal baru seperti: "Jadwalkan evaluasi mingguan setiap Minggu jam 9 pagi".',
+          response: 'Belum ada jadwal pemantauan otonom aktif. Kamu bisa membuat jadwal baru seperti: "Jadwalkan evaluasi mingguan setiap Minggu jam 9 pagi".',
         );
       }
       final buffer = StringBuffer()
@@ -4697,13 +4739,15 @@ class FfmAssistantInterpreter {
     }
 
     // 2. Pause / Jeda
-    if (_containsAny(
-      normalized,
-      const ['jeda', 'pause', 'hentikan sementara'],
-    )) {
+    if (_containsAny(normalized, const [
+      'jeda',
+      'pause',
+      'hentikan sementara',
+    ])) {
       final jobs = await service.listJobs(AppContext.householdId);
-      final activeJobs =
-          jobs.where((j) => j.status == FfmAssistantJobStatus.active).toList();
+      final activeJobs = jobs
+          .where((j) => j.status == FfmAssistantJobStatus.active)
+          .toList();
       if (activeJobs.isEmpty) {
         return FfmAssistantIntent(
           rawText: rawText,
@@ -4727,13 +4771,15 @@ class FfmAssistantInterpreter {
     }
 
     // 3. Resume / Lanjutkan
-    if (_containsAny(
-      normalized,
-      const ['lanjutkan', 'resume', 'aktifkan kembali'],
-    )) {
+    if (_containsAny(normalized, const [
+      'lanjutkan',
+      'resume',
+      'aktifkan kembali',
+    ])) {
       final jobs = await service.listJobs(AppContext.householdId);
-      final pausedJobs =
-          jobs.where((j) => j.status == FfmAssistantJobStatus.paused).toList();
+      final pausedJobs = jobs
+          .where((j) => j.status == FfmAssistantJobStatus.paused)
+          .toList();
       if (pausedJobs.isEmpty) {
         return FfmAssistantIntent(
           rawText: rawText,
@@ -4758,10 +4804,12 @@ class FfmAssistantInterpreter {
     }
 
     // 4. Cancel / Batalkan
-    if (_containsAny(
-      normalized,
-      const ['batalkan', 'hapus', 'cancel', 'stop'],
-    )) {
+    if (_containsAny(normalized, const [
+      'batalkan',
+      'hapus',
+      'cancel',
+      'stop',
+    ])) {
       final jobs = await service.listJobs(AppContext.householdId);
       if (jobs.isEmpty) {
         return FfmAssistantIntent(
@@ -4815,12 +4863,13 @@ class FfmAssistantInterpreter {
 
     // Deteksi Jam (misal "jam 9", "jam 09:00", "jam 20", "jam 8 malam")
     int targetTimeMinutes = 540; // Default 09:00
-    final hourMatch =
-        RegExp(r'jam\s*(\d{1,2})(?::(\d{2}))?').firstMatch(normalized);
+    final hourMatch = RegExp(r'jam\s*(\d{1,2})(?::(\d{2}))?')
+        .firstMatch(normalized);
     if (hourMatch != null) {
       var hour = int.parse(hourMatch.group(1)!);
-      final minute =
-          hourMatch.group(2) != null ? int.parse(hourMatch.group(2)!) : 0;
+      final minute = hourMatch.group(2) != null
+          ? int.parse(hourMatch.group(2)!)
+          : 0;
       if (normalized.contains('malam') && hour < 12) hour += 12;
       targetTimeMinutes = (hour * 60 + minute).clamp(0, 1439);
     } else if (normalized.contains('pagi')) {
@@ -4858,9 +4907,8 @@ class FfmAssistantInterpreter {
     // Filter kategori untuk budget monitor jika ada
     String? categoryFilter;
     if (preset == FfmAssistantMonitoringPreset.budgetMonitor) {
-      final match = RegExp(
-        r'(?:anggaran|budget)\s+([a-zA-Z]+)',
-      ).firstMatch(normalized);
+      final match = RegExp(r'(?:anggaran|budget)\s+([a-zA-Z]+)')
+          .firstMatch(normalized);
       if (match != null &&
           match.group(1) != 'setiap' &&
           match.group(1) != 'harian') {
@@ -5175,6 +5223,10 @@ class FfmAssistantInterpreter {
     'sedang di halaman apa',
     'sekarang di halaman apa',
     'lagi di halaman apa',
+    'di halaman apa',
+    'halaman apa',
+    'sedang di halaman',
+    'ada di halaman apa',
     'saya ada di halaman apa',
     'saya lagi di halaman apa',
     'halaman sekarang apa',
@@ -5755,7 +5807,9 @@ class FfmAssistantInterpreter {
       clarification: clarification,
       response: missing.isEmpty
           ? 'Draft ${config.action} sudah siap.$categoryHint Cek dulu, lalu konfirmasi di halaman terkait.'
-          : (draft.kind == FfmAssistantDraftKind.reminder ? clarification : null),
+          : (draft.kind == FfmAssistantDraftKind.reminder
+                ? clarification
+                : null),
     );
   }
 
@@ -8123,7 +8177,8 @@ class FfmAssistantInterpreter {
     String rawText,
     String normalized,
   ) async {
-    final isGoalQuery = _containsAny(normalized, const [
+    final isGoalQuery =
+        _containsAny(normalized, const [
           'progres target',
           'progress target',
           'evaluasi target',
@@ -8183,8 +8238,7 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.evaluateGoalProgress,
         destination: FfmAssistantDestination.goals,
         confidence: 1.0,
-        response:
-            'Kamu belum memiliki target keuangan aktif. Mau aku bantu buatkan draft target keuangan baru?',
+        response: 'Kamu belum memiliki target keuangan aktif. Mau aku bantu buatkan draft target keuangan baru?',
       );
     }
 
@@ -8634,7 +8688,9 @@ class FfmAssistantInterpreter {
         ]) &&
         _containsWeekday(normalized);
     final createActivity =
-        explicitCreateActivity || contextualCreateActivity || naturalScheduledActivity;
+        explicitCreateActivity ||
+        contextualCreateActivity ||
+        naturalScheduledActivity;
     if (createActivity) {
       final parsedActivityDate = _weekdayDateFromText(rawText);
       final title = explicitCreateActivity
@@ -8654,9 +8710,9 @@ class FfmAssistantInterpreter {
                 )
                 .trim()
                 .replaceFirst(
-              RegExp(r'^(?:saya|aku)\s+', caseSensitive: false),
-              '',
-            );
+                  RegExp(r'^(?:saya|aku)\s+', caseSensitive: false),
+                  '',
+                );
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.activity,
         createdAt: now,
@@ -8674,6 +8730,9 @@ class FfmAssistantInterpreter {
       'tambah pengingat',
       'ingatkan saya',
       'pasang pengingat',
+      'buat alarm',
+      'pasang alarm',
+      'tambah alarm',
     ]);
 
     // Detect bill reminder patterns for calendar sync
@@ -8710,6 +8769,9 @@ class FfmAssistantInterpreter {
         'tambah pengingat',
         'ingatkan saya',
         'pasang pengingat',
+        'buat alarm',
+        'pasang alarm',
+        'tambah alarm',
         'tagihan',
         'bayar',
       ]);
@@ -8722,18 +8784,30 @@ class FfmAssistantInterpreter {
       final hasExplicitTime = _hasExplicitTimeInText(normalized);
       final parsedTime = _parseTimeFromText(normalized, now);
 
+      final hasAlarm = RegExp(
+        r'\balarm\b',
+        caseSensitive: false,
+      ).hasMatch(normalized);
+      final reminderMode = hasAlarm
+          ? ReminderMode.alarm
+          : ReminderMode.notification;
+      final modeStr = reminderMode.name;
+
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.reminder,
         createdAt: now,
         title: title,
         note: note,
         date: parsedTime,
+        reminderMode: reminderMode,
         formValues: {
           'time':
               '${parsedTime.hour.toString().padLeft(2, '0')}:${parsedTime.minute.toString().padLeft(2, '0')}',
           'targetDate':
               '${parsedTime.year}-${parsedTime.month.toString().padLeft(2, '0')}-${parsedTime.day.toString().padLeft(2, '0')}',
           'hasExplicitTime': hasExplicitTime,
+          'reminderMode': modeStr,
+          'mode': modeStr,
         },
         metadata: billReminder
             ? {'calendar_sync': true, 'is_bill_reminder': true}
@@ -9955,7 +10029,10 @@ class FfmAssistantInterpreter {
     if (timePattern.hasMatch(text)) return true;
     final colonPattern = RegExp(r'\b([01]?\d|2[0-3])[:.]([0-5]\d)\b');
     if (colonPattern.hasMatch(text)) return true;
-    if (RegExp(r'\b\d+\s*(?:menit|jam)\s+lagi\b', caseSensitive: false).hasMatch(text)) {
+    if (RegExp(
+      r'\b\d+\s*(?:menit|jam)\s+lagi\b',
+      caseSensitive: false,
+    ).hasMatch(text)) {
       return true;
     }
     return false;
@@ -9992,8 +10069,8 @@ class FfmAssistantInterpreter {
       final minute = (timeMatch != null && timeMatch.group(2) != null)
           ? (int.tryParse(timeMatch.group(2)!) ?? 0)
           : (colonMatch != null && colonMatch.group(2) != null)
-              ? (int.tryParse(colonMatch.group(2)!) ?? 0)
-              : 0;
+          ? (int.tryParse(colonMatch.group(2)!) ?? 0)
+          : 0;
       final period = (timeMatch != null && timeMatch.groupCount >= 3)
           ? timeMatch.group(3)?.toLowerCase()
           : null;
@@ -10003,14 +10080,23 @@ class FfmAssistantInterpreter {
         if (period.contains('pagi')) {
           adjustedHour = hour == 12 ? 0 : hour.clamp(0, 11);
         } else if (period.contains('siang')) {
-          adjustedHour = (hour >= 1 && hour <= 6) ? hour + 12 : hour.clamp(11, 14);
+          adjustedHour = (hour >= 1 && hour <= 6)
+              ? hour + 12
+              : hour.clamp(11, 14);
         } else if (period.contains('sore')) {
-          adjustedHour = (hour >= 1 && hour <= 6) ? hour + 12 : hour.clamp(15, 18);
+          adjustedHour = (hour >= 1 && hour <= 6)
+              ? hour + 12
+              : hour.clamp(15, 18);
         } else if (period.contains('malam')) {
-          adjustedHour = (hour >= 1 && hour <= 11) ? hour + 12 : hour.clamp(18, 23);
+          adjustedHour = (hour >= 1 && hour <= 11)
+              ? hour + 12
+              : hour.clamp(18, 23);
         }
       } else if (timeMatch != null) {
-        if (hour <= 12 && hour >= 1 && !text.contains(':') && !text.contains('.')) {
+        if (hour <= 12 &&
+            hour >= 1 &&
+            !text.contains(':') &&
+            !text.contains('.')) {
           adjustedHour = hour;
         }
       }

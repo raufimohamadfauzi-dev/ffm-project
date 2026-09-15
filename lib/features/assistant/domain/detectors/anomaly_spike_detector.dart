@@ -1,4 +1,5 @@
 import 'package:uuid/uuid.dart';
+
 import '../../../../core/database/app_database.dart';
 import '../ffm_assistant_insight.dart';
 import '../ffm_assistant_models.dart';
@@ -15,16 +16,15 @@ class AnomalySpikeDetector {
     required DateTime now,
   }) async {
     final ninetyDaysAgo = now.subtract(const Duration(days: 90));
-    final allTxs = await (_db.select(_db.transactions)
-          ..where((row) => row.householdId.equals(householdId)))
-        .get();
+    final allTxs = await (_db.select(
+      _db.transactions,
+    )..where((row) => row.householdId.equals(householdId))).get();
 
     final txs = allTxs.where((row) {
       return !row.isArchived &&
           !row.isDeleted &&
           !row.date.isBefore(ninetyDaysAgo);
-    }).toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
+    }).toList()..sort((a, b) => b.date.compareTo(a.date));
 
     if (txs.isEmpty) return null;
 
@@ -86,25 +86,31 @@ class AnomalySpikeDetector {
     }
 
     // 2. Cek lonjakan nominal (Spike) transaksi terbaru terhadap median 90 hari kategori
-    final latestTx = recentTxs.where((t) => t.amount < 0 && t.categoryId != null).firstOrNull;
+    final latestTx = recentTxs
+        .where((t) => t.amount < 0 && t.categoryId != null)
+        .firstOrNull;
     if (latestTx != null) {
-      final categoryHistory = txs
-          .where((t) =>
-              t.categoryId == latestTx.categoryId &&
-              t.amount < 0 &&
-              t.id != latestTx.id)
-          .map((t) => t.amount.abs())
-          .toList()
-        ..sort();
+      final categoryHistory =
+          txs
+              .where(
+                (t) =>
+                    t.categoryId == latestTx.categoryId &&
+                    t.amount < 0 &&
+                    t.id != latestTx.id,
+              )
+              .map((t) => t.amount.abs())
+              .toList()
+            ..sort();
 
       if (categoryHistory.length >= 5) {
         final median = categoryHistory[categoryHistory.length ~/ 2];
         final latestAmount = latestTx.amount.abs();
 
         if (median >= 10000 && latestAmount > (median * 3.5)) {
-          final category = await (_db.select(_db.categories)
-                ..where((row) => row.id.equals(latestTx.categoryId!)))
-              .getSingleOrNull();
+          final category =
+              await (_db.select(_db.categories)
+                    ..where((row) => row.id.equals(latestTx.categoryId!)))
+                  .getSingleOrNull();
           final categoryName = category?.name ?? 'Kategori';
 
           final dedupeKey = 'spike_${latestTx.id}';

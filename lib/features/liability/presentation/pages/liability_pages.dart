@@ -266,7 +266,10 @@ class _LiabilityListPageState extends State<LiabilityListPage> {
                         HijriDateLabel(date: item.dueDate),
                       ],
                     ),
-                    trailing: AppMoneyText(item.remainingBalance, compact: true),
+                    trailing: AppMoneyText(
+                      item.remainingBalance,
+                      compact: true,
+                    ),
                   ),
                 ),
               ),
@@ -278,10 +281,12 @@ class _LiabilityListPageState extends State<LiabilityListPage> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _liabilities.where((item) {
-      if (_searchQuery.isEmpty) return true;
-      return item.name.toLowerCase().contains(_searchQuery.toLowerCase());
-    }).toList(growable: false);
+    final filtered = _liabilities
+        .where((item) {
+          if (_searchQuery.isEmpty) return true;
+          return item.name.toLowerCase().contains(_searchQuery.toLowerCase());
+        })
+        .toList(growable: false);
 
     final total = filtered.fold<int>(
       0,
@@ -377,7 +382,8 @@ class _LiabilityListPageState extends State<LiabilityListPage> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Total Sisa Hutang',
@@ -393,7 +399,9 @@ class _LiabilityListPageState extends State<LiabilityListPage> {
                                   children: [
                                     _StatBadge(
                                       label: 'Cicilan/bln',
-                                      value: _moneyLabel(totalMonthlyInstallment),
+                                      value: _moneyLabel(
+                                        totalMonthlyInstallment,
+                                      ),
                                     ),
                                     if (totalOverdue > 0) ...[
                                       const SizedBox(height: 4),
@@ -520,8 +528,7 @@ class _LiabilityListPageState extends State<LiabilityListPage> {
                           _liabilityList(
                             _sortLiabilities(filtered),
                             emptyTitle: 'Belum ada hutang',
-                            emptyMessage:
-                                'Catat cicilan supaya strategi pelunasanmu lebih jelas.',
+                            emptyMessage: 'Catat cicilan supaya strategi pelunasanmu lebih jelas.',
                           ),
                           _liabilityList(
                             _sortLiabilities(active),
@@ -532,32 +539,27 @@ class _LiabilityListPageState extends State<LiabilityListPage> {
                           _liabilityList(
                             _sortLiabilities(overdue),
                             emptyTitle: 'Tidak ada hutang terlambat',
-                            emptyMessage:
-                                'Hutang yang melewati jatuh tempo akan muncul di sini.',
+                            emptyMessage: 'Hutang yang melewati jatuh tempo akan muncul di sini.',
                           ),
                           _liabilityList(
                             _sortLiabilities(dueWithinWeek),
                             emptyTitle: 'Belum ada jatuh tempo 0-7 hari',
-                            emptyMessage:
-                                'Hutang dengan jatuh tempo satu minggu ke depan akan muncul di sini.',
+                            emptyMessage: 'Hutang dengan jatuh tempo satu minggu ke depan akan muncul di sini.',
                           ),
                           _liabilityList(
                             _sortLiabilities(dueWithinMonth),
                             emptyTitle: 'Belum ada jatuh tempo 8-30 hari',
-                            emptyMessage:
-                                'Hutang dengan jatuh tempo 8 sampai 30 hari ke depan akan muncul di sini.',
+                            emptyMessage: 'Hutang dengan jatuh tempo 8 sampai 30 hari ke depan akan muncul di sini.',
                           ),
                           _liabilityList(
                             _sortLiabilities(dueOverMonth),
                             emptyTitle: 'Belum ada jatuh tempo > 30 hari',
-                            emptyMessage:
-                                'Hutang dengan jatuh tempo lebih dari 30 hari akan muncul di sini.',
+                            emptyMessage: 'Hutang dengan jatuh tempo lebih dari 30 hari akan muncul di sini.',
                           ),
                           _liabilityList(
                             _sortLiabilities(paidOff),
                             emptyTitle: 'Belum ada hutang lunas',
-                            emptyMessage:
-                                'Hutang yang saldonya sudah nol akan muncul di sini.',
+                            emptyMessage: 'Hutang yang saldonya sudah nol akan muncul di sini.',
                           ),
                         ],
                       ),
@@ -620,7 +622,11 @@ class _LoadError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: AppColors.negative),
+            const Icon(
+              Icons.error_outline,
+              size: 48,
+              color: AppColors.negative,
+            ),
             const SizedBox(height: 12),
             Text(
               'Gagal memuat data hutang',
@@ -673,7 +679,8 @@ class _LiabilityFormPageState extends State<LiabilityFormPage> {
   @override
   void initState() {
     super.initState();
-    _dueDate = widget.initialDueDate ?? DateTime.now().add(const Duration(days: 30));
+    _dueDate =
+        widget.initialDueDate ?? DateTime.now().add(const Duration(days: 30));
     _nameController.text = widget.initialName ?? '';
     if (widget.initialAmount != null) {
       final amount = widget.initialAmount.toString();
@@ -773,8 +780,9 @@ class _LiabilityFormPageState extends State<LiabilityFormPage> {
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: 'Nama hutang'),
-                validator: (value) =>
-                    value == null || value.trim().isEmpty ? 'Nama wajib diisi.' : null,
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Nama wajib diisi.'
+                    : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -830,9 +838,7 @@ class _LiabilityFormPageState extends State<LiabilityFormPage> {
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${_dueDate.day}/${_dueDate.month}/${_dueDate.year}',
-                    ),
+                    Text('${_dueDate.day}/${_dueDate.month}/${_dueDate.year}'),
                     HijriDateLabel(date: _dueDate),
                   ],
                 ),

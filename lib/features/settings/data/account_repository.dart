@@ -104,7 +104,8 @@ class AccountRepository {
         );
     // Sinkronkan nama alias kartu NFC terkait jika akun ini ditautkan ke NFC
     await (_database.update(_database.nfcCardAccounts)..where(
-          (row) => row.householdId.equals(householdId) & row.accountId.equals(id),
+          (row) =>
+              row.householdId.equals(householdId) & row.accountId.equals(id),
         ))
         .write(NfcCardAccountsCompanion(issuer: Value(normalizedName)));
     final updated = (await get(householdId, id))!;
@@ -135,7 +136,8 @@ class AccountRepository {
         .write(AccountsCompanion(name: Value(normalizedName)));
     // Sinkronkan nama alias kartu NFC terkait jika akun ini ditautkan ke NFC
     await (_database.update(_database.nfcCardAccounts)..where(
-          (row) => row.householdId.equals(householdId) & row.accountId.equals(id),
+          (row) =>
+              row.householdId.equals(householdId) & row.accountId.equals(id),
         ))
         .write(NfcCardAccountsCompanion(issuer: Value(normalizedName)));
     final updated = (await get(householdId, id))!;

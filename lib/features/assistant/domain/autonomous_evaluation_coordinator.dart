@@ -49,11 +49,13 @@ class AutonomousEvaluationCoordinator {
     FfmGeminiCloudOrchestrator? geminiOrchestrator,
   }) : _db = database,
        _repo = insightRepository,
-       _autonomyRepo = autonomyRepository ??
+       _autonomyRepo =
+           autonomyRepository ??
            (getIt.isRegistered<FfmAssistantAutonomyRepository>()
                ? getIt<FfmAssistantAutonomyRepository>()
                : null),
-       _geminiOrchestrator = geminiOrchestrator ??
+       _geminiOrchestrator =
+           geminiOrchestrator ??
            (getIt.isRegistered<FfmGeminiCloudOrchestrator>()
                ? getIt<FfmGeminiCloudOrchestrator>()
                : null),

@@ -26,7 +26,9 @@ void main() {
       final now = DateTime(2026, 9, 11);
 
       // Insert data transaksi dan rekening
-      await database.into(database.accounts).insert(
+      await database
+          .into(database.accounts)
+          .insert(
             AccountsCompanion.insert(
               id: 'acc-schema-test',
               householdId: AppContext.householdId,
@@ -37,7 +39,9 @@ void main() {
             ),
           );
 
-      await database.into(database.transactions).insert(
+      await database
+          .into(database.transactions)
+          .insert(
             TransactionsCompanion.insert(
               id: 'tx-schema-test',
               householdId: AppContext.householdId,
@@ -57,7 +61,10 @@ void main() {
       // Verifikasi format hybrid: nama teknis sqlite + deskripsi fitur + jumlah baris
       expect(schema, contains('Fakta Skema Database FFM'));
       expect(schema, contains('transactions (Riwayat Transaksi Finansial'));
-      expect(schema, contains('accounts (Rekening Bank, Dompet Digital & Kas Tunai'));
+      expect(
+        schema,
+        contains('accounts (Rekening Bank, Dompet Digital & Kas Tunai'),
+      );
       expect(schema, contains('1 baris'));
       // Verifikasi keamanan: tidak ada data sensitif saldo atau nomor rekening
       expect(schema, isNot(contains('500000')));
@@ -106,28 +113,35 @@ void main() {
   });
 
   group('Self-Correction Loop Permanen', () {
-    test('saveCorrection menyimpan koreksi ke assistant_memories secara permanen', () async {
-      final memoryRepo = FfmAssistantMemoryRepository(database);
-      final correctionService = FfmAssistantCorrectionService(memoryRepo);
+    test(
+      'saveCorrection menyimpan koreksi ke assistant_memories secara permanen',
+      () async {
+        final memoryRepo = FfmAssistantMemoryRepository(database);
+        final correctionService = FfmAssistantCorrectionService(memoryRepo);
 
-      final record = await correctionService.saveCorrection(
-        userQuestion: 'Apakah ada menu ekspor data?',
-        correctedText: 'Fitur ekspor data tersedia di Pengaturan > Cadangan & Ekspor.',
-        originalResponse: 'Maaf, saya tidak tahu apakah ada menu ekspor.',
-        topic: 'ekspor_data',
-      );
+        final record = await correctionService.saveCorrection(
+          userQuestion: 'Apakah ada menu ekspor data?',
+          correctedText:
+              'Fitur ekspor data tersedia di Pengaturan > Cadangan & Ekspor.',
+          originalResponse: 'Maaf, saya tidak tahu apakah ada menu ekspor.',
+          topic: 'ekspor_data',
+        );
 
-      expect(record.kind, equals('correction'));
-      expect(record.triggerText, equals('Apakah ada menu ekspor data?'));
-      expect(record.valueText, contains('Pengaturan > Cadangan & Ekspor'));
-      expect(record.metadata['scope'], equals('user-correction'));
-      expect(record.metadata['approved'], isTrue);
+        expect(record.kind, equals('correction'));
+        expect(record.triggerText, equals('Apakah ada menu ekspor data?'));
+        expect(record.valueText, contains('Pengaturan > Cadangan & Ekspor'));
+        expect(record.metadata['scope'], equals('user-correction'));
+        expect(record.metadata['approved'], isTrue);
 
-      // Verifikasi di database
-      final active = await correctionService.getActiveCorrections();
-      expect(active.length, equals(1));
-      expect(active.first.triggerText, equals('Apakah ada menu ekspor data?'));
-    });
+        // Verifikasi di database
+        final active = await correctionService.getActiveCorrections();
+        expect(active.length, equals(1));
+        expect(
+          active.first.triggerText,
+          equals('Apakah ada menu ekspor data?'),
+        );
+      },
+    );
 
     test('buildCorrectionsContext menyusun prompt aturan pengguna', () async {
       final memoryRepo = FfmAssistantMemoryRepository(database);
@@ -135,14 +149,18 @@ void main() {
 
       await correctionService.saveCorrection(
         userQuestion: 'Kategori galon air masuk ke mana?',
-        correctedText: 'Kategori galon air masuk ke Kebutuhan Pokok, bukan Hiburan.',
+        correctedText:
+            'Kategori galon air masuk ke Kebutuhan Pokok, bukan Hiburan.',
       );
 
       final contextForQuery = await correctionService.buildCorrectionsContext(
         query: 'galon air',
       );
 
-      expect(contextForQuery, contains('KOREKSI & ATURAN PENGGUNA TERVERIFIKASI'));
+      expect(
+        contextForQuery,
+        contains('KOREKSI & ATURAN PENGGUNA TERVERIFIKASI'),
+      );
       expect(contextForQuery, contains('Kategori galon air'));
       expect(contextForQuery, contains('Kebutuhan Pokok, bukan Hiburan'));
     });

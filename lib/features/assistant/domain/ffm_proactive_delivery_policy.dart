@@ -1,9 +1,10 @@
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'ffm_assistant_insight.dart';
 
 class FfmProactiveDeliveryPolicy {
   FfmProactiveDeliveryPolicy({SharedPreferences? preferences})
-      : _prefs = preferences;
+    : _prefs = preferences;
 
   static const keyEnabled = 'ffm_proactive_notifications_enabled';
   static const keyQuietHoursEnabled = 'ffm_proactive_quiet_hours_enabled';
@@ -77,7 +78,8 @@ class FfmProactiveDeliveryPolicy {
 
   Future<void> setDetectorDisabled(String detectorType, bool disabled) async {
     final prefs = await _getPrefs();
-    final list = (prefs.getStringList(keyDisabledDetectors) ?? <String>[]).toList();
+    final list = (prefs.getStringList(keyDisabledDetectors) ?? <String>[])
+        .toList();
     if (disabled && !list.contains(detectorType)) {
       list.add(detectorType);
     } else if (!disabled) {
@@ -134,7 +136,8 @@ class FfmProactiveDeliveryPolicy {
 
     // 6. Cek batas harian
     final dailyLimit = prefs.getInt(keyDailyLimit) ?? 3;
-    final todayStr = '${current.year}-${current.month.toString().padLeft(2, '0')}-${current.day.toString().padLeft(2, '0')}';
+    final todayStr =
+        '${current.year}-${current.month.toString().padLeft(2, '0')}-${current.day.toString().padLeft(2, '0')}';
     final savedDate = prefs.getString(keySentDate);
     final count = savedDate == todayStr ? (prefs.getInt(keySentCount) ?? 0) : 0;
 
@@ -149,7 +152,8 @@ class FfmProactiveDeliveryPolicy {
   Future<void> recordNotificationDelivered({DateTime? now}) async {
     final current = now ?? DateTime.now();
     final prefs = await _getPrefs();
-    final todayStr = '${current.year}-${current.month.toString().padLeft(2, '0')}-${current.day.toString().padLeft(2, '0')}';
+    final todayStr =
+        '${current.year}-${current.month.toString().padLeft(2, '0')}-${current.day.toString().padLeft(2, '0')}';
     final savedDate = prefs.getString(keySentDate);
     final count = savedDate == todayStr ? (prefs.getInt(keySentCount) ?? 0) : 0;
 

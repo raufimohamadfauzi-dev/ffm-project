@@ -163,8 +163,9 @@ class VoiceActivityDraft {
 
   List<String> get missingFields => [
     if (title.trim().isEmpty) 'nama aktivitas',
-    if (categoryId == null || categoryName.trim().isEmpty) 'kategori',
-    if (kind == ActivityKind.note && tagIds.isEmpty) 'tag/lahan',
+    if (kind != ActivityKind.note &&
+        (categoryId == null || categoryName.trim().isEmpty))
+      'kategori',
   ];
 
   bool get canConfirm => missingFields.isEmpty && validationErrors.isEmpty;

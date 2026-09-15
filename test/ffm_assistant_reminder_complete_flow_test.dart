@@ -1,107 +1,127 @@
 import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_proposal_json_service.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_planner.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 import 'package:ffm_manager/features/reminder/domain/entities/reminder_entity.dart';
 
 void main() {
-  group('FfmAssistantProposalJsonService - Super Complete Reminder Proposals', () {
-    final now = DateTime(2026, 9, 13, 10, 0);
+  group(
+    'FfmAssistantProposalJsonService - Super Complete Reminder Proposals',
+    () {
+      final now = DateTime(2026, 9, 13, 10, 0);
 
-    test('parses reminder proposal with explicit time HH:mm', () {
-      final json = jsonEncode({
-        'formatVersion': 'ffm-assistant-proposal-v1',
-        'proposal': {
-          'type': 'reminder',
-          'title': 'Bayar Listrik PLN',
-          'targetDate': '2026-09-14',
-          'time': '08:00',
-          'note': 'Gunakan rekening BCA',
-          'soundName': 'Gentle Bells',
-        },
+      test('parses reminder proposal with explicit time HH:mm', () {
+        final json = jsonEncode({
+          'formatVersion': 'ffm-assistant-proposal-v1',
+          'proposal': {
+            'type': 'reminder',
+            'title': 'Bayar Listrik PLN',
+            'targetDate': '2026-09-14',
+            'time': '08:00',
+            'note': 'Gunakan rekening BCA',
+            'soundName': 'Gentle Bells',
+          },
+        });
+
+        final result = FfmAssistantProposalJsonService.parse(
+          json,
+          createdAt: now,
+        );
+        expect(result.draft, isNotNull);
+
+        final draft = result.draft!;
+        expect(draft.kind, FfmAssistantDraftKind.reminder);
+        expect(draft.title, 'Bayar Listrik PLN');
+        expect(draft.note, 'Gunakan rekening BCA');
+        expect(draft.soundName, 'Gentle Bells');
+        expect(draft.date?.year, 2026);
+        expect(draft.date?.month, 9);
+        expect(draft.date?.day, 14);
+        expect(draft.date?.hour, 8);
+        expect(draft.date?.minute, 0);
+        expect(draft.formValues['time'], '08:00');
+        expect(draft.formValues['targetDate'], '2026-09-14');
+        expect(draft.formValues['hasExplicitTime'], isTrue);
       });
 
-      final result = FfmAssistantProposalJsonService.parse(json, createdAt: now);
-      expect(result.draft, isNotNull);
+      test(
+        'parses reminder proposal with natural language time like "8 malam"',
+        () {
+          final json = jsonEncode({
+            'formatVersion': 'ffm-assistant-proposal-v1',
+            'proposal': {
+              'type': 'reminder',
+              'title': 'Minum Vitamin',
+              'targetDate': '2026-09-15',
+              'time': '8 malam',
+            },
+          });
 
-      final draft = result.draft!;
-      expect(draft.kind, FfmAssistantDraftKind.reminder);
-      expect(draft.title, 'Bayar Listrik PLN');
-      expect(draft.note, 'Gunakan rekening BCA');
-      expect(draft.soundName, 'Gentle Bells');
-      expect(draft.date?.year, 2026);
-      expect(draft.date?.month, 9);
-      expect(draft.date?.day, 14);
-      expect(draft.date?.hour, 8);
-      expect(draft.date?.minute, 0);
-      expect(draft.formValues['time'], '08:00');
-      expect(draft.formValues['targetDate'], '2026-09-14');
-      expect(draft.formValues['hasExplicitTime'], isTrue);
-    });
+          final result = FfmAssistantProposalJsonService.parse(
+            json,
+            createdAt: now,
+          );
+          expect(result.draft, isNotNull);
 
-    test('parses reminder proposal with natural language time like "8 malam"', () {
-      final json = jsonEncode({
-        'formatVersion': 'ffm-assistant-proposal-v1',
-        'proposal': {
-          'type': 'reminder',
-          'title': 'Minum Vitamin',
-          'targetDate': '2026-09-15',
-          'time': '8 malam',
+          final draft = result.draft!;
+          expect(draft.date?.year, 2026);
+          expect(draft.date?.month, 9);
+          expect(draft.date?.day, 15);
+          expect(draft.date?.hour, 20);
+          expect(draft.date?.minute, 0);
+          expect(draft.formValues['time'], '20:00');
         },
+      );
+
+      test('parses reminder proposal with dot time format like "14.30"', () {
+        final json = jsonEncode({
+          'formatVersion': 'ffm-assistant-proposal-v1',
+          'proposal': {
+            'type': 'reminder',
+            'title': 'Rapat Kerja',
+            'targetDate': '2026-09-16',
+            'time': '14.30',
+          },
+        });
+
+        final result = FfmAssistantProposalJsonService.parse(
+          json,
+          createdAt: now,
+        );
+        expect(result.draft, isNotNull);
+
+        final draft = result.draft!;
+        expect(draft.date?.hour, 14);
+        expect(draft.date?.minute, 30);
+        expect(draft.formValues['time'], '14:30');
       });
 
-      final result = FfmAssistantProposalJsonService.parse(json, createdAt: now);
-      expect(result.draft, isNotNull);
+      test('rejects invalid weekly weekday values', () {
+        final json = jsonEncode({
+          'formatVersion': 'ffm-assistant-proposal-v1',
+          'proposal': {
+            'type': 'reminder',
+            'title': 'Rapat',
+            'targetDate': '2026-09-16',
+            'time': '14:30',
+            'recurrence': 'weekly',
+            'weekdays': [0],
+          },
+        });
 
-      final draft = result.draft!;
-      expect(draft.date?.year, 2026);
-      expect(draft.date?.month, 9);
-      expect(draft.date?.day, 15);
-      expect(draft.date?.hour, 20);
-      expect(draft.date?.minute, 0);
-      expect(draft.formValues['time'], '20:00');
-    });
-
-    test('parses reminder proposal with dot time format like "14.30"', () {
-      final json = jsonEncode({
-        'formatVersion': 'ffm-assistant-proposal-v1',
-        'proposal': {
-          'type': 'reminder',
-          'title': 'Rapat Kerja',
-          'targetDate': '2026-09-16',
-          'time': '14.30',
-        },
+        final result = FfmAssistantProposalJsonService.parse(
+          json,
+          createdAt: now,
+        );
+        expect(result.draft, isNull);
+        expect(result.error, contains('Hari pengulangan'));
       });
-
-      final result = FfmAssistantProposalJsonService.parse(json, createdAt: now);
-      expect(result.draft, isNotNull);
-
-      final draft = result.draft!;
-      expect(draft.date?.hour, 14);
-      expect(draft.date?.minute, 30);
-      expect(draft.formValues['time'], '14:30');
-    });
-
-    test('rejects invalid weekly weekday values', () {
-      final json = jsonEncode({
-        'formatVersion': 'ffm-assistant-proposal-v1',
-        'proposal': {
-          'type': 'reminder',
-          'title': 'Rapat',
-          'targetDate': '2026-09-16',
-          'time': '14:30',
-          'recurrence': 'weekly',
-          'weekdays': [0],
-        },
-      });
-
-      final result = FfmAssistantProposalJsonService.parse(json, createdAt: now);
-      expect(result.draft, isNull);
-      expect(result.error, contains('Hari pengulangan'));
-    });
-  });
+    },
+  );
 
   group('FfmAssistantInterpreter - Reminder Time & Clarification Flow', () {
     late AppDatabase database;
@@ -118,7 +138,9 @@ void main() {
     });
 
     test('requests clarification when user creates reminder without specifying hour/time', () async {
-      final intent = await interpreter.interpret('ingatkan bayar tagihan listrik besok');
+      final intent = await interpreter.interpret(
+        'ingatkan bayar tagihan listrik besok',
+      );
 
       expect(intent.draft, isNotNull);
       expect(intent.draft?.kind, FfmAssistantDraftKind.reminder);
@@ -131,27 +153,34 @@ void main() {
       expect(intent.confidence, lessThan(0.9));
     });
 
-    test('creates super complete draft right away when time is provided', () async {
-      final intent = await interpreter.interpret('ingatkan bayar tagihan listrik besok jam 8 pagi');
+    test(
+      'creates super complete draft right away when time is provided',
+      () async {
+        final intent = await interpreter.interpret(
+          'ingatkan bayar tagihan listrik besok jam 8 pagi',
+        );
 
-      expect(intent.draft, isNotNull);
-      final draft = intent.draft!;
-      expect(draft.kind, FfmAssistantDraftKind.reminder);
-      expect(draft.formValues['hasExplicitTime'], isTrue);
-      expect(draft.date?.day, 14); // besok dari 13 September
-      expect(draft.date?.hour, 8);
-      expect(draft.date?.minute, 0);
-      expect(draft.formValues['time'], '08:00');
+        expect(intent.draft, isNotNull);
+        final draft = intent.draft!;
+        expect(draft.kind, FfmAssistantDraftKind.reminder);
+        expect(draft.formValues['hasExplicitTime'], isTrue);
+        expect(draft.date?.day, 14); // besok dari 13 September
+        expect(draft.date?.hour, 8);
+        expect(draft.date?.minute, 0);
+        expect(draft.formValues['time'], '08:00');
 
-      // Super complete draft: no clarification needed, ready to confirm
-      expect(intent.clarification, isNull);
-      expect(intent.response, contains('Draft pengingat sudah siap'));
-      expect(intent.confidence, 0.9);
-    });
+        // Super complete draft: no clarification needed, ready to confirm
+        expect(intent.clarification, isNull);
+        expect(intent.response, contains('Draft pengingat sudah siap'));
+        expect(intent.confidence, 0.9);
+      },
+    );
 
     test('active reminder draft is updated with time when user replies in next turn', () async {
       // Turn 1: user asks for reminder without time
-      final initialIntent = await interpreter.interpret('ingatkan bayar pdam besok');
+      final initialIntent = await interpreter.interpret(
+        'ingatkan bayar pdam besok',
+      );
       final activeDraft = initialIntent.draft!;
       expect(activeDraft.formValues['hasExplicitTime'], isFalse);
 
@@ -168,6 +197,71 @@ void main() {
       expect(revisedDraft.date?.minute, 0);
       expect(revisedDraft.formValues['time'], '08:00');
       expect(revisedIntent.response, contains('Jam diubah ke 08:00 WIB'));
+    });
+
+    test(
+      'buat pengingat menghasilkan mode notification secara default',
+      () async {
+        final intent = await interpreter.interpret(
+          'buat pengingat bayar air besok jam 9 pagi',
+        );
+
+        expect(intent.draft, isNotNull);
+        final draft = intent.draft!;
+        expect(draft.reminderMode, ReminderMode.notification);
+        expect(draft.formValues['reminderMode'], 'notification');
+        expect(draft.formValues['mode'], 'notification');
+      },
+    );
+
+    test('buat alarm menghasilkan mode alarm eksplisit', () async {
+      final intent = await interpreter.interpret(
+        'buat alarm bangun pagi besok jam 5 pagi',
+      );
+
+      expect(intent.draft, isNotNull);
+      final draft = intent.draft!;
+      expect(draft.reminderMode, ReminderMode.alarm);
+      expect(draft.formValues['reminderMode'], 'alarm');
+      expect(draft.formValues['mode'], 'alarm');
+    });
+
+    test('action plan untuk reminder berisi read.reminders, draft.reminder, mutate.save_draft, dan verify.saved_draft', () {
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.reminder,
+        createdAt: DateTime(2026, 9, 13),
+        title: 'Beli Token',
+        date: DateTime(2026, 9, 14, 8),
+        reminderMode: ReminderMode.notification,
+        formValues: const {
+          'time': '08:00',
+          'targetDate': '2026-09-14',
+          'reminderMode': 'notification',
+          'mode': 'notification',
+        },
+      );
+      final intent = FfmAssistantIntent(
+        rawText: 'buat pengingat beli token',
+        normalizedText: 'buat pengingat beli token',
+        type: FfmAssistantIntentType.createReminder,
+        draft: draft,
+      );
+      final plan = const FfmAssistantActionPlanner().planFor(intent);
+      expect(plan, isNotNull);
+      expect(
+        plan!.steps.any((s) => s.capabilityId == 'read.reminders'),
+        isTrue,
+      );
+      expect(plan.steps.any((s) => s.capabilityId == 'draft.reminder'), isTrue);
+      expect(
+        plan.steps.any((s) => s.capabilityId == 'mutate.save_draft'),
+        isTrue,
+      );
+      expect(
+        plan.steps.any((s) => s.capabilityId == 'verify.saved_draft'),
+        isTrue,
+      );
+      expect(plan.steps.last.capabilityId, 'verify.saved_draft');
     });
   });
 
@@ -222,9 +316,11 @@ void main() {
       final list = [pastDue, upcomingLater, inactive, upcomingSoon];
 
       list.sort((a, b) {
-        final aIsPastDue = a.recurrenceType == ReminderRecurrenceType.once &&
+        final aIsPastDue =
+            a.recurrenceType == ReminderRecurrenceType.once &&
             a.scheduledAt.isBefore(now);
-        final bIsPastDue = b.recurrenceType == ReminderRecurrenceType.once &&
+        final bIsPastDue =
+            b.recurrenceType == ReminderRecurrenceType.once &&
             b.scheduledAt.isBefore(now);
         final aIsUpcoming = a.isActive && !aIsPastDue;
         final bIsUpcoming = b.isActive && !bIsPastDue;

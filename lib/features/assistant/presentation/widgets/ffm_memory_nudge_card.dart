@@ -61,7 +61,9 @@ class FfmMemoryNudgeCard extends StatelessWidget {
                 child: Icon(
                   _kindIcon(insight.kind),
                   size: 16,
-                  color: isDark ? const Color(0xFF00D18F) : const Color(0xFF00875A),
+                  color: isDark
+                      ? const Color(0xFF00D18F)
+                      : const Color(0xFF00875A),
                 ),
               ),
             ),
@@ -76,7 +78,9 @@ class FfmMemoryNudgeCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFF00D18F) : const Color(0xFF00875A),
+                      color: isDark
+                          ? const Color(0xFF00D18F)
+                          : const Color(0xFF00875A),
                     ),
                   ),
                   const SizedBox(height: 1.5),

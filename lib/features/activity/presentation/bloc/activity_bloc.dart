@@ -22,6 +22,7 @@ class ActivityState {
     this.checkpoints = const {},
     this.notes = const [],
     this.dailyNotes = const [],
+    this.dailyNoteTags = const {},
     this.linkedCosts = const {},
     this.habitSuggestions = const [],
     this.autonomousActivities = const [],
@@ -43,6 +44,7 @@ class ActivityState {
   final Map<String, List<ActivityCheckpointEntity>> checkpoints;
   final List<ActivityNoteEntity> notes;
   final List<DailyNote> dailyNotes;
+  final Map<String, List<Tag>> dailyNoteTags;
   final Map<String, int> linkedCosts;
   final List<String> habitSuggestions;
   final List<AutonomousActivityRecord> autonomousActivities;
@@ -76,6 +78,7 @@ class ActivityState {
     Map<String, List<ActivityCheckpointEntity>>? checkpoints,
     List<ActivityNoteEntity>? notes,
     List<DailyNote>? dailyNotes,
+    Map<String, List<Tag>>? dailyNoteTags,
     Map<String, int>? linkedCosts,
     List<String>? habitSuggestions,
     List<AutonomousActivityRecord>? autonomousActivities,
@@ -98,6 +101,7 @@ class ActivityState {
     checkpoints: checkpoints ?? this.checkpoints,
     notes: notes ?? this.notes,
     dailyNotes: dailyNotes ?? this.dailyNotes,
+    dailyNoteTags: dailyNoteTags ?? this.dailyNoteTags,
     linkedCosts: linkedCosts ?? this.linkedCosts,
     habitSuggestions: habitSuggestions ?? this.habitSuggestions,
     autonomousActivities: autonomousActivities ?? this.autonomousActivities,
@@ -135,14 +139,37 @@ class ActivityBloc extends Cubit<ActivityState> {
     required DateTime noteDate,
     required List<String> tagIds,
     String? treatmentType,
-  }) => repository.saveDailyNote(
-    id: _uuid.v4(),
-    householdId: AppContext.householdId,
-    noteDate: noteDate,
-    title: title,
-    body: body,
-    tagIds: tagIds,
-    treatmentType: treatmentType,
+  }) => _save(
+    () => repository.saveDailyNote(
+      id: _uuid.v4(),
+      householdId: AppContext.householdId,
+      noteDate: noteDate,
+      title: title,
+      body: body,
+      tagIds: tagIds,
+      treatmentType: treatmentType,
+    ),
+  );
+
+  Future<void> updateDailyNote({
+    required DailyNote note,
+    required String title,
+    required String body,
+    required DateTime noteDate,
+    required List<String> tagIds,
+  }) => _save(
+    () => repository.saveDailyNote(
+      id: note.id,
+      householdId: AppContext.householdId,
+      noteDate: noteDate,
+      title: title,
+      body: body,
+      tagIds: tagIds,
+      treatmentType: note.treatmentType,
+      priority: note.priority,
+      createdAt: note.createdAt,
+      updatedAt: DateTime.now(),
+    ),
   );
 
   Future<void> load() async {
@@ -151,6 +178,9 @@ class ActivityBloc extends Cubit<ActivityState> {
       // Trigger migration once per app session
       if (!_migrated) {
         await repository.migrateOldData(AppContext.householdId);
+        await repository.migrateHistorySessionsToDailyNotes(
+          AppContext.householdId,
+        );
         _migrated = true;
       }
 
@@ -206,6 +236,10 @@ class ActivityBloc extends Cubit<ActivityState> {
         limit: _historyPageSize,
       );
       final dailyNotes = dailyNotePage.items;
+      final dailyNoteTags = await repository.getDailyNoteTags(
+        AppContext.householdId,
+        dailyNotes.map((note) => note.id),
+      );
       final hasMoreDailyNotes = dailyNotePage.hasMore;
 
       // Fetch habit suggestions
@@ -254,6 +288,7 @@ class ActivityBloc extends Cubit<ActivityState> {
           checkpoints: checkpointMap,
           notes: notes,
           dailyNotes: dailyNotes,
+          dailyNoteTags: dailyNoteTags,
           linkedCosts: costMap,
           habitSuggestions: suggestions,
           autonomousActivities: autonomousList,
@@ -313,10 +348,15 @@ class ActivityBloc extends Cubit<ActivityState> {
           session.id,
         );
       }
+      final dailyNoteTags = await repository.getDailyNoteTags(
+        AppContext.householdId,
+        dailyNotePage.items.map((note) => note.id),
+      );
       emit(
         state.copyWith(
           sessions: sessionPage.items,
           dailyNotes: dailyNotePage.items,
+          dailyNoteTags: dailyNoteTags,
           checkpoints: checkpointMap,
           linkedCosts: costMap,
           hasMoreSessions: sessionPage.hasMore,
@@ -380,6 +420,10 @@ class ActivityBloc extends Cubit<ActivityState> {
         newDailyNotes = [...state.dailyNotes, ...page.items];
         newHasMoreDailyNotes = page.hasMore;
       }
+      final newDailyNoteTags = await repository.getDailyNoteTags(
+        AppContext.householdId,
+        newDailyNotes.map((note) => note.id),
+      );
 
       final checkpointMap = Map<String, List<ActivityCheckpointEntity>>.of(
         state.checkpoints,
@@ -396,6 +440,7 @@ class ActivityBloc extends Cubit<ActivityState> {
         state.copyWith(
           sessions: newSessions,
           dailyNotes: newDailyNotes,
+          dailyNoteTags: newDailyNoteTags,
           checkpoints: checkpointMap,
           linkedCosts: costMap,
           hasMoreSessions: newHasMoreSessions,
@@ -680,9 +725,6 @@ class ActivityBloc extends Cubit<ActivityState> {
           throw StateError('Nama aktivitasnya belum jelas.');
         }
         if (intent.kind == ActivityKind.note) {
-          if (intent.tagIds.isEmpty) {
-            throw StateError('Tag/lahan wajib dipilih untuk Catatan Harian.');
-          }
           await repository.saveDailyNote(
             id: _uuid.v4(),
             householdId: AppContext.householdId,
@@ -837,6 +879,26 @@ class ActivityBloc extends Cubit<ActivityState> {
 
   Future<void> restoreDailyNote(String id) async {
     await _save(() => repository.restoreDailyNote(AppContext.householdId, id));
+  }
+
+  Future<void> archiveDailyNote(String id) async {
+    await _save(() => repository.archiveDailyNote(AppContext.householdId, id));
+  }
+
+  Future<void> deleteDailyNotePermanently(String id) async {
+    await _save(
+      () => repository.deleteDailyNotePermanently(AppContext.householdId, id),
+    );
+  }
+
+  Future<bool> toggleDailyNotePriority(String id) async {
+    final note = state.dailyNotes.where((note) => note.id == id).firstOrNull;
+    if (note == null) return false;
+    final next = note.priority > 0 ? 0 : 1;
+    await _save(
+      () => repository.setDailyNotePriority(AppContext.householdId, id, next),
+    );
+    return next > 0;
   }
 
   Future<void> deleteSessionPermanently(String id) async {

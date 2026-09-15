@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/localization/app_copy.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../domain/entities/transaction_entity.dart';
@@ -9,7 +10,8 @@ class ReceiptItemEditorDialog extends StatefulWidget {
   final ReceiptItemDraft item;
 
   @override
-  State<ReceiptItemEditorDialog> createState() => _ReceiptItemEditorDialogState();
+  State<ReceiptItemEditorDialog> createState() =>
+      _ReceiptItemEditorDialogState();
 }
 
 class _ReceiptItemEditorDialogState extends State<ReceiptItemEditorDialog> {

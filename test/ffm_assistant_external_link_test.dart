@@ -43,11 +43,11 @@ void main() {
             ),
           ),
         ),
-    );
+      );
 
-    expect(opened, isNull);
-    await tester.tap(find.byType(RichText));
-    await tester.pump();
+      expect(opened, isNull);
+      await tester.tap(find.byType(RichText));
+      await tester.pump();
       expect(opened, Uri.parse('https://contoh.test/dokumen'));
     },
   );

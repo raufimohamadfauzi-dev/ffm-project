@@ -33,8 +33,10 @@ void main() {
 
     test('ekstraksi rule koreksi merchant ke kategori', () async {
       final feedbackService = FfmAssistantDraftFeedbackService();
-      final memoryService =
-          FfmPersonalMemoryService(memoryRepo, feedbackService);
+      final memoryService = FfmPersonalMemoryService(
+        memoryRepo,
+        feedbackService,
+      );
 
       final originalDraft = FfmAssistantDraft(
         kind: FfmAssistantDraftKind.expense,
@@ -45,9 +47,7 @@ void main() {
         createdAt: DateTime(2026, 9, 4),
       );
 
-      final editedDraft = originalDraft.copyWith(
-        categoryName: 'Minuman',
-      );
+      final editedDraft = originalDraft.copyWith(categoryName: 'Minuman');
 
       // User mengoreksi kategori menjadi Minuman
       await feedbackService.recordDraftEdit(
@@ -64,7 +64,10 @@ void main() {
       expect(rule.label, contains('Kopi Kenangan'));
 
       // Lookup deterministik harus langsung bekerja
-      expect(feedbackService.findCategoryForMerchant('Kopi Kenangan'), 'Minuman');
+      expect(
+        feedbackService.findCategoryForMerchant('Kopi Kenangan'),
+        'Minuman',
+      );
 
       // Rule harus tersimpan ke memory repository
       final allMemories = await memoryService.readAll();
@@ -86,7 +89,10 @@ void main() {
       );
 
       expect(feedbackService.learnedRules.length, 1);
-      expect(feedbackService.findCategoryForMerchant('Kopi Kenangan'), 'Kopi & Minuman');
+      expect(
+        feedbackService.findCategoryForMerchant('Kopi Kenangan'),
+        'Kopi & Minuman',
+      );
 
       final updatedMemories = await memoryService.readAll();
       final merchantMemories = updatedMemories
@@ -102,8 +108,10 @@ void main() {
 
     test('ekstraksi rule koreksi judul transaksi tanpa merchant', () async {
       final feedbackService = FfmAssistantDraftFeedbackService();
-      final memoryService =
-          FfmPersonalMemoryService(memoryRepo, feedbackService);
+      final memoryService = FfmPersonalMemoryService(
+        memoryRepo,
+        feedbackService,
+      );
 
       final originalDraft = FfmAssistantDraft(
         kind: FfmAssistantDraftKind.expense,
@@ -142,8 +150,10 @@ void main() {
 
     test('ekstraksi rule preferensi akun pembayaran saat dikoreksi', () async {
       final feedbackService = FfmAssistantDraftFeedbackService();
-      final memoryService =
-          FfmPersonalMemoryService(memoryRepo, feedbackService);
+      final memoryService = FfmPersonalMemoryService(
+        memoryRepo,
+        feedbackService,
+      );
 
       final originalDraft = FfmAssistantDraft(
         kind: FfmAssistantDraftKind.expense,
@@ -154,9 +164,7 @@ void main() {
         createdAt: DateTime(2026, 9, 4),
       );
 
-      final editedDraft = originalDraft.copyWith(
-        fromAccountName: 'BCA',
-      );
+      final editedDraft = originalDraft.copyWith(fromAccountName: 'BCA');
 
       await feedbackService.recordDraftEdit(
         originalDraft: originalDraft,
@@ -172,9 +180,7 @@ void main() {
       final allMemories = await memoryService.readAll();
       expect(
         allMemories.any(
-          (m) =>
-              m.key == 'preferred_account' &&
-              m.value == 'BCA',
+          (m) => m.key == 'preferred_account' && m.value == 'BCA',
         ),
         isTrue,
       );
@@ -195,96 +201,113 @@ void main() {
       await database.close();
     });
 
-    test('mendeteksi kebocoran halus biaya admin & pengeluaran kecil berulang', () async {
-      final now = DateTime(2026, 9, 4, 12);
+    test(
+      'mendeteksi kebocoran halus biaya admin & pengeluaran kecil berulang',
+      () async {
+        final now = DateTime(2026, 9, 4, 12);
 
-      // Insert 4 pengeluaran admin fee kecil (< Rp 30.000)
-      for (var i = 1; i <= 4; i++) {
-        await database.into(database.transactions).insert(
-          TransactionsCompanion(
-            id: Value('fee_$i'),
-            householdId: const Value(householdId),
-            type: const Value('expense'),
-            amount: const Value(2500),
-            note: const Value('Biaya admin transfer BI-Fast'),
-            date: Value(now.subtract(Duration(days: i))),
-            recordedAt: Value(now.subtract(Duration(days: i))),
-            createdAt: Value(now.subtract(Duration(days: i))),
-          ),
+        // Insert 4 pengeluaran admin fee kecil (< Rp 30.000)
+        for (var i = 1; i <= 4; i++) {
+          await database
+              .into(database.transactions)
+              .insert(
+                TransactionsCompanion(
+                  id: Value('fee_$i'),
+                  householdId: const Value(householdId),
+                  type: const Value('expense'),
+                  amount: const Value(2500),
+                  note: const Value('Biaya admin transfer BI-Fast'),
+                  date: Value(now.subtract(Duration(days: i))),
+                  recordedAt: Value(now.subtract(Duration(days: i))),
+                  createdAt: Value(now.subtract(Duration(days: i))),
+                ),
+              );
+        }
+
+        // Insert 2 pengeluaran jajan kecil
+        for (var i = 5; i <= 6; i++) {
+          await database
+              .into(database.transactions)
+              .insert(
+                TransactionsCompanion(
+                  id: Value('jajan_$i'),
+                  householdId: const Value(householdId),
+                  type: const Value('expense'),
+                  amount: const Value(20000),
+                  note: const Value('Kopi susu senja'),
+                  date: Value(now.subtract(Duration(days: i))),
+                  recordedAt: Value(now.subtract(Duration(days: i))),
+                  createdAt: Value(now.subtract(Duration(days: i))),
+                ),
+              );
+        }
+
+        // Insert 1 pengeluaran besar (bukan micro-expense)
+        await database
+            .into(database.transactions)
+            .insert(
+              TransactionsCompanion(
+                id: const Value('big_expense'),
+                householdId: const Value(householdId),
+                type: const Value('expense'),
+                amount: const Value(200000),
+                note: const Value('Belanja Bulanan Supermarket'),
+                date: Value(now.subtract(const Duration(days: 2))),
+                recordedAt: Value(now.subtract(const Duration(days: 2))),
+                createdAt: Value(now.subtract(const Duration(days: 2))),
+              ),
+            );
+
+        final insight = await detector.detect(
+          householdId: householdId,
+          now: now,
         );
-      }
 
-      // Insert 2 pengeluaran jajan kecil
-      for (var i = 5; i <= 6; i++) {
-        await database.into(database.transactions).insert(
-          TransactionsCompanion(
-            id: Value('jajan_$i'),
-            householdId: const Value(householdId),
-            type: const Value('expense'),
-            amount: const Value(20000),
-            note: const Value('Kopi susu senja'),
-            date: Value(now.subtract(Duration(days: i))),
-            recordedAt: Value(now.subtract(Duration(days: i))),
-            createdAt: Value(now.subtract(Duration(days: i))),
-          ),
+        expect(insight, isNotNull);
+        expect(insight!.type, FfmAssistantInsightType.microExpenseLeak);
+        expect(insight.title, contains('Kebocoran Halus'));
+        expect(insight.summary, contains('transaksi kecil'));
+        expect(insight.summary, contains('biaya admin'));
+        expect(insight.evidence['microCount'], 6);
+        expect(
+          insight.evidence['totalMicroExpense'],
+          50000,
+        ); // 4 * 2500 + 2 * 20000
+        expect(insight.evidence['totalFeeExpense'], 10000); // 4 * 2500
+        expect(insight.evidence['monthlyProjected'], isNotNull);
+      },
+    );
+
+    test(
+      'mengabaikan income dan transfer dari perhitungan kebocoran',
+      () async {
+        final now = DateTime(2026, 9, 4, 12);
+
+        // Insert 5 transaksi bertipe income atau transfer dengan nominal kecil
+        for (var i = 1; i <= 5; i++) {
+          await database
+              .into(database.transactions)
+              .insert(
+                TransactionsCompanion(
+                  id: Value('inc_$i'),
+                  householdId: const Value(householdId),
+                  type: const Value('income'),
+                  amount: const Value(10000),
+                  date: Value(now.subtract(Duration(days: i))),
+                  recordedAt: Value(now.subtract(Duration(days: i))),
+                  createdAt: Value(now.subtract(Duration(days: i))),
+                ),
+              );
+        }
+
+        final insight = await detector.detect(
+          householdId: householdId,
+          now: now,
         );
-      }
 
-      // Insert 1 pengeluaran besar (bukan micro-expense)
-      await database.into(database.transactions).insert(
-        TransactionsCompanion(
-          id: const Value('big_expense'),
-          householdId: const Value(householdId),
-          type: const Value('expense'),
-          amount: const Value(200000),
-          note: const Value('Belanja Bulanan Supermarket'),
-          date: Value(now.subtract(const Duration(days: 2))),
-          recordedAt: Value(now.subtract(const Duration(days: 2))),
-          createdAt: Value(now.subtract(const Duration(days: 2))),
-        ),
-      );
-
-      final insight = await detector.detect(
-        householdId: householdId,
-        now: now,
-      );
-
-      expect(insight, isNotNull);
-      expect(insight!.type, FfmAssistantInsightType.microExpenseLeak);
-      expect(insight.title, contains('Kebocoran Halus'));
-      expect(insight.summary, contains('transaksi kecil'));
-      expect(insight.summary, contains('biaya admin'));
-      expect(insight.evidence['microCount'], 6);
-      expect(insight.evidence['totalMicroExpense'], 50000); // 4 * 2500 + 2 * 20000
-      expect(insight.evidence['totalFeeExpense'], 10000); // 4 * 2500
-      expect(insight.evidence['monthlyProjected'], isNotNull);
-    });
-
-    test('mengabaikan income dan transfer dari perhitungan kebocoran', () async {
-      final now = DateTime(2026, 9, 4, 12);
-
-      // Insert 5 transaksi bertipe income atau transfer dengan nominal kecil
-      for (var i = 1; i <= 5; i++) {
-        await database.into(database.transactions).insert(
-          TransactionsCompanion(
-            id: Value('inc_$i'),
-            householdId: const Value(householdId),
-            type: const Value('income'),
-            amount: const Value(10000),
-            date: Value(now.subtract(Duration(days: i))),
-            recordedAt: Value(now.subtract(Duration(days: i))),
-            createdAt: Value(now.subtract(Duration(days: i))),
-          ),
-        );
-      }
-
-      final insight = await detector.detect(
-        householdId: householdId,
-        now: now,
-      );
-
-      expect(insight, isNull);
-    });
+        expect(insight, isNull);
+      },
+    );
   });
 
   group('Tahap 2 - Modul 3C: Orkestrator Rencana Aksi Bertahap (Multi-Step Action Plan)', () {
@@ -317,18 +340,21 @@ void main() {
       expect(plan.workflowSafetyIssue, isNull);
 
       // Pastikan prerequisite reads digabung dan terdeduplikasi
-      final readSteps =
-          plan.steps.where((s) => s.capabilityId.startsWith('read.'));
+      final readSteps = plan.steps.where(
+        (s) => s.capabilityId.startsWith('read.'),
+      );
       expect(
         readSteps.map((s) => s.capabilityId),
         containsAll(['read.goals', 'read.budget']),
       );
 
       // Pastikan step drafting, mutation, dan verification tersusun rapi
-      final saveSteps =
-          plan.steps.where((s) => s.capabilityId.startsWith('mutate.'));
-      final verifySteps =
-          plan.steps.where((s) => s.capabilityId.startsWith('verify.'));
+      final saveSteps = plan.steps.where(
+        (s) => s.capabilityId.startsWith('mutate.'),
+      );
+      final verifySteps = plan.steps.where(
+        (s) => s.capabilityId.startsWith('verify.'),
+      );
       expect(saveSteps.length, 2);
       expect(verifySteps.length, 2);
 
@@ -339,48 +365,48 @@ void main() {
       expect(idempotencyKeys.length, 2);
     });
 
-    test('memblokir jika rencana bertahap melebihi batas langkah (budget limit)', () {
-      const planner = FfmAssistantActionPlanner();
+    test(
+      'memblokir jika rencana bertahap melebihi batas langkah (budget limit)',
+      () {
+        const planner = FfmAssistantActionPlanner();
 
-      // Buat 4 draf (masing-masing 3 step = 12 steps, melebihi maxStepsPerPlan = 8)
-      final excessiveDrafts = [
-        FfmAssistantDraft(
-          kind: FfmAssistantDraftKind.goal,
-          title: 'Goal 1',
-          createdAt: DateTime(2026, 9, 4),
-        ),
-        FfmAssistantDraft(
-          kind: FfmAssistantDraftKind.budget,
-          categoryName: 'Budget 1',
-          createdAt: DateTime(2026, 9, 4),
-        ),
-        FfmAssistantDraft(
-          kind: FfmAssistantDraftKind.reminder,
-          title: 'Reminder 1',
-          createdAt: DateTime(2026, 9, 4),
-        ),
-        FfmAssistantDraft(
-          kind: FfmAssistantDraftKind.task,
-          title: 'Task 1',
-          createdAt: DateTime(2026, 9, 4),
-        ),
-      ];
+        // Buat 4 draf (masing-masing 3 step = 12 steps, melebihi maxStepsPerPlan = 8)
+        final excessiveDrafts = [
+          FfmAssistantDraft(
+            kind: FfmAssistantDraftKind.goal,
+            title: 'Goal 1',
+            createdAt: DateTime(2026, 9, 4),
+          ),
+          FfmAssistantDraft(
+            kind: FfmAssistantDraftKind.budget,
+            categoryName: 'Budget 1',
+            createdAt: DateTime(2026, 9, 4),
+          ),
+          FfmAssistantDraft(
+            kind: FfmAssistantDraftKind.reminder,
+            title: 'Reminder 1',
+            createdAt: DateTime(2026, 9, 4),
+          ),
+          FfmAssistantDraft(
+            kind: FfmAssistantDraftKind.task,
+            title: 'Task 1',
+            createdAt: DateTime(2026, 9, 4),
+          ),
+        ];
 
-      final plan = planner.planCompositePlan(
-        summary: 'Rencana aksi terlalu besar',
-        drafts: excessiveDrafts,
-      );
+        final plan = planner.planCompositePlan(
+          summary: 'Rencana aksi terlalu besar',
+          drafts: excessiveDrafts,
+        );
 
-      expect(plan, isNotNull);
-      expect(plan!.status, FfmAssistantActionPlanStatus.blockedByBudget);
-      expect(
-        plan.blockedReason,
-        FfmAssistantBudgetBlockReason.tooManySteps.name,
-      );
-      expect(
-        plan.summary,
-        FfmAssistantExecutionLimits.tooComplexMessage,
-      );
-    });
+        expect(plan, isNotNull);
+        expect(plan!.status, FfmAssistantActionPlanStatus.blockedByBudget);
+        expect(
+          plan.blockedReason,
+          FfmAssistantBudgetBlockReason.tooManySteps.name,
+        );
+        expect(plan.summary, FfmAssistantExecutionLimits.tooComplexMessage);
+      },
+    );
   });
 }

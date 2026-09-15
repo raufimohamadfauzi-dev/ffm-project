@@ -81,8 +81,10 @@ void main() {
 
     final restored = await repository.readRaw();
     expect(restored, hasLength(2));
-    expect(restored.map((row) => row['text']),
-        containsAll(['Data lama HP B', 'Data baru HP A']));
+    expect(
+      restored.map((row) => row['text']),
+      containsAll(['Data lama HP B', 'Data baru HP A']),
+    );
   });
 
   test('entry chat menyimpan waktu kirim, terima, dan model', () async {
@@ -115,30 +117,32 @@ void main() {
     expect(restored.last.modelUsed, 'gemini-cloud');
   });
 
-  test('entry legacy tanpa field metadata tetap terbaca dan fallback ke createdAt',
-      () async {
-    final repository = FfmAssistantChatHistoryRepository();
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(
-      'ffm_assistant_chat_history_v1',
-      jsonEncode([
-        {
-          'isUser': true,
-          'text': 'Pesan lama',
-          'createdAt': '2026-08-23T02:00:00.000',
-        },
-      ]),
-    );
+  test(
+    'entry legacy tanpa field metadata tetap terbaca dan fallback ke createdAt',
+    () async {
+      final repository = FfmAssistantChatHistoryRepository();
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString(
+        'ffm_assistant_chat_history_v1',
+        jsonEncode([
+          {
+            'isUser': true,
+            'text': 'Pesan lama',
+            'createdAt': '2026-08-23T02:00:00.000',
+          },
+        ]),
+      );
 
-    final restored = await repository.load();
-    final entry = restored.single;
+      final restored = await repository.load();
+      final entry = restored.single;
 
-    expect(entry.text, 'Pesan lama');
-    expect(entry.createdAt, DateTime(2026, 8, 23, 2));
-    expect(entry.sentAt, isNull);
-    expect(entry.receivedAt, isNull);
-    expect(entry.modelUsed, isNull);
-  });
+      expect(entry.text, 'Pesan lama');
+      expect(entry.createdAt, DateTime(2026, 8, 23, 2));
+      expect(entry.sentAt, isNull);
+      expect(entry.receivedAt, isNull);
+      expect(entry.modelUsed, isNull);
+    },
+  );
 
   test('updateEntryWithFeedback mempertahankan metadata chat', () async {
     final repository = FfmAssistantChatHistoryRepository();
@@ -201,8 +205,14 @@ void main() {
 
     expect(results, hasLength(2));
     expect(results.first.conversationTitle, 'Diskusi Target');
-    expect(results.any((r) => r.isUser && r.text.contains('progres target')), isTrue);
-    expect(results.any((r) => !r.isUser && r.text.contains('mencapai 70%')), isTrue);
+    expect(
+      results.any((r) => r.isUser && r.text.contains('progres target')),
+      isTrue,
+    );
+    expect(
+      results.any((r) => !r.isUser && r.text.contains('mencapai 70%')),
+      isTrue,
+    );
 
     // Query tidak cocok menghasilkan list kosong
     final noResults = await repository.search(query: 'cicilan motor');

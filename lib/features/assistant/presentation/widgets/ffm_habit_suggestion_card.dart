@@ -67,7 +67,9 @@ class FfmHabitSuggestionCard extends StatelessWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 13.5,
-                        color: isDark ? Colors.amber.shade300 : Colors.amber.shade900,
+                        color: isDark
+                            ? Colors.amber.shade300
+                            : Colors.amber.shade900,
                       ),
                     ),
                     Text(
@@ -106,20 +108,30 @@ class FfmHabitSuggestionCard extends StatelessWidget {
               FilledButton.tonalIcon(
                 onPressed: onAccept,
                 icon: const Icon(Icons.add_task_rounded, size: 16),
-                label: const Text('Catat Sekarang', style: TextStyle(fontSize: 12)),
+                label: const Text(
+                  'Catat Sekarang',
+                  style: TextStyle(fontSize: 12),
+                ),
                 style: FilledButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                   backgroundColor: Colors.amber.shade700.withValues(alpha: 0.2),
-                  foregroundColor: isDark ? Colors.amber.shade200 : Colors.amber.shade900,
+                  foregroundColor: isDark
+                      ? Colors.amber.shade200
+                      : Colors.amber.shade900,
                 ),
               ),
               OutlinedButton.icon(
                 onPressed: onSnooze,
                 icon: const Icon(Icons.update_rounded, size: 15),
-                label: const Text('Lewati Minggu Ini', style: TextStyle(fontSize: 11.5)),
+                label: const Text(
+                  'Lewati Minggu Ini',
+                  style: TextStyle(fontSize: 11.5),
+                ),
                 style: OutlinedButton.styleFrom(
                   visualDensity: VisualDensity.compact,
-                  side: BorderSide(color: Colors.amber.shade700.withValues(alpha: 0.4)),
+                  side: BorderSide(
+                    color: Colors.amber.shade700.withValues(alpha: 0.4),
+                  ),
                 ),
               ),
               TextButton(
@@ -128,7 +140,10 @@ class FfmHabitSuggestionCard extends StatelessWidget {
                   visualDensity: VisualDensity.compact,
                   foregroundColor: Colors.grey[600],
                 ),
-                child: const Text('Matikan Saran', style: TextStyle(fontSize: 11.5)),
+                child: const Text(
+                  'Matikan Saran',
+                  style: TextStyle(fontSize: 11.5),
+                ),
               ),
             ],
           ),

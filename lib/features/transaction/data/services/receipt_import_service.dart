@@ -153,8 +153,10 @@ class ReceiptImportService {
     // Jika ada rincian item, dan jumlah harga item valid:
     // Jika total == paidAmount dan total > itemsTotal, rekonsiliasi total ke itemsTotal
     if (items.isNotEmpty) {
-      final itemsTotal =
-          items.fold<int>(0, (sum, item) => sum + item.calculatedTotal);
+      final itemsTotal = items.fold<int>(
+        0,
+        (sum, item) => sum + item.calculatedTotal,
+      );
       if (itemsTotal > 0 &&
           total != null &&
           total > itemsTotal &&
@@ -329,22 +331,21 @@ class ReceiptImportService {
         warnings.add('Transaksi ke-${index + 1} belum memiliki nominal valid.');
       }
       final location = _text(
-        data['location'] ??
-            data['lokasi'] ??
-            data['address'] ??
-            data['alamat'],
+        data['location'] ?? data['lokasi'] ?? data['address'] ?? data['alamat'],
       );
       final rawTags = data['tags'] ?? data['tag'];
       final tags = switch (rawTags) {
-        List list => list
-            .map((e) => e.toString().trim())
-            .where((e) => e.isNotEmpty)
-            .toList(),
-        String str => str
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList(),
+        List list =>
+          list
+              .map((e) => e.toString().trim())
+              .where((e) => e.isNotEmpty)
+              .toList(),
+        String str =>
+          str
+              .split(',')
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty)
+              .toList(),
         _ => const <String>[],
       };
       final receiptNumber = _text(
@@ -421,7 +422,9 @@ class ReceiptImportService {
                 data['kembali'],
           ),
           tax: _money(data['tax'] ?? data['pajak'] ?? data['ppn']),
-          discount: _money(data['discount'] ?? data['diskon'] ?? data['potongan']),
+          discount: _money(
+            data['discount'] ?? data['diskon'] ?? data['potongan'],
+          ),
           items: items,
         ),
       );

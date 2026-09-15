@@ -51,7 +51,10 @@ void main() {
       expect(score.pillars[1].score, 12); // expense 85%
       expect(score.pillars[2].score, 15); // debt 25%
       expect(score.pillars[3].score, 16); // emergency 3.5 months
-      expect(score.pillars[4].score, 10); // net worth > 0, assets < 2x liabilities
+      expect(
+        score.pillars[4].score,
+        10,
+      ); // net worth > 0, assets < 2x liabilities
     });
 
     test('Skenario Defisit Berat & Cicilan Tinggi: Status Critical', () {
@@ -89,7 +92,10 @@ void main() {
       final score = calculator.calculate(input);
 
       expect(score.totalScore, inInclusiveRange(50, 65));
-      expect(score.status, isIn([FinancialHealthStatus.fair, FinancialHealthStatus.warning]));
+      expect(
+        score.status,
+        isIn([FinancialHealthStatus.fair, FinancialHealthStatus.warning]),
+      );
       expect(score.pillars.length, 5);
       expect(score.pillars.every((p) => p.maxScore > 0), isTrue);
     });
@@ -107,12 +113,16 @@ void main() {
 
       final score = calculator.calculate(input);
 
-      final cashflowPillar = score.pillars.firstWhere((p) => p.id == 'cashflow');
+      final cashflowPillar = score.pillars.firstWhere(
+        (p) => p.id == 'cashflow',
+      );
       expect(cashflowPillar.maxScore, 25);
       expect(cashflowPillar.percentage, inInclusiveRange(0.0, 1.0));
       expect(cashflowPillar.factDescription, isNotEmpty);
 
-      final netWorthPillar = score.pillars.firstWhere((p) => p.id == 'net_worth');
+      final netWorthPillar = score.pillars.firstWhere(
+        (p) => p.id == 'net_worth',
+      );
       expect(netWorthPillar.maxScore, 15);
       expect(netWorthPillar.percentage, 1.0);
     });

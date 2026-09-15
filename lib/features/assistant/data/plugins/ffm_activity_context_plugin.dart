@@ -51,18 +51,22 @@ class FfmActivityContextPlugin extends FfmAgentPlugin {
     // Check if user specifically asked for a sub-activity like "makan", "kapal", etc.
     for (final session in snapshot.activeSessions) {
       final titleLower = session.title.toLowerCase();
-      if (query.contains(titleLower) && (query.contains('berapa lama') || query.contains('durasi'))) {
+      if (query.contains(titleLower) &&
+          (query.contains('berapa lama') || query.contains('durasi'))) {
         final dur = _calculator.format(session.durationAt(now));
         final parentInfo = session.parentSessionId != null
             ? () {
-                final p = snapshot.activeSessions.where((s) => s.id == session.parentSessionId).firstOrNull;
+                final p = snapshot.activeSessions
+                    .where((s) => s.id == session.parentSessionId)
+                    .firstOrNull;
                 return p != null ? ' (di dalam ${p.title})' : '';
               }()
             : '';
         return FfmHarnessResult(
           pluginName: name,
           category: category,
-          text: '⏱️ Kamu sedang melakukan **${session.title}**$parentInfo selama **$dur**.',
+          text:
+              '⏱️ Kamu sedang melakukan **${session.title}**$parentInfo selama **$dur**.',
           metadata: {
             'sessionId': session.id,
             'title': session.title,
@@ -76,8 +80,12 @@ class FfmActivityContextPlugin extends FfmAgentPlugin {
     }
 
     // Full journey / activity recap
-    final rootSessions = snapshot.activeSessions.where((s) => s.parentSessionId == null).toList();
-    final childSessions = snapshot.activeSessions.where((s) => s.parentSessionId != null).toList();
+    final rootSessions = snapshot.activeSessions
+        .where((s) => s.parentSessionId == null)
+        .toList();
+    final childSessions = snapshot.activeSessions
+        .where((s) => s.parentSessionId != null)
+        .toList();
 
     final buffer = StringBuffer();
     final cardPayloads = <Map<String, dynamic>>[];
@@ -87,7 +95,9 @@ class FfmActivityContextPlugin extends FfmAgentPlugin {
       buffer.writeln('🚗 **Rekap: ${root.title}**');
       buffer.writeln('• Total durasi berjalan: **$rootDuration**');
 
-      final children = childSessions.where((c) => c.parentSessionId == root.id).toList();
+      final children = childSessions
+          .where((c) => c.parentSessionId == root.id)
+          .toList();
       final childItems = <Map<String, dynamic>>[];
       if (children.isNotEmpty) {
         final subList = children
@@ -109,7 +119,9 @@ class FfmActivityContextPlugin extends FfmAgentPlugin {
         buffer.writeln('• Checkpoint:');
         for (var i = 0; i < checkpoints.length; i++) {
           final cp = checkpoints[i];
-          final prevTime = i == 0 ? root.startedAt : checkpoints[i - 1].occurredAt;
+          final prevTime = i == 0
+              ? root.startedAt
+              : checkpoints[i - 1].occurredAt;
           final diff = _calculator.format(cp.occurredAt.difference(prevTime));
           buffer.writeln('  - ${cp.label} (+ $diff)');
           cpItems.add({

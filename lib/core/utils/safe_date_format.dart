@@ -33,7 +33,10 @@ class SafeDateFormat {
 
 /// Ekstensi praktis agar DateTime bisa diformat aman dari mana saja.
 extension SafeDateTimeFormatter on DateTime {
-  String toSafeString({String pattern = 'dd MMMM yyyy', String locale = 'id_ID'}) {
+  String toSafeString({
+    String pattern = 'dd MMMM yyyy',
+    String locale = 'id_ID',
+  }) {
     try {
       return DateFormat(pattern, locale).format(this);
     } catch (_) {

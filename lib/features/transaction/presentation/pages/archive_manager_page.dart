@@ -60,11 +60,10 @@ class _ArchiveManagerPageState extends State<ArchiveManagerPage> {
       ..addColumns([database.transactions.id.count()])
       ..where(
         database.transactions.householdId.equals(AppContext.householdId) &
-        database.transactions.isArchived.equals(true),
+            database.transactions.isArchived.equals(true),
       );
     final countResult = await countQuery.getSingle();
-    final totalCount =
-        countResult.read(database.transactions.id.count()) ?? 0;
+    final totalCount = countResult.read(database.transactions.id.count()) ?? 0;
     query
       ..orderBy([
         (row) => OrderingTerm.desc(row.date),
@@ -190,9 +189,8 @@ class _ArchiveManagerPageState extends State<ArchiveManagerPage> {
       } catch (_) {}
     }
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$count transaksi dipulihkan.')),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('$count transaksi dipulihkan.')));
     await _loadArchived();
   }
 
@@ -217,9 +215,7 @@ class _ArchiveManagerPageState extends State<ArchiveManagerPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.negative,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.negative),
             child: const Text('Lanjutkan'),
           ),
         ],
@@ -229,10 +225,7 @@ class _ArchiveManagerPageState extends State<ArchiveManagerPage> {
     final confirmed2 = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        icon: const Icon(
-          Icons.delete_forever,
-          color: AppColors.negative,
-        ),
+        icon: const Icon(Icons.delete_forever, color: AppColors.negative),
         title: const Text('Konfirmasi Akhir'),
         content: const Text(
           'Anda yakin ingin menghapus transaksi ini secara permanen?',
@@ -244,9 +237,7 @@ class _ArchiveManagerPageState extends State<ArchiveManagerPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.negative,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.negative),
             child: const Text('Hapus Sekarang'),
           ),
         ],
@@ -263,11 +254,7 @@ class _ArchiveManagerPageState extends State<ArchiveManagerPage> {
                   row.householdId.equals(AppContext.householdId) &
                   row.id.equals(id),
             ))
-            .write(
-              const TransactionsCompanion(
-                isDeleted: Value(true),
-              ),
-            );
+            .write(const TransactionsCompanion(isDeleted: Value(true)));
         await auditLogger.record(
           action: 'hapus_permanen',
           entity: 'transaksi',
@@ -289,9 +276,7 @@ class _ArchiveManagerPageState extends State<ArchiveManagerPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          hasSelection
-              ? '${_selectedIds.length} dipilih'
-              : 'Arsip Transaksi',
+          hasSelection ? '${_selectedIds.length} dipilih' : 'Arsip Transaksi',
         ),
         leading: hasSelection
             ? IconButton(
@@ -380,10 +365,8 @@ class _ArchiveManagerPageState extends State<ArchiveManagerPage> {
                 return Card(
                   margin: const EdgeInsets.only(bottom: 6),
                   color: isSelected
-                      ? Theme.of(context)
-                          .colorScheme
-                          .primaryContainer
-                          .withValues(alpha: .3)
+                      ? Theme.of(context).colorScheme.primaryContainer
+                            .withValues(alpha: .3)
                       : null,
                   child: ListTile(
                     leading: CircleAvatar(
@@ -408,7 +391,10 @@ class _ArchiveManagerPageState extends State<ArchiveManagerPage> {
                       '${isDeleted ? ' (dihapus)' : ''}',
                     ),
                     trailing: isSelected
-                        ? const Icon(Icons.check_circle, color: AppColors.primary)
+                        ? const Icon(
+                            Icons.check_circle,
+                            color: AppColors.primary,
+                          )
                         : null,
                     onTap: () => _toggleItem(item.id),
                     onLongPress: () => _toggleItem(item.id),

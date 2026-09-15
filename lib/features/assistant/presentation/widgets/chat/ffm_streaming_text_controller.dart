@@ -62,10 +62,7 @@ class FfmStreamingTextController {
       return;
     }
 
-    _currentIndex = (_currentIndex + charsPerTick).clamp(
-      0,
-      _fullText.length,
-    );
+    _currentIndex = (_currentIndex + charsPerTick).clamp(0, _fullText.length);
 
     _textController.add(currentText);
 

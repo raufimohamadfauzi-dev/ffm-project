@@ -48,21 +48,28 @@ class FfmLiveActivitySensePlugin extends FfmAgentPlugin {
 
     if (snapshot == null || !snapshot.hasActiveSessions) {
       final text = context.normalizedText.toLowerCase();
-      if (!text.contains('aktivitas') && !text.contains('kegiatan') && !text.contains('sesi')) {
+      if (!text.contains('aktivitas') &&
+          !text.contains('kegiatan') &&
+          !text.contains('sesi')) {
         return null;
       }
       return const FfmHarnessResult(
         pluginName: 'live_activity_sense',
         category: FfmPluginCategory.sense,
-        text: 'Saat ini belum ada aktivitas yang sedang berjalan. '
+        text:
+            'Saat ini belum ada aktivitas yang sedang berjalan. '
             'Kamu bisa memulai aktivitas baru dengan perintah seperti: *"Mulai aktivitas Perjalanan ke Bandung"*.',
         metadata: {'hasActive': false, 'activeCount': 0},
       );
     }
 
     final now = context.now;
-    final rootSessions = snapshot.activeSessions.where((s) => s.parentSessionId == null).toList();
-    final childSessions = snapshot.activeSessions.where((s) => s.parentSessionId != null).toList();
+    final rootSessions = snapshot.activeSessions
+        .where((s) => s.parentSessionId == null)
+        .toList();
+    final childSessions = snapshot.activeSessions
+        .where((s) => s.parentSessionId != null)
+        .toList();
 
     final buffer = StringBuffer();
     buffer.writeln('📋 **Aktivitas yang Sedang Berjalan:**');
@@ -71,14 +78,20 @@ class FfmLiveActivitySensePlugin extends FfmAgentPlugin {
 
     for (final root in rootSessions) {
       final duration = _calculator.format(root.durationAt(now));
-      buffer.writeln('\n🏃 **${root.title}** (${root.category}) — berjalan **$duration**');
+      buffer.writeln(
+        '\n🏃 **${root.title}** (${root.category}) — berjalan **$duration**',
+      );
 
       final lastCp = snapshot.lastCheckpointFor(root.id);
       if (lastCp != null) {
-        buffer.writeln('  📍 Update terakhir: ${lastCp.label}${lastCp.place != null ? " di ${lastCp.place}" : ""}');
+        buffer.writeln(
+          '  📍 Update terakhir: ${lastCp.label}${lastCp.place != null ? " di ${lastCp.place}" : ""}',
+        );
       }
 
-      final children = childSessions.where((c) => c.parentSessionId == root.id).toList();
+      final children = childSessions
+          .where((c) => c.parentSessionId == root.id)
+          .toList();
       final childData = <Map<String, dynamic>>[];
       for (final child in children) {
         final childDur = _calculator.format(child.durationAt(now));
@@ -105,10 +118,14 @@ class FfmLiveActivitySensePlugin extends FfmAgentPlugin {
     }
 
     // Include orphaned active child sessions if any
-    final orphanedChildren = childSessions.where((c) => !rootSessions.any((r) => r.id == c.parentSessionId)).toList();
+    final orphanedChildren = childSessions
+        .where((c) => !rootSessions.any((r) => r.id == c.parentSessionId))
+        .toList();
     for (final orphan in orphanedChildren) {
       final duration = _calculator.format(orphan.durationAt(now));
-      buffer.writeln('\n⏳ **${orphan.title}** (${orphan.category}) — $duration (sub-kegiatan)');
+      buffer.writeln(
+        '\n⏳ **${orphan.title}** (${orphan.category}) — $duration (sub-kegiatan)',
+      );
       structuredSessions.add({
         'id': orphan.id,
         'title': orphan.title,
@@ -121,11 +138,15 @@ class FfmLiveActivitySensePlugin extends FfmAgentPlugin {
     }
 
     // Advanced Proactivity: Detect sessions running for too long (> 12 hours)
-    final veryLongSessions = snapshot.activeSessions.where((s) => s.durationAt(now).inHours >= 12).toList();
+    final veryLongSessions = snapshot.activeSessions
+        .where((s) => s.durationAt(now).inHours >= 12)
+        .toList();
     if (veryLongSessions.isNotEmpty) {
       buffer.writeln('\n⚠️ **Perhatian:**');
       for (final s in veryLongSessions) {
-        buffer.writeln('Sesi **${s.title}** sudah jalan ${_calculator.format(s.durationAt(now))}. Apakah kamu lupa mematikannya?');
+        buffer.writeln(
+          'Sesi **${s.title}** sudah jalan ${_calculator.format(s.durationAt(now))}. Apakah kamu lupa mematikannya?',
+        );
       }
     }
 

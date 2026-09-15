@@ -125,12 +125,12 @@ void main() {
 
       expect(completed?.status, FfmAssistantActionPlanStatus.completed);
       expect(
-      completed?.steps.map((step) => step.capabilityId),
-      equals([
-        'navigate.transactions',
-        'draft.transaction_update',
-        'mutate.update',
-        'verify.transaction_mutation',
+        completed?.steps.map((step) => step.capabilityId),
+        equals([
+          'navigate.transactions',
+          'draft.transaction_update',
+          'mutate.update',
+          'verify.transaction_mutation',
         ]),
       );
       final row = await GetTransaction(database)(householdId, 'coffee');

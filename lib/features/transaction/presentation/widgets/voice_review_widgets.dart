@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/database/app_database.dart';
 import '../../../../core/localization/app_copy.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -61,8 +62,7 @@ class VoiceBatchReviewDialog extends StatefulWidget {
   final List<Tag> tagsMaster;
 
   @override
-  State<VoiceBatchReviewDialog> createState() =>
-      _VoiceBatchReviewDialogState();
+  State<VoiceBatchReviewDialog> createState() => _VoiceBatchReviewDialogState();
 }
 
 class _VoiceBatchReviewDialogState extends State<VoiceBatchReviewDialog> {
@@ -173,7 +173,9 @@ class _VoiceBatchReviewDialogState extends State<VoiceBatchReviewDialog> {
       setState(() => _errorText = error);
       return;
     }
-    final unusuallyHigh = _rows.where((r) => parseRupiah(r.amountController.text) >= 100000000).toList();
+    final unusuallyHigh = _rows
+        .where((r) => parseRupiah(r.amountController.text) >= 100000000)
+        .toList();
     if (unusuallyHigh.isNotEmpty) {
       final confirmed = await showDialog<bool>(
         context: context,
@@ -273,10 +275,14 @@ class _VoiceBatchReviewDialogState extends State<VoiceBatchReviewDialog> {
               },
             ),
             const SizedBox(height: 10),
-            if (row.isUnusuallyHighAmount || parseRupiah(row.amountController.text) >= 100000000) ...[
+            if (row.isUnusuallyHighAmount ||
+                parseRupiah(row.amountController.text) >= 100000000) ...[
               Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.amber.shade100,
                   borderRadius: BorderRadius.circular(8),
@@ -284,12 +290,20 @@ class _VoiceBatchReviewDialogState extends State<VoiceBatchReviewDialog> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber.shade900),
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      size: 16,
+                      color: Colors.amber.shade900,
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         'Nominal sangat besar (≥ Rp 100 Jt). Pastikan ucapan tidak salah tangkap.',
-                        style: TextStyle(fontSize: 11, color: Colors.amber.shade900, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.amber.shade900,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -786,10 +800,7 @@ class _VoiceReviewDialogState extends State<VoiceReviewDialog> {
                       (category) => DropdownMenuItem<String>(
                         value: category.id,
                         child: Text(
-                          transactionCategoryLabel(
-                            widget.categories,
-                            category,
-                          ),
+                          transactionCategoryLabel(widget.categories, category),
                         ),
                       ),
                     )
@@ -1144,7 +1155,9 @@ class VoiceGuideStep extends StatelessWidget {
                     text: '${StringSanitizer.sanitizeForTextWidget(title)}. ',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
-                  TextSpan(text: StringSanitizer.sanitizeForTextWidget(description)),
+                  TextSpan(
+                    text: StringSanitizer.sanitizeForTextWidget(description),
+                  ),
                 ],
               ),
             ),

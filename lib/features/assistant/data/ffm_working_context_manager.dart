@@ -66,21 +66,22 @@ class FfmWorkingContextManager {
     required Map<String, String> extractedEntities,
   }) async {
     final autoExtracted = _extractSimpleEntities(userQuery);
-    final merged = {
-      ...autoExtracted,
-      ...extractedEntities,
-    };
+    final merged = {...autoExtracted, ...extractedEntities};
 
     _currentContext = FfmWorkingContext(
       lastUserIntent: merged['intent'] ?? _currentContext.lastUserIntent,
-      lastReferencedEntity: merged['entity'] ?? _currentContext.lastReferencedEntity,
+      lastReferencedEntity:
+          merged['entity'] ?? _currentContext.lastReferencedEntity,
       currentTopic: merged['topic'] ?? _currentContext.currentTopic,
       currentPeriod: merged['period'] ?? _currentContext.currentPeriod,
       currentGoal: merged['goal'] ?? _currentContext.currentGoal,
       lastActivityId: merged['activityId'] ?? _currentContext.lastActivityId,
-      lastActivityTitle: merged['activityTitle'] ?? _currentContext.lastActivityTitle,
+      lastActivityTitle:
+          merged['activityTitle'] ?? _currentContext.lastActivityTitle,
       pendingClarification: null,
-      lastActionResult: assistantResponse != null ? 'assistant_response_ready' : null,
+      lastActionResult: assistantResponse != null
+          ? 'assistant_response_ready'
+          : null,
       lastUpdatedAt: DateTime.now(),
     );
 
@@ -114,12 +115,15 @@ class FfmWorkingContextManager {
 
         _currentContext = FfmWorkingContext(
           lastUserIntent: entities['intent'] ?? _currentContext.lastUserIntent,
-          lastReferencedEntity: entities['entity'] ?? _currentContext.lastReferencedEntity,
+          lastReferencedEntity:
+              entities['entity'] ?? _currentContext.lastReferencedEntity,
           currentTopic: entities['topic'] ?? _currentContext.currentTopic,
           currentPeriod: entities['period'] ?? _currentContext.currentPeriod,
           currentGoal: entities['goal'] ?? _currentContext.currentGoal,
-          lastActivityId: entities['activityId'] ?? _currentContext.lastActivityId,
-          lastActivityTitle: entities['activityTitle'] ?? _currentContext.lastActivityTitle,
+          lastActivityId:
+              entities['activityId'] ?? _currentContext.lastActivityId,
+          lastActivityTitle:
+              entities['activityTitle'] ?? _currentContext.lastActivityTitle,
           pendingClarification: null,
           lastActionResult: _currentContext.lastActionResult,
           lastUpdatedAt: DateTime.now(),
@@ -146,13 +150,15 @@ class FfmWorkingContextManager {
   }) async {
     _currentContext = FfmWorkingContext(
       lastUserIntent: lastUserIntent ?? _currentContext.lastUserIntent,
-      lastReferencedEntity: lastReferencedEntity ?? _currentContext.lastReferencedEntity,
+      lastReferencedEntity:
+          lastReferencedEntity ?? _currentContext.lastReferencedEntity,
       currentTopic: currentTopic ?? _currentContext.currentTopic,
       currentPeriod: currentPeriod ?? _currentContext.currentPeriod,
       currentGoal: currentGoal ?? _currentContext.currentGoal,
       lastActivityId: lastActivityId ?? _currentContext.lastActivityId,
       lastActivityTitle: lastActivityTitle ?? _currentContext.lastActivityTitle,
-      pendingClarification: pendingClarification ?? _currentContext.pendingClarification,
+      pendingClarification:
+          pendingClarification ?? _currentContext.pendingClarification,
       lastActionResult: _currentContext.lastActionResult,
       lastUpdatedAt: DateTime.now(),
     );
@@ -169,7 +175,9 @@ class FfmWorkingContextManager {
   }
 
   /// Set pending clarification
-  Future<FfmWorkingContext> setPendingClarification(String clarification) async {
+  Future<FfmWorkingContext> setPendingClarification(
+    String clarification,
+  ) async {
     _currentContext = FfmWorkingContext(
       lastUserIntent: _currentContext.lastUserIntent,
       lastReferencedEntity: _currentContext.lastReferencedEntity,
@@ -185,7 +193,8 @@ class FfmWorkingContextManager {
     return _currentContext;
   }
 
-  bool get hasPendingClarification => _currentContext.pendingClarification != null;
+  bool get hasPendingClarification =>
+      _currentContext.pendingClarification != null;
 
   Map<String, dynamic> get summary => {
     'lastUserIntent': _currentContext.lastUserIntent,
@@ -208,9 +217,11 @@ class FfmWorkingContextManager {
 
     if (lowerQuery.contains('pengeluaran') || lowerQuery.contains('belanja')) {
       entities['topic'] = 'spending';
-    } else if (lowerQuery.contains('pemasukan') || lowerQuery.contains('gaji')) {
+    } else if (lowerQuery.contains('pemasukan') ||
+        lowerQuery.contains('gaji')) {
       entities['topic'] = 'income';
-    } else if (lowerQuery.contains('tabungan') || lowerQuery.contains('nabung')) {
+    } else if (lowerQuery.contains('tabungan') ||
+        lowerQuery.contains('nabung')) {
       entities['topic'] = 'savings';
     } else if (lowerQuery.contains('target')) {
       entities['topic'] = 'goals';
@@ -234,23 +245,29 @@ class FfmWorkingContextManager {
       entities['intent'] = 'financial_analysis';
     } else if (lowerQuery.contains('buat') || lowerQuery.contains('tambah')) {
       entities['intent'] = 'create';
-    } else if (lowerQuery.contains('lihat') || lowerQuery.contains('tampilkan')) {
+    } else if (lowerQuery.contains('lihat') ||
+        lowerQuery.contains('tampilkan')) {
       entities['intent'] = 'view';
     }
 
     if (lowerQuery.contains('makan') || lowerQuery.contains('makanan')) {
       entities['entity'] = 'food';
       entities['activityTitle'] = 'Makan';
-    } else if (lowerQuery.contains('transportasi') || lowerQuery.contains('bensin')) {
+    } else if (lowerQuery.contains('transportasi') ||
+        lowerQuery.contains('bensin')) {
       entities['entity'] = 'transport';
       entities['activityTitle'] = 'Perjalanan';
     } else if (lowerQuery.contains('listrik') || lowerQuery.contains('air')) {
       entities['entity'] = 'utilities';
     }
 
-    if (lowerQuery.contains('mulai') || lowerQuery.contains('jalan') || lowerQuery.contains('tambah')) {
+    if (lowerQuery.contains('mulai') ||
+        lowerQuery.contains('jalan') ||
+        lowerQuery.contains('tambah')) {
       entities['intent'] = 'start_activity';
-    } else if (lowerQuery.contains('selesai') || lowerQuery.contains('beres') || lowerQuery.contains('stop')) {
+    } else if (lowerQuery.contains('selesai') ||
+        lowerQuery.contains('beres') ||
+        lowerQuery.contains('stop')) {
       entities['intent'] = 'finish_activity';
     }
 

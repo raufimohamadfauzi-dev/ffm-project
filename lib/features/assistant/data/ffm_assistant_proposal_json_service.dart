@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../activity/domain/activity_mode_detector.dart';
 import '../../activity/domain/entities/activity_entity.dart';
+import '../../reminder/domain/entities/reminder_entity.dart';
 import '../../transaction/data/services/receipt_import_models.dart';
 import '../domain/ffm_assistant_models.dart';
 import '../domain/ffm_assistant_monitoring_job.dart';
@@ -694,16 +695,11 @@ class FfmAssistantProposalJsonService {
         'Tanggal Catatan Harian wajib diisi dan valid.',
       );
     }
-    
-    // Tag wajib untuk daily_note
+
+    // Tag membantu pengelompokan daily_note, tetapi catatan tetap valid tanpa tag.
     final tagsValue = proposal['tags'] ?? proposal['tag'];
     final tags = _boundedText(tagsValue, 300);
-    if (tags == null || tags.isEmpty) {
-      return const FfmAssistantProposalParseResult.invalid(
-        'Tag atau lahan wajib diisi untuk Catatan Harian. Sebutkan tag yang ada di Data Utama.',
-      );
-    }
-    
+
     return FfmAssistantProposalParseResult.draft(
       FfmAssistantDraft(
         kind: FfmAssistantDraftKind.dailyNote,
@@ -713,7 +709,7 @@ class FfmAssistantProposalJsonService {
         date: noteDate,
         formValues: {
           'source': 'gemini_proposal',
-          'tags': tags,
+          if (tags != null && tags.isNotEmpty) 'tags': tags,
         },
       ),
     );
@@ -808,6 +804,11 @@ class FfmAssistantProposalJsonService {
       formValues['soundName'] = soundName;
     }
 
+    final isAlarm = modeValue == 'alarm';
+    final reminderMode = isAlarm
+        ? ReminderMode.alarm
+        : ReminderMode.notification;
+
     return FfmAssistantProposalParseResult.draft(
       FfmAssistantDraft(
         kind: FfmAssistantDraftKind.reminder,
@@ -817,6 +818,7 @@ class FfmAssistantProposalJsonService {
         date: targetDate,
         soundUri: soundUri,
         soundName: soundName,
+        reminderMode: reminderMode,
         formValues: formValues,
       ),
     );

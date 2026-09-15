@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,5 +39,8 @@ void main() {
     expect(find.text('Belum ada angka yang perlu dihitung'), findsOneWidget);
     expect(find.text('Catat transaksi pertama'), findsOneWidget);
     expect(find.text('Saran buat kamu'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 100));
   });
 }

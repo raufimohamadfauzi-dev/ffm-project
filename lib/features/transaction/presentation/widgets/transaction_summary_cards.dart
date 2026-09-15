@@ -196,10 +196,7 @@ class _AccountBalancesCardState extends State<AccountBalancesCard> {
     final service = getIt<GetAccountBookBalance>();
     final balances = <String, int>{};
     for (final account in widget.accounts) {
-      balances[account.id] = await service(
-        widget.householdId,
-        account.id,
-      );
+      balances[account.id] = await service(widget.householdId, account.id);
     }
     if (!mounted) return;
     setState(() {

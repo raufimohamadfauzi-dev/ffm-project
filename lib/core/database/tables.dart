@@ -190,8 +190,7 @@ class TransactionTags extends Table {
   Set<Column<Object>> get primaryKey => {transactionId, tagId};
 }
 
-/// Tag/lahan yang melekat pada Catatan Harian.
-/// Satu catatan wajib memiliki minimal satu relasi aktif saat disimpan.
+/// Tag/lahan opsional yang melekat pada Catatan Kejadian.
 class DailyNoteTags extends Table {
   TextColumn get dailyNoteId => text()();
   TextColumn get tagId => text()();
@@ -410,6 +409,7 @@ class Reminders extends Table {
   TextColumn get sourceType => text().nullable()();
   TextColumn get sourceId => text().nullable()();
   TextColumn get origin => text().withDefault(const Constant('user'))();
+  TextColumn get mode => text().withDefault(const Constant('notification'))();
   // Calendar integration fields
   IntColumn get calendarEventId => integer().nullable()();
   BoolColumn get isSyncedToCalendar =>
@@ -564,10 +564,9 @@ class ActivityEntries extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-/// Catatan refleksi atau ringkasan harian, terpisah dari sesi Aktivitas.
-///
-/// Tabel ini tidak boleh dipakai untuk menggantikan ActivitySessions,
-/// ActivityCheckpoints, maupun ActivityEntries yang sudah ada.
+/// Catatan kejadian, refleksi, atau ringkasan yang tidak memakai timer.
+/// ActivitySessions tetap khusus aktivitas berjalan; data history legacy
+/// dimigrasikan ke tabel ini agar hanya ada satu sumber catatan kanonis.
 @TableIndex.sql('''
 CREATE INDEX idx_daily_notes_household_archived_date_id
 ON daily_notes (
@@ -584,6 +583,7 @@ class DailyNotes extends Table {
   TextColumn get title => text().nullable()();
   TextColumn get body => text()();
   TextColumn get treatmentType => text().nullable()();
+  IntColumn get priority => integer().withDefault(const Constant(0))();
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime().nullable()();

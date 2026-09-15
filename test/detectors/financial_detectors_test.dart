@@ -28,7 +28,9 @@ void main() {
   group('Financial Detectors Tests', () {
     test('PredictiveRunwayDetector triggers warning when daily burn exceeds safe spend', () async {
       // Rekening dengan saldo Rp 1.000.000
-      await db.into(db.accounts).insert(
+      await db
+          .into(db.accounts)
+          .insert(
             AccountsCompanion.insert(
               id: 'acc-runway',
               householdId: householdId,
@@ -44,7 +46,9 @@ void main() {
       // Transaksi pengeluaran 14 hari terakhir: Rp 100.000 / hari
       for (int i = 1; i <= 14; i++) {
         final txDate = now.subtract(Duration(days: i));
-        await db.into(db.transactions).insert(
+        await db
+            .into(db.transactions)
+            .insert(
               TransactionsCompanion.insert(
                 id: 'tx-runway-$i',
                 householdId: householdId,
@@ -62,7 +66,11 @@ void main() {
       }
 
       final detector = PredictiveRunwayDetector(db);
-      final insight = await detector.detect(householdId: householdId, now: now, defaultPaydayDay: 25);
+      final insight = await detector.detect(
+        householdId: householdId,
+        now: now,
+        defaultPaydayDay: 25,
+      );
 
       expect(insight, isNotNull);
       expect(insight!.type, FfmAssistantInsightType.runwayRisk);
@@ -93,7 +101,9 @@ void main() {
         ),
       );
 
-      await db.into(db.accounts).insert(
+      await db
+          .into(db.accounts)
+          .insert(
             AccountsCompanion.insert(
               id: 'acc-tani',
               householdId: householdId,
@@ -108,7 +118,9 @@ void main() {
 
       for (int i = 1; i <= 14; i++) {
         final txDate = now.subtract(Duration(days: i));
-        await db.into(db.transactions).insert(
+        await db
+            .into(db.transactions)
+            .insert(
               TransactionsCompanion.insert(
                 id: 'tx-tani-$i',
                 householdId: householdId,
@@ -126,7 +138,11 @@ void main() {
       }
 
       final detector = PredictiveRunwayDetector(db, cashFlowRepo: cashFlowRepo);
-      final insight = await detector.detect(householdId: householdId, now: now, defaultPaydayDay: 25);
+      final insight = await detector.detect(
+        householdId: householdId,
+        now: now,
+        defaultPaydayDay: 25,
+      );
 
       expect(insight, isNotNull);
       expect(insight!.type, FfmAssistantInsightType.runwayRisk);
@@ -140,7 +156,9 @@ void main() {
       final end = DateTime(2026, 9, 30);
 
       // Pos A: Makan (Alokasi 500.000)
-      await db.into(db.envelopeBudgets).insert(
+      await db
+          .into(db.envelopeBudgets)
+          .insert(
             EnvelopeBudgetsCompanion.insert(
               id: 'env-makan',
               householdId: householdId,
@@ -154,7 +172,9 @@ void main() {
           );
 
       // Pos B: Hiburan (Alokasi 1.000.000)
-      await db.into(db.envelopeBudgets).insert(
+      await db
+          .into(db.envelopeBudgets)
+          .insert(
             EnvelopeBudgetsCompanion.insert(
               id: 'env-hiburan',
               householdId: householdId,
@@ -168,7 +188,9 @@ void main() {
           );
 
       final dateMakan = DateTime(2026, 9, 5);
-      await db.into(db.transactions).insert(
+      await db
+          .into(db.transactions)
+          .insert(
             TransactionsCompanion.insert(
               id: 'tx-makan',
               householdId: householdId,
@@ -184,7 +206,9 @@ void main() {
           );
 
       final dateHiburan = DateTime(2026, 9, 7);
-      await db.into(db.transactions).insert(
+      await db
+          .into(db.transactions)
+          .insert(
             TransactionsCompanion.insert(
               id: 'tx-hiburan',
               householdId: householdId,
@@ -209,170 +233,204 @@ void main() {
       expect(insight.evidence['rebalanceAmount'], greaterThanOrEqualTo(10000));
     });
 
-    test('AnomalySpikeDetector detects 15-minute duplicate transactions', () async {
-      final txTime1 = now.subtract(const Duration(minutes: 5));
-      final txTime2 = now.subtract(const Duration(minutes: 2));
+    test(
+      'AnomalySpikeDetector detects 15-minute duplicate transactions',
+      () async {
+        final txTime1 = now.subtract(const Duration(minutes: 5));
+        final txTime2 = now.subtract(const Duration(minutes: 2));
 
-      await db.into(db.transactions).insert(
-            TransactionsCompanion.insert(
-              id: 'tx-dup-1',
-              householdId: householdId,
-              type: 'expense',
-              amount: -125000,
-              date: txTime1,
-              recordedAt: txTime1,
-              accountId: const Value('acc-1'),
-              note: const Value('Beli Token Listrik'),
-              isArchived: const Value(false),
-              isDeleted: const Value(false),
-              createdAt: txTime1,
-            ),
-          );
-
-      await db.into(db.transactions).insert(
-            TransactionsCompanion.insert(
-              id: 'tx-dup-2',
-              householdId: householdId,
-              type: 'expense',
-              amount: -125000,
-              date: txTime2,
-              recordedAt: txTime2,
-              accountId: const Value('acc-1'),
-              note: const Value('Beli Token Listrik'),
-              isArchived: const Value(false),
-              isDeleted: const Value(false),
-              createdAt: txTime2,
-            ),
-          );
-
-      final detector = AnomalySpikeDetector(db);
-      final insight = await detector.detect(householdId: householdId, now: now);
-
-      expect(insight, isNotNull);
-      expect(insight!.type, FfmAssistantInsightType.anomalySpike);
-      expect(insight.title, contains('Transaksi Ganda'));
-      expect(insight.evidence['diffMinutes'], 3);
-    });
-
-    test('MicroExpenseLeakDetector triggers when small expenses exceed 15% ratio', () async {
-      for (int i = 1; i <= 10; i++) {
-        final txDate = now.subtract(Duration(days: i));
-        await db.into(db.transactions).insert(
+        await db
+            .into(db.transactions)
+            .insert(
               TransactionsCompanion.insert(
-                id: 'tx-micro-$i',
+                id: 'tx-dup-1',
                 householdId: householdId,
                 type: 'expense',
-                amount: -20000,
-                date: txDate,
-                recordedAt: txDate,
+                amount: -125000,
+                date: txTime1,
+                recordedAt: txTime1,
+                accountId: const Value('acc-1'),
+                note: const Value('Beli Token Listrik'),
                 isArchived: const Value(false),
                 isDeleted: const Value(false),
-                createdAt: txDate,
+                createdAt: txTime1,
               ),
             );
-      }
 
-      final dateMain = now.subtract(const Duration(days: 4));
-      await db.into(db.transactions).insert(
-            TransactionsCompanion.insert(
-              id: 'tx-main',
-              householdId: householdId,
-              type: 'expense',
-              amount: -600000,
-              date: dateMain,
-              recordedAt: dateMain,
-              isArchived: const Value(false),
-              isDeleted: const Value(false),
-              createdAt: dateMain,
-            ),
-          );
+        await db
+            .into(db.transactions)
+            .insert(
+              TransactionsCompanion.insert(
+                id: 'tx-dup-2',
+                householdId: householdId,
+                type: 'expense',
+                amount: -125000,
+                date: txTime2,
+                recordedAt: txTime2,
+                accountId: const Value('acc-1'),
+                note: const Value('Beli Token Listrik'),
+                isArchived: const Value(false),
+                isDeleted: const Value(false),
+                createdAt: txTime2,
+              ),
+            );
 
-      final detector = MicroExpenseLeakDetector(db);
-      final insight = await detector.detect(householdId: householdId, now: now);
+        final detector = AnomalySpikeDetector(db);
+        final insight = await detector.detect(
+          householdId: householdId,
+          now: now,
+        );
 
-      expect(insight, isNotNull);
-      expect(insight!.type, FfmAssistantInsightType.microExpenseLeak);
-      expect(insight.evidence['count'], 10);
-      expect(insight.evidence['ratio'], 25);
-    });
+        expect(insight, isNotNull);
+        expect(insight!.type, FfmAssistantInsightType.anomalySpike);
+        expect(insight.title, contains('Transaksi Ganda'));
+        expect(insight.evidence['diffMinutes'], 3);
+      },
+    );
 
-    test('DebtServiceRatioDetector alerts when DSR is critical (>= 40%)', () async {
+    test(
+      'MicroExpenseLeakDetector triggers when small expenses exceed 15% ratio',
+      () async {
+        for (int i = 1; i <= 10; i++) {
+          final txDate = now.subtract(Duration(days: i));
+          await db
+              .into(db.transactions)
+              .insert(
+                TransactionsCompanion.insert(
+                  id: 'tx-micro-$i',
+                  householdId: householdId,
+                  type: 'expense',
+                  amount: -20000,
+                  date: txDate,
+                  recordedAt: txDate,
+                  isArchived: const Value(false),
+                  isDeleted: const Value(false),
+                  createdAt: txDate,
+                ),
+              );
+        }
+
+        final dateMain = now.subtract(const Duration(days: 4));
+        await db
+            .into(db.transactions)
+            .insert(
+              TransactionsCompanion.insert(
+                id: 'tx-main',
+                householdId: householdId,
+                type: 'expense',
+                amount: -600000,
+                date: dateMain,
+                recordedAt: dateMain,
+                isArchived: const Value(false),
+                isDeleted: const Value(false),
+                createdAt: dateMain,
+              ),
+            );
+
+        final detector = MicroExpenseLeakDetector(db);
+        final insight = await detector.detect(
+          householdId: householdId,
+          now: now,
+        );
+
+        expect(insight, isNotNull);
+        expect(insight!.type, FfmAssistantInsightType.microExpenseLeak);
+        expect(insight.evidence['count'], 10);
+        expect(insight.evidence['ratio'], 25);
+      },
+    );
+
+    test(
+      'DebtServiceRatioDetector alerts when DSR is critical (>= 40%)',
+      () async {
+        final dateInc = now.subtract(const Duration(days: 5));
+        await db
+            .into(db.transactions)
+            .insert(
+              TransactionsCompanion.insert(
+                id: 'tx-inc-gaji',
+                householdId: householdId,
+                type: 'income',
+                amount: 5000000,
+                date: dateInc,
+                recordedAt: dateInc,
+                isArchived: const Value(false),
+                isDeleted: const Value(false),
+                createdAt: dateInc,
+              ),
+            );
+
+        await db
+            .into(db.liabilities)
+            .insert(
+              LiabilitiesCompanion.insert(
+                id: 'liab-1',
+                householdId: householdId,
+                name: 'Cicilan Motor',
+                originalAmount: 20000000,
+                remainingBalance: 15000000,
+                monthlyInstallment: const Value(2250000),
+                startDate: now.subtract(const Duration(days: 90)),
+                dueDate: Value(now.add(const Duration(days: 12))),
+                isActive: const Value(true),
+                createdAt: now,
+              ),
+            );
+
+        final detector = DebtServiceRatioDetector(db);
+        final insight = await detector.detect(
+          householdId: householdId,
+          now: now,
+        );
+
+        expect(insight, isNotNull);
+        expect(insight!.type, FfmAssistantInsightType.debtServiceRatio);
+        expect(insight.severity, FfmAssistantInsightSeverity.critical);
+        expect(insight.evidence['dsrPercent'], 45);
+      },
+    );
+
+    test('DebtServiceRatioDetector ignores debt principal without monthly installment', () async {
       final dateInc = now.subtract(const Duration(days: 5));
-      await db.into(db.transactions).insert(
+      await db
+          .into(db.transactions)
+          .insert(
             TransactionsCompanion.insert(
-              id: 'tx-inc-gaji',
+              id: 'tx-inc-no-installment',
               householdId: householdId,
               type: 'income',
               amount: 5000000,
               date: dateInc,
               recordedAt: dateInc,
-              isArchived: const Value(false),
-              isDeleted: const Value(false),
               createdAt: dateInc,
             ),
           );
-
-      await db.into(db.liabilities).insert(
+      await db
+          .into(db.liabilities)
+          .insert(
             LiabilitiesCompanion.insert(
-              id: 'liab-1',
+              id: 'liab-no-installment',
               householdId: householdId,
-              name: 'Cicilan Motor',
-              originalAmount: 20000000,
+              name: 'Pinjaman tanpa cicilan',
+              originalAmount: 15000000,
               remainingBalance: 15000000,
-              monthlyInstallment: const Value(2250000),
               startDate: now.subtract(const Duration(days: 90)),
               dueDate: Value(now.add(const Duration(days: 12))),
-              isActive: const Value(true),
+              monthlyInstallment: const Value(0),
               createdAt: now,
             ),
           );
 
-      final detector = DebtServiceRatioDetector(db);
-      final insight = await detector.detect(householdId: householdId, now: now);
-
-      expect(insight, isNotNull);
-      expect(insight!.type, FfmAssistantInsightType.debtServiceRatio);
-      expect(insight.severity, FfmAssistantInsightSeverity.critical);
-      expect(insight.evidence['dsrPercent'], 45);
-    });
-
-    test('DebtServiceRatioDetector ignores debt principal without monthly installment', () async {
-      final dateInc = now.subtract(const Duration(days: 5));
-      await db.into(db.transactions).insert(
-        TransactionsCompanion.insert(
-          id: 'tx-inc-no-installment',
-          householdId: householdId,
-          type: 'income',
-          amount: 5000000,
-          date: dateInc,
-          recordedAt: dateInc,
-          createdAt: dateInc,
-        ),
-      );
-      await db.into(db.liabilities).insert(
-        LiabilitiesCompanion.insert(
-          id: 'liab-no-installment',
-          householdId: householdId,
-          name: 'Pinjaman tanpa cicilan',
-          originalAmount: 15000000,
-          remainingBalance: 15000000,
-          startDate: now.subtract(const Duration(days: 90)),
-          dueDate: Value(now.add(const Duration(days: 12))),
-          monthlyInstallment: const Value(0),
-          createdAt: now,
-        ),
-      );
-
-      final insight = await DebtServiceRatioDetector(db).detect(
-        householdId: householdId,
-        now: now,
-      );
+      final insight = await DebtServiceRatioDetector(db)
+          .detect(householdId: householdId, now: now);
 
       expect(insight == null, isTrue);
     });
 
     test('GoalProgressRiskDetector triggers required monthly delta when savings rate lags', () async {
-      await db.into(db.goals).insert(
+      await db
+          .into(db.goals)
+          .insert(
             GoalsCompanion.insert(
               id: 'goal-laptop',
               householdId: householdId,
@@ -386,7 +444,9 @@ void main() {
           );
 
       final dateGoal = now.subtract(const Duration(days: 20));
-      await db.into(db.transactions).insert(
+      await db
+          .into(db.transactions)
+          .insert(
             TransactionsCompanion.insert(
               id: 'tx-goal-sav',
               householdId: householdId,
@@ -411,40 +471,45 @@ void main() {
       expect(insight.evidence['requiredDelta'], 3500000);
     });
 
-    test('GoalProgressRiskDetector does not count goal usage as savings', () async {
-      await db.into(db.goals).insert(
-        GoalsCompanion.insert(
-          id: 'goal-usage-filter',
-          householdId: householdId,
-          name: 'Dana usaha',
-          targetAmount: 10000000,
-          currentAmount: const Value(2000000),
-          targetDate: Value(now.add(const Duration(days: 60))),
-          createdAt: now.subtract(const Duration(days: 60)),
-        ),
-      );
-      final dateGoal = now.subtract(const Duration(days: 20));
-      await db.into(db.transactions).insert(
-        TransactionsCompanion.insert(
-          id: 'tx-goal-usage',
-          householdId: householdId,
-          type: 'expense',
-          source: const Value('goal_usage'),
-          amount: -5000000,
-          goalId: const Value('goal-usage-filter'),
-          date: dateGoal,
-          recordedAt: dateGoal,
-          createdAt: dateGoal,
-        ),
-      );
+    test(
+      'GoalProgressRiskDetector does not count goal usage as savings',
+      () async {
+        await db
+            .into(db.goals)
+            .insert(
+              GoalsCompanion.insert(
+                id: 'goal-usage-filter',
+                householdId: householdId,
+                name: 'Dana usaha',
+                targetAmount: 10000000,
+                currentAmount: const Value(2000000),
+                targetDate: Value(now.add(const Duration(days: 60))),
+                createdAt: now.subtract(const Duration(days: 60)),
+              ),
+            );
+        final dateGoal = now.subtract(const Duration(days: 20));
+        await db
+            .into(db.transactions)
+            .insert(
+              TransactionsCompanion.insert(
+                id: 'tx-goal-usage',
+                householdId: householdId,
+                type: 'expense',
+                source: const Value('goal_usage'),
+                amount: -5000000,
+                goalId: const Value('goal-usage-filter'),
+                date: dateGoal,
+                recordedAt: dateGoal,
+                createdAt: dateGoal,
+              ),
+            );
 
-      final insight = await GoalProgressRiskDetector(db).detect(
-        householdId: householdId,
-        now: now,
-      );
+        final insight = await GoalProgressRiskDetector(db)
+            .detect(householdId: householdId, now: now);
 
-      expect(insight, isNotNull);
-      expect(insight!.evidence['currentMonthlyRate'], 0);
-    });
+        expect(insight, isNotNull);
+        expect(insight!.evidence['currentMonthlyRate'], 0);
+      },
+    );
   });
 }

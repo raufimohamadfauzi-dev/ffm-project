@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
+
 import '../../../../core/database/app_database.dart';
 import '../ffm_assistant_insight.dart';
 import '../ffm_assistant_models.dart';
@@ -14,19 +15,21 @@ class GoalProgressRiskDetector {
     required String householdId,
     required DateTime now,
   }) async {
-    final activeGoals = await (_db.select(_db.goals)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.isActive.equals(true) &
-              row.targetDate.isNotNull()))
-        .get();
+    final activeGoals =
+        await (_db.select(_db.goals)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true) &
+                  row.targetDate.isNotNull(),
+            ))
+            .get();
 
     if (activeGoals.isEmpty) return null;
 
     final sixtyDaysAgo = now.subtract(const Duration(days: 60));
-    final allTxs = await (_db.select(_db.transactions)
-          ..where((row) => row.householdId.equals(householdId)))
-        .get();
+    final allTxs = await (_db.select(
+      _db.transactions,
+    )..where((row) => row.householdId.equals(householdId))).get();
 
     for (final goal in activeGoals) {
       if (goal.targetDate == null) continue;
@@ -49,13 +52,15 @@ class GoalProgressRiskDetector {
         return !t.isArchived &&
             !t.isDeleted &&
             t.goalId == goal.id &&
-        t.source != 'goal_usage' &&
-        t.amount < 0 &&
+            t.source != 'goal_usage' &&
+            t.amount < 0 &&
             !t.date.isBefore(sixtyDaysAgo);
       }).toList();
 
-      final totalSavedLast60Days =
-          recentTxs.fold<int>(0, (sum, t) => sum + t.amount.abs());
+      final totalSavedLast60Days = recentTxs.fold<int>(
+        0,
+        (sum, t) => sum + t.amount.abs(),
+      );
       final currentMonthlyRate = (totalSavedLast60Days / 2).round();
 
       // Jika laju tabungan saat ini kurang dari 75% dari yang dibutuhkan

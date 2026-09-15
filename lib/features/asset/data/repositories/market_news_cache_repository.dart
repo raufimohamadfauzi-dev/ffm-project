@@ -15,7 +15,8 @@ class MarketNewsCacheRepository {
   static const _keyNewsList = 'ffm_cached_news_items';
   static const _keyFilterKeywords = 'ffm_news_filter_keywords';
   static const _keyFilterCategories = 'ffm_news_filter_categories';
-  static const _keyRefreshIntervalMinutes = 'ffm_market_refresh_interval_minutes';
+  static const _keyRefreshIntervalMinutes =
+      'ffm_market_refresh_interval_minutes';
 
   static const _newsRetention = Duration(hours: 48);
 

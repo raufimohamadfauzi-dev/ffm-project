@@ -6,19 +6,25 @@ import 'package:ffm_manager/features/assistant/domain/ffm_context_relevance.dart
 void main() {
   group('FfmPersonalContextEngine Tests', () {
     group('Context Retrieval Tests', () {
-      test('Exact relevance - payday query should find payday memory', () async {
-        // TODO: Implement test
-        // Setup: Create memory dengan key='payday', value='25'
-        // Action: Query "tanggal gajian saya kapan?"
-        // Expected: Memory payday ditemukan dengan relevance score tinggi
-      });
+      test(
+        'Exact relevance - payday query should find payday memory',
+        () async {
+          // TODO: Implement test
+          // Setup: Create memory dengan key='payday', value='25'
+          // Action: Query "tanggal gajian saya kapan?"
+          // Expected: Memory payday ditemukan dengan relevance score tinggi
+        },
+      );
 
-      test('Paraphrase - different phrasing should still find memory', () async {
-        // TODO: Implement test
-        // Setup: Create memory dengan key='payday', value='25'
-        // Action: Query "aku biasanya terima gaji tanggal berapa?"
-        // Expected: Memory payday tetap ditemukan
-      });
+      test(
+        'Paraphrase - different phrasing should still find memory',
+        () async {
+          // TODO: Implement test
+          // Setup: Create memory dengan key='payday', value='25'
+          // Action: Query "aku biasanya terima gaji tanggal berapa?"
+          // Expected: Memory payday tetap ditemukan
+        },
+      );
 
       test('Typo - typos should still find memory', () async {
         // TODO: Implement test
@@ -41,26 +47,35 @@ void main() {
         // Expected: Goal mendapat relevance boost
       });
 
-      test('Unrelated memory - nama panggilan tidak mendominasi transaksi', () async {
-        // TODO: Implement test
-        // Setup: Create memory nama="Rafi" dan memory budget makan
-        // Action: Query "pengeluaran makan bulan ini berapa?"
-        // Expected: Memory budget lebih relevan daripada nama
-      });
+      test(
+        'Unrelated memory - nama panggilan tidak mendominasi transaksi',
+        () async {
+          // TODO: Implement test
+          // Setup: Create memory nama="Rafi" dan memory budget makan
+          // Action: Query "pengeluaran makan bulan ini berapa?"
+          // Expected: Memory budget lebih relevan daripada nama
+        },
+      );
 
-      test('Conflict - dua nilai payday berbeda harus trigger conflict handling', () async {
-        // TODO: Implement test
-        // Setup: Create dua memory payday (25 dan 28)
-        // Action: Query yang relevan dengan payday
-        // Expected: Conflict resolution triggered
-      });
+      test(
+        'Conflict - dua nilai payday berbeda harus trigger conflict handling',
+        () async {
+          // TODO: Implement test
+          // Setup: Create dua memory payday (25 dan 28)
+          // Action: Query yang relevan dengan payday
+          // Expected: Conflict resolution triggered
+        },
+      );
 
-      test('Stale memory - goal completed tidak muncul sebagai active', () async {
-        // TODO: Implement test
-        // Setup: Create goal dengan status=completed
-        // Action: Query yang relevan dengan goal
-        // Expected: Goal tidak muncul dalam active goals
-      });
+      test(
+        'Stale memory - goal completed tidak muncul sebagai active',
+        () async {
+          // TODO: Implement test
+          // Setup: Create goal dengan status=completed
+          // Action: Query yang relevan dengan goal
+          // Expected: Goal tidak muncul dalam active goals
+        },
+      );
 
       test('Correction - user correction mengalahkan pattern lama', () async {
         // TODO: Implement test
@@ -69,12 +84,15 @@ void main() {
         // Expected: Correction lebih kuat daripada pattern
       });
 
-      test('No-memory fallback - assistant tetap menjawab tanpa memory', () async {
-        // TODO: Implement test
-        // Setup: Tidak ada memory relevan
-        // Action: Query umum
-        // Expected: Assistant tetap memberikan response
-      });
+      test(
+        'No-memory fallback - assistant tetap menjawab tanpa memory',
+        () async {
+          // TODO: Implement test
+          // Setup: Tidak ada memory relevan
+          // Action: Query umum
+          // Expected: Assistant tetap memberikan response
+        },
+      );
     });
 
     group('Relevance Scoring Tests', () {
@@ -91,7 +109,7 @@ void main() {
         );
 
         final finalScore = score.calculateFinalScore();
-        
+
         // Expected: weighted score sesuai bobot default
         expect(finalScore, greaterThan(0.0));
         expect(finalScore, lessThanOrEqualTo(1.0));
@@ -158,29 +176,35 @@ void main() {
     });
 
     group('Error Handling Tests', () {
-      test('Fallback behavior - context engine error tidak crash assistant', () {
-        // TODO: Implement test
-        // Simulasikan error dalam context retrieval
-        // Expected: Fallback context dikembalikan
-      });
+      test(
+        'Fallback behavior - context engine error tidak crash assistant',
+        () {
+          // TODO: Implement test
+          // Simulasikan error dalam context retrieval
+          // Expected: Fallback context dikembalikan
+        },
+      );
 
-      test('Invalid memory - memory tidak valid tidak dimasukkan ke context', () {
-        final invalidMemory = FfmMemoryCandidate(
-          id: 'invalid',
-          type: FfmMemoryType.preference,
-          key: '',
-          value: '',
-          evidence: FfmMemoryEvidence(
-            source: FfmMemorySource.userExplicit,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-            confidence: 0.0,
-            approved: false,
-          ),
-        );
+      test(
+        'Invalid memory - memory tidak valid tidak dimasukkan ke context',
+        () {
+          final invalidMemory = FfmMemoryCandidate(
+            id: 'invalid',
+            type: FfmMemoryType.preference,
+            key: '',
+            value: '',
+            evidence: FfmMemoryEvidence(
+              source: FfmMemorySource.userExplicit,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+              confidence: 0.0,
+              approved: false,
+            ),
+          );
 
-        expect(invalidMemory.isValid, false);
-      });
+          expect(invalidMemory.isValid, false);
+        },
+      );
     });
   });
 }

@@ -75,10 +75,13 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
   void _startAutoRefreshTimer() {
     _autoRefreshTimer?.cancel();
     if (_refreshIntervalMinutes <= 0) return;
-    _autoRefreshTimer = Timer.periodic(Duration(minutes: _refreshIntervalMinutes), (_) {
-      _refreshPrices(silent: true);
-      _refreshNews(silent: true);
-    });
+    _autoRefreshTimer = Timer.periodic(
+      Duration(minutes: _refreshIntervalMinutes),
+      (_) {
+        _refreshPrices(silent: true);
+        _refreshNews(silent: true);
+      },
+    );
   }
 
   @override
@@ -119,7 +122,8 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
       if (mounted) {
         setState(() {
           _isLoadingPrices = false;
-          _priceRefreshStatus = 'Refresh kurs gagal; data sebelumnya tetap dipakai.';
+          _priceRefreshStatus =
+              'Refresh kurs gagal; data sebelumnya tetap dipakai.';
         });
       }
     }
@@ -140,8 +144,9 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
         .map((item) => item.publishedAt)
         .fold<DateTime?>(
           null,
-          (latest, publishedAt) =>
-              latest == null || publishedAt.isAfter(latest) ? publishedAt : latest,
+          (latest, publishedAt) => latest == null || publishedAt.isAfter(latest)
+              ? publishedAt
+              : latest,
         );
     if (cached.isEmpty ||
         newestNewsAt == null ||
@@ -173,14 +178,15 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
           _newsRefreshStatus = isFallback
               ? 'Sumber berita belum merespons; berita cadangan ditampilkan.'
               : 'Diperbarui ${DateFormat('HH:mm').format(DateTime.now())} • '
-                  '${fresh.length} berita dari ${sources.length} sumber.';
+                    '${fresh.length} berita dari ${sources.length} sumber.';
         });
       }
     } catch (_) {
       if (mounted) {
         setState(() {
           _isLoadingNews = false;
-          _newsRefreshStatus = 'Refresh berita gagal; berita sebelumnya tetap dipakai.';
+          _newsRefreshStatus =
+              'Refresh berita gagal; berita sebelumnya tetap dipakai.';
         });
       }
     }
@@ -238,7 +244,7 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
     final isDark = theme.brightness == Brightness.dark;
     final snapshot = _priceSnapshot ?? MarketPriceSnapshot.initialFallback();
     final exactTimeStr = DateFormat('HH:mm, dd MMM yyyy')
-      .format(snapshot.lastUpdated);
+        .format(snapshot.lastUpdated);
     final ageStr = _relativeAge(snapshot.lastUpdated);
 
     return RefreshIndicator(
@@ -670,9 +676,7 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
   Widget _buildNewsRadarTab(ThemeData theme, ColorScheme colorScheme) {
     final filteredNews = _selectedCategory == null
         ? _allNews
-        : _allNews
-            .where((n) => n.category == _selectedCategory)
-            .toList();
+        : _allNews.where((n) => n.category == _selectedCategory).toList();
 
     return RefreshIndicator(
       onRefresh: () => _refreshNews(),
@@ -693,9 +697,8 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                 FilterChip(
                   label: const Text('Umum'),
                   selected: _selectedCategory == NewsCategory.all,
-                  onSelected: (_) => setState(
-                    () => _selectedCategory = NewsCategory.all,
-                  ),
+                  onSelected: (_) =>
+                      setState(() => _selectedCategory = NewsCategory.all),
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
@@ -743,8 +746,7 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                   child: Text(
                     _isLoadingNews
                         ? 'Mencari berita terbaru dari semua sumber...'
-                        : _newsRefreshStatus ??
-                            'Menampilkan berita terbaru umum dan kategori pilihan.',
+                        : _newsRefreshStatus ?? 'Menampilkan berita terbaru umum dan kategori pilihan.',
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: colorScheme.onSurface,
                     ),
@@ -827,7 +829,7 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
     final timeStr = item.isFallback
         ? 'Konten edukasi cadangan'
         : item.isPublishedAtKnown
-      ? '${_relativeAge(item.publishedAt)} • ${DateFormat('dd MMM, HH:mm').format(item.publishedAt)}'
+        ? '${_relativeAge(item.publishedAt)} • ${DateFormat('dd MMM, HH:mm').format(item.publishedAt)}'
         : 'Tanggal publikasi tidak diketahui';
 
     Color tagColor;
@@ -974,7 +976,8 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
 
   Future<void> _openArticle(String url) async {
     final uri = Uri.tryParse(url);
-    if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+    if (uri == null ||
+        !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Sumber berita tidak dapat dibuka.')),
@@ -1026,14 +1029,8 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                         value: 15,
                         child: Text('Setiap 15 menit'),
                       ),
-                      DropdownMenuItem(
-                        value: 60,
-                        child: Text('Setiap 1 jam'),
-                      ),
-                      DropdownMenuItem(
-                        value: 240,
-                        child: Text('Setiap 4 jam'),
-                      ),
+                      DropdownMenuItem(value: 60, child: Text('Setiap 1 jam')),
+                      DropdownMenuItem(value: 240, child: Text('Setiap 4 jam')),
                       DropdownMenuItem(value: 0, child: Text('Manual saja')),
                     ],
                     onChanged: (value) {

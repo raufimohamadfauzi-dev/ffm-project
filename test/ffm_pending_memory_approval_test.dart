@@ -94,8 +94,7 @@ void main() {
     expect(context, isEmpty);
   });
 
-  test('setujui id asing atau arsip: dikembalikan false tanpa error',
-      () async {
+  test('setujui id asing atau arsip: dikembalikan false tanpa error', () async {
     expect(await control.approvePending('tidak-ada'), isFalse);
 
     final payday = await learnPayday();
@@ -103,4 +102,3 @@ void main() {
     expect(await control.approvePending(payday.id), isFalse);
   });
 }
-

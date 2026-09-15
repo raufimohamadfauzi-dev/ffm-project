@@ -74,6 +74,3 @@ FfmAgentHarness createDefaultHarness(AppDatabase database) {
   ]);
   return harness;
 }
-
-
-

@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
+
 import '../../../../core/database/app_database.dart';
 import '../ffm_assistant_insight.dart';
 import '../ffm_assistant_models.dart';
@@ -16,11 +17,13 @@ class DebtServiceRatioDetector {
     required DateTime now,
   }) async {
     // 1. Ambil seluruh kewajiban hutang/cicilan yang masih aktif
-    final activeLiabilities = await (_db.select(_db.liabilities)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.isActive.equals(true)))
-        .get();
+    final activeLiabilities =
+        await (_db.select(_db.liabilities)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
 
     if (activeLiabilities.isEmpty) return null;
 
@@ -41,9 +44,9 @@ class DebtServiceRatioDetector {
 
     // 2. Hitung total pemasukan bulanan (30 hari terakhir)
     final thirtyDaysAgo = now.subtract(const Duration(days: 30));
-    final allTxs = await (_db.select(_db.transactions)
-          ..where((row) => row.householdId.equals(householdId)))
-        .get();
+    final allTxs = await (_db.select(
+      _db.transactions,
+    )..where((row) => row.householdId.equals(householdId))).get();
 
     final incomeTxs = allTxs.where((t) {
       return !t.isArchived &&
@@ -53,8 +56,10 @@ class DebtServiceRatioDetector {
           !t.date.isAfter(now);
     }).toList();
 
-    final totalMonthlyIncome =
-        incomeTxs.fold<int>(0, (sum, t) => sum + t.amount);
+    final totalMonthlyIncome = incomeTxs.fold<int>(
+      0,
+      (sum, t) => sum + t.amount,
+    );
     if (totalMonthlyIncome <= 0) return null;
 
     final dsr = totalMonthlyDebt / totalMonthlyIncome;
@@ -88,7 +93,8 @@ class DebtServiceRatioDetector {
           'debtCount': upcomingDebts.length,
           'isCritical': isCritical,
         },
-        suggestedAction: 'Buka menu Hutang & Piutang untuk melihat rincian cicilan aktif',
+        suggestedAction:
+            'Buka menu Hutang & Piutang untuk melihat rincian cicilan aktif',
         destination: FfmAssistantDestination.liabilities,
         createdAt: now,
         expiresAt: thirtyDaysLater,

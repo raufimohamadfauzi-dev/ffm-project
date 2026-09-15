@@ -20,7 +20,9 @@ void main() {
     processPayment = ProcessDebtPayment(db);
 
     // Seed account
-    await db.into(db.accounts).insert(
+    await db
+        .into(db.accounts)
+        .insert(
           AccountsCompanion.insert(
             id: accountId,
             householdId: householdId,
@@ -78,9 +80,9 @@ void main() {
       expect(updated.remainingBalance, 750000);
 
       // Verifikasi transaksi kas tercatat sebagai expense
-      final txs = await (db.select(db.transactions)
-            ..where((t) => t.householdId.equals(householdId)))
-          .get();
+      final txs = await (db.select(
+        db.transactions,
+      )..where((t) => t.householdId.equals(householdId))).get();
       expect(txs.length, 1);
       final tx = txs.first;
       expect(tx.type, 'expense');
@@ -166,9 +168,9 @@ void main() {
       final updated = receivables.firstWhere((r) => r.id == 'rec-1');
       expect(updated.remainingBalance, 1500000);
 
-      final txs = await (db.select(db.transactions)
-            ..where((t) => t.householdId.equals(householdId)))
-          .get();
+      final txs = await (db.select(
+        db.transactions,
+      )..where((t) => t.householdId.equals(householdId))).get();
       expect(txs.length, 1);
       final tx = txs.first;
       expect(tx.type, 'income');
@@ -207,39 +209,42 @@ void main() {
       );
     });
 
-    test('pembayaran tanpa mutasi kas tidak mencatat ke tabel transactions', () async {
-      final now = DateTime(2026, 9, 3);
-      await SaveLiability(db)(
-        LiabilityEntity(
-          id: 'liab-no-cash',
+    test(
+      'pembayaran tanpa mutasi kas tidak mencatat ke tabel transactions',
+      () async {
+        final now = DateTime(2026, 9, 3);
+        await SaveLiability(db)(
+          LiabilityEntity(
+            id: 'liab-no-cash',
+            householdId: householdId,
+            name: 'Hutang Barang',
+            originalAmount: 300000,
+            remainingBalance: 300000,
+            monthlyInstallment: 100000,
+            startDate: now,
+            dueDate: now.add(const Duration(days: 15)),
+            updatedAt: now,
+          ),
+        );
+
+        final newRemaining = await processPayment(
           householdId: householdId,
-          name: 'Hutang Barang',
-          originalAmount: 300000,
-          remainingBalance: 300000,
-          monthlyInstallment: 100000,
-          startDate: now,
-          dueDate: now.add(const Duration(days: 15)),
-          updatedAt: now,
-        ),
-      );
+          targetId: 'liab-no-cash',
+          targetName: 'Hutang Barang',
+          isLiability: true,
+          amount: 100000,
+          date: now,
+          recordCashTransaction: false,
+        );
 
-      final newRemaining = await processPayment(
-        householdId: householdId,
-        targetId: 'liab-no-cash',
-        targetName: 'Hutang Barang',
-        isLiability: true,
-        amount: 100000,
-        date: now,
-        recordCashTransaction: false,
-      );
+        expect(newRemaining, 200000);
 
-      expect(newRemaining, 200000);
-
-      final txs = await (db.select(db.transactions)
-            ..where((t) => t.householdId.equals(householdId)))
-          .get();
-      expect(txs.isEmpty, true);
-    });
+        final txs = await (db.select(
+          db.transactions,
+        )..where((t) => t.householdId.equals(householdId))).get();
+        expect(txs.isEmpty, true);
+      },
+    );
 
     test('penghapusan transaksi pembayaran hutang merekonsiliasi sisa saldo kembali', () async {
       final now = DateTime(2026, 9, 3);
@@ -269,21 +274,31 @@ void main() {
         recordCashTransaction: true,
       );
 
-      final txsBefore = await (db.select(db.transactions)
-            ..where((t) => t.householdId.equals(householdId)))
-          .get();
+      final txsBefore = await (db.select(
+        db.transactions,
+      )..where((t) => t.householdId.equals(householdId))).get();
       expect(txsBefore.length, 1);
       final paymentTxId = txsBefore.first.id;
 
       final liabilitiesMid = await GetLiabilities(db)(householdId);
-      expect(liabilitiesMid.firstWhere((l) => l.id == 'liab-rollback').remainingBalance, 700000);
+      expect(
+        liabilitiesMid
+            .firstWhere((l) => l.id == 'liab-rollback')
+            .remainingBalance,
+        700000,
+      );
 
       // Hapus transaksi pembayaran
       await DeleteTransaction(db)(householdId, paymentTxId);
 
       // Sisa hutang harus kembali menjadi 1.000.000
       final liabilitiesAfter = await GetLiabilities(db)(householdId);
-      expect(liabilitiesAfter.firstWhere((l) => l.id == 'liab-rollback').remainingBalance, 1000000);
+      expect(
+        liabilitiesAfter
+            .firstWhere((l) => l.id == 'liab-rollback')
+            .remainingBalance,
+        1000000,
+      );
     });
   });
 }

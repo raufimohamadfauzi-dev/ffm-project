@@ -65,9 +65,13 @@ class MinedTransactionPattern {
 
   /// Pesan santun rekomendasi untuk asisten.
   String get promptMessage {
-    final dayLabel = dayOfWeek != null ? _dayName(dayOfWeek!) : 'tanggal $dayOfMonth';
+    final dayLabel = dayOfWeek != null
+        ? _dayName(dayOfWeek!)
+        : 'tanggal $dayOfMonth';
     final windowLabel = timeWindow != null ? '$timeWindow ' : '';
-    final merchantLabel = merchant != null && merchant!.isNotEmpty ? ' di $merchant' : '';
+    final merchantLabel = merchant != null && merchant!.isNotEmpty
+        ? ' di $merchant'
+        : '';
     final amountFormatted = _formatRupiah(amount);
 
     return 'Biasanya setiap $dayLabel ${windowLabel}ada pengeluaran $title$merchantLabel sebesar $amountFormatted. Mau dicatat sekarang?';
@@ -112,12 +116,14 @@ class TransactionPatternMiner {
 
     // 1. Ambil transaksi pengeluaran non-hapus dalam rentang waktu observasi
     final txQuery = _db.select(_db.transactions)
-      ..where((t) =>
-          t.householdId.equals(householdId) &
-          t.isDeleted.equals(false) &
-          t.isArchived.equals(false) &
-          t.type.equals('expense') &
-          t.date.isBiggerOrEqualValue(cutoff));
+      ..where(
+        (t) =>
+            t.householdId.equals(householdId) &
+            t.isDeleted.equals(false) &
+            t.isArchived.equals(false) &
+            t.type.equals('expense') &
+            t.date.isBiggerOrEqualValue(cutoff),
+      );
 
     final txList = await txQuery.get();
     if (txList.length < 2) return const [];
@@ -130,11 +136,18 @@ class TransactionPatternMiner {
     final merchantMap = {for (final m in merchants) m.id: m.name};
 
     // 3. Ambil transaksi berulang resmi yang sudah aktif agar tidak menduplikasi saran
-    final activeRecurring = await (_db.select(_db.recurringTransactions)
-          ..where((r) => r.householdId.equals(householdId) & r.isActive.equals(true)))
-        .get();
-    final recurringCategoryIds = activeRecurring.map((r) => r.categoryId).toSet();
-    final recurringNames = activeRecurring.map((r) => r.name.toLowerCase().trim()).toSet();
+    final activeRecurring =
+        await (_db.select(_db.recurringTransactions)..where(
+              (r) =>
+                  r.householdId.equals(householdId) & r.isActive.equals(true),
+            ))
+            .get();
+    final recurringCategoryIds = activeRecurring
+        .map((r) => r.categoryId)
+        .toSet();
+    final recurringNames = activeRecurring
+        .map((r) => r.name.toLowerCase().trim())
+        .toSet();
 
     // 4. Kelompokkan transaksi berdasarkan identitas (Merchant atau Kategori + Note)
     final clusterMap = <String, List<Transaction>>{};
@@ -142,7 +155,8 @@ class TransactionPatternMiner {
     for (final tx in txList) {
       // Abaikan jika sudah tercatat di recurring transactions resmi
       if (tx.recurringTransactionId != null) continue;
-      if (tx.categoryId != null && recurringCategoryIds.contains(tx.categoryId)) {
+      if (tx.categoryId != null &&
+          recurringCategoryIds.contains(tx.categoryId)) {
         continue;
       }
       final rawNote = tx.note?.toLowerCase().trim() ?? '';
@@ -151,7 +165,9 @@ class TransactionPatternMiner {
       // Kunci klaster preferensi: merchantId jika ada, jika tidak categoryId + note pendek
       final clusterKey = tx.merchantId != null && tx.merchantId!.isNotEmpty
           ? 'm_${tx.merchantId}'
-          : (tx.categoryId != null ? 'c_${tx.categoryId}_${rawNote.take(12)}' : 'n_$rawNote');
+          : (tx.categoryId != null
+                ? 'c_${tx.categoryId}_${rawNote.take(12)}'
+                : 'n_$rawNote');
 
       if (clusterKey.isEmpty || clusterKey == 'n_') continue;
       clusterMap.putIfAbsent(clusterKey, () => []).add(tx);
@@ -253,19 +269,20 @@ class TransactionPatternMiner {
     final medianAmount = amounts[amounts.length ~/ 2];
 
     // Pastikan variasi nominal tidak terlalu liar (maksimal selisih 35% dari median)
-    final isAmountConsistent = amounts.every((a) =>
-        (a - medianAmount).abs() <= (medianAmount * 0.35) ||
-        (a - medianAmount).abs() <= 15000);
+    final isAmountConsistent = amounts.every(
+      (a) =>
+          (a - medianAmount).abs() <= (medianAmount * 0.35) ||
+          (a - medianAmount).abs() <= 15000,
+    );
 
     if (!isAmountConsistent) return null;
 
     // Ekstrak waktu/jam rata-rata
-    final avgHour = txs.map((t) => t.date.hour).reduce((a, b) => a + b) / txs.length;
+    final avgHour =
+        txs.map((t) => t.date.hour).reduce((a, b) => a + b) / txs.length;
     final timeWindow = avgHour < 11.5
         ? 'pagi'
-        : (avgHour < 15.0
-            ? 'siang'
-            : (avgHour < 18.5 ? 'sore' : 'malam'));
+        : (avgHour < 15.0 ? 'siang' : (avgHour < 18.5 ? 'sore' : 'malam'));
 
     final representative = txs.last;
     final merchantName = representative.merchantId != null
@@ -275,7 +292,8 @@ class TransactionPatternMiner {
         ? categoryMap[representative.categoryId]
         : null;
 
-    final baseTitle = (representative.note != null && representative.note!.trim().isNotEmpty)
+    final baseTitle =
+        (representative.note != null && representative.note!.trim().isNotEmpty)
         ? representative.note!.trim()
         : (merchantName ?? catName ?? 'Pengeluaran Rutin');
 
@@ -288,7 +306,8 @@ class TransactionPatternMiner {
     var score = 0.6 + (txs.length * 0.1);
     if (score > 0.95) score = 0.95;
 
-    final patternId = 'pat_${dayOfWeek ?? 0}_${dayOfMonth ?? 0}_${representative.merchantId ?? ''}_${representative.categoryId ?? ''}_${representative.amount ~/ 1000}';
+    final patternId =
+        'pat_${dayOfWeek ?? 0}_${dayOfMonth ?? 0}_${representative.merchantId ?? ''}_${representative.categoryId ?? ''}_${representative.amount ~/ 1000}';
 
     return MinedTransactionPattern(
       id: patternId,

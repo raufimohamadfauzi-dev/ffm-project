@@ -11,7 +11,6 @@ import '../../domain/ffm_agent_harness.dart';
 
 String _householdId() => 'local-household';
 
-
 bool _hasSpecificDetails(String text) {
   return RegExp(
     r'(\d+|ribu|juta|miliar|rb|jt|k\b|rp|senilai|bayar|listrik|beli|sekolah|kantor|bca|mandiri|bri|seabank|tunai|gopay|ovo|dana\b)',
@@ -203,22 +202,24 @@ class FfmJsonGeneratorPlugin extends FfmAgentPlugin {
     final db = _db;
     if (db != null) {
       final householdId = _householdId();
-      final latestTxs = await (db.select(db.transactions)
-            ..where(
-              (row) =>
-                  row.householdId.equals(householdId) &
-                  row.isArchived.equals(false) &
-                  row.isDeleted.equals(false),
-            )
-            ..orderBy([(row) => OrderingTerm.desc(row.date)])
-            ..limit(5))
-          .get();
+      final latestTxs =
+          await (db.select(db.transactions)
+                ..where(
+                  (row) =>
+                      row.householdId.equals(householdId) &
+                      row.isArchived.equals(false) &
+                      row.isDeleted.equals(false),
+                )
+                ..orderBy([(row) => OrderingTerm.desc(row.date)])
+                ..limit(5))
+              .get();
 
       if (latestTxs.isNotEmpty) {
         final txList = latestTxs.map((t) {
           return {
             'id': t.id,
-            'date': '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}-${t.date.day.toString().padLeft(2, '0')}',
+            'date':
+                '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}-${t.date.day.toString().padLeft(2, '0')}',
             'type': t.type,
             'amount': t.amount.abs(),
             'note': t.note ?? '',
@@ -235,7 +236,8 @@ class FfmJsonGeneratorPlugin extends FfmAgentPlugin {
           pluginName: name,
           category: category,
           isDraft: true,
-          text: '📦 **Ekspor Data JSON Transaksi Terkini**\n\n'
+          text:
+              '📦 **Ekspor Data JSON Transaksi Terkini**\n\n'
               'Berikut data transaksi riil dari database lokal kamu dalam format JSON:\n\n'
               '```json\n$naturalJson\n```\n\n'
               '💡 Format ini valid dan siap dipakai untuk integrasi atau arsip data.',
@@ -270,11 +272,11 @@ class FfmJsonGeneratorPlugin extends FfmAgentPlugin {
       pluginName: 'json_generator',
       category: FfmPluginCategory.actuator,
       isDraft: true,
-      text: '📋 **Template JSON Transaksi FFM**\n\n'
+      text:
+          '📋 **Template JSON Transaksi FFM**\n\n'
           'Berikut format JSON siap pakai untuk impor data atau pencatatan batch:\n\n'
           '$jsonExample\n\n'
           'Kamu bisa menyalin format di atas dan mengisinya dengan data yang kamu inginkan.',
     );
   }
 }
-

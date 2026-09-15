@@ -64,7 +64,10 @@ void main() {
       );
       expect(find.byType(Switch), findsOneWidget);
       expect(find.text('Dibuat pengguna'), findsOneWidget);
-      expect(find.text('Nada: Liec.io classic notification sound'), findsOneWidget);
+      expect(
+        find.text('Nada: Liec.io classic notification sound'),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     },
   );

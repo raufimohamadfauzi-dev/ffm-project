@@ -24,116 +24,135 @@ void main() {
       await database.close();
     });
 
-    test('analyzeFrequency should calculate category frequency correctly', () async {
-      // Setup test data - first create categories and merchants
-      final now = DateTime.now();
-      
-      await database.into(database.categories).insert(
-        CategoriesCompanion(
-          id: const Value('cat1'),
-          householdId: const Value(householdId),
-          name: const Value('Makanan'),
-          type: const Value('expense'),
-          isActive: const Value(true),
-          createdAt: Value(now),
-        ),
-      );
-      await database.into(database.categories).insert(
-        CategoriesCompanion(
-          id: const Value('cat2'),
-          householdId: const Value(householdId),
-          name: const Value('Transport'),
-          type: const Value('expense'),
-          isActive: const Value(true),
-          createdAt: Value(now),
-        ),
-      );
-      
-      await database.into(database.merchants).insert(
-        MerchantsCompanion(
-          id: const Value('merch1'),
-          householdId: const Value(householdId),
-          name: const Value('Warung A'),
-          isActive: const Value(true),
-          createdAt: Value(now),
-        ),
-      );
-      await database.into(database.merchants).insert(
-        MerchantsCompanion(
-          id: const Value('merch2'),
-          householdId: const Value(householdId),
-          name: const Value('Warung B'),
-          isActive: const Value(true),
-          createdAt: Value(now),
-        ),
-      );
-      await database.into(database.merchants).insert(
-        MerchantsCompanion(
-          id: const Value('merch3'),
-          householdId: const Value(householdId),
-          name: const Value('Ojek'),
-          isActive: const Value(true),
-          createdAt: Value(now),
-        ),
-      );
-      
-      // Now insert transactions
-      await database.into(database.transactions).insert(
-        TransactionsCompanion(
-          id: const Value('tx1'),
-          householdId: const Value(householdId),
-          type: const Value('expense'),
-          amount: const Value(100000),
-          categoryId: const Value('cat1'),
-          merchantId: const Value('merch1'),
-          date: Value(now),
-          recordedAt: Value(now),
-          createdAt: Value(now),
-        ),
-      );
-      await database.into(database.transactions).insert(
-        TransactionsCompanion(
-          id: const Value('tx2'),
-          householdId: const Value(householdId),
-          type: const Value('expense'),
-          amount: const Value(50000),
-          categoryId: const Value('cat1'),
-          merchantId: const Value('merch2'),
-          date: Value(now.add(const Duration(days: 1))),
-          recordedAt: Value(now),
-          createdAt: Value(now),
-        ),
-      );
-      await database.into(database.transactions).insert(
-        TransactionsCompanion(
-          id: const Value('tx3'),
-          householdId: const Value(householdId),
-          type: const Value('expense'),
-          amount: const Value(200000),
-          categoryId: const Value('cat2'),
-          merchantId: const Value('merch3'),
-          date: Value(now.add(const Duration(days: 2))),
-          recordedAt: Value(now),
-          createdAt: Value(now),
-        ),
-      );
+    test(
+      'analyzeFrequency should calculate category frequency correctly',
+      () async {
+        // Setup test data - first create categories and merchants
+        final now = DateTime.now();
 
-      final start = now.subtract(const Duration(days: 1));
-      final end = now.add(const Duration(days: 3));
+        await database
+            .into(database.categories)
+            .insert(
+              CategoriesCompanion(
+                id: const Value('cat1'),
+                householdId: const Value(householdId),
+                name: const Value('Makanan'),
+                type: const Value('expense'),
+                isActive: const Value(true),
+                createdAt: Value(now),
+              ),
+            );
+        await database
+            .into(database.categories)
+            .insert(
+              CategoriesCompanion(
+                id: const Value('cat2'),
+                householdId: const Value(householdId),
+                name: const Value('Transport'),
+                type: const Value('expense'),
+                isActive: const Value(true),
+                createdAt: Value(now),
+              ),
+            );
 
-      final result = await engine.analyzeFrequency(
-        householdId: householdId,
-        start: start,
-        end: end,
-      );
+        await database
+            .into(database.merchants)
+            .insert(
+              MerchantsCompanion(
+                id: const Value('merch1'),
+                householdId: const Value(householdId),
+                name: const Value('Warung A'),
+                isActive: const Value(true),
+                createdAt: Value(now),
+              ),
+            );
+        await database
+            .into(database.merchants)
+            .insert(
+              MerchantsCompanion(
+                id: const Value('merch2'),
+                householdId: const Value(householdId),
+                name: const Value('Warung B'),
+                isActive: const Value(true),
+                createdAt: Value(now),
+              ),
+            );
+        await database
+            .into(database.merchants)
+            .insert(
+              MerchantsCompanion(
+                id: const Value('merch3'),
+                householdId: const Value(householdId),
+                name: const Value('Ojek'),
+                isActive: const Value(true),
+                createdAt: Value(now),
+              ),
+            );
 
-      expect(result.totalTransactions, equals(3));
-      expect(result.categoryFrequency['Makanan'], equals(2));
-      expect(result.categoryFrequency['Transport'], equals(1));
-      expect(result.merchantFrequency['Warung A'], equals(1));
-      expect(result.merchantFrequency['Warung B'], equals(1));
-      expect(result.mostFrequentCategory, equals('Makanan'));
-    });
+        // Now insert transactions
+        await database
+            .into(database.transactions)
+            .insert(
+              TransactionsCompanion(
+                id: const Value('tx1'),
+                householdId: const Value(householdId),
+                type: const Value('expense'),
+                amount: const Value(100000),
+                categoryId: const Value('cat1'),
+                merchantId: const Value('merch1'),
+                date: Value(now),
+                recordedAt: Value(now),
+                createdAt: Value(now),
+              ),
+            );
+        await database
+            .into(database.transactions)
+            .insert(
+              TransactionsCompanion(
+                id: const Value('tx2'),
+                householdId: const Value(householdId),
+                type: const Value('expense'),
+                amount: const Value(50000),
+                categoryId: const Value('cat1'),
+                merchantId: const Value('merch2'),
+                date: Value(now.add(const Duration(days: 1))),
+                recordedAt: Value(now),
+                createdAt: Value(now),
+              ),
+            );
+        await database
+            .into(database.transactions)
+            .insert(
+              TransactionsCompanion(
+                id: const Value('tx3'),
+                householdId: const Value(householdId),
+                type: const Value('expense'),
+                amount: const Value(200000),
+                categoryId: const Value('cat2'),
+                merchantId: const Value('merch3'),
+                date: Value(now.add(const Duration(days: 2))),
+                recordedAt: Value(now),
+                createdAt: Value(now),
+              ),
+            );
+
+        final start = now.subtract(const Duration(days: 1));
+        final end = now.add(const Duration(days: 3));
+
+        final result = await engine.analyzeFrequency(
+          householdId: householdId,
+          start: start,
+          end: end,
+        );
+
+        expect(result.totalTransactions, equals(3));
+        expect(result.categoryFrequency['Makanan'], equals(2));
+        expect(result.categoryFrequency['Transport'], equals(1));
+        expect(result.merchantFrequency['Warung A'], equals(1));
+        expect(result.merchantFrequency['Warung B'], equals(1));
+        expect(result.mostFrequentCategory, equals('Makanan'));
+      },
+    );
 
     // Skip remaining tests for now - they need similar schema updates
     test('analyzePatterns placeholder', () async {
@@ -153,7 +172,7 @@ void main() {
 
     test('empty data should return appropriate defaults', () async {
       final now = DateTime.now();
-      
+
       final frequencyResult = await engine.analyzeFrequency(
         householdId: householdId,
         start: now.subtract(const Duration(days: 30)),
@@ -176,146 +195,167 @@ void main() {
       expect(periodResult.topCategory, equals('tidak ada data'));
     });
 
-    test('analyzePatterns should calculate category statistics correctly', () async {
-      final now = DateTime.now();
+    test(
+      'analyzePatterns should calculate category statistics correctly',
+      () async {
+        final now = DateTime.now();
 
-      await database.into(database.categories).insert(
-        CategoriesCompanion(
-          id: const Value('cat1'),
-          householdId: const Value(householdId),
-          name: const Value('Makanan'),
-          type: const Value('expense'),
-          isActive: const Value(true),
-          createdAt: Value(now),
-        ),
-      );
+        await database
+            .into(database.categories)
+            .insert(
+              CategoriesCompanion(
+                id: const Value('cat1'),
+                householdId: const Value(householdId),
+                name: const Value('Makanan'),
+                type: const Value('expense'),
+                isActive: const Value(true),
+                createdAt: Value(now),
+              ),
+            );
 
-      await database.into(database.transactions).insert(
-        TransactionsCompanion(
-          id: const Value('tx1'),
-          householdId: const Value(householdId),
-          type: const Value('expense'),
-          amount: const Value(100000),
-          categoryId: const Value('cat1'),
-          date: Value(now),
-          recordedAt: Value(now),
-          createdAt: Value(now),
-          isArchived: const Value(false),
-          isDeleted: const Value(false),
-        ),
-      );
-      await database.into(database.transactions).insert(
-        TransactionsCompanion(
-          id: const Value('tx2'),
-          householdId: const Value(householdId),
-          type: const Value('expense'),
-          amount: const Value(150000),
-          categoryId: const Value('cat1'),
-          date: Value(now.add(const Duration(days: 1))),
-          recordedAt: Value(now),
-          createdAt: Value(now),
-          isArchived: const Value(false),
-          isDeleted: const Value(false),
-        ),
-      );
-      await database.into(database.transactions).insert(
-        TransactionsCompanion(
-          id: const Value('tx3'),
-          householdId: const Value(householdId),
-          type: const Value('expense'),
-          amount: const Value(200000),
-          categoryId: const Value('cat1'),
-          date: Value(now.add(const Duration(days: 2))),
-          recordedAt: Value(now),
-          createdAt: Value(now),
-          isArchived: const Value(false),
-          isDeleted: const Value(false),
-        ),
-      );
+        await database
+            .into(database.transactions)
+            .insert(
+              TransactionsCompanion(
+                id: const Value('tx1'),
+                householdId: const Value(householdId),
+                type: const Value('expense'),
+                amount: const Value(100000),
+                categoryId: const Value('cat1'),
+                date: Value(now),
+                recordedAt: Value(now),
+                createdAt: Value(now),
+                isArchived: const Value(false),
+                isDeleted: const Value(false),
+              ),
+            );
+        await database
+            .into(database.transactions)
+            .insert(
+              TransactionsCompanion(
+                id: const Value('tx2'),
+                householdId: const Value(householdId),
+                type: const Value('expense'),
+                amount: const Value(150000),
+                categoryId: const Value('cat1'),
+                date: Value(now.add(const Duration(days: 1))),
+                recordedAt: Value(now),
+                createdAt: Value(now),
+                isArchived: const Value(false),
+                isDeleted: const Value(false),
+              ),
+            );
+        await database
+            .into(database.transactions)
+            .insert(
+              TransactionsCompanion(
+                id: const Value('tx3'),
+                householdId: const Value(householdId),
+                type: const Value('expense'),
+                amount: const Value(200000),
+                categoryId: const Value('cat1'),
+                date: Value(now.add(const Duration(days: 2))),
+                recordedAt: Value(now),
+                createdAt: Value(now),
+                isArchived: const Value(false),
+                isDeleted: const Value(false),
+              ),
+            );
 
-      final start = now.subtract(const Duration(days: 1));
-      final end = now.add(const Duration(days: 3));
+        final start = now.subtract(const Duration(days: 1));
+        final end = now.add(const Duration(days: 3));
 
-      final result = await engine.analyzePatterns(
-        householdId: householdId,
-        start: start,
-        end: end,
-      );
+        final result = await engine.analyzePatterns(
+          householdId: householdId,
+          start: start,
+          end: end,
+        );
 
-      expect(result.categoryPatterns.length, equals(1));
-      final makananPattern = result.categoryPatterns['Makanan']!;
-      expect(makananPattern.count, equals(3));
-      expect(makananPattern.total, equals(450000));
-      expect(makananPattern.average, equals(150000));
-      expect(makananPattern.min, equals(100000));
-      expect(makananPattern.max, equals(200000));
-    });
+        expect(result.categoryPatterns.length, equals(1));
+        final makananPattern = result.categoryPatterns['Makanan']!;
+        expect(makananPattern.count, equals(3));
+        expect(makananPattern.total, equals(450000));
+        expect(makananPattern.average, equals(150000));
+        expect(makananPattern.min, equals(100000));
+        expect(makananPattern.max, equals(200000));
+      },
+    );
 
     test('analyzePeriod should provide correct period analysis', () async {
       final now = DateTime.now();
 
-      await database.into(database.categories).insert(
-        CategoriesCompanion(
-          id: const Value('cat1'),
-          householdId: const Value(householdId),
-          name: const Value('Makanan'),
-          type: const Value('expense'),
-          isActive: const Value(true),
-          createdAt: Value(now),
-        ),
-      );
-      await database.into(database.categories).insert(
-        CategoriesCompanion(
-          id: const Value('cat2'),
-          householdId: const Value(householdId),
-          name: const Value('Transport'),
-          type: const Value('expense'),
-          isActive: const Value(true),
-          createdAt: Value(now),
-        ),
-      );
+      await database
+          .into(database.categories)
+          .insert(
+            CategoriesCompanion(
+              id: const Value('cat1'),
+              householdId: const Value(householdId),
+              name: const Value('Makanan'),
+              type: const Value('expense'),
+              isActive: const Value(true),
+              createdAt: Value(now),
+            ),
+          );
+      await database
+          .into(database.categories)
+          .insert(
+            CategoriesCompanion(
+              id: const Value('cat2'),
+              householdId: const Value(householdId),
+              name: const Value('Transport'),
+              type: const Value('expense'),
+              isActive: const Value(true),
+              createdAt: Value(now),
+            ),
+          );
 
-      await database.into(database.transactions).insert(
-        TransactionsCompanion(
-          id: const Value('tx1'),
-          householdId: const Value(householdId),
-          type: const Value('income'),
-          amount: const Value(2000000),
-          date: Value(now.subtract(const Duration(days: 15))),
-          recordedAt: Value(now),
-          createdAt: Value(now),
-          isArchived: const Value(false),
-          isDeleted: const Value(false),
-        ),
-      );
-      await database.into(database.transactions).insert(
-        TransactionsCompanion(
-          id: const Value('tx2'),
-          householdId: const Value(householdId),
-          type: const Value('expense'),
-          amount: const Value(500000),
-          categoryId: const Value('cat1'),
-          date: Value(now.subtract(const Duration(days: 10))),
-          recordedAt: Value(now),
-          createdAt: Value(now),
-          isArchived: const Value(false),
-          isDeleted: const Value(false),
-        ),
-      );
-      await database.into(database.transactions).insert(
-        TransactionsCompanion(
-          id: const Value('tx3'),
-          householdId: const Value(householdId),
-          type: const Value('expense'),
-          amount: const Value(300000),
-          categoryId: const Value('cat2'),
-          date: Value(now.subtract(const Duration(days: 5))),
-          recordedAt: Value(now),
-          createdAt: Value(now),
-          isArchived: const Value(false),
-          isDeleted: const Value(false),
-        ),
-      );
+      await database
+          .into(database.transactions)
+          .insert(
+            TransactionsCompanion(
+              id: const Value('tx1'),
+              householdId: const Value(householdId),
+              type: const Value('income'),
+              amount: const Value(2000000),
+              date: Value(now.subtract(const Duration(days: 15))),
+              recordedAt: Value(now),
+              createdAt: Value(now),
+              isArchived: const Value(false),
+              isDeleted: const Value(false),
+            ),
+          );
+      await database
+          .into(database.transactions)
+          .insert(
+            TransactionsCompanion(
+              id: const Value('tx2'),
+              householdId: const Value(householdId),
+              type: const Value('expense'),
+              amount: const Value(500000),
+              categoryId: const Value('cat1'),
+              date: Value(now.subtract(const Duration(days: 10))),
+              recordedAt: Value(now),
+              createdAt: Value(now),
+              isArchived: const Value(false),
+              isDeleted: const Value(false),
+            ),
+          );
+      await database
+          .into(database.transactions)
+          .insert(
+            TransactionsCompanion(
+              id: const Value('tx3'),
+              householdId: const Value(householdId),
+              type: const Value('expense'),
+              amount: const Value(300000),
+              categoryId: const Value('cat2'),
+              date: Value(now.subtract(const Duration(days: 5))),
+              recordedAt: Value(now),
+              createdAt: Value(now),
+              isArchived: const Value(false),
+              isDeleted: const Value(false),
+            ),
+          );
 
       final result = await engine.analyzePeriod(
         householdId: householdId,
@@ -336,20 +376,22 @@ void main() {
 
     test('analyzePeriod with 90 days should work correctly', () async {
       final now = DateTime.now();
-      
-      await database.into(database.transactions).insert(
-        TransactionsCompanion(
-          id: const Value('tx1'),
-          householdId: const Value(householdId),
-          type: const Value('income'),
-          amount: const Value(5000000),
-          date: Value(now.subtract(const Duration(days: 45))),
-          recordedAt: Value(now),
-          createdAt: Value(now),
-          isArchived: const Value(false),
-          isDeleted: const Value(false),
-        ),
-      );
+
+      await database
+          .into(database.transactions)
+          .insert(
+            TransactionsCompanion(
+              id: const Value('tx1'),
+              householdId: const Value(householdId),
+              type: const Value('income'),
+              amount: const Value(5000000),
+              date: Value(now.subtract(const Duration(days: 45))),
+              recordedAt: Value(now),
+              createdAt: Value(now),
+              isArchived: const Value(false),
+              isDeleted: const Value(false),
+            ),
+          );
 
       final result = await engine.analyzePeriod(
         householdId: householdId,
@@ -364,7 +406,7 @@ void main() {
 
     test('empty data should return appropriate defaults', () async {
       final now = DateTime.now();
-      
+
       final frequencyResult = await engine.analyzeFrequency(
         householdId: householdId,
         start: now.subtract(const Duration(days: 30)),

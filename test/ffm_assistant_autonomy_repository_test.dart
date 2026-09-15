@@ -202,88 +202,82 @@ void main() {
     expect(runs.single.id, 'new-run');
   });
 
-  test(
-    'lease yang kedaluwarsa dipulihkan dan dapat diproses kembali oleh worker berikutnya',
-    () async {
-      var currentTime = DateTime(2026, 8, 31, 10, 0);
-      final repoWithClock = FfmAssistantAutonomyRepository(
-        database,
-        now: () => currentTime,
-        leaseDuration: const Duration(minutes: 5),
-      );
+  test('lease yang kedaluwarsa dipulihkan dan dapat diproses kembali oleh worker berikutnya', () async {
+    var currentTime = DateTime(2026, 8, 31, 10, 0);
+    final repoWithClock = FfmAssistantAutonomyRepository(
+      database,
+      now: () => currentTime,
+      leaseDuration: const Duration(minutes: 5),
+    );
 
-      final event = FfmAssistantAutonomyEvent(
-        id: 'crashed-event-1',
-        type: 'task.due',
-        occurredAt: currentTime,
-      );
+    final event = FfmAssistantAutonomyEvent(
+      id: 'crashed-event-1',
+      type: 'task.due',
+      occurredAt: currentTime,
+    );
 
-      // Enqueue event
-      await repoWithClock.enqueueEvent(event);
+    // Enqueue event
+    await repoWithClock.enqueueEvent(event);
 
-      // Simulasikan crash di tengah handler (status tersisa 'processing')
-      final processingResult = await repoWithClock.processEvent(event, (_) async {
-        // Simulasikan crash worker sebelum _setEventStatus completed
-        throw 'Crash / Killed process';
-      });
-      expect(processingResult, FfmAssistantAutonomyEventProcessResult.failed);
+    // Simulasikan crash di tengah handler (status tersisa 'processing')
+    final processingResult = await repoWithClock.processEvent(event, (_) async {
+      // Simulasikan crash worker sebelum _setEventStatus completed
+      throw 'Crash / Killed process';
+    });
+    expect(processingResult, FfmAssistantAutonomyEventProcessResult.failed);
 
-      // Ubah status ke processing manual untuk mensimulasikan crash tanpa catch block
-      await database.customUpdate(
-        "UPDATE assistant_agent_events SET status = 'processing', last_attempt_at = ? WHERE event_id = ?",
-        variables: [
-          Variable.withDateTime(currentTime),
-          Variable.withString(event.id),
-        ],
-      );
+    // Ubah status ke processing manual untuk mensimulasikan crash tanpa catch block
+    await database.customUpdate(
+      "UPDATE assistant_agent_events SET status = 'processing', last_attempt_at = ? WHERE event_id = ?",
+      variables: [
+        Variable.withDateTime(currentTime),
+        Variable.withString(event.id),
+      ],
+    );
 
-      // Dalam kurun waktu lease (belum 5 menit), pendingEvents tidak mengambil event ini
-      currentTime = currentTime.add(const Duration(minutes: 2));
-      var pending = await repoWithClock.pendingEvents();
-      expect(pending.any((e) => e.id == event.id), isFalse);
+    // Dalam kurun waktu lease (belum 5 menit), pendingEvents tidak mengambil event ini
+    currentTime = currentTime.add(const Duration(minutes: 2));
+    var pending = await repoWithClock.pendingEvents();
+    expect(pending.any((e) => e.id == event.id), isFalse);
 
-      // Setelah 6 menit (lease expired), pendingEvents mengambil kembali event ini
-      currentTime = currentTime.add(const Duration(minutes: 4)); // Total 6 menit
-      pending = await repoWithClock.pendingEvents();
-      expect(pending.any((e) => e.id == event.id), isTrue);
+    // Setelah 6 menit (lease expired), pendingEvents mengambil kembali event ini
+    currentTime = currentTime.add(const Duration(minutes: 4)); // Total 6 menit
+    pending = await repoWithClock.pendingEvents();
+    expect(pending.any((e) => e.id == event.id), isTrue);
 
-      // Dan event dapat diproses ulang hingga selesai
-      var processedAgain = false;
-      final retryResult = await repoWithClock.processEvent(event, (_) async {
-        processedAgain = true;
-      });
-      expect(retryResult, FfmAssistantAutonomyEventProcessResult.processed);
-      expect(processedAgain, isTrue);
+    // Dan event dapat diproses ulang hingga selesai
+    var processedAgain = false;
+    final retryResult = await repoWithClock.processEvent(event, (_) async {
+      processedAgain = true;
+    });
+    expect(retryResult, FfmAssistantAutonomyEventProcessResult.processed);
+    expect(processedAgain, isTrue);
 
-      final stored = await repoWithClock.eventById(event.id);
-      expect(stored?.status, FfmAssistantAutonomyEventStatus.completed.name);
-    },
-  );
+    final stored = await repoWithClock.eventById(event.id);
+    expect(stored?.status, FfmAssistantAutonomyEventStatus.completed.name);
+  });
 
-  test(
-    'cancelEvent membatalkan event pending/processing dan mencatat alasan audit',
-    () async {
-      final event = FfmAssistantAutonomyEvent(
-        id: 'cancel-me-1',
-        type: 'task.due',
-        occurredAt: DateTime(2026, 8, 31, 10),
-      );
+  test('cancelEvent membatalkan event pending/processing dan mencatat alasan audit', () async {
+    final event = FfmAssistantAutonomyEvent(
+      id: 'cancel-me-1',
+      type: 'task.due',
+      occurredAt: DateTime(2026, 8, 31, 10),
+    );
 
-      await repository.enqueueEvent(event);
-      final cancelled = await repository.cancelEvent(
-        event.id,
-        reason: 'Pengguna membatalkan jadwal pemantauan',
-      );
+    await repository.enqueueEvent(event);
+    final cancelled = await repository.cancelEvent(
+      event.id,
+      reason: 'Pengguna membatalkan jadwal pemantauan',
+    );
 
-      expect(cancelled, isTrue);
-      final stored = await repository.eventById(event.id);
-      expect(stored?.status, 'cancelled');
-      expect(stored?.error, 'Pengguna membatalkan jadwal pemantauan');
-      expect(stored?.processedAt, isNotNull);
+    expect(cancelled, isTrue);
+    final stored = await repository.eventById(event.id);
+    expect(stored?.status, 'cancelled');
+    expect(stored?.error, 'Pengguna membatalkan jadwal pemantauan');
+    expect(stored?.processedAt, isNotNull);
 
-      // Event cancelled tidak muncul di pendingEvents
-      final pending = await repository.pendingEvents();
-      expect(pending.any((e) => e.id == event.id), isFalse);
-    },
-  );
+    // Event cancelled tidak muncul di pendingEvents
+    final pending = await repository.pendingEvents();
+    expect(pending.any((e) => e.id == event.id), isFalse);
+  });
 }

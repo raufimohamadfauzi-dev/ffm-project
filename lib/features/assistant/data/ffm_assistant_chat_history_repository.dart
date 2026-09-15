@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:uuid/uuid.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -303,8 +304,7 @@ class FfmAssistantChatHistoryRepository {
     await preferences.setString(_key, jsonEncode(merged));
   }
 
-  String _newConversationId() =>
-      'chat-${const Uuid().v4()}';
+  String _newConversationId() => 'chat-${const Uuid().v4()}';
 
   String _titleFor(List<FfmAssistantChatEntry> entries) {
     final firstUser = entries.firstWhere(
@@ -399,12 +399,8 @@ class FfmAssistantChatHistoryRepository {
       text: text,
       createdAt: parsedDate,
       sentAt: sentAt is String ? DateTime.tryParse(sentAt) : null,
-      receivedAt: receivedAt is String
-          ? DateTime.tryParse(receivedAt)
-          : null,
-      modelUsed: modelUsed is String && modelUsed.isNotEmpty
-          ? modelUsed
-          : null,
+      receivedAt: receivedAt is String ? DateTime.tryParse(receivedAt) : null,
+      modelUsed: modelUsed is String && modelUsed.isNotEmpty ? modelUsed : null,
       verifiedFacts: verifiedFacts is String ? verifiedFacts : null,
       analysisResults: analysisResults is String ? analysisResults : null,
       feedbackType: feedbackType is String ? feedbackType : null,

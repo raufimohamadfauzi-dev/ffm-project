@@ -83,7 +83,10 @@ class _SummaryPageState extends State<SummaryPage> {
     final emergencyFund = assets
         .where((asset) => asset.assetType == 'cash')
         .fold<int>(0, (sum, asset) => sum + asset.value);
-    final totalAssetsVal = assets.fold<int>(0, (sum, asset) => sum + asset.value);
+    final totalAssetsVal = assets.fold<int>(
+      0,
+      (sum, asset) => sum + asset.value,
+    );
     final totalLiabilitiesVal = liabilities.fold<int>(
       0,
       (sum, liability) => sum + liability.remainingBalance,
@@ -180,13 +183,16 @@ class _SummaryPageState extends State<SummaryPage> {
     final goalEvaluator = FfmAssistantGoalEvidenceEvaluator(
       database: getIt<AppDatabase>(),
     );
-    final allGoalReports =
-        await goalEvaluator.evaluateAllGoals(AppContext.householdId);
+    final allGoalReports = await goalEvaluator.evaluateAllGoals(
+      AppContext.householdId,
+    );
     final milestoneGoals = allGoalReports
-        .where((item) =>
-            item.status == FfmAssistantGoalProgressStatus.aheadOfSchedule ||
-            item.status == FfmAssistantGoalProgressStatus.targetReached ||
-            item.progressPercent >= 50.0)
+        .where(
+          (item) =>
+              item.status == FfmAssistantGoalProgressStatus.aheadOfSchedule ||
+              item.status == FfmAssistantGoalProgressStatus.targetReached ||
+              item.progressPercent >= 50.0,
+        )
         .toList();
 
     final summary = _SummaryData(
@@ -323,14 +329,7 @@ class _SummaryContent extends StatelessWidget {
               ).then((_) => onRefresh()),
               icon: const Icon(Icons.eco_outlined),
             ),
-            IconButton(
-              tooltip: 'Pengingat',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ReminderPage()),
-              ),
-              icon: const Icon(Icons.notifications_none),
-            ),
+            const ReminderNotificationButton(),
             IconButton(
               tooltip: 'Muat ulang',
               onPressed: onRefresh,
@@ -715,20 +714,20 @@ class AssistantGoalMilestoneCard extends StatelessWidget {
     final badgeColor = isDone
         ? const Color(0xFFD97706)
         : isAhead
-            ? const Color(0xFF059669)
-            : scheme.primary;
+        ? const Color(0xFF059669)
+        : scheme.primary;
 
     final badgeText = isDone
         ? 'TARGET TERCAPAI!'
         : isAhead
-            ? 'LEBIH CEPAT DARI TARGET'
-            : 'PROGRES POSITIF';
+        ? 'LEBIH CEPAT DARI TARGET'
+        : 'PROGRES POSITIF';
 
     final badgeIcon = isDone
         ? Icons.emoji_events_rounded
         : isAhead
-            ? Icons.rocket_launch_rounded
-            : Icons.trending_up_rounded;
+        ? Icons.rocket_launch_rounded
+        : Icons.trending_up_rounded;
 
     return AppCard(
       child: Column(
@@ -769,8 +768,10 @@ class AssistantGoalMilestoneCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: badgeColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
@@ -833,9 +834,7 @@ class AssistantGoalMilestoneCard extends StatelessWidget {
                     ? 'Lihat Semua Target (${milestones.length})'
                     : 'Buka Target',
               ),
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-              ),
+              style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
             ),
           ),
         ],
@@ -1337,13 +1336,14 @@ class _HealthScoreCard extends StatelessWidget {
     final open = FfmAssistantContextScope.openAssistantOf(context);
     if (open != null) {
       open(
-        initialPrompt:
-            'Bagaimana analisis 5 pilar kesehatan finansial keluarga saya dan langkah apa yang direkomendasikan untuk menaikkan skor?',
+        initialPrompt: 'Bagaimana analisis 5 pilar kesehatan finansial keluarga saya dan langkah apa yang direkomendasikan untuk menaikkan skor?',
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Buka Asisten AI dari tombol mengambang di pojok kanan bawah.'),
+          content: Text(
+            'Buka Asisten AI dari tombol mengambang di pojok kanan bawah.',
+          ),
         ),
       );
     }
@@ -1427,16 +1427,12 @@ class _HealthScoreCard extends StatelessWidget {
                   children: [
                     Text(
                       'Kondisi ${score.statusLabel}',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: color,
-                      ),
+                      style: Theme.of(context).textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w800, color: color),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      score.headline.isNotEmpty
-                          ? score.headline
-                          : 'Evaluasi berdasarkan 5 pilar kesehatan finansial keluarga.',
+                      score.headline.isNotEmpty ? score.headline : 'Evaluasi berdasarkan 5 pilar kesehatan finansial keluarga.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                         height: 1.35,
@@ -1470,45 +1466,48 @@ class _HealthScoreCard extends StatelessWidget {
                       ),
                       Text(
                         'Skor Maks 100',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
+                        style: Theme.of(context).textTheme.labelSmall
+                            ?.copyWith(color: scheme.onSurfaceVariant),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Row(
-                    children: score.pillars.map((pillar) {
-                      final pColor = _statusColor(pillar.status);
-                      return Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 2),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: LinearProgressIndicator(
-                                  value: pillar.percentage,
-                                  minHeight: 6,
-                                  backgroundColor: scheme.surfaceContainer,
-                                  color: pColor,
-                                ),
+                    children: score.pillars
+                        .map((pillar) {
+                          final pColor = _statusColor(pillar.status);
+                          return Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 2,
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${pillar.score}',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: pColor,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: LinearProgressIndicator(
+                                      value: pillar.percentage,
+                                      minHeight: 6,
+                                      backgroundColor: scheme.surfaceContainer,
+                                      color: pColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${pillar.score}',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: pColor,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(growable: false),
+                            ),
+                          );
+                        })
+                        .toList(growable: false),
                   ),
                 ],
               ),
@@ -1612,13 +1611,13 @@ class _FinancialHealthDetailSheet extends StatelessWidget {
                             children: [
                               Text(
                                 'Evaluasi 5 Pilar Finansial',
-                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w800),
                               ),
                               const SizedBox(width: 8),
                               AppStatusChip(
-                                label: '${score.totalScore}/100 · ${score.statusLabel}',
+                                label:
+                                    '${score.totalScore}/100 · ${score.statusLabel}',
                                 color: color,
                                 backgroundColor: color.withValues(alpha: .12),
                               ),
@@ -1627,9 +1626,8 @@ class _FinancialHealthDetailSheet extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             'Diagnosa menyeluruh kondisi finansial keluarga FFM',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: scheme.onSurfaceVariant),
                           ),
                         ],
                       ),
@@ -1657,7 +1655,11 @@ class _FinancialHealthDetailSheet extends StatelessWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.info_outline_rounded, color: color, size: 22),
+                          Icon(
+                            Icons.info_outline_rounded,
+                            color: color,
+                            size: 22,
+                          ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -1674,10 +1676,11 @@ class _FinancialHealthDetailSheet extends StatelessWidget {
                                 const SizedBox(height: 4),
                                 Text(
                                   score.headline,
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: scheme.onSurface,
-                                    height: 1.4,
-                                  ),
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        color: scheme.onSurface,
+                                        height: 1.4,
+                                      ),
                                 ),
                               ],
                             ),
@@ -1689,9 +1692,8 @@ class _FinancialHealthDetailSheet extends StatelessWidget {
                       const SizedBox(height: 16),
                       Text(
                         'Kekuatan Finansial Anda',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                        style: Theme.of(context).textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 8),
                       ...score.strengths.map(
@@ -1721,9 +1723,8 @@ class _FinancialHealthDetailSheet extends StatelessWidget {
                       const SizedBox(height: 16),
                       Text(
                         'Area Perlu Perhatian',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                        style: Theme.of(context).textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 8),
                       ...score.warnings.map(
@@ -1752,9 +1753,8 @@ class _FinancialHealthDetailSheet extends StatelessWidget {
                     const SizedBox(height: 20),
                     Text(
                       'Rincian 5 Pilar Kesehatan Finansial',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 10),
                     ...score.pillars.map((pillar) {
@@ -1764,7 +1764,9 @@ class _FinancialHealthDetailSheet extends StatelessWidget {
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: scheme.surfaceContainerHighest.withValues(alpha: .35),
+                          color: scheme.surfaceContainerHighest.withValues(
+                            alpha: .35,
+                          ),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                             color: scheme.outlineVariant.withValues(alpha: .5),
@@ -1819,17 +1821,17 @@ class _FinancialHealthDetailSheet extends StatelessWidget {
                             const SizedBox(height: 8),
                             Text(
                               pillar.factDescription,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurface,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: scheme.onSurface,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Saran: ${pillar.suggestion}',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                              ),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
                             ),
                           ],
                         ),
@@ -1881,7 +1883,9 @@ class _FinancialHealthDetailSheet extends StatelessWidget {
                                     Expanded(
                                       child: Text(
                                         r,
-                                        style: Theme.of(context).textTheme.bodyMedium,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium,
                                       ),
                                     ),
                                   ],
@@ -1896,14 +1900,17 @@ class _FinancialHealthDetailSheet extends StatelessWidget {
                     FilledButton.icon(
                       onPressed: () {
                         Navigator.pop(context);
-                        final open = FfmAssistantContextScope.openAssistantOf(context);
+                        final open = FfmAssistantContextScope.openAssistantOf(
+                          context,
+                        );
                         open?.call(
-                          initialPrompt:
-                              'Bagaimana analisis 5 pilar kesehatan finansial keluarga saya dan langkah apa yang direkomendasikan untuk menaikkan skor?',
+                          initialPrompt: 'Bagaimana analisis 5 pilar kesehatan finansial keluarga saya dan langkah apa yang direkomendasikan untuk menaikkan skor?',
                         );
                       },
                       icon: const Icon(Icons.auto_awesome_rounded),
-                      label: const Text('Konsultasikan Langkah Perbaikan dengan AI'),
+                      label: const Text(
+                        'Konsultasikan Langkah Perbaikan dengan AI',
+                      ),
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
@@ -2001,8 +2008,10 @@ class _MoneySummaryCard extends StatelessWidget {
                 const Spacer(),
                 Text(
                   isIncome ? 'Uang masuk' : 'Uang keluar',
-                  style: Theme.of(context).textTheme.labelSmall
-                      ?.copyWith(color: badgeColor, fontWeight: FontWeight.w800),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: badgeColor,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ],
             ),
@@ -2155,6 +2164,101 @@ class _QuickActionRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class ReminderNotificationButton extends StatefulWidget {
+  const ReminderNotificationButton({super.key, this.historyStream, this.onTap});
+
+  final Stream<List<ReminderHistory>>? historyStream;
+  final VoidCallback? onTap;
+
+  @override
+  State<ReminderNotificationButton> createState() =>
+      _ReminderNotificationButtonState();
+}
+
+class _ReminderNotificationButtonState
+    extends State<ReminderNotificationButton> {
+  Stream<List<ReminderHistory>>? _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initStream();
+  }
+
+  @override
+  void didUpdateWidget(covariant ReminderNotificationButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.historyStream != widget.historyStream) {
+      _initStream();
+    }
+  }
+
+  void _initStream() {
+    if (widget.historyStream != null) {
+      _stream = widget.historyStream;
+    } else if (getIt.isRegistered<AppDatabase>()) {
+      final db = getIt<AppDatabase>();
+      _stream =
+          (db.select(db.reminderHistories)..where(
+                (tbl) =>
+                    tbl.householdId.equals(AppContext.householdId) &
+                    tbl.triggeredAt.isNotNull() &
+                    tbl.status.equals('pending'),
+              ))
+              .watch();
+    } else {
+      _stream = null;
+    }
+  }
+
+  void _handleTap() {
+    if (widget.onTap != null) {
+      widget.onTap!();
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ReminderPage()),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_stream == null) {
+      return IconButton(
+        tooltip: 'Pengingat',
+        onPressed: _handleTap,
+        icon: const Icon(Icons.notifications_none),
+      );
+    }
+
+    return StreamBuilder<List<ReminderHistory>>(
+      stream: _stream,
+      builder: (context, snapshot) {
+        final count = snapshot.data?.length ?? 0;
+        final tooltip = count > 0
+            ? 'Pengingat ($count butuh tindakan)'
+            : 'Pengingat';
+        return Semantics(
+          label: tooltip,
+          button: true,
+          child: IconButton(
+            tooltip: tooltip,
+            onPressed: _handleTap,
+            icon: Badge(
+              isLabelVisible: count > 0,
+              label: Text(count > 9 ? '9+' : '$count'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+              textColor: Theme.of(context).colorScheme.onError,
+              child: const Icon(Icons.notifications_none),
+            ),
+          ),
+        );
+      },
     );
   }
 }

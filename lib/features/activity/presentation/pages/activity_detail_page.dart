@@ -15,10 +15,7 @@ import '../bloc/activity_bloc.dart';
 /// antara sesi ⏱️ Timer (durasi, timeline checkpoint, status berjalan/selesai)
 /// dan 📝 Catatan (waktu kejadian, isi catatan, tanpa konsep 'berjalan' atau durasi).
 class ActivityDetailPage extends StatelessWidget {
-  const ActivityDetailPage({
-    super.key,
-    required this.sessionId,
-  });
+  const ActivityDetailPage({super.key, required this.sessionId});
 
   final String sessionId;
 
@@ -86,8 +83,12 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
     final scheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final modeBadgeColor = isDark ? scheme.onSurface : scheme.onSurface;
-    final statusBadgeColor = isDark ? const Color(0xFF9BE7B3) : Colors.green.shade800;
-    final runningBadgeColor = isDark ? const Color(0xFFFFD180) : Colors.amber.shade900;
+    final statusBadgeColor = isDark
+        ? const Color(0xFF9BE7B3)
+        : Colors.green.shade800;
+    final runningBadgeColor = isDark
+        ? const Color(0xFFFFD180)
+        : Colors.amber.shade900;
 
     return Scaffold(
       appBar: AppBar(
@@ -125,8 +126,8 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
             color: isNote
                 ? Colors.purple.withValues(alpha: 0.07)
                 : (isRunning
-                    ? scheme.primaryContainer.withValues(alpha: 0.4)
-                    : scheme.surfaceContainerLow),
+                      ? scheme.primaryContainer.withValues(alpha: 0.4)
+                      : scheme.surfaceContainerLow),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -138,19 +139,21 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
                       backgroundColor: isNote
                           ? Colors.purple.withValues(alpha: 0.18)
                           : (isRunning
-                              ? scheme.primary
-                              : Colors.teal.withValues(alpha: 0.18)),
+                                ? scheme.primary
+                                : Colors.teal.withValues(alpha: 0.18)),
                       foregroundColor: isNote
                           ? (isDark ? scheme.onSurface : Colors.purple.shade800)
                           : (isRunning
-                              ? scheme.onPrimary
-                            : (isDark ? scheme.onSurface : Colors.teal.shade800)),
+                                ? scheme.onPrimary
+                                : (isDark
+                                      ? scheme.onSurface
+                                      : Colors.teal.shade800)),
                       child: Icon(
                         isNote
                             ? Icons.edit_note_rounded
                             : (isRunning
-                                ? Icons.play_arrow_rounded
-                                : Icons.check_circle_outline_rounded),
+                                  ? Icons.play_arrow_rounded
+                                  : Icons.check_circle_outline_rounded),
                         size: 26,
                       ),
                     ),
@@ -161,7 +164,8 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
                         children: [
                           Text(
                             session.title,
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: -0.2,
                                 ),
@@ -333,9 +337,8 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
                       children: [
                         Text(
                           'Mulai',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                              ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: scheme.onSurfaceVariant),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -357,9 +360,8 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
                       children: [
                         Text(
                           'Selesai',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                              ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: scheme.onSurfaceVariant),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -386,9 +388,8 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
                       children: [
                         Text(
                           'Durasi',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                              ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: scheme.onSurfaceVariant),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -433,9 +434,8 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
                 if (session.notes?.trim().isNotEmpty == true)
                   SelectableText(
                     session.notes!,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          height: 1.5,
-                        ),
+                    style: Theme.of(context).textTheme.bodyLarge
+                        ?.copyWith(height: 1.5),
                   )
                 else
                   Text(
@@ -525,8 +525,7 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) =>
-                            ActivityDetailPage(sessionId: child.id),
+                        builder: (_) => ActivityDetailPage(sessionId: child.id),
                       ),
                     );
                   },
@@ -547,12 +546,14 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
                 ),
               ),
               onPressed: () async {
-                await context
-                    .read<ActivityBloc>()
-                    .finishSession(sessionId: session.id);
+                await context.read<ActivityBloc>().finishSession(
+                  sessionId: session.id,
+                );
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Aktivitas berhasil diselesaikan!')),
+                  const SnackBar(
+                    content: Text('Aktivitas berhasil diselesaikan!'),
+                  ),
                 );
               },
               icon: const Icon(Icons.done_all_rounded),
@@ -606,7 +607,8 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  initialValue: categories.any((c) => c.name == selectedCategory)
+                  initialValue:
+                      categories.any((c) => c.name == selectedCategory)
                       ? selectedCategory
                       : (categories.isNotEmpty ? categories.first.name : null),
                   decoration: const InputDecoration(
@@ -703,15 +705,15 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
 
     if (updated == true && context.mounted) {
       await context.read<ActivityBloc>().updateSession(
-            sessionId: session.id,
-            title: titleController.text.trim(),
-            category: selectedCategory,
-            categoryId: selectedCategoryId,
-            notes: notesController.text.trim().isEmpty
-                ? null
-                : notesController.text.trim(),
-            startedAt: startedAt,
-          );
+        sessionId: session.id,
+        title: titleController.text.trim(),
+        category: selectedCategory,
+        categoryId: selectedCategoryId,
+        notes: notesController.text.trim().isEmpty
+            ? null
+            : notesController.text.trim(),
+        startedAt: startedAt,
+      );
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Perubahan berhasil disimpan.')),
@@ -783,11 +785,11 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
 
     if (saved == true && context.mounted) {
       await context.read<ActivityBloc>().editCheckpoint(
-            checkpointId: cp.id,
-            label: labelCtrl.text.trim(),
-            place: placeCtrl.text.trim().isEmpty ? null : placeCtrl.text.trim(),
-            note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
-          );
+        checkpointId: cp.id,
+        label: labelCtrl.text.trim(),
+        place: placeCtrl.text.trim().isEmpty ? null : placeCtrl.text.trim(),
+        note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
+      );
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Update checkpoint berhasil disimpan.')),
@@ -861,11 +863,11 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
 
     if (saved == true && context.mounted) {
       await context.read<ActivityBloc>().addCheckpoint(
-            sessionId: session.id,
-            label: labelCtrl.text.trim(),
-            place: placeCtrl.text.trim().isEmpty ? null : placeCtrl.text.trim(),
-            note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
-          );
+        sessionId: session.id,
+        label: labelCtrl.text.trim(),
+        place: placeCtrl.text.trim().isEmpty ? null : placeCtrl.text.trim(),
+        note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
+      );
     }
   }
 

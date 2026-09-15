@@ -48,29 +48,35 @@ void main() {
       expect(prompt.suggestedQuestions.any((q) => q.contains('panen')), isTrue);
     });
 
-    test('returns business check-in prompt when business profile is active', () async {
-      final now = DateTime.now();
-      final profile = CashFlowProfile(
-        id: 'prof_biz_1',
-        householdId: 'house_123',
-        profileType: CashFlowProfileType.business,
-        name: 'Toko Kelontong Berkah',
-        commodityOrBusinessType: 'Retail & Sembako',
-        startDate: now.subtract(const Duration(days: 10)),
-        targetHarvestDate: now.add(const Duration(days: 20)),
-        initialCapital: 10000000,
-        estimatedInflow: 25000000,
-        dailyLivingBudget: 100000,
-        isActive: true,
-      );
-      await repository.saveProfile(profile);
+    test(
+      'returns business check-in prompt when business profile is active',
+      () async {
+        final now = DateTime.now();
+        final profile = CashFlowProfile(
+          id: 'prof_biz_1',
+          householdId: 'house_123',
+          profileType: CashFlowProfileType.business,
+          name: 'Toko Kelontong Berkah',
+          commodityOrBusinessType: 'Retail & Sembako',
+          startDate: now.subtract(const Duration(days: 10)),
+          targetHarvestDate: now.add(const Duration(days: 20)),
+          initialCapital: 10000000,
+          estimatedInflow: 25000000,
+          dailyLivingBudget: 100000,
+          isActive: true,
+        );
+        await repository.saveProfile(profile);
 
-      final prompt = await service.evaluateCheckIn('house_123');
-      expect(prompt, isNotNull);
-      expect(prompt!.profile.id, equals('prof_biz_1'));
-      expect(prompt.greetingMessage, contains('Toko Kelontong Berkah'));
-      expect(prompt.greetingMessage, contains('Wawancara Status Usaha & Operasional'));
-      expect(prompt.suggestedQuestions.length, equals(3));
-    });
+        final prompt = await service.evaluateCheckIn('house_123');
+        expect(prompt, isNotNull);
+        expect(prompt!.profile.id, equals('prof_biz_1'));
+        expect(prompt.greetingMessage, contains('Toko Kelontong Berkah'));
+        expect(
+          prompt.greetingMessage,
+          contains('Wawancara Status Usaha & Operasional'),
+        );
+        expect(prompt.suggestedQuestions.length, equals(3));
+      },
+    );
   });
 }

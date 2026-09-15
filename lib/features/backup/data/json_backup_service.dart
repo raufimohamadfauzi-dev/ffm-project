@@ -156,8 +156,7 @@ class JsonBackupService {
     onRestoreUtilityMeters,
     Future<void> Function(List<Map<String, Object?>> rows)?
     onRestoreCashFlowProfiles,
-    Future<void> Function(List<Map<String, Object?>> rows)?
-    onRestoreVehicles,
+    Future<void> Function(List<Map<String, Object?>> rows)? onRestoreVehicles,
   }) async {
     final content = await File(path).readAsString();
     final decoded = jsonDecode(content);

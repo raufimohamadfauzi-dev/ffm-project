@@ -33,11 +33,7 @@ void main() {
 
   group('AgentInboxPage Widget Tests', () {
     testWidgets('Renders empty state when no insights exist', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: AgentInboxPage(),
-        ),
-      );
+      await tester.pumpWidget(const MaterialApp(home: AgentInboxPage()));
 
       await tester.pumpAndSettle();
 
@@ -47,50 +43,55 @@ void main() {
       expect(find.textContaining('Riwayat'), findsOneWidget);
     });
 
-    testWidgets('Renders active insight card with title and expand evidence button', (tester) async {
-      final now = DateTime(2026, 9, 3, 10, 0);
-      await repo.saveInsight(
-        FfmAssistantInsight(
-          id: 'ins-test-ui',
-          householdId: 'local-household',
-          type: FfmAssistantInsightType.runwayRisk,
-          severity: FfmAssistantInsightSeverity.warning,
-          priority: 85,
-          confidence: 0.95,
-          title: 'Peringatan Laju Pengeluaran Sebelum Gajian',
-          summary: 'Saldo diprediksi habis sebelum gajian.',
-          evidence: {'daysToPayday': 12, 'safeSpend': 50000},
-          suggestedAction: 'Tinjau pos pengeluaran',
-          createdAt: now,
-          dedupeKey: 'runway_test_ui',
-        ),
-      );
+    testWidgets(
+      'Renders active insight card with title and expand evidence button',
+      (tester) async {
+        final now = DateTime(2026, 9, 3, 10, 0);
+        await repo.saveInsight(
+          FfmAssistantInsight(
+            id: 'ins-test-ui',
+            householdId: 'local-household',
+            type: FfmAssistantInsightType.runwayRisk,
+            severity: FfmAssistantInsightSeverity.warning,
+            priority: 85,
+            confidence: 0.95,
+            title: 'Peringatan Laju Pengeluaran Sebelum Gajian',
+            summary: 'Saldo diprediksi habis sebelum gajian.',
+            evidence: {'daysToPayday': 12, 'safeSpend': 50000},
+            suggestedAction: 'Tinjau pos pengeluaran',
+            createdAt: now,
+            dedupeKey: 'runway_test_ui',
+          ),
+        );
 
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: AgentInboxPage(),
-        ),
-      );
+        await tester.pumpWidget(const MaterialApp(home: AgentInboxPage()));
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      expect(find.text('Peringatan Laju Pengeluaran Sebelum Gajian'), findsOneWidget);
-      expect(find.text('Saldo diprediksi habis sebelum gajian.'), findsOneWidget);
-      expect(find.text('Lihat data pendukung'), findsOneWidget);
-      expect(find.text('Tinjau pos pengeluaran'), findsOneWidget);
+        expect(
+          find.text('Peringatan Laju Pengeluaran Sebelum Gajian'),
+          findsOneWidget,
+        );
+        expect(
+          find.text('Saldo diprediksi habis sebelum gajian.'),
+          findsOneWidget,
+        );
+        expect(find.text('Lihat data pendukung'), findsOneWidget);
+        expect(find.text('Tinjau pos pengeluaran'), findsOneWidget);
 
-      // Ketuk lihat data pendukung
-      await tester.tap(find.text('Lihat data pendukung'));
-      await tester.pumpAndSettle();
+        // Ketuk lihat data pendukung
+        await tester.tap(find.text('Lihat data pendukung'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Sembunyikan data pendukung'), findsOneWidget);
-      expect(find.textContaining('daysToPayday:'), findsOneWidget);
-    });
+        expect(find.text('Sembunyikan data pendukung'), findsOneWidget);
+        expect(find.textContaining('daysToPayday:'), findsOneWidget);
+      },
+    );
 
-    testWidgets('Renders autonomous activities tab and activity cards', (tester) async {
-      final actRepo = AutonomousActivityRepository(
-        database: db,
-      );
+    testWidgets('Renders autonomous activities tab and activity cards', (
+      tester,
+    ) async {
+      final actRepo = AutonomousActivityRepository(database: db);
       await actRepo.recordActivity(
         AutonomousActivityRecord(
           id: 'act-test-ui',
@@ -103,9 +104,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: AgentInboxPage(activityRepository: actRepo),
-        ),
+        MaterialApp(home: AgentInboxPage(activityRepository: actRepo)),
       );
       await tester.pumpAndSettle();
 
@@ -113,12 +112,17 @@ void main() {
       await tester.tap(find.textContaining('Aktivitas Otonom'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Pergeseran Plafon Anggaran (Rebalance)'), findsOneWidget);
-      expect(find.text('Menggeser Rp 50.000 dari Belanja ke Bahan Pokok.'), findsOneWidget);
+      expect(
+        find.text('Pergeseran Plafon Anggaran (Rebalance)'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Menggeser Rp 50.000 dari Belanja ke Bahan Pokok.'),
+        findsOneWidget,
+      );
       expect(find.text('Aktif'), findsNWidgets(2));
       expect(find.text('Koreksi'), findsOneWidget);
       expect(find.text('Batalkan'), findsOneWidget);
     });
   });
 }
-

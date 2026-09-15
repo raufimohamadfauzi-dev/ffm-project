@@ -61,17 +61,18 @@ class FfmPersonalMemoryService {
     FfmAssistantDraftFeedbackService? feedbackService,
   ]) : feedbackService = feedbackService ?? FfmAssistantDraftFeedbackService() {
     if (this.feedbackService.onRuleLearned == null && _memories != null) {
-      this.feedbackService.onRuleLearned = ({
-        required String key,
-        required String value,
-        required String label,
-      }) async {
-        await learnCorrectionRule(
-          key: key,
-          value: value,
-          humanLabel: label,
-        );
-      };
+      this.feedbackService.onRuleLearned =
+          ({
+            required String key,
+            required String value,
+            required String label,
+          }) async {
+            await learnCorrectionRule(
+              key: key,
+              value: value,
+              humanLabel: label,
+            );
+          };
     }
   }
 
@@ -254,38 +255,111 @@ class FfmPersonalMemoryService {
 
     // 1. Kata tanya / interogatif
     const questionWords = [
-      'berapa', 'kapan', 'apakah', 'apatah', 'kenapa', 'mengapa',
-      'bagaimana', 'gimana', 'siapa', 'dimana', 'di mana', 'ke mana', 'dari mana',
-      'apa ya', 'apa sih', 'apa itu', 'ada apa', 'apa yang',
-      'bisa apa', 'kamu siapa', 'bisa bantu apa', 'kamu asisten apa',
+      'berapa',
+      'kapan',
+      'apakah',
+      'apatah',
+      'kenapa',
+      'mengapa',
+      'bagaimana',
+      'gimana',
+      'siapa',
+      'dimana',
+      'di mana',
+      'ke mana',
+      'dari mana',
+      'apa ya',
+      'apa sih',
+      'apa itu',
+      'ada apa',
+      'apa yang',
+      'bisa apa',
+      'kamu siapa',
+      'bisa bantu apa',
+      'kamu asisten apa',
     ];
     if (questionWords.any((q) => lower.contains(q))) return true;
 
     // Perintah query berbasis awalan
     const prefixOnlyCommands = [
-      'cek ', 'lihat ', 'tampilkan ', 'tunjukin ', 'tolong jelaskan', 'jelaskan ',
+      'cek ',
+      'lihat ',
+      'tampilkan ',
+      'tunjukin ',
+      'tolong jelaskan',
+      'jelaskan ',
     ];
     if (prefixOnlyCommands.any((p) => lower.startsWith(p))) return true;
 
     // 2. Perintah transaksi finansial & aksi aplikasi
     const commandWords = [
-      'catat', 'tulis', 'tambah', 'masukkan', 'input', 'transfer', 'kirim',
-      'bayar', 'beli', 'membeli', 'top up', 'topup', 'tarik tunai', 'simpan transaksi',
-      'hapus', 'ubah', 'ganti', 'edit', 'buka', 'navigasi', 'reset', 'ekspor',
-      'backup', 'impor', 'sinkron', 'kunci', 'pin'
+      'catat',
+      'tulis',
+      'tambah',
+      'masukkan',
+      'input',
+      'transfer',
+      'kirim',
+      'bayar',
+      'beli',
+      'membeli',
+      'top up',
+      'topup',
+      'tarik tunai',
+      'simpan transaksi',
+      'hapus',
+      'ubah',
+      'ganti',
+      'edit',
+      'buka',
+      'navigasi',
+      'reset',
+      'ekspor',
+      'backup',
+      'impor',
+      'sinkron',
+      'kunci',
+      'pin',
     ];
-    if (commandWords.any((cmd) => lower.startsWith(cmd) || lower.contains(' $cmd '))) {
+    if (commandWords.any(
+      (cmd) => lower.startsWith(cmd) || lower.contains(' $cmd '),
+    )) {
       return true;
     }
 
     // 3. Sapaan santai, konfirmasi & small talk
     const casualWords = [
-      'halo', 'hallo', 'hai', 'hello', 'hei', 'hey', 'pagi', 'siang', 'sore', 'malam',
-      'apa kabar', 'terima kasih', 'makasih', 'makasi', 'thanks', 'thx',
-      'ok', 'oke', 'siap', 'sip', 'mantap', 'keren', 'bagus', 'biasa aja',
-      'wkwk', 'haha', 'hehe'
+      'halo',
+      'hallo',
+      'hai',
+      'hello',
+      'hei',
+      'hey',
+      'pagi',
+      'siang',
+      'sore',
+      'malam',
+      'apa kabar',
+      'terima kasih',
+      'makasih',
+      'makasi',
+      'thanks',
+      'thx',
+      'ok',
+      'oke',
+      'siap',
+      'sip',
+      'mantap',
+      'keren',
+      'bagus',
+      'biasa aja',
+      'wkwk',
+      'haha',
+      'hehe',
     ];
-    if (casualWords.any((c) => lower == c || lower.startsWith('$c ') || lower.endsWith(' $c'))) {
+    if (casualWords.any(
+      (c) => lower == c || lower.startsWith('$c ') || lower.endsWith(' $c'),
+    )) {
       return true;
     }
 
@@ -300,12 +374,49 @@ class FfmPersonalMemoryService {
     if (_isQuestionOrTransaction(text)) return null;
 
     const stopWords = {
-      'unknown', 'null', 'undefined', 'siapa', 'apa', 'dia', 'kamu',
-      'anda', 'saya', 'aku', 'gue', 'kami', 'kita', 'mereka', 'tahu',
-      'belum', 'ada', 'tidak', 'bukan', 'adalah', 'bisa', 'dong', 'ya',
-      'nih', 'deh', 'aja', 'saja', 'toko', 'warung', 'rekening',
-      'kategori', 'uang', 'saldo', 'gaji', 'belanja', 'makan', 'minum',
-      'hari', 'bulan', 'nama', 'panggil', 'seorang', 'orang',
+      'unknown',
+      'null',
+      'undefined',
+      'siapa',
+      'apa',
+      'dia',
+      'kamu',
+      'anda',
+      'saya',
+      'aku',
+      'gue',
+      'kami',
+      'kita',
+      'mereka',
+      'tahu',
+      'belum',
+      'ada',
+      'tidak',
+      'bukan',
+      'adalah',
+      'bisa',
+      'dong',
+      'ya',
+      'nih',
+      'deh',
+      'aja',
+      'saja',
+      'toko',
+      'warung',
+      'rekening',
+      'kategori',
+      'uang',
+      'saldo',
+      'gaji',
+      'belanja',
+      'makan',
+      'minum',
+      'hari',
+      'bulan',
+      'nama',
+      'panggil',
+      'seorang',
+      'orang',
     };
 
     for (final rule in _patterns) {
@@ -406,9 +517,11 @@ class FfmPersonalMemoryService {
     if (query != null && query.trim().isNotEmpty) {
       final q = query.toLowerCase();
       list.sort((a, b) {
-        final aScore = (a.key.toLowerCase().contains(q) ? 2 : 0) +
+        final aScore =
+            (a.key.toLowerCase().contains(q) ? 2 : 0) +
             (a.humanLabel.toLowerCase().contains(q) ? 1 : 0);
-        final bScore = (b.key.toLowerCase().contains(q) ? 2 : 0) +
+        final bScore =
+            (b.key.toLowerCase().contains(q) ? 2 : 0) +
             (b.humanLabel.toLowerCase().contains(q) ? 1 : 0);
         return bScore.compareTo(aScore);
       });

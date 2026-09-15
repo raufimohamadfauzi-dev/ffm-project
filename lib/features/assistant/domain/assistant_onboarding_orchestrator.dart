@@ -5,12 +5,7 @@ import '../../../core/database/app_context.dart';
 import '../../../core/database/app_database.dart';
 import '../data/onboarding_preference.dart';
 
-enum OnboardingStep {
-  notStarted,
-  askFamilyName,
-  askAccounts,
-  completed,
-}
+enum OnboardingStep { notStarted, askFamilyName, askAccounts, completed }
 
 /// Tahapan kesiapan data pengguna untuk Onboarding Adaptif Berjenjang.
 enum AdaptiveOnboardingStage {
@@ -75,9 +70,9 @@ class AssistantOnboardingOrchestrator {
 
     // Periksa apakah sudah ada akun yang dibuat
     try {
-      final existingAccounts = await (database.select(database.accounts)
-            ..where((t) => t.householdId.equals(householdId)))
-          .get();
+      final existingAccounts = await (database.select(
+        database.accounts,
+      )..where((t) => t.householdId.equals(householdId))).get();
       if (existingAccounts.isNotEmpty) {
         await OnboardingPreference.setCompleted(true);
         return false;
@@ -91,33 +86,38 @@ class AssistantOnboardingOrchestrator {
   Future<AdaptiveOnboardingStage> evaluateAdaptiveStage() async {
     try {
       // 1. Cek rekening aktif
-      final accounts = await (database.select(database.accounts)
-            ..where((t) =>
-                t.householdId.equals(householdId) &
-                t.isActive.equals(true) &
-                t.isArchived.equals(false)))
-          .get();
+      final accounts =
+          await (database.select(database.accounts)..where(
+                (t) =>
+                    t.householdId.equals(householdId) &
+                    t.isActive.equals(true) &
+                    t.isArchived.equals(false),
+              ))
+              .get();
       if (accounts.isEmpty) {
         return AdaptiveOnboardingStage.emptyData;
       }
 
       // 2. Cek apakah sudah ada transaksi tercatat
-      final transactions = await (database.select(database.transactions)
-            ..where((t) =>
-                t.householdId.equals(householdId) &
-                t.isDeleted.equals(false) &
-                t.isArchived.equals(false)))
-          .get();
+      final transactions =
+          await (database.select(database.transactions)..where(
+                (t) =>
+                    t.householdId.equals(householdId) &
+                    t.isDeleted.equals(false) &
+                    t.isArchived.equals(false),
+              ))
+              .get();
       if (transactions.isEmpty) {
         return AdaptiveOnboardingStage.needsFirstTransaction;
       }
 
       // 3. Cek apakah sudah ada pagu anggaran dibuat
-      final budgets = await (database.select(database.envelopeBudgets)
-            ..where((b) =>
-                b.householdId.equals(householdId) &
-                b.isActive.equals(true)))
-          .get();
+      final budgets =
+          await (database.select(database.envelopeBudgets)..where(
+                (b) =>
+                    b.householdId.equals(householdId) & b.isActive.equals(true),
+              ))
+              .get();
       if (budgets.isEmpty) {
         return AdaptiveOnboardingStage.needsBudget;
       }
@@ -190,9 +190,9 @@ class AssistantOnboardingOrchestrator {
 
   Future<String> _fetchFamilyName() async {
     try {
-      final household = await (database.select(database.households)
-            ..where((t) => t.id.equals(householdId)))
-          .getSingleOrNull();
+      final household = await (database.select(
+        database.households,
+      )..where((t) => t.id.equals(householdId))).getSingleOrNull();
       if (household != null && household.name.trim().isNotEmpty) {
         return household.name.trim();
       }
@@ -221,9 +221,9 @@ class AssistantOnboardingOrchestrator {
       _familyName = text.isNotEmpty ? text : 'Keluarga Kami';
       // Simpan nama keluarga ke database lokal
       try {
-        await (database.update(database.households)
-              ..where((t) => t.id.equals(householdId)))
-            .write(
+        await (database.update(
+          database.households,
+        )..where((t) => t.id.equals(householdId))).write(
           HouseholdsCompanion(
             name: Value(_familyName),
             updatedAt: Value(DateTime.now()),
@@ -315,18 +315,20 @@ class AssistantOnboardingOrchestrator {
     }
 
     for (final (id, name, type) in accountsToCreate) {
-      await database.into(database.accounts).insertOnConflictUpdate(
-        AccountsCompanion.insert(
-          id: id,
-          householdId: householdId,
-          name: name,
-          type: type,
-          openingBalance: const Value(0),
-          isActive: const Value(true),
-          isArchived: const Value(false),
-          createdAt: now,
-        ),
-      );
+      await database
+          .into(database.accounts)
+          .insertOnConflictUpdate(
+            AccountsCompanion.insert(
+              id: id,
+              householdId: householdId,
+              name: name,
+              type: type,
+              openingBalance: const Value(0),
+              isActive: const Value(true),
+              isArchived: const Value(false),
+              createdAt: now,
+            ),
+          );
     }
   }
 }

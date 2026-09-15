@@ -59,12 +59,13 @@ class _MarketPriceTickerCardState extends State<MarketPriceTickerCard> {
       // Jalankan auto-valuasi aset dan rekam aktivitas otonom
       final db = getIt<AppDatabase>();
       final activityRepo = getIt<AutonomousActivityRepository>();
-      final revalueResult = await _valuationService.revalueAndRecordAutonomously(
-        db: db,
-        snapshot: fresh,
-        householdId: AppContext.householdId,
-        activityRepository: activityRepo,
-      );
+      final revalueResult = await _valuationService
+          .revalueAndRecordAutonomously(
+            db: db,
+            snapshot: fresh,
+            householdId: AppContext.householdId,
+            activityRepository: activityRepo,
+          );
 
       if (mounted) {
         setState(() {

@@ -53,9 +53,7 @@ class FfmActivityHabitLearner {
                       row.isArchived.equals(false) &
                       row.startedAt.isBiggerOrEqualValue(since),
                 )
-                ..orderBy([
-                  (row) => OrderingTerm.desc(row.startedAt),
-                ]))
+                ..orderBy([(row) => OrderingTerm.desc(row.startedAt)]))
               .get();
 
       // Upgrade: Gunakan konteks terstruktur untuk matching yang lebih cerdas
@@ -73,21 +71,29 @@ class FfmActivityHabitLearner {
           matchedActivities.add(match);
         }
       }
-      
+
       if (matchedActivities.length < _minOccurrences) return;
 
       // Analisis pola dengan konteks terstruktur
       final hourCounts = <int, int>{};
       final categoryCounts = <String, int>{};
       final subjectCounts = <String, int>{};
-      
+
       for (final match in matchedActivities) {
         hourCounts.update(match.hour, (count) => count + 1, ifAbsent: () => 1);
         if (match.category != null) {
-          categoryCounts.update(match.category!, (count) => count + 1, ifAbsent: () => 1);
+          categoryCounts.update(
+            match.category!,
+            (count) => count + 1,
+            ifAbsent: () => 1,
+          );
         }
         if (match.subjectId != null) {
-          subjectCounts.update(match.subjectId!, (count) => count + 1, ifAbsent: () => 1);
+          subjectCounts.update(
+            match.subjectId!,
+            (count) => count + 1,
+            ifAbsent: () => 1,
+          );
         }
       }
 
@@ -103,19 +109,24 @@ class FfmActivityHabitLearner {
 
       // Kategori dan subject paling umum
       final topCategory = categoryCounts.isNotEmpty
-          ? categoryCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key
+          ? categoryCounts.entries
+                .reduce((a, b) => a.value > b.value ? a : b)
+                .key
           : null;
       final topSubjectId = subjectCounts.isNotEmpty
-          ? subjectCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key
+          ? subjectCounts.entries
+                .reduce((a, b) => a.value > b.value ? a : b)
+                .key
           : null;
 
       final count = matchedActivities.length;
       final displayTitle = title.trim();
-      
+
       // Generate value text dengan konteks terstruktur
-      var value = 'User tercatat melakukan "$displayTitle" $count kali dalam '
+      var value =
+          'User tercatat melakukan "$displayTitle" $count kali dalam '
           '$_windowDays hari terakhir, biasanya sekitar jam ${topHour.toString().padLeft(2, '0')}:00.';
-      
+
       if (topCategory != null) {
         value += ' Kategori utama: $topCategory.';
       }
@@ -165,7 +176,7 @@ class FfmActivityHabitLearner {
     required ActivitySession row,
   }) {
     final rowTitle = row.title.trim().toLowerCase();
-    
+
     // 1. Exact title match (highest confidence)
     if (rowTitle == normalized) {
       return _ActivityPatternMatch(
@@ -219,12 +230,12 @@ class FfmActivityHabitLearner {
     // Sederhana: cek overlap kata kunci
     final wordsA = a.split(' ').where((w) => w.length > 2).toSet();
     final wordsB = b.split(' ').where((w) => w.length > 2).toSet();
-    
+
     if (wordsA.isEmpty || wordsB.isEmpty) return false;
-    
+
     final intersection = wordsA.intersection(wordsB);
     final union = wordsA.union(wordsB);
-    
+
     // Jika >50% kata kunci sama, anggap mirip
     return intersection.length / union.length > 0.5;
   }

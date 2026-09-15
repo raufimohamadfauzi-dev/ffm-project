@@ -166,10 +166,7 @@ void main() {
     });
 
     test('pluginInventory() mengelompokkan plugin per kategori', () {
-      harness.registerAll([
-        _StubSensePlugin(),
-        _StubLogicPlugin(),
-      ]);
+      harness.registerAll([_StubSensePlugin(), _StubLogicPlugin()]);
       final inventory = harness.pluginInventory;
       expect(inventory[FfmPluginCategory.sense], contains('stub_sense'));
       expect(inventory[FfmPluginCategory.logic], contains('stub_logic'));
@@ -190,20 +187,28 @@ void main() {
       expect(result, isNull);
     });
 
-    test('dispatch() memanggil plugin yang cocok berdasarkan trigger', () async {
-      harness.register(_StubSensePlugin());
-      final result = await harness.dispatch(_ctx('berapa saldo rekening saya'));
-      expect(result, isNotNull);
-      expect(result!.pluginName, 'stub_sense');
-      expect(result.text, contains('Saldo rekening'));
-    });
+    test(
+      'dispatch() memanggil plugin yang cocok berdasarkan trigger',
+      () async {
+        harness.register(_StubSensePlugin());
+        final result = await harness.dispatch(
+          _ctx('berapa saldo rekening saya'),
+        );
+        expect(result, isNotNull);
+        expect(result!.pluginName, 'stub_sense');
+        expect(result.text, contains('Saldo rekening'));
+      },
+    );
 
-    test('dispatch() mengembalikan plugin prioritas tertinggi ketika ada 2 cocok', () async {
-      // StubSensePlugin: priority 9, LowPriorityPlugin: priority 1, keduanya trigger 'saldo'
-      harness.registerAll([_LowPriorityPlugin(), _StubSensePlugin()]);
-      final result = await harness.dispatch(_ctx('saldo rekening'));
-      expect(result!.pluginName, 'stub_sense'); // prioritas 9 menang
-    });
+    test(
+      'dispatch() mengembalikan plugin prioritas tertinggi ketika ada 2 cocok',
+      () async {
+        // StubSensePlugin: priority 9, LowPriorityPlugin: priority 1, keduanya trigger 'saldo'
+        harness.registerAll([_LowPriorityPlugin(), _StubSensePlugin()]);
+        final result = await harness.dispatch(_ctx('saldo rekening'));
+        expect(result!.pluginName, 'stub_sense'); // prioritas 9 menang
+      },
+    );
 
     test('dispatch() melanjutkan ke plugin berikut jika plugin pertama null', () async {
       harness.registerAll([_NullPlugin(), _StubSensePlugin()]);
@@ -241,11 +246,14 @@ void main() {
       expect(results.length, 2);
     });
 
-    test('dispatchAll() mengembalikan list kosong jika tidak ada yang cocok', () async {
-      harness.register(_StubSensePlugin());
-      final results = await harness.dispatchAll(_ctx('cuaca hari ini'));
-      expect(results, isEmpty);
-    });
+    test(
+      'dispatchAll() mengembalikan list kosong jika tidak ada yang cocok',
+      () async {
+        harness.register(_StubSensePlugin());
+        final results = await harness.dispatchAll(_ctx('cuaca hari ini'));
+        expect(results, isEmpty);
+      },
+    );
   });
 
   group('FfmAgentHarness — dispatchByName', () {
@@ -257,32 +265,44 @@ void main() {
     });
 
     test('dispatchByName() memanggil plugin bernama yang tepat', () async {
-      final result = await harness.dispatchByName('stub_actuator', _ctx('apapun'));
+      final result = await harness.dispatchByName(
+        'stub_actuator',
+        _ctx('apapun'),
+      );
       expect(result!.pluginName, 'stub_actuator');
     });
 
-    test('dispatchByName() mengembalikan null jika nama tidak ditemukan', () async {
-      final result = await harness.dispatchByName('plugin_tidak_ada', _ctx('apapun'));
-      expect(result, isNull);
-    });
+    test(
+      'dispatchByName() mengembalikan null jika nama tidak ditemukan',
+      () async {
+        final result = await harness.dispatchByName(
+          'plugin_tidak_ada',
+          _ctx('apapun'),
+        );
+        expect(result, isNull);
+      },
+    );
   });
 
   group('FfmAgentHarness — describeCapabilities', () {
-    test('describeCapabilities() menghasilkan string yang menyebut semua kategori', () {
-      final harness = FfmAgentHarness();
-      harness.registerAll([
-        _StubSensePlugin(),
-        _StubActuatorPlugin(),
-        _StubLogicPlugin(),
-      ]);
-      final desc = harness.describeCapabilities();
-      expect(desc, contains('Mata'));
-      expect(desc, contains('Tangan'));
-      expect(desc, contains('Logika'));
-      expect(desc, contains('stub_sense'));
-      expect(desc, contains('stub_actuator'));
-      expect(desc, contains('stub_logic'));
-    });
+    test(
+      'describeCapabilities() menghasilkan string yang menyebut semua kategori',
+      () {
+        final harness = FfmAgentHarness();
+        harness.registerAll([
+          _StubSensePlugin(),
+          _StubActuatorPlugin(),
+          _StubLogicPlugin(),
+        ]);
+        final desc = harness.describeCapabilities();
+        expect(desc, contains('Mata'));
+        expect(desc, contains('Tangan'));
+        expect(desc, contains('Logika'));
+        expect(desc, contains('stub_sense'));
+        expect(desc, contains('stub_actuator'));
+        expect(desc, contains('stub_logic'));
+      },
+    );
   });
 
   group('FfmHarnessResult — properties', () {
@@ -334,23 +354,53 @@ void main() {
 
   group('FfmAgentHarness — New Intelligence Plugins triggers', () {
     test('SpendingPace (Boros vs Hemat) trigger matching', () {
-      final triggers = ['boros', 'hemat', 'apakah saya boros', 'laju pengeluaran', 'burn rate', 'kuota belanja harian'];
+      final triggers = [
+        'boros',
+        'hemat',
+        'apakah saya boros',
+        'laju pengeluaran',
+        'burn rate',
+        'kuota belanja harian',
+      ];
       for (final t in triggers) {
-        expect(t.contains('boros') || t.contains('hemat') || t.contains('laju') || t.contains('rate') || t.contains('kuota'), isTrue);
+        expect(
+          t.contains('boros') ||
+              t.contains('hemat') ||
+              t.contains('laju') ||
+              t.contains('rate') ||
+              t.contains('kuota'),
+          isTrue,
+        );
       }
     });
 
     test('HolisticAwareness trigger matching', () {
-      final triggers = ['kondisi keuangan keseluruhan', 'potret keuangan', 'kesehatan keuangan lengkap', 'dashboard keuangan'];
+      final triggers = [
+        'kondisi keuangan keseluruhan',
+        'potret keuangan',
+        'kesehatan keuangan lengkap',
+        'dashboard keuangan',
+      ];
       for (final t in triggers) {
         expect(t.contains('keuangan') || t.contains('potret'), isTrue);
       }
     });
 
     test('UserHabitsAndProfile trigger matching', () {
-      final triggers = ['sejauh mana kamu mengenalku', 'apa saja kebiasaanku', 'pola keseharianku', 'rutinitas saya'];
+      final triggers = [
+        'sejauh mana kamu mengenalku',
+        'apa saja kebiasaanku',
+        'pola keseharianku',
+        'rutinitas saya',
+      ];
       for (final t in triggers) {
-        expect(t.contains('mengenalku') || t.contains('kebiasaan') || t.contains('keseharian') || t.contains('rutinitas'), isTrue);
+        expect(
+          t.contains('mengenalku') ||
+              t.contains('kebiasaan') ||
+              t.contains('keseharian') ||
+              t.contains('rutinitas'),
+          isTrue,
+        );
       }
     });
 
@@ -362,84 +412,167 @@ void main() {
     });
 
     test('ReceivableSense trigger matching', () {
-      final triggers = ['cek piutang', 'daftar piutang', 'siapa yang pinjam', 'orang pinjam'];
+      final triggers = [
+        'cek piutang',
+        'daftar piutang',
+        'siapa yang pinjam',
+        'orang pinjam',
+      ];
       for (final t in triggers) {
         expect(t.contains('piutang') || t.contains('pinjam'), isTrue);
       }
     });
 
     test('RecurringTransactionSense trigger matching', () {
-      final triggers = ['transaksi berulang', 'langganan', 'tagihan rutin', 'rutin bulanan'];
+      final triggers = [
+        'transaksi berulang',
+        'langganan',
+        'tagihan rutin',
+        'rutin bulanan',
+      ];
       for (final t in triggers) {
-        expect(t.contains('berulang') || t.contains('langganan') || t.contains('rutin'), isTrue);
+        expect(
+          t.contains('berulang') ||
+              t.contains('langganan') ||
+              t.contains('rutin'),
+          isTrue,
+        );
       }
     });
 
     test('DailyNotesSense trigger matching', () {
-      final triggers = ['catatan harian', 'jurnal', 'catatan hari ini', 'daily notes'];
+      final triggers = [
+        'catatan harian',
+        'jurnal',
+        'catatan hari ini',
+        'daily notes',
+      ];
       for (final t in triggers) {
-        expect(t.contains('catatan') || t.contains('jurnal') || t.contains('daily'), isTrue);
+        expect(
+          t.contains('catatan') || t.contains('jurnal') || t.contains('daily'),
+          isTrue,
+        );
       }
     });
 
     test('EmergencyFundLogic trigger matching', () {
-      final triggers = ['dana darurat', 'hitung dana darurat', 'emergency fund', 'tabungan darurat'];
+      final triggers = [
+        'dana darurat',
+        'hitung dana darurat',
+        'emergency fund',
+        'tabungan darurat',
+      ];
       for (final t in triggers) {
         expect(t.contains('darurat') || t.contains('emergency'), isTrue);
       }
     });
 
     test('TaskSense trigger matching', () {
-      final triggers = ['tugas belum selesai', 'daftar tugas', 'tugas hari ini', 'to-do'];
+      final triggers = [
+        'tugas belum selesai',
+        'daftar tugas',
+        'tugas hari ini',
+        'to-do',
+      ];
       for (final t in triggers) {
-        expect(t.contains('tugas') || t.contains('to-do') || t.contains('todo'), isTrue);
+        expect(
+          t.contains('tugas') || t.contains('to-do') || t.contains('todo'),
+          isTrue,
+        );
       }
     });
 
     test('ScheduleSense trigger matching', () {
-      final triggers = ['jadwal hari ini', 'agenda besok', 'jadwal minggu ini', 'ada acara apa'];
+      final triggers = [
+        'jadwal hari ini',
+        'agenda besok',
+        'jadwal minggu ini',
+        'ada acara apa',
+      ];
       for (final t in triggers) {
-        expect(t.contains('jadwal') || t.contains('agenda') || t.contains('acara'), isTrue);
+        expect(
+          t.contains('jadwal') || t.contains('agenda') || t.contains('acara'),
+          isTrue,
+        );
       }
     });
 
     test('RoutineSense trigger matching', () {
-      final triggers = ['rutinitas hari ini', 'kebiasaan', 'ceklis rutinitas', 'daily routine'];
+      final triggers = [
+        'rutinitas hari ini',
+        'kebiasaan',
+        'ceklis rutinitas',
+        'daily routine',
+      ];
       for (final t in triggers) {
-        expect(t.contains('rutinitas') || t.contains('kebiasaan') || t.contains('routine'), isTrue);
+        expect(
+          t.contains('rutinitas') ||
+              t.contains('kebiasaan') ||
+              t.contains('routine'),
+          isTrue,
+        );
       }
     });
 
     test('TopMerchantSense trigger matching', () {
-      final triggers = ['tempat belanja', 'toko favorit', 'sering belanja di mana', 'analisis merchant'];
+      final triggers = [
+        'tempat belanja',
+        'toko favorit',
+        'sering belanja di mana',
+        'analisis merchant',
+      ];
       for (final t in triggers) {
-        expect(t.contains('belanja') || t.contains('toko') || t.contains('merchant'), isTrue);
+        expect(
+          t.contains('belanja') || t.contains('toko') || t.contains('merchant'),
+          isTrue,
+        );
       }
     });
 
     test('DebtSnowballLogic trigger matching', () {
-      final triggers = ['strategi lunas hutang', 'debt snowball', 'debt avalanche', 'cara cepat lunas hutang'];
+      final triggers = [
+        'strategi lunas hutang',
+        'debt snowball',
+        'debt avalanche',
+        'cara cepat lunas hutang',
+      ];
       for (final t in triggers) {
-        expect(t.contains('hutang') || t.contains('snowball') || t.contains('avalanche'), isTrue);
+        expect(
+          t.contains('hutang') ||
+              t.contains('snowball') ||
+              t.contains('avalanche'),
+          isTrue,
+        );
       }
     });
 
     test('SavingRateLogic trigger matching', () {
-      final triggers = ['saving rate', 'rasio menabung', 'persentase tabungan', 'berapa persen yang kutabung'];
+      final triggers = [
+        'saving rate',
+        'rasio menabung',
+        'persentase tabungan',
+        'berapa persen yang kutabung',
+      ];
       for (final t in triggers) {
-        expect(t.contains('saving') || t.contains('menabung') || t.contains('tabung'), isTrue);
+        expect(
+          t.contains('saving') ||
+              t.contains('menabung') ||
+              t.contains('tabung'),
+          isTrue,
+        );
       }
     });
 
     test('ActivityReportSense trigger matching', () {
-      final triggers = ['laporan aktivitas', 'rekap kegiatan', 'aktivitas mingguan', 'laporan aktivitas bulanan'];
+      final triggers = [
+        'laporan aktivitas',
+        'rekap kegiatan',
+        'aktivitas mingguan',
+        'laporan aktivitas bulanan',
+      ];
       for (final t in triggers) {
         expect(t.contains('aktivitas') || t.contains('kegiatan'), isTrue);
       }
     });
   });
 }
-
-
-
-

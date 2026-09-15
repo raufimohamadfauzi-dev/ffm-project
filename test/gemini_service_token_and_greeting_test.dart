@@ -18,16 +18,16 @@ void main() {
           {
             'content': {
               'parts': [
-                {'text': 'Halo! Ada yang bisa saya bantu?'}
-              ]
-            }
-          }
+                {'text': 'Halo! Ada yang bisa saya bantu?'},
+              ],
+            },
+          },
         ],
         'usageMetadata': {
           'promptTokenCount': 450,
           'candidatesTokenCount': 120,
           'totalTokenCount': 570,
-        }
+        },
       };
       final metadata = GeminiUsageMetadata.fromJson(
         jsonResponse['usageMetadata'] as Map<String, dynamic>,
@@ -84,7 +84,10 @@ void main() {
 
       final plan = planner.planFor(localIntent);
       expect(plan, isNotNull);
-      expect(plan!.steps.any((s) => s.capabilityId == 'read.transactions'), isTrue);
+      expect(
+        plan!.steps.any((s) => s.capabilityId == 'read.transactions'),
+        isTrue,
+      );
     });
 
     test(
@@ -137,7 +140,9 @@ void main() {
     test('buildGoalsDigest memperkaya output dengan patokan pengeluaran rata-rata bulanan', () async {
       final now = DateTime(2026, 8, 15);
       // Insert pengeluaran 3 bulan terakhir
-      await database.into(database.transactions).insert(
+      await database
+          .into(database.transactions)
+          .insert(
             TransactionsCompanion.insert(
               id: 'tx-exp-1',
               householdId: AppContext.householdId,
@@ -150,7 +155,9 @@ void main() {
           );
 
       // Insert target keuangan
-      await database.into(database.goals).insert(
+      await database
+          .into(database.goals)
+          .insert(
             GoalsCompanion.insert(
               id: 'goal-1',
               householdId: AppContext.householdId,
@@ -176,9 +183,15 @@ void main() {
   group('Gemini Daily Quota & Pacific Midnight Calculations', () {
     test('isPacificDst mendeteksi musim panas (PDT) vs musim dingin (PST)', () {
       // Juli adalah musim panas (PDT)
-      expect(SupabaseConfig.isPacificDst(DateTime.utc(2026, 7, 15, 12)), isTrue);
+      expect(
+        SupabaseConfig.isPacificDst(DateTime.utc(2026, 7, 15, 12)),
+        isTrue,
+      );
       // Januari adalah musim dingin (PST)
-      expect(SupabaseConfig.isPacificDst(DateTime.utc(2026, 1, 15, 12)), isFalse);
+      expect(
+        SupabaseConfig.isPacificDst(DateTime.utc(2026, 1, 15, 12)),
+        isFalse,
+      );
     });
 
     test('computeNextPacificMidnight menghitung tengah malam PT berikutnya dengan akurat', () {
@@ -192,7 +205,9 @@ void main() {
 
       // 4 September 2026 pukul 08:00 UTC = 01:00 PDT 4 September (sudah lewat tengah malam)
       final afterMidnightUtc = DateTime.utc(2026, 9, 4, 8, 0);
-      final nextMidnightTomorrow = SupabaseConfig.computeNextPacificMidnight(afterMidnightUtc);
+      final nextMidnightTomorrow = SupabaseConfig.computeNextPacificMidnight(
+        afterMidnightUtc,
+      );
 
       // Tengah malam berikutnya adalah 5 September 07:00 UTC
       expect(nextMidnightTomorrow, DateTime.utc(2026, 9, 5, 7, 0));

@@ -81,15 +81,16 @@ class _DebtPaymentDialogState extends State<DebtPaymentDialog> {
   Future<void> _loadAccounts() async {
     try {
       final db = getIt<AppDatabase>();
-      final rows = await (db.select(db.accounts)
-            ..where(
-              (tbl) =>
-                  tbl.householdId.equals(AppContext.householdId) &
-                  tbl.isActive.equals(true) &
-                  tbl.isArchived.equals(false),
-            )
-            ..orderBy([(tbl) => OrderingTerm.asc(tbl.name)]))
-          .get();
+      final rows =
+          await (db.select(db.accounts)
+                ..where(
+                  (tbl) =>
+                      tbl.householdId.equals(AppContext.householdId) &
+                      tbl.isActive.equals(true) &
+                      tbl.isArchived.equals(false),
+                )
+                ..orderBy([(tbl) => OrderingTerm.asc(tbl.name)]))
+              .get();
 
       if (!mounted) return;
       setState(() {
@@ -112,7 +113,9 @@ class _DebtPaymentDialogState extends State<DebtPaymentDialog> {
     setState(() {
       _isFullPayoff = isFull;
       if (isFull) {
-        _amountController.text = formatRupiahInput('${widget.remainingBalance}');
+        _amountController.text = formatRupiahInput(
+          '${widget.remainingBalance}',
+        );
       } else {
         _amountController.clear();
       }
@@ -339,7 +342,9 @@ class _DebtPaymentDialogState extends State<DebtPaymentDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _submitting ? null : () => Navigator.of(context).pop(false),
+          onPressed: _submitting
+              ? null
+              : () => Navigator.of(context).pop(false),
           child: const Text('Batal'),
         ),
         FilledButton(

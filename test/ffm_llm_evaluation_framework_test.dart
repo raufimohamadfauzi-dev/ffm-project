@@ -35,7 +35,10 @@ void main() {
       );
 
       expect(result.scores['intent'], greaterThan(0.8));
-      expect(result.strengths, contains('Provides numeric answer to quantity question'));
+      expect(
+        result.strengths,
+        contains('Provides numeric answer to quantity question'),
+      );
     });
 
     test('Should check intent following for descriptive questions', () {
@@ -78,7 +81,10 @@ void main() {
       );
 
       expect(result.scores['actionIntegrity'], lessThan(0.8));
-      expect(result.issues, contains('Claims save without mentioning confirmation'));
+      expect(
+        result.issues,
+        contains('Claims save without mentioning confirmation'),
+      );
     });
 
     test('Should check naturalness of response', () {
@@ -92,13 +98,17 @@ void main() {
       );
 
       expect(result.scores['naturalness'], greaterThan(0.8));
-      expect(result.strengths, contains('Uses multiple sentences for better structure'));
+      expect(
+        result.strengths,
+        contains('Uses multiple sentences for better structure'),
+      );
     });
 
     test('Should detect unnatural language patterns', () {
       final result = evaluator.evaluateResponse(
         userQuery: 'Berapa saldo saya?',
-        llmResponse: 'Saldo dari dari saldo dari saldo dari saldo adalah Rp1.000.000.',
+        llmResponse:
+            'Saldo dari dari saldo dari saldo dari saldo adalah Rp1.000.000.',
         verifiedFacts: FfmVerifiedFacts(
           capturedAt: DateTime.now(),
           householdId: 'test-household',
@@ -147,7 +157,10 @@ void main() {
       );
 
       expect(result.scores['completeness'], equals(1.0));
-      expect(result.strengths, contains('Addresses all parts of multi-part question'));
+      expect(
+        result.strengths,
+        contains('Addresses all parts of multi-part question'),
+      );
     });
 
     test('Should detect incomplete multi-part answers', () {
@@ -161,7 +174,10 @@ void main() {
       );
 
       expect(result.scores['completeness'], lessThan(1.0));
-      expect(result.issues, contains('Does not address all parts of multi-part question'));
+      expect(
+        result.issues,
+        contains('Does not address all parts of multi-part question'),
+      );
     });
 
     test('Should check completeness for detail requests', () {
@@ -175,7 +191,10 @@ void main() {
       );
 
       expect(result.scores['completeness'], greaterThan(0.8));
-      expect(result.strengths, contains('Provides detailed response as requested'));
+      expect(
+        result.strengths,
+        contains('Provides detailed response as requested'),
+      );
     });
 
     test('Should detect lack of detail for detail requests', () {
@@ -189,7 +208,10 @@ void main() {
       );
 
       expect(result.scores['completeness'], lessThan(0.8));
-      expect(result.issues, contains('Response lacks detail for detail request'));
+      expect(
+        result.issues,
+        contains('Response lacks detail for detail request'),
+      );
     });
 
     test('Should generate proper evaluation report', () {

@@ -102,16 +102,27 @@ class PaymentDraft {
     ),
   );
 
-  PaymentDraft copyWith({PaymentDraftStatus? status}) => PaymentDraft(
-    id: id,
-    sourceApp: sourceApp,
-    rawTitle: rawTitle,
-    rawBody: rawBody,
-    amount: amount,
-    merchantName: merchantName,
-    mutationType: mutationType,
-    createdAt: createdAt,
-    suggestedCategory: suggestedCategory,
+  PaymentDraft copyWith({
+    String? id,
+    String? sourceApp,
+    String? rawTitle,
+    String? rawBody,
+    double? amount,
+    String? merchantName,
+    PaymentMutationType? mutationType,
+    DateTime? createdAt,
+    String? suggestedCategory,
+    PaymentDraftStatus? status,
+  }) => PaymentDraft(
+    id: id ?? this.id,
+    sourceApp: sourceApp ?? this.sourceApp,
+    rawTitle: rawTitle ?? this.rawTitle,
+    rawBody: rawBody ?? this.rawBody,
+    amount: amount ?? this.amount,
+    merchantName: merchantName ?? this.merchantName,
+    mutationType: mutationType ?? this.mutationType,
+    createdAt: createdAt ?? this.createdAt,
+    suggestedCategory: suggestedCategory ?? this.suggestedCategory,
     status: status ?? this.status,
   );
 }
@@ -144,8 +155,8 @@ class PaymentDraftRepository {
     return {
       'saveAttempts': _saveAttempts,
       'saveFailures': _saveFailures,
-      'successRate': _saveAttempts > 0 
-          ? ((_saveAttempts - _saveFailures) / _saveAttempts * 100).round() 
+      'successRate': _saveAttempts > 0
+          ? ((_saveAttempts - _saveFailures) / _saveAttempts * 100).round()
           : 100,
     };
   }
@@ -164,7 +175,7 @@ class PaymentDraftRepository {
   /// Kembalikan draft yang ditambahkan, atau null jika duplikat.
   Future<PaymentDraft?> addIfNotDuplicate(PaymentDraft draft) async {
     _saveAttempts++;
-    
+
     try {
       final drafts = await _loadAll();
 
@@ -199,10 +210,28 @@ class PaymentDraftRepository {
     }
   }
 
+  /// Perbarui seluruh data draft (misalnya saat user memperbaiki nominal,
+  /// merchant, atau tipe transaksi sebelum konfirmasi final).
+  Future<void> updateDraft(PaymentDraft updatedDraft) async {
+    _saveAttempts++;
+
+    try {
+      final drafts = await _loadAll();
+      final idx = drafts.indexWhere((d) => d.id == updatedDraft.id);
+      if (idx >= 0) {
+        drafts[idx] = updatedDraft;
+        await _saveAll(drafts);
+      }
+    } catch (e) {
+      _saveFailures++;
+      rethrow;
+    }
+  }
+
   /// Perbarui status draft (konfirmasi / abaikan).
   Future<void> updateStatus(String id, PaymentDraftStatus status) async {
     _saveAttempts++;
-    
+
     try {
       final drafts = await _loadAll();
       final idx = drafts.indexWhere((d) => d.id == id);

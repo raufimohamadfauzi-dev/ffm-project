@@ -28,7 +28,10 @@ void main() {
       expect(await database.select(database.transactions).get(), isEmpty);
       await DatabaseSeed.ensure(database);
       final merchants = await database.select(database.merchants).get();
-      expect(merchants.any((merchant) => merchant.name == 'Warung Sawah'), isTrue);
+      expect(
+        merchants.any((merchant) => merchant.name == 'Warung Sawah'),
+        isTrue,
+      );
     },
   );
 

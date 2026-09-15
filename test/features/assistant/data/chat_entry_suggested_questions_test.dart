@@ -43,20 +43,23 @@ void main() {
       expect(loaded[1].suggestedQuestions[2], contains('pupuk'));
     });
 
-    test('handles legacy entries without suggestedQuestions gracefully', () async {
-      final legacyJson = '''
+    test(
+      'handles legacy entries without suggestedQuestions gracefully',
+      () async {
+        final legacyJson = '''
       [
         {"isUser": false, "text": "Jawaban lama tanpa saran pertanyaan"}
       ]
       ''';
-      SharedPreferences.setMockInitialValues({
-        'ffm_assistant_chat_history_v1': legacyJson,
-      });
+        SharedPreferences.setMockInitialValues({
+          'ffm_assistant_chat_history_v1': legacyJson,
+        });
 
-      final loaded = await repository.load();
-      expect(loaded.length, equals(1));
-      expect(loaded[0].text, equals('Jawaban lama tanpa saran pertanyaan'));
-      expect(loaded[0].suggestedQuestions, isEmpty);
-    });
+        final loaded = await repository.load();
+        expect(loaded.length, equals(1));
+        expect(loaded[0].text, equals('Jawaban lama tanpa saran pertanyaan'));
+        expect(loaded[0].suggestedQuestions, isEmpty);
+      },
+    );
   });
 }

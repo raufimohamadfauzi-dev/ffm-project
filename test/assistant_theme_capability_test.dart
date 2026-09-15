@@ -16,7 +16,9 @@ void main() {
 
   group('Assistant Theme Capability Tests', () {
     test('capability system.set_theme terdaftar di registry', () {
-      final capability = FfmAssistantCapabilityRegistry.find('system.set_theme');
+      final capability = FfmAssistantCapabilityRegistry.find(
+        'system.set_theme',
+      );
       expect(capability, isNotNull);
       expect(capability!.id, 'system.set_theme');
       expect(capability.readOnly, isTrue);
@@ -38,8 +40,11 @@ void main() {
       expect(plan!.steps.length, 1);
       expect(plan.steps.first.capabilityId, 'system.set_theme');
       expect(plan.steps.first.parameters['theme'], 'dark');
-      expect(plan.requiresConfirmation, isFalse,
-          reason: 'Ganti tema adalah UI preference aman, tidak boleh menuntut dialog konfirmasi');
+      expect(
+        plan.requiresConfirmation,
+        isFalse,
+        reason: 'Ganti tema adalah UI preference aman, tidak boleh menuntut dialog konfirmasi',
+      );
     });
 
     test('Assistant mengenali perintah refresh berita dan valas', () async {
@@ -80,9 +85,21 @@ void main() {
       ];
       for (final phrase in phrasesDark) {
         final res = await interpreter.interpret(phrase);
-        expect(res.type, FfmAssistantIntentType.changeTheme, reason: 'Failed on: $phrase');
-        expect(res.pluginMetadata?['theme'], 'dark', reason: 'Failed theme on: $phrase');
-        expect(res.response, contains('mode gelap'), reason: 'Failed response on: $phrase');
+        expect(
+          res.type,
+          FfmAssistantIntentType.changeTheme,
+          reason: 'Failed on: $phrase',
+        );
+        expect(
+          res.pluginMetadata?['theme'],
+          'dark',
+          reason: 'Failed theme on: $phrase',
+        );
+        expect(
+          res.response,
+          contains('mode gelap'),
+          reason: 'Failed response on: $phrase',
+        );
       }
 
       // 2. Variasi Terang: mode terang, mode putih, terangkan, nyalain lampu, bikin terang
@@ -98,9 +115,21 @@ void main() {
       ];
       for (final phrase in phrasesLight) {
         final res = await interpreter.interpret(phrase);
-        expect(res.type, FfmAssistantIntentType.changeTheme, reason: 'Failed on: $phrase');
-        expect(res.pluginMetadata?['theme'], 'light', reason: 'Failed theme on: $phrase');
-        expect(res.response, contains('mode terang'), reason: 'Failed response on: $phrase');
+        expect(
+          res.type,
+          FfmAssistantIntentType.changeTheme,
+          reason: 'Failed on: $phrase',
+        );
+        expect(
+          res.pluginMetadata?['theme'],
+          'light',
+          reason: 'Failed theme on: $phrase',
+        );
+        expect(
+          res.response,
+          contains('mode terang'),
+          reason: 'Failed response on: $phrase',
+        );
       }
 
       // 3. Variasi Sistem
@@ -118,9 +147,17 @@ void main() {
       ];
       for (final phrase in phrasesToggle) {
         final res = await interpreter.interpret(phrase);
-        expect(res.type, FfmAssistantIntentType.changeTheme, reason: 'Failed on: $phrase');
+        expect(
+          res.type,
+          FfmAssistantIntentType.changeTheme,
+          reason: 'Failed on: $phrase',
+        );
         // Default awal adalah light, jadi toggle menghasilkan dark
-        expect(res.pluginMetadata?['theme'], 'dark', reason: 'Failed toggle on: $phrase');
+        expect(
+          res.pluginMetadata?['theme'],
+          'dark',
+          reason: 'Failed toggle on: $phrase',
+        );
       }
 
       // 5. Query / Deteksi Status Tema: "mode apa sekarang?", "cek mode"
@@ -156,7 +193,8 @@ void main() {
         expect(
           res.type,
           isNot(FfmAssistantIntentType.changeTheme),
-          reason: 'Conversational phrase "$phrase" should NOT trigger theme change',
+          reason:
+              'Conversational phrase "$phrase" should NOT trigger theme change',
         );
       }
 

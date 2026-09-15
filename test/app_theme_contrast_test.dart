@@ -18,7 +18,10 @@ void main() {
   test('dark theme semantic text and controls meet contrast targets', () {
     final scheme = AppTheme.dark().colorScheme;
 
-    expect(_contrastRatio(scheme.onSurface, scheme.surface), greaterThanOrEqualTo(7));
+    expect(
+      _contrastRatio(scheme.onSurface, scheme.surface),
+      greaterThanOrEqualTo(7),
+    );
     expect(
       _contrastRatio(scheme.onSurfaceVariant, scheme.surface),
       greaterThanOrEqualTo(4.5),

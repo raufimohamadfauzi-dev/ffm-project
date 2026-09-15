@@ -35,9 +35,13 @@ class ActivitySessionChatCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final primaryColor = isDark ? const Color(0xFF5BBFB5) : const Color(0xFF00727A);
+    final primaryColor = isDark
+        ? const Color(0xFF5BBFB5)
+        : const Color(0xFF00727A);
     final bgCard = isDark ? const Color(0xFF1E2627) : const Color(0xFFF0F7F6);
-    final borderCard = isDark ? const Color(0xFF2C393A) : const Color(0xFFD3E7E5);
+    final borderCard = isDark
+        ? const Color(0xFF2C393A)
+        : const Color(0xFFD3E7E5);
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -94,8 +98,12 @@ class ActivitySessionChatCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: isActive
-                      ? (isDark ? const Color(0xFF1E3A2F) : const Color(0xFFD4EDDA))
-                      : (isDark ? const Color(0xFF2A2E33) : const Color(0xFFE2E3E5)),
+                      ? (isDark
+                            ? const Color(0xFF1E3A2F)
+                            : const Color(0xFFD4EDDA))
+                      : (isDark
+                            ? const Color(0xFF2A2E33)
+                            : const Color(0xFFE2E3E5)),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -116,10 +124,12 @@ class ActivitySessionChatCard extends StatelessWidget {
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                         color: isActive
-                            ? (isDark ? const Color(0xFF75D89B) : const Color(0xFF155724))
-                          : (isDark
-                            ? theme.colorScheme.onSurfaceVariant
-                            : Colors.grey[700]),
+                            ? (isDark
+                                  ? const Color(0xFF75D89B)
+                                  : const Color(0xFF155724))
+                            : (isDark
+                                  ? theme.colorScheme.onSurfaceVariant
+                                  : Colors.grey[700]),
                       ),
                     ),
                   ],
@@ -178,39 +188,46 @@ class ActivitySessionChatCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            ...childSessions.map((c) => Container(
-              margin: const EdgeInsets.only(bottom: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF172021) : const Color(0xFFE8F2F0),
-                borderRadius: BorderRadius.circular(6),
+            ...childSessions.map(
+              (c) => Container(
+                margin: const EdgeInsets.only(bottom: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF172021)
+                      : const Color(0xFFE8F2F0),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      ' └─ ',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        c['title'] as String? ?? 'Sub-kegiatan',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      c['duration'] as String? ?? '',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: Row(
-                children: [
-                  Text(
-                    ' └─ ',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      c['title'] as String? ?? 'Sub-kegiatan',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  Text(
-                    c['duration'] as String? ?? '',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: primaryColor,
-                    ),
-                  ),
-                ],
-              ),
-            )),
+            ),
           ],
 
           // Checkpoints timeline
@@ -224,42 +241,55 @@ class ActivitySessionChatCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            ...checkpoints.map((cp) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(top: 2, right: 6),
-                    child: Icon(Icons.location_on_outlined, size: 12, color: Colors.amber),
-                  ),
-                  Expanded(
-                    child: Text(
-                      '${cp['label']}${cp['place'] != null ? " (${cp['place']})" : ""}',
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                  ),
-                  if (cp['timeDiff'] != null)
-                    Text(
-                      '+${cp['timeDiff']}',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: theme.colorScheme.onSurfaceVariant,
+            ...checkpoints.map(
+              (cp) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2, right: 6),
+                      child: Icon(
+                        Icons.location_on_outlined,
+                        size: 12,
+                        color: Colors.amber,
                       ),
                     ),
-                ],
+                    Expanded(
+                      child: Text(
+                        '${cp['label']}${cp['place'] != null ? " (${cp['place']})" : ""}',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ),
+                    if (cp['timeDiff'] != null)
+                      Text(
+                        '+${cp['timeDiff']}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            )),
+            ),
           ] else if (lastCheckpoint != null) ...[
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(Icons.location_on_outlined, size: 12, color: Colors.amber),
+                const Icon(
+                  Icons.location_on_outlined,
+                  size: 12,
+                  color: Colors.amber,
+                ),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     'Update: $lastCheckpoint',
-                    style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ),
               ],
@@ -267,7 +297,8 @@ class ActivitySessionChatCard extends StatelessWidget {
           ],
 
           // Quick-Action Buttons (hanya untuk sesi aktif)
-          if (isActive && (onFinish != null || onUpdate != null || onChat != null)) ...[
+          if (isActive &&
+              (onFinish != null || onUpdate != null || onChat != null)) ...[
             const SizedBox(height: 10),
             Container(
               width: double.infinity,
@@ -288,7 +319,8 @@ class ActivitySessionChatCard extends StatelessWidget {
                         onPressed: onFinish!,
                       ),
                     ),
-                  if (onFinish != null && onUpdate != null) const SizedBox(width: 6),
+                  if (onFinish != null && onUpdate != null)
+                    const SizedBox(width: 6),
                   if (onUpdate != null)
                     Expanded(
                       child: _QuickActionButton(
@@ -298,13 +330,16 @@ class ActivitySessionChatCard extends StatelessWidget {
                         onPressed: onUpdate!,
                       ),
                     ),
-                  if ((onFinish != null || onUpdate != null) && onChat != null) const SizedBox(width: 6),
+                  if ((onFinish != null || onUpdate != null) && onChat != null)
+                    const SizedBox(width: 6),
                   if (onChat != null)
                     Expanded(
                       child: _QuickActionButton(
                         icon: Icons.chat_bubble_outline,
                         label: 'Chat',
-                        color: isDark ? const Color(0xFFC9B8A8) : const Color(0xFF8B6F47),
+                        color: isDark
+                            ? const Color(0xFFC9B8A8)
+                            : const Color(0xFF8B6F47),
                         onPressed: onChat!,
                       ),
                     ),

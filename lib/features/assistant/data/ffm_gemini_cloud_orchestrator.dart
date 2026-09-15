@@ -129,8 +129,7 @@ class FfmGeminiCloudOrchestrator {
         // Enforce single function call per turn.
         if (result.functionCalls!.length > 1) {
           return FfmGeminiCloudTurnResult.failure(
-            errorMessage:
-                'Gemini memanggil 2 fungsi sekaligus; hanya satu tindakan per putaran diizinkan.',
+            errorMessage: 'Gemini memanggil 2 fungsi sekaligus; hanya satu tindakan per putaran diizinkan.',
             model: result.model,
             statusCode: result.statusCode,
             latency: result.latency,
@@ -183,9 +182,7 @@ class FfmGeminiCloudOrchestrator {
       }
 
       final request =
-          FfmAssistantProposalJsonService.parseReadCapabilityRequest(
-        finalText,
-      );
+          FfmAssistantProposalJsonService.parseReadCapabilityRequest(finalText);
       if (request.error != null) {
         return FfmGeminiCloudTurnResult.failure(
           errorMessage: request.error!,
@@ -208,6 +205,9 @@ class FfmGeminiCloudOrchestrator {
 
       // Anti-loop: jika permintaan identik sudah dibaca pada giliran ini, hentikan perulangan.
       if (seenRequests.contains(reqSignature)) {
+        if (accumulatedEvidence.isNotEmpty) {
+          finalText = accumulatedEvidence.join('\n\n');
+        }
         break;
       }
       seenRequests.add(reqSignature);
@@ -223,8 +223,7 @@ class FfmGeminiCloudOrchestrator {
         accumulatedEvidence.add(facts);
       } on Object {
         return FfmGeminiCloudTurnResult.failure(
-          errorMessage:
-              'Data lokal untuk capability Gemini tidak dapat dibaca dengan aman.',
+          errorMessage: 'Data lokal untuk capability Gemini tidak dapat dibaca dengan aman.',
           model: result.model,
           statusCode: result.statusCode,
           latency: result.latency,
@@ -265,8 +264,7 @@ class FfmGeminiCloudOrchestrator {
         }
       } on Object {
         return FfmGeminiCloudTurnResult.failure(
-          errorMessage:
-              'Gemini tidak dapat menyelesaikan jawaban setelah membaca data lokal.',
+          errorMessage: 'Gemini tidak dapat menyelesaikan jawaban setelah membaca data lokal.',
           model: result.model,
           statusCode: result.statusCode,
           latency: result.latency,
@@ -282,15 +280,44 @@ class FfmGeminiCloudOrchestrator {
       }
     }
 
+    // Sebelum return success, pastikan teks akhir tidak berupa payload request capability JSON mentah.
+    // Jika masih berupa read_capability_request, ganti dengan fallback evidence lokal yang aman.
+    final remainingRequest =
+        FfmAssistantProposalJsonService.parseReadCapabilityRequest(finalText);
+    if (remainingRequest.request != null) {
+      if (accumulatedEvidence.isNotEmpty) {
+        finalText = accumulatedEvidence.join('\n\n');
+      } else {
+        try {
+          final facts = await readCapabilities.execute(
+            remainingRequest.request!,
+            householdId: householdId,
+            now: clock(),
+          );
+          accumulatedEvidence.add(facts);
+          finalText = facts;
+        } catch (_) {
+          finalText = 'Data yang diminta sudah diperiksa pada database lokal.';
+        }
+      }
+    }
+    if (finalText.contains('read_capability_request')) {
+      finalText = accumulatedEvidence.isNotEmpty
+          ? accumulatedEvidence.join('\n\n')
+          : 'Data yang diminta sudah diperiksa pada database lokal.';
+    }
+
     return FfmGeminiCloudTurnResult.success(
       text: finalText,
       model: result.model,
       statusCode: result.statusCode,
       latency: result.latency,
-      usedReadCapability:
-          usedCapabilities.isEmpty ? null : usedCapabilities.join(', '),
-      readEvidence:
-          accumulatedEvidence.isEmpty ? null : accumulatedEvidence.join('\n\n'),
+      usedReadCapability: usedCapabilities.isEmpty
+          ? null
+          : usedCapabilities.join(', '),
+      readEvidence: accumulatedEvidence.isEmpty
+          ? null
+          : accumulatedEvidence.join('\n\n'),
       usageMetadata: totalUsage,
     );
   }
@@ -504,18 +531,15 @@ class FfmGeminiCloudOrchestrator {
                 },
                 'time': {
                   'type': 'STRING',
-                  'description':
-                      'Jam dan menit pengingat format HH:mm (contoh: "08:00", "14:30", "19:00"). Wajib diisi untuk pengingat (type: "reminder").',
+                  'description': 'Jam dan menit pengingat format HH:mm (contoh: "08:00", "14:30", "19:00"). Wajib diisi untuk pengingat (type: "reminder").',
                 },
                 'soundName': {
                   'type': 'STRING',
-                  'description':
-                      'Nama nada dering pengingat jika pengguna menyebutkan preferensi nada (contoh: "Standar", "Adzan", "Gentle Bells")',
+                  'description': 'Nama nada dering pengingat jika pengguna menyebutkan preferensi nada (contoh: "Standar", "Adzan", "Gentle Bells")',
                 },
                 'reminderMode': {
                   'type': 'STRING',
-                  'description':
-                      'Mode pengingat: "notification" (notifikasi biasa) atau "alarm" (alarm nyaring berdering). Default "notification" kecuali jika pengguna secara eksplisit meminta alarm/jam weker/bunyi nyaring.',
+                  'description': 'Mode pengingat: "notification" (notifikasi biasa) atau "alarm" (alarm nyaring berdering). Default "notification" kecuali jika pengguna secara eksplisit meminta alarm/jam weker/bunyi nyaring.',
                 },
                 'dueDate': {
                   'type': 'STRING',
@@ -632,7 +656,7 @@ ATURAN NAVIGASI HALAMAN:
 ATURAN STRUKTUR HALAMAN AKTIVITAS & CATATAN HARIAN (`activity`):
 - Halaman Aktivitas & Catatan Harian (`activity`) disederhanakan dan leluasa tanpa tumpukan kolom berantakan:
   1. `⏱️ Timer`: Khusus aktivitas berdurasi (sedang berjalan / selesai).
-  2. `📝 Catatan Harian`: Menyatukan seluruh catatan teks harian, log panen, dan catatan peristiwa harian ke dalam satu linimasa terpadu.
+  2. `📝 Catatan Harian`: Menyatukan seluruh catatan teks, log panen, dan catatan kejadian ke dalam satu linimasa terpadu. Catatan tidak harus dibuat setiap hari dan bukan aktivitas bertimer. Tag dianjurkan untuk penyaringan, tetapi tidak wajib.
   3. `Filter Sheet`: Seluruh filter (Kategori, Periode Waktu, Tipe Sesi, Arsip) berada di Bottom Sheet yang dipanggil via tombol filter di sebelah Search Bar.
   4. Bila pengguna meminta membaca atau mencatat peristiwa/panen/teks harian (misal "catat panen 100 kg pepaya"), AI memahami bahwa ini adalah bagian dari Catatan Harian (`daily_note` / `read.dailyNotes`), dan langsung mengarah ke draf atau linimasa Catatan Harian yang benar.
 

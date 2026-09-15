@@ -80,6 +80,7 @@ class ReminderRepository {
             sourceType: Value(entity.sourceType?.storageValue),
             sourceId: Value(sourceId),
             origin: Value(entity.origin.storageValue),
+            mode: Value(entity.mode.storageValue),
           ),
         );
     await AuditLogger(database).record(
@@ -95,6 +96,7 @@ class ReminderRepository {
           'sourceType': entity.sourceType!.storageValue,
         if (sourceId != null && sourceId.isNotEmpty) 'sourceId': sourceId,
         'origin': entity.origin.storageValue,
+        'mode': entity.mode.storageValue,
       },
     );
   }
@@ -389,6 +391,7 @@ class ReminderRepository {
     sourceType: ReminderSourceTypeX.fromStorage(row.sourceType),
     sourceId: row.sourceId,
     origin: ReminderOriginX.fromStorage(row.origin),
+    mode: ReminderModeX.fromStorage(row.mode),
   );
 
   ReminderHistoryEntity _toHistory(ReminderHistory row) =>

@@ -238,7 +238,10 @@ class MorningBriefingCard extends StatelessWidget {
                 FilledButton.icon(
                   onPressed: onPlayAudio,
                   icon: const Icon(Icons.play_arrow_rounded, size: 16),
-                  label: const Text('Lanjutkan', style: TextStyle(fontSize: 12)),
+                  label: const Text(
+                    'Lanjutkan',
+                    style: TextStyle(fontSize: 12),
+                  ),
                   style: FilledButton.styleFrom(
                     visualDensity: VisualDensity.compact,
                     backgroundColor: Colors.amber.shade700,
@@ -258,7 +261,9 @@ class MorningBriefingCard extends StatelessWidget {
               const Spacer(),
               TextButton(
                 onPressed: onClose,
-                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                ),
                 child: Text(
                   'Tutup',
                   style: TextStyle(

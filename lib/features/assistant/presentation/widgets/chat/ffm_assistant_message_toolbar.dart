@@ -161,7 +161,8 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
           if (hasPrimaryAction)
             Tooltip(
               message:
-                  actionPlan?.status == FfmAssistantActionPlanStatus.completed &&
+                  actionPlan?.status ==
+                          FfmAssistantActionPlanStatus.completed &&
                       !includesNavigation
                   ? 'Arahan ini sudah diselesaikan.'
                   : 'Buka arahan ini. Data belum disimpan otomatis.',
@@ -173,14 +174,16 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
                     ? null
                     : onPrimaryAction,
                 icon: Icon(
-                  actionPlan?.status == FfmAssistantActionPlanStatus.completed &&
+                  actionPlan?.status ==
+                              FfmAssistantActionPlanStatus.completed &&
                           !includesNavigation
                       ? Icons.done_all
                       : Icons.open_in_new,
                   size: 16,
                 ),
                 label: Text(
-                  actionPlan?.status == FfmAssistantActionPlanStatus.completed &&
+                  actionPlan?.status ==
+                              FfmAssistantActionPlanStatus.completed &&
                           !includesNavigation
                       ? 'Selesai'
                       : primaryActionLabel,
@@ -205,9 +208,7 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
             ),
           if (onSpeak != null)
             Tooltip(
-              message: isSpeaking
-                  ? 'Hentikan bacaan.'
-                  : 'Dengarkan jawaban.',
+              message: isSpeaking ? 'Hentikan bacaan.' : 'Dengarkan jawaban.',
               child: IconButton(
                 onPressed: onSpeak,
                 visualDensity: VisualDensity.compact,

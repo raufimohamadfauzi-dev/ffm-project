@@ -80,7 +80,9 @@ class FfmActivityGuardPlugin extends FfmAgentPlugin {
       );
     }
 
-    final targetSession = snapshot.activeSessions.where((s) => s.id == targetSessionId).firstOrNull;
+    final targetSession = snapshot.activeSessions
+        .where((s) => s.id == targetSessionId)
+        .firstOrNull;
     if (targetSession == null) {
       return FfmHarnessResult(
         pluginName: name,
@@ -98,7 +100,8 @@ class FfmActivityGuardPlugin extends FfmAgentPlugin {
         pluginName: name,
         category: category,
         isDraft: true,
-        text: '⚠️ **Perhatian:** Sesi utama **${targetSession.title}** masih memiliki sub-kegiatan aktif: **$childNames**.\n\n'
+        text:
+            '⚠️ **Perhatian:** Sesi utama **${targetSession.title}** masih memiliki sub-kegiatan aktif: **$childNames**.\n\n'
             'Apakah kamu ingin menyelesaikan **semua sub-kegiatan sekaligus** dan menutup ${targetSession.title}?',
         metadata: {
           'hasActiveChildren': true,
@@ -115,7 +118,10 @@ class FfmActivityGuardPlugin extends FfmAgentPlugin {
     // 3. Safe Draft generation
     final duration = _calculator.format(targetSession.durationAt(context.now));
     final parentTitle = targetSession.parentSessionId != null
-        ? snapshot.activeSessions.where((s) => s.id == targetSession.parentSessionId).firstOrNull?.title
+        ? snapshot.activeSessions
+              .where((s) => s.id == targetSession.parentSessionId)
+              .firstOrNull
+              ?.title
         : null;
 
     final buffer = StringBuffer();

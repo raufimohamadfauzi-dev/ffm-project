@@ -60,10 +60,8 @@ abstract class FfmPersonalContextEngine {
 
   /// Update usage tracking untuk memory yang digunakan.
   ///
- /// Batch/debounced write untuk performance.
-  Future<void> updateMemoryUsage({
-    required List<String> memoryIds,
-  });
+  /// Batch/debounced write untuk performance.
+  Future<void> updateMemoryUsage({required List<String> memoryIds});
 
   /// Conflict resolution untuk memory yang konflik.
   FfmConflictResolution resolveConflict({
@@ -91,18 +89,15 @@ abstract class FfmPersonalContextEngine {
 
 /// Error yang mungkin terjadi saat context retrieval
 class FfmContextEngineError implements Exception {
-  const FfmContextEngineError({
-    required this.message,
-    this.code,
-    this.details,
-  });
+  const FfmContextEngineError({required this.message, this.code, this.details});
 
   final String message;
   final String? code;
   final dynamic details;
 
   @override
-  String toString() => 'FfmContextEngineError: $message${code != null ? " ($code)" : ""}';
+  String toString() =>
+      'FfmContextEngineError: $message${code != null ? " ($code)" : ""}';
 }
 
 /// Error codes untuk context engine

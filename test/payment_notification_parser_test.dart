@@ -342,6 +342,26 @@ void main() {
         expect(result, isNull);
       });
 
+      test('promo & diskon tidak boleh dibaca sebagai transaksi utama ketika tidak ada bukti pembayaran yang jelas', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.bca',
+          title: 'BCA Mobile',
+          body: 'Nikmati diskon 50% hari ini. Cashback Rp 20.000 untuk transaksi tertentu.',
+        );
+        expect(result, isNull);
+      });
+
+      test('transaksi yang jelas tetap diterima walau ada kata diskon', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.bca',
+          title: 'BCA Mobile',
+          body: 'Pembayaran QRIS ke KOPI KENANGAN berhasil. Ada diskon Rp 5.000 dari promo hari ini. Total dibayar Rp 45.000.',
+        );
+        expect(result, isNotNull);
+        expect(result!.amount, equals(45000.0));
+        expect(result.mutationType, equals(PaymentMutationType.debit));
+      });
+
       test('transaksi pending bukan transaksi berhasil', () {
         final result = PaymentNotificationParser.parse(
           packageName: 'com.isaku.app',
@@ -465,7 +485,8 @@ void main() {
         final result = PaymentNotificationParser.parse(
           packageName: 'com.lazada.android',
           title: 'Lazada',
-          body: 'Pesanan telah dibayar! Pembayaran sebesar Rp 110.000 berhasil.',
+          body:
+              'Pesanan telah dibayar! Pembayaran sebesar Rp 110.000 berhasil.',
         );
         expect(result, isNotNull);
         expect(result?.accountLabel, equals('Lazada'));
@@ -581,6 +602,18 @@ void main() {
 
     test('500 => Rp 500', () {
       expect(makeDraft(500).formattedAmount, equals('Rp 500'));
+    });
+
+    test('copyWith supports manual correction before final save', () {
+      final draft = makeDraft(50000).copyWith(
+        amount: 75000,
+        merchantName: 'KOPI KENANGAN',
+        mutationType: PaymentMutationType.credit,
+      );
+
+      expect(draft.amount, equals(75000));
+      expect(draft.merchantName, equals('KOPI KENANGAN'));
+      expect(draft.mutationType, equals(PaymentMutationType.credit));
     });
   });
 }

@@ -53,13 +53,7 @@ void main() {
     'INSERT INTO tags '
     '(id, household_id, name, is_archived, created_at) '
     'VALUES (?, ?, ?, ?, ?)',
-    [
-      'tag-pertanian',
-      householdId,
-      'pertanian',
-      0,
-      now.millisecondsSinceEpoch,
-    ],
+    ['tag-pertanian', householdId, 'pertanian', 0, now.millisecondsSinceEpoch],
   );
 
   setUp(() async {
@@ -127,18 +121,21 @@ void main() {
       householdId: householdId,
       clock: () => now,
     );
-    
+
     // Create a custom executor that skips navigation steps
     final originalHandlers = adapters.handlers;
     final modifiedHandlers = <String, FfmAssistantCapabilityHandler>{};
     for (final entry in originalHandlers.entries) {
       if (entry.key.startsWith('navigate.')) {
-        modifiedHandlers[entry.key] = (step) async => FfmAssistantCapabilityExecutionResult.success('Navigation skipped in test');
+        modifiedHandlers[entry.key] = (step) async =>
+            FfmAssistantCapabilityExecutionResult.success(
+              'Navigation skipped in test',
+            );
       } else {
         modifiedHandlers[entry.key] = entry.value;
       }
     }
-    
+
     return FfmAssistantCapabilityExecutor(
       controller: controller,
       handlers: modifiedHandlers,
@@ -223,7 +220,7 @@ void main() {
     expect(child.mode, 'timeTracking');
   });
 
-  test('activity note memakai mode history pada activity_sessions', () async {
+  test('activity history disimpan sebagai daily note kanonis', () async {
     await seedActivityCategory();
     final result = await saveDraft({
       'kind': 'activity',
@@ -235,12 +232,12 @@ void main() {
       '_idempotencyKey': 'activity-note',
     });
 
-    final rows = await database.select(database.activitySessions).get();
+    final sessions = await database.select(database.activitySessions).get();
+    final notes = await database.select(database.dailyNotes).get();
     expect(result.isSuccess, isTrue);
-    expect(rows.single.mode, 'history');
-    expect(rows.single.kind, 'timer');
-    expect(rows.single.status, 'completed');
-    expect(rows.single.notes, 'Selesai mengecek kebun.');
+    expect(sessions, isEmpty);
+    expect(notes.single.title, 'Catatan aktivitas');
+    expect(notes.single.body, 'Selesai mengecek kebun.');
   });
 
   test(
@@ -321,10 +318,10 @@ void main() {
 
       expect(first.isSuccess, isTrue);
       expect(second.isSuccess, isFalse);
-      expect(
-        await database.select(database.activitySessions).get(),
-        hasLength(1),
-      );
+      expect(await database.select(database.activitySessions).get(), isEmpty);
+      final notes = await database.select(database.dailyNotes).get();
+      expect(notes, hasLength(1));
+      expect(notes.single.title, 'Aktivitas asli');
     },
   );
 

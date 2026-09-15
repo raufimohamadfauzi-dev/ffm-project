@@ -62,41 +62,45 @@ void main() {
     );
   });
 
-  test('fakta historis transaksi tidak membuka mutation proposal gate',
-      () async {
-    final client = _GateFakeClient();
-    final service = GeminiService(client: client);
+  test(
+    'fakta historis transaksi tidak membuka mutation proposal gate',
+    () async {
+      final client = _GateFakeClient();
+      final service = GeminiService(client: client);
 
-    await service.chat(
-      apiKey: 'test-key',
-      model: 'gemini-2.5-flash',
-      prompt: 'Saya sudah bayar listrik kemarin.',
-      systemInstruction: 'Kamu adalah assistant FFM.',
-    );
+      await service.chat(
+        apiKey: 'test-key',
+        model: 'gemini-2.5-flash',
+        prompt: 'Saya sudah bayar listrik kemarin.',
+        systemInstruction: 'Kamu adalah assistant FFM.',
+      );
 
-    expect(
-      _instructionFrom(client.lastBody!),
-      contains('MUTATION_PROPOSAL_GATE: DENY'),
-    );
-  });
+      expect(
+        _instructionFrom(client.lastBody!),
+        contains('MUTATION_PROPOSAL_GATE: DENY'),
+      );
+    },
+  );
 
-  test('pertanyaan tentang jual aset tidak membuka mutation proposal gate',
-      () async {
-    final client = _GateFakeClient();
-    final service = GeminiService(client: client);
+  test(
+    'pertanyaan tentang jual aset tidak membuka mutation proposal gate',
+    () async {
+      final client = _GateFakeClient();
+      final service = GeminiService(client: client);
 
-    await service.chat(
-      apiKey: 'test-key',
-      model: 'gemini-2.5-flash',
-      prompt: 'Menurut kamu, sebaiknya saya jual motor ini?',
-      systemInstruction: 'Kamu adalah assistant FFM.',
-    );
+      await service.chat(
+        apiKey: 'test-key',
+        model: 'gemini-2.5-flash',
+        prompt: 'Menurut kamu, sebaiknya saya jual motor ini?',
+        systemInstruction: 'Kamu adalah assistant FFM.',
+      );
 
-    expect(
-      _instructionFrom(client.lastBody!),
-      contains('MUTATION_PROPOSAL_GATE: DENY'),
-    );
-  });
+      expect(
+        _instructionFrom(client.lastBody!),
+        contains('MUTATION_PROPOSAL_GATE: DENY'),
+      );
+    },
+  );
 
   test('permintaan catat eksplisit membuka mutation proposal gate', () async {
     final client = _GateFakeClient();

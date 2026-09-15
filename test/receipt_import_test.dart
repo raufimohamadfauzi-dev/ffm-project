@@ -175,7 +175,10 @@ void main() {
     );
 
     expect(result.entries.single.amount, isNull);
-    expect(result.warnings, contains('Transaksi ke-1 belum memiliki nominal valid.'));
+    expect(
+      result.warnings,
+      contains('Transaksi ke-1 belum memiliki nominal valid.'),
+    );
   });
 
   test('template JSON batch bisa disalin dan diimpor', () {
@@ -235,8 +238,10 @@ void main() {
     expect(result.warnings, isEmpty);
   });
 
-  test('importer terpadu mendeteksi JSON nota berpagar sebagai satu transaksi', () {
-    final result = ReceiptImportService.parseBatchJson('''
+  test(
+    'importer terpadu mendeteksi JSON nota berpagar sebagai satu transaksi',
+    () {
+      final result = ReceiptImportService.parseBatchJson('''
     ```json
     {
       "format": "ffm-receipt-draft-v1",
@@ -249,10 +254,11 @@ void main() {
     ```
     ''');
 
-    expect(result.entries, hasLength(1));
-    expect(result.entries.single.amount, 12000);
-    expect(result.entries.single.items.single.name, 'Nasi');
-  });
+      expect(result.entries, hasLength(1));
+      expect(result.entries.single.amount, 12000);
+      expect(result.entries.single.items.single.name, 'Nasi');
+    },
+  );
 
   test('JSON batch array langsung membaca pemasukan dan pengeluaran serta lokasi & tag', () {
     final result = ReceiptImportService.parseBatchJson('''
@@ -288,8 +294,10 @@ void main() {
     expect(result.entries[1].partyName, 'Bonus Proyek');
   });
 
-  test('JSON format proposal Asisten AI ffm-assistant-proposal-v1 terbaca utuh', () {
-    final result = ReceiptImportService.parseBatchJson('''
+  test(
+    'JSON format proposal Asisten AI ffm-assistant-proposal-v1 terbaca utuh',
+    () {
+      final result = ReceiptImportService.parseBatchJson('''
     {
       "formatVersion": "ffm-assistant-proposal-v1",
       "proposals": [
@@ -305,13 +313,14 @@ void main() {
     }
     ''');
 
-    expect(result.entries, hasLength(1));
-    expect(result.entries[0].type, 'expense');
-    expect(result.entries[0].amount, 50000);
-    expect(result.entries[0].merchant, 'Warung Padang');
-    expect(result.entries[0].location, 'Bendungan Hilir');
-    expect(result.entries[0].tags, ['kuliner', 'makan']);
-  });
+      expect(result.entries, hasLength(1));
+      expect(result.entries[0].type, 'expense');
+      expect(result.entries[0].amount, 50000);
+      expect(result.entries[0].merchant, 'Warung Padang');
+      expect(result.entries[0].location, 'Bendungan Hilir');
+      expect(result.entries[0].tags, ['kuliner', 'makan']);
+    },
+  );
 
   test('rekonsiliasi otomatis jika total salah terbaca sebagai nominal tunai bayar', () {
     // Pengguna belanja 75rb, bayar 100rb, kembalian 25rb.
@@ -357,4 +366,3 @@ void main() {
     expect(batchResult.entries[0].amount, 75000);
   });
 }
-

@@ -166,46 +166,52 @@ void main() {
       expect(bloc.state.activeSessions.length, equals(1)); // Still active
     });
 
-    test('Hierarchy Safety: Warns if finishing parent when child is still active', () async {
-      final parentRes = await appService.startSession(
-        operationId: 'op-parent-1',
-        title: 'Perjalanan Palembang',
-        category: 'Perjalanan',
-        source: ActivityEntrySource.manual,
-      );
-      final parentId = parentRes.session!.id;
+    test(
+      'Hierarchy Safety: Warns if finishing parent when child is still active',
+      () async {
+        final parentRes = await appService.startSession(
+          operationId: 'op-parent-1',
+          title: 'Perjalanan Palembang',
+          category: 'Perjalanan',
+          source: ActivityEntrySource.manual,
+        );
+        final parentId = parentRes.session!.id;
 
-      await appService.startSession(
-        operationId: 'op-child-1',
-        title: 'Makan Siang',
-        category: 'Makan',
-        parentSessionId: parentId,
-        source: ActivityEntrySource.manual,
-      );
+        await appService.startSession(
+          operationId: 'op-child-1',
+          title: 'Makan Siang',
+          category: 'Makan',
+          parentSessionId: parentId,
+          source: ActivityEntrySource.manual,
+        );
 
-      // Attempt to finish parent without forceCloseChildren
-      final finishAttempt = await appService.finishSession(
-        operationId: 'op-finish-parent',
-        sessionId: parentId,
-        source: ActivityEntrySource.assistant,
-        forceCloseChildren: false,
-      );
+        // Attempt to finish parent without forceCloseChildren
+        final finishAttempt = await appService.finishSession(
+          operationId: 'op-finish-parent',
+          sessionId: parentId,
+          source: ActivityEntrySource.assistant,
+          forceCloseChildren: false,
+        );
 
-      expect(finishAttempt.success, isFalse);
-      expect(finishAttempt.activeChildrenCount, equals(1));
-      expect(bloc.state.activeSessions.length, equals(2)); // Both still active
+        expect(finishAttempt.success, isFalse);
+        expect(finishAttempt.activeChildrenCount, equals(1));
+        expect(
+          bloc.state.activeSessions.length,
+          equals(2),
+        ); // Both still active
 
-      // Finish parent WITH forceCloseChildren = true
-      final forceFinish = await appService.finishSession(
-        operationId: 'op-force-finish-parent',
-        sessionId: parentId,
-        source: ActivityEntrySource.assistant,
-        forceCloseChildren: true,
-      );
+        // Finish parent WITH forceCloseChildren = true
+        final forceFinish = await appService.finishSession(
+          operationId: 'op-force-finish-parent',
+          sessionId: parentId,
+          source: ActivityEntrySource.assistant,
+          forceCloseChildren: true,
+        );
 
-      expect(forceFinish.success, isTrue);
-      expect(bloc.state.activeSessions.length, equals(0)); // Both closed
-    });
+        expect(forceFinish.success, isTrue);
+        expect(bloc.state.activeSessions.length, equals(0)); // Both closed
+      },
+    );
 
     test('Undo Support: Reopens finished session', () async {
       final res1 = await appService.startSession(
@@ -234,38 +240,41 @@ void main() {
   group('ActivityVoiceParser - Hierarchy Resolution', () {
     const parser = ActivityVoiceParser();
 
-    test('prioritizes active child session over parent when targeting child title', () {
-      final parent = ActivitySessionEntity(
-        id: 'parent-1',
-        householdId: 'h1',
-        title: 'Perjalanan ke Palembang',
-        category: 'Perjalanan',
-        startedAt: DateTime.now().subtract(const Duration(hours: 4)),
-        status: ActivitySessionStatus.active,
-        createdAt: DateTime.now(),
-      );
+    test(
+      'prioritizes active child session over parent when targeting child title',
+      () {
+        final parent = ActivitySessionEntity(
+          id: 'parent-1',
+          householdId: 'h1',
+          title: 'Perjalanan ke Palembang',
+          category: 'Perjalanan',
+          startedAt: DateTime.now().subtract(const Duration(hours: 4)),
+          status: ActivitySessionStatus.active,
+          createdAt: DateTime.now(),
+        );
 
-      final child = ActivitySessionEntity(
-        id: 'child-1',
-        householdId: 'h1',
-        parentSessionId: 'parent-1',
-        title: 'Makan di Rest Area',
-        category: 'Konsumsi',
-        startedAt: DateTime.now().subtract(const Duration(minutes: 15)),
-        status: ActivitySessionStatus.active,
-        createdAt: DateTime.now(),
-      );
+        final child = ActivitySessionEntity(
+          id: 'child-1',
+          householdId: 'h1',
+          parentSessionId: 'parent-1',
+          title: 'Makan di Rest Area',
+          category: 'Konsumsi',
+          startedAt: DateTime.now().subtract(const Duration(minutes: 15)),
+          status: ActivitySessionStatus.active,
+          createdAt: DateTime.now(),
+        );
 
-      final intent = parser.parse(
-        'selesai makan',
-        activeSessions: [parent, child],
-      );
+        final intent = parser.parse(
+          'selesai makan',
+          activeSessions: [parent, child],
+        );
 
-      expect(intent.type, equals(ActivityVoiceIntentType.finish));
-      expect(intent.targetSessionId, equals('child-1'));
-      expect(intent.confidence, greaterThanOrEqualTo(0.85));
-      expect(intent.ambiguityReason, isNull);
-    });
+        expect(intent.type, equals(ActivityVoiceIntentType.finish));
+        expect(intent.targetSessionId, equals('child-1'));
+        expect(intent.confidence, greaterThanOrEqualTo(0.85));
+        expect(intent.ambiguityReason, isNull);
+      },
+    );
 
     test('detects ambiguity when user says generic "selesai" with multiple active sessions', () {
       final s1 = ActivitySessionEntity(
@@ -287,10 +296,7 @@ void main() {
         createdAt: DateTime.now(),
       );
 
-      final intent = parser.parse(
-        'sudah selesai',
-        activeSessions: [s1, s2],
-      );
+      final intent = parser.parse('sudah selesai', activeSessions: [s1, s2]);
 
       expect(intent.ambiguityReason, isNotNull);
       expect(intent.confidence, lessThan(0.85));

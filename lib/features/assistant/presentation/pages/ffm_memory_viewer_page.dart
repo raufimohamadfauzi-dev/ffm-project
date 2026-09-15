@@ -104,11 +104,17 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
       await _load();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('“${item.kindLabel}” disetujui dan mulai dipakai Asisten.')),
+        SnackBar(
+          content: Text(
+            '“${item.kindLabel}” disetujui dan mulai dipakai Asisten.',
+          ),
+        ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Memori belum dapat disetujui. Coba lagi.')),
+        const SnackBar(
+          content: Text('Memori belum dapat disetujui. Coba lagi.'),
+        ),
       );
     }
   }
@@ -191,10 +197,12 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
           actions: [
             IconButton(
               tooltip: 'Muat ulang',
-              onPressed: _loading ? null : () {
-                _load();
-                _loadCloud();
-              },
+              onPressed: _loading
+                  ? null
+                  : () {
+                      _load();
+                      _loadCloud();
+                    },
               icon: const Icon(Icons.refresh),
             ),
           ],
@@ -209,8 +217,8 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
             _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? _ErrorState(message: _error!, onRetry: _load)
-                    : _buildContent(theme),
+                ? _ErrorState(message: _error!, onRetry: _load)
+                : _buildContent(theme),
             _buildCloudContent(theme),
           ],
         ),
@@ -234,7 +242,8 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
           final theme = Theme.of(context);
           final colorScheme = theme.colorScheme;
           final isCloudTarget = targetStorage == 'cloud';
-          final canSave = !saving &&
+          final canSave =
+              !saving &&
               labelController.text.trim().isNotEmpty &&
               valueController.text.trim().isNotEmpty &&
               (!isCloudTarget || _supabaseConnected);
@@ -262,7 +271,10 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
                     decoration: const InputDecoration(
                       labelText: 'Target Penyimpanan',
                       border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                     ),
                     items: const [
                       DropdownMenuItem(
@@ -288,7 +300,9 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: colorScheme.errorContainer.withValues(alpha: 0.5),
+                        color: colorScheme.errorContainer.withValues(
+                          alpha: 0.5,
+                        ),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: colorScheme.error),
                       ),
@@ -297,7 +311,11 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.warning_amber_rounded, size: 16, color: colorScheme.error),
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                size: 16,
+                                color: colorScheme.error,
+                              ),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
@@ -314,7 +332,10 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
                           const SizedBox(height: 4),
                           Text(
                             'Silakan hubungkan Supabase terlebih dahulu atau pilih penyimpanan Memori Lokal.',
-                            style: TextStyle(fontSize: 11, color: colorScheme.onErrorContainer),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colorScheme.onErrorContainer,
+                            ),
                           ),
                           const SizedBox(height: 6),
                           Row(
@@ -323,14 +344,21 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
                               TextButton(
                                 onPressed: () {
                                   Navigator.of(dialogContext).pop();
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(builder: (_) => const SupabaseSetupPage()),
-                                  ).then((_) {
-                                    _load();
-                                    _loadCloud();
-                                  });
+                                  Navigator.of(context)
+                                      .push(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const SupabaseSetupPage(),
+                                        ),
+                                      )
+                                      .then((_) {
+                                        _load();
+                                        _loadCloud();
+                                      });
                                 },
-                                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                ),
                                 child: const Text('Buka Setup Supabase'),
                               ),
                             ],
@@ -345,7 +373,10 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
                     decoration: const InputDecoration(
                       labelText: 'Kategori Memori',
                       border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                     ),
                     items: const [
                       DropdownMenuItem(
@@ -372,13 +403,19 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
                     controller: labelController,
                     decoration: InputDecoration(
                       labelText: 'Topik / Label',
-                      hintText: selectedScope == FfmPersonalMemoryControlScope.userModel
+                      hintText:
+                          selectedScope ==
+                              FfmPersonalMemoryControlScope.userModel
                           ? 'Contoh: Nama Panggilan, Domisili, Pekerjaan'
-                          : selectedScope == FfmPersonalMemoryControlScope.personalMemory
-                              ? 'Contoh: Tanggal Gajian, Batas Makan Siang'
-                              : 'Contoh: Koreksi Nama Toko',
+                          : selectedScope ==
+                                FfmPersonalMemoryControlScope.personalMemory
+                          ? 'Contoh: Tanggal Gajian, Batas Makan Siang'
+                          : 'Contoh: Koreksi Nama Toko',
                       border: const OutlineInputBorder(),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                     ),
                     onChanged: (_) => setDialogState(() => formError = null),
                   ),
@@ -388,13 +425,19 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
                     maxLines: 2,
                     decoration: InputDecoration(
                       labelText: 'Isi Fakta Memori',
-                      hintText: selectedScope == FfmPersonalMemoryControlScope.userModel
+                      hintText:
+                          selectedScope ==
+                              FfmPersonalMemoryControlScope.userModel
                           ? 'Contoh: Panggil saya Mas Budi'
-                          : selectedScope == FfmPersonalMemoryControlScope.personalMemory
-                              ? 'Contoh: Gajian setiap tanggal 25'
-                              : 'Contoh: Warung Berkah maksudnya Toko Berkah',
+                          : selectedScope ==
+                                FfmPersonalMemoryControlScope.personalMemory
+                          ? 'Contoh: Gajian setiap tanggal 25'
+                          : 'Contoh: Warung Berkah maksudnya Toko Berkah',
                       border: const OutlineInputBorder(),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                     ),
                     onChanged: (_) => setDialogState(() => formError = null),
                   ),
@@ -410,7 +453,9 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
             ),
             actions: [
               TextButton(
-                onPressed: saving ? null : () => Navigator.of(dialogContext).pop(),
+                onPressed: saving
+                    ? null
+                    : () => Navigator.of(dialogContext).pop(),
                 child: const Text('Batal'),
               ),
               FilledButton(
@@ -420,7 +465,9 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
                         final label = labelController.text.trim();
                         final value = valueController.text.trim();
                         if (label.isEmpty || value.isEmpty) {
-                          setDialogState(() => formError = 'Semua field wajib diisi.');
+                          setDialogState(
+                            () => formError = 'Semua field wajib diisi.',
+                          );
                           return;
                         }
                         if (!FfmPersonalMemorySafetyPolicy.isSafeForPersonalContext(
@@ -428,8 +475,7 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
                           value: value,
                         )) {
                           setDialogState(
-                            () => formError =
-                                'Memori tidak boleh memuat kata sensitif (PIN/password) atau nominal uang di atas 4 digit.',
+                            () => formError = 'Memori tidak boleh memuat kata sensitif (PIN/password) atau nominal uang di atas 4 digit.',
                           );
                           return;
                         }
@@ -497,7 +543,9 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
           child: ListTile(
             leading: const CircleAvatar(child: Icon(Icons.cloud_outlined)),
             title: Text(item['content'] ?? ''),
-            subtitle: Text('Category: ${item['category']} • ${_formatCloudDate(item['created_at'])}'),
+            subtitle: Text(
+              'Category: ${item['category']} • ${_formatCloudDate(item['created_at'])}',
+            ),
             trailing: IconButton(
               icon: const Icon(Icons.delete_outline),
               onPressed: () => _deleteCloudItem(item['id']),
@@ -548,7 +596,9 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
             FilledButton.icon(
               onPressed: () => Navigator.of(context)
                   .push(
-                    MaterialPageRoute(builder: (_) => const SupabaseSetupPage()),
+                    MaterialPageRoute(
+                      builder: (_) => const SupabaseSetupPage(),
+                    ),
                   )
                   .then((_) {
                     _load();
@@ -774,10 +824,7 @@ class _PendingItemCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              TextButton(
-                onPressed: onReject,
-                child: const Text('Buang'),
-              ),
+              TextButton(onPressed: onReject, child: const Text('Buang')),
               const SizedBox(width: 4),
               FilledButton.tonalIcon(
                 onPressed: onApprove,
@@ -792,7 +839,8 @@ class _PendingItemCard extends StatelessWidget {
   }
 }
 
-class _MemoryItemCard extends StatelessWidget {  const _MemoryItemCard({required this.item, required this.onForget});
+class _MemoryItemCard extends StatelessWidget {
+  const _MemoryItemCard({required this.item, required this.onForget});
 
   final FfmPersonalMemoryControlItem item;
   final VoidCallback onForget;

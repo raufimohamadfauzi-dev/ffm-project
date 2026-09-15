@@ -1,7 +1,9 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+
 import '../../../../core/database/app_database.dart';
 import '../../../../core/localization/app_copy.dart';
 import '../../../../core/ownership/owner_labels.dart';
@@ -56,16 +58,19 @@ class JsonBatchResult {
 }
 
 class JsonTransactionItemDraft {
-  JsonTransactionItemDraft({String name = '', double quantity = 1, int price = 0})
-    : nameController = TextEditingController(text: name),
-      quantityController = TextEditingController(
-        text: quantity == quantity.roundToDouble()
-            ? quantity.toInt().toString()
-            : quantity.toString(),
-      ),
-      priceController = TextEditingController(
-        text: price > 0 ? formatRupiahInput(price.toString()) : '',
-      );
+  JsonTransactionItemDraft({
+    String name = '',
+    double quantity = 1,
+    int price = 0,
+  }) : nameController = TextEditingController(text: name),
+       quantityController = TextEditingController(
+         text: quantity == quantity.roundToDouble()
+             ? quantity.toInt().toString()
+             : quantity.toString(),
+       ),
+       priceController = TextEditingController(
+         text: price > 0 ? formatRupiahInput(price.toString()) : '',
+       );
 
   final TextEditingController nameController;
   final TextEditingController quantityController;
@@ -102,36 +107,32 @@ class JsonTransactionRowDraft {
     this.budgetId,
     List<ReceiptOcrItem> items = const [],
   }) : amountController = TextEditingController(
-          text: amount != null && amount > 0 ? formatRupiahInput(amount.toString()) : '',
-        ),
-        merchantController = TextEditingController(text: merchantName ?? ''),
-        partyController = TextEditingController(text: partyName ?? ''),
-        locationController = TextEditingController(text: location ?? ''),
-        tagsController = TextEditingController(text: tags.join(', ')),
-        noteController = TextEditingController(text: note ?? ''),
-        time = DateTime.now(),
-        items = items
-            .map(
-              (item) => JsonTransactionItemDraft(
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity,
-              ),
-            )
-            .toList() {
+         text: amount != null && amount > 0
+             ? formatRupiahInput(amount.toString())
+             : '',
+       ),
+       merchantController = TextEditingController(text: merchantName ?? ''),
+       partyController = TextEditingController(text: partyName ?? ''),
+       locationController = TextEditingController(text: location ?? ''),
+       tagsController = TextEditingController(text: tags.join(', ')),
+       noteController = TextEditingController(text: note ?? ''),
+       time = DateTime.now(),
+       items = items
+           .map(
+             (item) => JsonTransactionItemDraft(
+               name: item.name,
+               price: item.price,
+               quantity: item.quantity,
+             ),
+           )
+           .toList() {
     if (time != null) {
       final parts = time.split(':');
       if (parts.length >= 2) {
         final hour = int.tryParse(parts[0]);
         final minute = int.tryParse(parts[1]);
         if (hour != null && minute != null) {
-          this.time = DateTime(
-            date.year,
-            date.month,
-            date.day,
-            hour,
-            minute,
-          );
+          this.time = DateTime(date.year, date.month, date.day, hour, minute);
         }
       }
     }
@@ -177,26 +178,24 @@ class JsonTransferRowDraft {
     this.toAccountId,
     String? note,
   }) : amountController = TextEditingController(
-          text: amount != null && amount > 0 ? formatRupiahInput(amount.toString()) : '',
-        ),
-        adminFeeController = TextEditingController(
-          text: adminFee != null && adminFee > 0 ? formatRupiahInput(adminFee.toString()) : '',
-        ),
-        noteController = TextEditingController(text: note ?? ''),
-        time = DateTime.now() {
+         text: amount != null && amount > 0
+             ? formatRupiahInput(amount.toString())
+             : '',
+       ),
+       adminFeeController = TextEditingController(
+         text: adminFee != null && adminFee > 0
+             ? formatRupiahInput(adminFee.toString())
+             : '',
+       ),
+       noteController = TextEditingController(text: note ?? ''),
+       time = DateTime.now() {
     if (time != null) {
       final parts = time.split(':');
       if (parts.length >= 2) {
         final hour = int.tryParse(parts[0]);
         final minute = int.tryParse(parts[1]);
         if (hour != null && minute != null) {
-          this.time = DateTime(
-            date.year,
-            date.month,
-            date.day,
-            hour,
-            minute,
-          );
+          this.time = DateTime(date.year, date.month, date.day, hour, minute);
         }
       }
     }
@@ -648,8 +647,8 @@ class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
           merchantId: matchedMerchant?.id,
           assistantMerchantName:
               matchedMerchant == null && merchantName.isNotEmpty
-                  ? merchantName
-                  : null,
+              ? merchantName
+              : null,
           receiptNumber: row.receiptNumber,
           tags: tags,
           items: items,
@@ -734,7 +733,8 @@ class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
         children: [
           AppCard(
-            color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: .3),
+            color: Theme.of(context).colorScheme.primaryContainer
+                .withValues(alpha: .3),
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -750,9 +750,18 @@ class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                _step(1, 'Minta Asisten AI di HP/Web untuk merangkum nota atau daftar transaksi.'),
-                _step(2, 'Salin (Copy) hasil teks JSON yang diberikan Asisten.'),
-                _step(3, 'Tempel (Paste) di kotak bawah ini, lalu periksa hasilnya.'),
+                _step(
+                  1,
+                  'Minta Asisten AI di HP/Web untuk merangkum nota atau daftar transaksi.',
+                ),
+                _step(
+                  2,
+                  'Salin (Copy) hasil teks JSON yang diberikan Asisten.',
+                ),
+                _step(
+                  3,
+                  'Tempel (Paste) di kotak bawah ini, lalu periksa hasilnya.',
+                ),
               ],
             ),
           ),
@@ -947,7 +956,10 @@ class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$number. ', style: const TextStyle(fontWeight: FontWeight.w900)),
+          Text(
+            '$number. ',
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
           Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
         ],
       ),

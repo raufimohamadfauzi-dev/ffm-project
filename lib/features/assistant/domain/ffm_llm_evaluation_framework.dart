@@ -1,7 +1,7 @@
 import 'ffm_assistant_verified_fact_service.dart';
 
 /// LLM Evaluation Framework
-/// 
+///
 /// Framework ini mengevaluasi kualitas jawaban LLM berdasarkan:
 /// - factuality terhadap context
 /// - tidak hallucination
@@ -10,7 +10,7 @@ import 'ffm_assistant_verified_fact_service.dart';
 /// - naturalness
 /// - relevansi
 /// - completeness
-/// 
+///
 /// Evaluasi dilakukan terhadap data proyek yang sebenarnya, bukan hanya
 /// kalimat yang terdengar bagus.
 class FfmLLMEvaluationFramework {
@@ -107,8 +107,9 @@ class FfmLLMEvaluationFramework {
     // Check if response mentions numbers that contradict verified facts
     if (verifiedFacts.financialSummary != null) {
       // Check for reasonable number ranges
-      if (response.contains(RegExp(r'\d+')) && 
-          response.contains(RegExp(r'\d{6,}'))) { // Large numbers
+      if (response.contains(RegExp(r'\d+')) &&
+          response.contains(RegExp(r'\d{6,}'))) {
+        // Large numbers
         // If response has large numbers, they should be grounded in facts
         if (response.contains('saldo') || response.contains('total')) {
           strengths.add('Mentions financial figures with context');
@@ -153,7 +154,10 @@ class FfmLLMEvaluationFramework {
     final hallucinationPatterns = [
       RegExp(r'saya (pikir|perkiraan|kira) Rp[\d.]+', caseSensitive: false),
       RegExp(r'mungkin (sekitar|kira-kira) Rp[\d.]+', caseSensitive: false),
-      RegExp(r'tidak ada data (tapi|namun) saya (asumsikan|anggap)', caseSensitive: false),
+      RegExp(
+        r'tidak ada data (tapi|namun) saya (asumsikan|anggap)',
+        caseSensitive: false,
+      ),
     ];
 
     for (final pattern in hallucinationPatterns) {
@@ -164,7 +168,7 @@ class FfmLLMEvaluationFramework {
     }
 
     // Check if response makes claims without data
-    if (response.contains(RegExp(r'\d+')) && 
+    if (response.contains(RegExp(r'\d+')) &&
         verifiedFacts.financialSummary?.totalBalance == 0 &&
         verifiedFacts.recentTransactions?.isEmpty == true) {
       if (response.contains('Rp') || response.contains('saldo')) {
@@ -174,13 +178,13 @@ class FfmLLMEvaluationFramework {
     }
 
     // Positive indicators
-    if (response.contains('berdasarkan data') || 
+    if (response.contains('berdasarkan data') ||
         response.contains('dari data') ||
         response.contains('tercatat')) {
       strengths.add('References data as source');
     }
 
-    if (response.contains('tidak ada data') || 
+    if (response.contains('tidak ada data') ||
         response.contains('belum ada transaksi')) {
       // Only positive if actually no data
       if (verifiedFacts.recentTransactions?.isEmpty == true) {
@@ -205,10 +209,10 @@ class FfmLLMEvaluationFramework {
 
     // Detect query intent
     final queryLower = query.toLowerCase();
-    
+
     if (queryLower.contains('berapa') || queryLower.contains('berapa banyak')) {
       // Query expects numeric answer
-      if (response.contains(RegExp(r'Rp[\d.]+')) || 
+      if (response.contains(RegExp(r'Rp[\d.]+')) ||
           response.contains(RegExp(r'\d+ (kali|transaksi|akun)'))) {
         strengths.add('Provides numeric answer to quantity question');
       } else {
@@ -229,7 +233,8 @@ class FfmLLMEvaluationFramework {
 
     if (queryLower.contains('kenapa') || queryLower.contains('mengapa')) {
       // Query expects explanation
-      if (response.contains('karena') || response.contains('sebab') || 
+      if (response.contains('karena') ||
+          response.contains('sebab') ||
           response.contains('akibat')) {
         strengths.add('Provides explanation');
       } else {
@@ -252,7 +257,8 @@ class FfmLLMEvaluationFramework {
 
     // Check if response claims success without proper context
     if (response.contains('berhasil') || response.contains('selesai')) {
-      if (response.contains('draft') || response.contains('siap') || 
+      if (response.contains('draft') ||
+          response.contains('siap') ||
           response.contains('konfirmasi')) {
         strengths.add('Properly indicates draft/confirmation state');
       } else {
@@ -263,7 +269,8 @@ class FfmLLMEvaluationFramework {
     }
 
     // Check for premature success claims
-    if (response.contains('sudah disimpan') || response.contains('telah disimpan')) {
+    if (response.contains('sudah disimpan') ||
+        response.contains('telah disimpan')) {
       if (response.contains('setelah') || response.contains('konfirmasi')) {
         strengths.add('Mentions confirmation before save');
       } else {
@@ -286,8 +293,14 @@ class FfmLLMEvaluationFramework {
 
     // Check for natural Indonesian language patterns
     final unnaturalPatterns = [
-      RegExp(r'\b(dari|ke|dengan|untuk) \1\b', caseSensitive: false), // Repeated words
-      RegExp(r'\b(adalah|merupakan|yaitu) \w+ adalah\b', caseSensitive: false), // Redundant
+      RegExp(
+        r'\b(dari|ke|dengan|untuk) \1\b',
+        caseSensitive: false,
+      ), // Repeated words
+      RegExp(
+        r'\b(adalah|merupakan|yaitu) \w+ adalah\b',
+        caseSensitive: false,
+      ), // Redundant
     ];
 
     for (final pattern in unnaturalPatterns) {
@@ -335,7 +348,9 @@ class FfmLLMEvaluationFramework {
     final responseLower = response.toLowerCase();
 
     // Check if response addresses query keywords
-    final queryKeywords = queryLower.split(RegExp(r'\s+')).where((w) => w.length > 3);
+    final queryKeywords = queryLower
+        .split(RegExp(r'\s+'))
+        .where((w) => w.length > 3);
     var matchedKeywords = 0;
 
     for (final keyword in queryKeywords) {
@@ -392,11 +407,13 @@ class FfmLLMEvaluationFramework {
     if (queryLower.contains('dan') || queryLower.contains('atau')) {
       // Query has multiple parts
       final parts = queryLower.split(RegExp(r'\s+(dan|atau)\s+'));
-      
+
       if (parts.length > 1) {
         var addressedParts = 0;
         for (final part in parts) {
-          final keywords = part.split(RegExp(r'\s+')).where((w) => w.length > 3);
+          final keywords = part
+              .split(RegExp(r'\s+'))
+              .where((w) => w.length > 3);
           final responseLower = response.toLowerCase();
           if (keywords.any((k) => responseLower.contains(k))) {
             addressedParts++;
@@ -463,11 +480,13 @@ class FfmLLMEvaluationResult {
       ..writeln('Status: ${passed ? "PASSED" : "FAILED"}')
       ..writeln()
       ..writeln('Detailed Scores:');
-    
+
     for (final entry in scores.entries) {
-      buffer.writeln('  - ${entry.key}: ${(entry.value * 100).toStringAsFixed(1)}%');
+      buffer.writeln(
+        '  - ${entry.key}: ${(entry.value * 100).toStringAsFixed(1)}%',
+      );
     }
-    
+
     if (strengths.isNotEmpty) {
       buffer.writeln();
       buffer.writeln('Strengths:');
@@ -475,7 +494,7 @@ class FfmLLMEvaluationResult {
         buffer.writeln('  ✓ $strength');
       }
     }
-    
+
     if (issues.isNotEmpty) {
       buffer.writeln();
       buffer.writeln('Issues:');
@@ -483,7 +502,7 @@ class FfmLLMEvaluationResult {
         buffer.writeln('  ✗ $issue');
       }
     }
-    
+
     return buffer.toString();
   }
 }

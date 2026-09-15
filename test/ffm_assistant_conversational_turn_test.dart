@@ -46,37 +46,46 @@ void main() {
       expect(intent.response, contains('Aku siap membantu'));
     });
 
-    test('merespon penolakan sopan "tidak" / "makasih" setelah asisten menyapa', () async {
-      const lastAssistantGreeting =
-          'Halo! Aku Asisten FFM... Ada yang bisa kubantu hari ini?';
+    test(
+      'merespon penolakan sopan "tidak" / "makasih" setelah asisten menyapa',
+      () async {
+        const lastAssistantGreeting =
+            'Halo! Aku Asisten FFM... Ada yang bisa kubantu hari ini?';
 
-      final intent = await interpreter.interpret(
-        'tidak ada, makasih',
-        lastAssistantMessage: lastAssistantGreeting,
-      );
+        final intent = await interpreter.interpret(
+          'tidak ada, makasih',
+          lastAssistantMessage: lastAssistantGreeting,
+        );
 
-      expect(intent.type, FfmAssistantIntentType.help);
-      expect(intent.response, contains('tidak masalah'));
-    });
+        expect(intent.type, FfmAssistantIntentType.help);
+        expect(intent.response, contains('tidak masalah'));
+      },
+    );
 
-    test('interpretMany meneruskan lastAssistantMessage ke interpret', () async {
-      const lastAssistantGreeting =
-          'Halo! Aku Asisten FFM... Ada yang bisa kubantu hari ini?';
+    test(
+      'interpretMany meneruskan lastAssistantMessage ke interpret',
+      () async {
+        const lastAssistantGreeting =
+            'Halo! Aku Asisten FFM... Ada yang bisa kubantu hari ini?';
 
-      final intents = await interpreter.interpretMany(
-        'ada',
-        lastAssistantMessage: lastAssistantGreeting,
-      );
+        final intents = await interpreter.interpretMany(
+          'ada',
+          lastAssistantMessage: lastAssistantGreeting,
+        );
 
-      expect(intents.length, 1);
-      expect(intents.first.type, FfmAssistantIntentType.help);
-      expect(intents.first.response, contains('Aku siap membantu'));
-    });
+        expect(intents.length, 1);
+        expect(intents.first.type, FfmAssistantIntentType.help);
+        expect(intents.first.response, contains('Aku siap membantu'));
+      },
+    );
 
-    test('tanpa konteks pesan sapaan, pesan umum tetap diproses secara independen', () async {
-      final intent = await interpreter.interpret('halo asisten');
-      expect(intent.type, FfmAssistantIntentType.help);
-      expect(intent.response, anyOf(contains('Halo!'), contains('Hai!')));
-    });
+    test(
+      'tanpa konteks pesan sapaan, pesan umum tetap diproses secara independen',
+      () async {
+        final intent = await interpreter.interpret('halo asisten');
+        expect(intent.type, FfmAssistantIntentType.help);
+        expect(intent.response, anyOf(contains('Halo!'), contains('Hai!')));
+      },
+    );
   });
 }

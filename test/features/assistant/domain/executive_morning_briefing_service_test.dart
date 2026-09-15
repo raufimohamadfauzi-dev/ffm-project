@@ -14,40 +14,44 @@ void main() {
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
       db = AppDatabase(NativeDatabase.memory());
-      service = ExecutiveMorningBriefingService(
-        database: db,
-      );
+      service = ExecutiveMorningBriefingService(database: db);
 
       // Seed household
-      await db.into(db.households).insert(
-        HouseholdsCompanion.insert(
-          id: householdId,
-          name: 'Keluarga Bahagia',
-          createdAt: DateTime.now(),
-        ),
-      );
+      await db
+          .into(db.households)
+          .insert(
+            HouseholdsCompanion.insert(
+              id: householdId,
+              name: 'Keluarga Bahagia',
+              createdAt: DateTime.now(),
+            ),
+          );
 
       // Seed accounts
-      await db.into(db.accounts).insert(
-        AccountsCompanion.insert(
-          id: 'acc-cash',
-          householdId: householdId,
-          name: 'Dompet Tunai',
-          type: 'cash',
-          openingBalance: const drift.Value(200000),
-          createdAt: DateTime.now(),
-        ),
-      );
-      await db.into(db.accounts).insert(
-        AccountsCompanion.insert(
-          id: 'acc-bank',
-          householdId: householdId,
-          name: 'Bank BCA',
-          type: 'bank',
-          openingBalance: const drift.Value(1000000),
-          createdAt: DateTime.now(),
-        ),
-      );
+      await db
+          .into(db.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'acc-cash',
+              householdId: householdId,
+              name: 'Dompet Tunai',
+              type: 'cash',
+              openingBalance: const drift.Value(200000),
+              createdAt: DateTime.now(),
+            ),
+          );
+      await db
+          .into(db.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'acc-bank',
+              householdId: householdId,
+              name: 'Bank BCA',
+              type: 'bank',
+              openingBalance: const drift.Value(1000000),
+              createdAt: DateTime.now(),
+            ),
+          );
     });
 
     tearDown(() async {
@@ -63,49 +67,65 @@ void main() {
       expect(service.isMorningTime(now: DateTime(2026, 9, 5, 14, 0)), isFalse);
     });
 
-    test('shouldPresentBriefing only returns true once per day during morning', () async {
-      final morningTime = DateTime(2026, 9, 5, 7, 0);
-      expect(await service.shouldPresentBriefing(householdId, now: morningTime), isTrue);
+    test(
+      'shouldPresentBriefing only returns true once per day during morning',
+      () async {
+        final morningTime = DateTime(2026, 9, 5, 7, 0);
+        expect(
+          await service.shouldPresentBriefing(householdId, now: morningTime),
+          isTrue,
+        );
 
-      await service.markBriefingPresented(householdId, now: morningTime);
-      expect(await service.shouldPresentBriefing(householdId, now: morningTime), isFalse);
+        await service.markBriefingPresented(householdId, now: morningTime);
+        expect(
+          await service.shouldPresentBriefing(householdId, now: morningTime),
+          isFalse,
+        );
 
-      // Next day morning should return true again
-      final nextDayMorning = DateTime(2026, 9, 6, 6, 30);
-      expect(await service.shouldPresentBriefing(householdId, now: nextDayMorning), isTrue);
-    });
+        // Next day morning should return true again
+        final nextDayMorning = DateTime(2026, 9, 6, 6, 30);
+        expect(
+          await service.shouldPresentBriefing(householdId, now: nextDayMorning),
+          isTrue,
+        );
+      },
+    );
 
     test('generateBriefing calculates cash balance, yesterday expense, and builds script', () async {
       final today = DateTime(2026, 9, 5, 8, 0);
       final yesterday = DateTime(2026, 9, 4, 15, 0);
 
       // Seed yesterday expense (-75.000)
-      await db.into(db.transactions).insert(
-        TransactionsCompanion.insert(
-          id: 'tx-yesterday',
-          householdId: householdId,
-          type: 'expense',
-          date: yesterday,
-          recordedAt: yesterday,
-          amount: 75000,
-          accountId: const drift.Value('acc-cash'),
-          createdAt: yesterday,
-          isDeleted: const drift.Value(false),
-        ),
-      );
+      await db
+          .into(db.transactions)
+          .insert(
+            TransactionsCompanion.insert(
+              id: 'tx-yesterday',
+              householdId: householdId,
+              type: 'expense',
+              date: yesterday,
+              recordedAt: yesterday,
+              amount: 75000,
+              accountId: const drift.Value('acc-cash'),
+              createdAt: yesterday,
+              isDeleted: const drift.Value(false),
+            ),
+          );
 
       // Seed reminder for today
-      await db.into(db.reminders).insert(
-        RemindersCompanion.insert(
-          id: 'rem-today',
-          householdId: householdId,
-          title: 'Bayar Listrik PLN',
-          scheduledAt: DateTime(2026, 9, 5, 9, 0),
-          notificationId: 101,
-          createdAt: yesterday,
-          isActive: const drift.Value(true),
-        ),
-      );
+      await db
+          .into(db.reminders)
+          .insert(
+            RemindersCompanion.insert(
+              id: 'rem-today',
+              householdId: householdId,
+              title: 'Bayar Listrik PLN',
+              scheduledAt: DateTime(2026, 9, 5, 9, 0),
+              notificationId: 101,
+              createdAt: yesterday,
+              isActive: const drift.Value(true),
+            ),
+          );
 
       final briefing = await service.generateBriefing(householdId, now: today);
 
@@ -126,28 +146,36 @@ void main() {
       final today = DateTime(2026, 9, 5, 8, 0);
 
       // Seed liability due in 2 days (7 September)
-      await db.into(db.liabilities).insert(
-        LiabilitiesCompanion.insert(
-          id: 'liab-kpr',
-          householdId: householdId,
-          name: 'KPR BTN',
-          originalAmount: 150000000,
-          remainingBalance: 120000000,
-          monthlyInstallment: const drift.Value(1500000),
-          interestRate: const drift.Value(8.5),
-          startDate: DateTime(2025, 1, 1),
-          dueDate: drift.Value(DateTime(2026, 9, 7)),
-          isActive: const drift.Value(true),
-          createdAt: DateTime(2025, 1, 1),
-        ),
-      );
+      await db
+          .into(db.liabilities)
+          .insert(
+            LiabilitiesCompanion.insert(
+              id: 'liab-kpr',
+              householdId: householdId,
+              name: 'KPR BTN',
+              originalAmount: 150000000,
+              remainingBalance: 120000000,
+              monthlyInstallment: const drift.Value(1500000),
+              interestRate: const drift.Value(8.5),
+              startDate: DateTime(2025, 1, 1),
+              dueDate: drift.Value(DateTime(2026, 9, 7)),
+              isActive: const drift.Value(true),
+              createdAt: DateTime(2025, 1, 1),
+            ),
+          );
 
       final briefing = await service.generateBriefing(householdId, now: today);
 
       expect(briefing.dueItems, contains(contains('KPR BTN')));
-      expect(briefing.textSummary, contains('Jatuh Tempo Hutang / Piutang (3 Hari)'));
+      expect(
+        briefing.textSummary,
+        contains('Jatuh Tempo Hutang / Piutang (3 Hari)'),
+      );
       expect(briefing.textSummary, contains('KPR BTN'));
-      expect(briefing.spokenScript, contains('kewajiban cicilan yang jatuh tempo'));
+      expect(
+        briefing.spokenScript,
+        contains('kewajiban cicilan yang jatuh tempo'),
+      );
       expect(briefing.spokenScript, contains('KPR BTN'));
     });
   });

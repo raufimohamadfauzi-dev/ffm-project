@@ -71,30 +71,32 @@ void main() {
     );
   }
 
-  test('draft terkoreksi: beda kategori tercatat dan pola merchant terbentuk',
-      () async {
-    final result = await saveExpense({
-      'assistantMerchantName': 'Indomaret',
-      'assistantSlmFieldValues': {'category': 'Jajan', 'account': 'BRI'},
-    });
+  test(
+    'draft terkoreksi: beda kategori tercatat dan pola merchant terbentuk',
+    () async {
+      final result = await saveExpense({
+        'assistantMerchantName': 'Indomaret',
+        'assistantSlmFieldValues': {'category': 'Jajan', 'account': 'BRI'},
+      });
 
-    expect(result.isSuccess, isTrue);
+      expect(result.isSuccess, isTrue);
 
-    final corrections = await (db.select(db.userCorrections)).get();
-    expect(corrections.map((c) => c.fieldName), ['category']);
-    expect(corrections.single.slmValue, 'Jajan');
-    expect(corrections.single.correctedValue, 'Belanja');
-    expect(corrections.single.merchantName, 'Indomaret');
+      final corrections = await (db.select(db.userCorrections)).get();
+      expect(corrections.map((c) => c.fieldName), ['category']);
+      expect(corrections.single.slmValue, 'Jajan');
+      expect(corrections.single.correctedValue, 'Belanja');
+      expect(corrections.single.merchantName, 'Indomaret');
 
-    final patterns = await personalization.getPatternForMerchant(
-      householdId: 'local-household',
-      merchantName: 'Indomaret',
-      fieldName: 'category',
-      strongOnly: false,
-    );
-    expect(patterns, isNotNull);
-    expect(patterns!.mostCommonValue, 'Belanja');
-  });
+      final patterns = await personalization.getPatternForMerchant(
+        householdId: 'local-household',
+        merchantName: 'Indomaret',
+        fieldName: 'category',
+        strongOnly: false,
+      );
+      expect(patterns, isNotNull);
+      expect(patterns!.mostCommonValue, 'Belanja');
+    },
+  );
 
   test('nilai identik dengan tebakan: tidak ada koreksi tercatat', () async {
     final result = await saveExpense({
@@ -117,4 +119,3 @@ void main() {
     expect(corrections, isEmpty);
   });
 }
-

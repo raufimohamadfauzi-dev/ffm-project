@@ -523,21 +523,21 @@ class ReminderSuggestionDetector {
       }
     }
 
-    final openFeedback = await (_database.select(
-      _database.assistantResponseFeedbacks,
-    )..where(
-          (row) =>
-              row.householdId.equals(householdId) &
-              row.isArchived.equals(false) &
-              row.reviewStatus.isNotIn(const ['fixed', 'rejected']),
-        )).get();
-    final openQuestions = await (_database.select(
-      _database.assistantUnansweredQuestions,
-    )..where(
-          (row) =>
-              row.householdId.equals(householdId) &
-              row.isResolved.equals(false),
-        )).get();
+    final openFeedback =
+        await (_database.select(_database.assistantResponseFeedbacks)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false) &
+                  row.reviewStatus.isNotIn(const ['fixed', 'rejected']),
+            ))
+            .get();
+    final openQuestions =
+        await (_database.select(_database.assistantUnansweredQuestions)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isResolved.equals(false),
+            ))
+            .get();
     final latestIssue = [
       ...openFeedback.map(
         (row) => (id: 'feedback:${row.id}', at: row.createdAt, note: row.note),

@@ -75,9 +75,7 @@ void main() {
     });
 
     test('isExpired returns false for recent context', () {
-      final recent = FfmWorkingContext(
-        lastUpdatedAt: DateTime.now(),
-      );
+      final recent = FfmWorkingContext(lastUpdatedAt: DateTime.now());
       expect(recent.isExpired, false);
     });
 
@@ -100,9 +98,7 @@ void main() {
   group('FfmWorkingContextManager', () {
     test('updateAfterTurn persists context', () async {
       final history = FfmAssistantChatHistoryRepository();
-      final manager = FfmWorkingContextManager(
-        chatHistoryRepository: history,
-      );
+      final manager = FfmWorkingContextManager(chatHistoryRepository: history);
 
       await manager.updateAfterTurn(
         userQuery: 'pengeluaran bulan ini',
@@ -131,10 +127,7 @@ void main() {
       await manager.updateAfterTurn(
         userQuery: 'target nabung',
         assistantResponse: 'create',
-        extractedEntities: {
-          'topic': 'goals',
-          'intent': 'create',
-        },
+        extractedEntities: {'topic': 'goals', 'intent': 'create'},
       );
 
       final manager2 = FfmWorkingContextManager(
@@ -148,9 +141,7 @@ void main() {
 
     test('clear resets context and persists', () async {
       final history = FfmAssistantChatHistoryRepository();
-      final manager = FfmWorkingContextManager(
-        chatHistoryRepository: history,
-      );
+      final manager = FfmWorkingContextManager(chatHistoryRepository: history);
 
       await manager.updateAfterTurn(
         userQuery: 'test',
@@ -166,9 +157,7 @@ void main() {
 
     test('setPendingClarification works', () async {
       final history = FfmAssistantChatHistoryRepository();
-      final manager = FfmWorkingContextManager(
-        chatHistoryRepository: history,
-      );
+      final manager = FfmWorkingContextManager(chatHistoryRepository: history);
 
       expect(manager.hasPendingClarification, false);
 
@@ -179,9 +168,7 @@ void main() {
 
     test('summary includes lastUpdatedAt', () async {
       final history = FfmAssistantChatHistoryRepository();
-      final manager = FfmWorkingContextManager(
-        chatHistoryRepository: history,
-      );
+      final manager = FfmWorkingContextManager(chatHistoryRepository: history);
 
       await manager.updateAfterTurn(
         userQuery: 'test',
@@ -195,9 +182,7 @@ void main() {
 
     test('extractSimpleEntities detects more topics', () async {
       final history = FfmAssistantChatHistoryRepository();
-      final manager = FfmWorkingContextManager(
-        chatHistoryRepository: history,
-      );
+      final manager = FfmWorkingContextManager(chatHistoryRepository: history);
 
       await manager.updateAfterTurn(
         userQuery: 'lihat hutang saya',

@@ -57,18 +57,20 @@ class _FfmAssistantFeedbackDialogState
                 runSpacing: 8,
                 children: FfmAssistantFeedbackCategory.values
                     .where((cat) => _isValidCategory(cat))
-                    .map((category) => ChoiceChip(
-                          label: Text(_getCategoryLabel(category)),
-                          selected: _selectedCategory == category,
-                          onSelected: (selected) {
-                            setState(() {
-                              _selectedCategory = selected ? category : null;
-                            });
-                          },
-                          selectedColor: isDark
-                              ? const Color(0xFF4CAF50).withValues(alpha: 0.3)
-                              : const Color(0xFF4CAF50).withValues(alpha: 0.2),
-                        ))
+                    .map(
+                      (category) => ChoiceChip(
+                        label: Text(_getCategoryLabel(category)),
+                        selected: _selectedCategory == category,
+                        onSelected: (selected) {
+                          setState(() {
+                            _selectedCategory = selected ? category : null;
+                          });
+                        },
+                        selectedColor: isDark
+                            ? const Color(0xFF4CAF50).withValues(alpha: 0.3)
+                            : const Color(0xFF4CAF50).withValues(alpha: 0.2),
+                      ),
+                    )
                     .toList(),
               ),
               const SizedBox(height: 16),
@@ -106,7 +108,9 @@ class _FfmAssistantFeedbackDialogState
                     borderRadius: BorderRadius.circular(8),
                   ),
                   filled: true,
-                  fillColor: isDark ? const Color(0xFF2A2A2A) : Colors.grey[100],
+                  fillColor: isDark
+                      ? const Color(0xFF2A2A2A)
+                      : Colors.grey[100],
                 ),
               ),
             ],
@@ -131,7 +135,8 @@ class _FfmAssistantFeedbackDialogState
                 'type': widget.feedbackType,
                 'category': _selectedCategory,
                 'note': _noteController.text.trim(),
-                'correction': widget.feedbackType == FfmAssistantFeedbackType.correction
+                'correction':
+                    widget.feedbackType == FfmAssistantFeedbackType.correction
                     ? _correctionController.text.trim()
                     : null,
               });
@@ -185,8 +190,8 @@ class _FfmAssistantFeedbackDialogState
         return category != FfmAssistantFeedbackCategory.helpful;
       case FfmAssistantFeedbackType.correction:
         return category == FfmAssistantFeedbackCategory.factual ||
-               category == FfmAssistantFeedbackCategory.hallucination ||
-               category == FfmAssistantFeedbackCategory.other;
+            category == FfmAssistantFeedbackCategory.hallucination ||
+            category == FfmAssistantFeedbackCategory.other;
     }
   }
 }

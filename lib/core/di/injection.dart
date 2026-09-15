@@ -303,9 +303,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     ),
   );
   getIt.registerLazySingleton<FfmAssistantGoalEvidenceEvaluator>(
-    () => FfmAssistantGoalEvidenceEvaluator(
-      database: db,
-    ),
+    () => FfmAssistantGoalEvidenceEvaluator(database: db),
   );
   getIt.registerLazySingleton<AutonomousActivityRepository>(
     () => AutonomousActivityRepository(

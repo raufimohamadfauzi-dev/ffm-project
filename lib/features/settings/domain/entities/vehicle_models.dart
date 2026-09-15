@@ -87,7 +87,8 @@ class FuelLogEntry {
   factory FuelLogEntry.fromJson(Map<String, dynamic> json) {
     return FuelLogEntry(
       id: (json['id'] as String?) ?? const Uuid().v4(),
-      date: DateTime.tryParse((json['date'] as String?) ?? '') ?? DateTime.now(),
+      date:
+          DateTime.tryParse((json['date'] as String?) ?? '') ?? DateTime.now(),
       liters: (json['liters'] as num?)?.toDouble() ?? 0.0,
       totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0.0,
       pricePerLiter: (json['pricePerLiter'] as num?)?.toDouble(),
@@ -167,7 +168,9 @@ class Vehicle {
     final targetYear = month.year;
     final targetMonth = month.month;
     return fuelLogs
-        .where((log) => log.date.year == targetYear && log.date.month == targetMonth)
+        .where(
+          (log) => log.date.year == targetYear && log.date.month == targetMonth,
+        )
         .fold(0.0, (sum, log) => sum + log.liters);
   }
 
@@ -176,16 +179,21 @@ class Vehicle {
     final targetYear = month.year;
     final targetMonth = month.month;
     return fuelLogs
-        .where((log) => log.date.year == targetYear && log.date.month == targetMonth)
+        .where(
+          (log) => log.date.year == targetYear && log.date.month == targetMonth,
+        )
         .fold(0.0, (sum, log) => sum + log.totalAmount);
   }
 
   /// Perhitungan efisiensi bahan bakar rata-rata (KM per Liter) jika data odometer tersedia.
   double? get averageKmPerLiter {
-    final validLogs = fuelLogs
-        .where((l) => l.odometerKm != null && l.odometerKm! > 0 && l.liters > 0)
-        .toList()
-      ..sort((a, b) => a.date.compareTo(b.date));
+    final validLogs =
+        fuelLogs
+            .where(
+              (l) => l.odometerKm != null && l.odometerKm! > 0 && l.liters > 0,
+            )
+            .toList()
+          ..sort((a, b) => a.date.compareTo(b.date));
 
     if (validLogs.length < 2) return null;
 
@@ -274,7 +282,9 @@ class Vehicle {
       tankCapacity: (json['tankCapacity'] as num?)?.toDouble() ?? 0.0,
       lastOdometer: (json['lastOdometer'] as num?)?.toDouble(),
       notes: (json['notes'] as String?) ?? '',
-      createdAt: DateTime.tryParse((json['createdAt'] as String?) ?? '') ?? DateTime.now(),
+      createdAt:
+          DateTime.tryParse((json['createdAt'] as String?) ?? '') ??
+          DateTime.now(),
       fuelLogs: logs,
     );
   }

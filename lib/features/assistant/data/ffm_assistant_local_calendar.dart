@@ -75,16 +75,25 @@ abstract final class FfmAssistantLocalCalendar {
     }
 
     if (_contains(text, const [
-      'kalender perangkat',
-      'kalender ada apa',
-      'kalender apa saja',
-      'fitur kalender',
-      'tentang kalender',
-      'kalender di ffm',
-      'kalender di hp',
-      'ada kalender apa',
-      'jenis kalender',
-    ]) || (text.contains('kalender') && _contains(text, const ['apa saja', 'ada apa', 'apaan', 'jelaskan', 'fungsi', 'fitur']))) {
+          'kalender perangkat',
+          'kalender ada apa',
+          'kalender apa saja',
+          'fitur kalender',
+          'tentang kalender',
+          'kalender di ffm',
+          'kalender di hp',
+          'ada kalender apa',
+          'jenis kalender',
+        ]) ||
+        (text.contains('kalender') &&
+            _contains(text, const [
+              'apa saja',
+              'ada apa',
+              'apaan',
+              'jelaskan',
+              'fungsi',
+              'fitur',
+            ]))) {
       return '''📅 **Kalender di FFM & Perangkat Kamu:**
 
 1. **Kalender Masehi Lokal (Waktu HP):**

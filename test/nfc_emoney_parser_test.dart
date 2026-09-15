@@ -50,59 +50,64 @@ void main() {
       nfcRepo = NfcCardRepository(draftRepo);
     });
 
-    test('Scan 1 (Baseline Kartu Baru) => Simpan saldo tanpa membuat draft',
-        () async {
-      const scan1 = NfcCardScanResult(
-        cardId: 'MANDIRI-1001',
-        balance: 100000.0,
-        cardType: 'mandiri_emoney',
-        success: true,
-      );
+    test(
+      'Scan 1 (Baseline Kartu Baru) => Simpan saldo tanpa membuat draft',
+      () async {
+        const scan1 = NfcCardScanResult(
+          cardId: 'MANDIRI-1001',
+          balance: 100000.0,
+          cardType: 'mandiri_emoney',
+          success: true,
+        );
 
-      final res1 = await nfcRepo.processCardScan(scan1);
+        final res1 = await nfcRepo.processCardScan(scan1);
 
-      expect(res1.isBaseline, isTrue);
-      expect(res1.previousBalance, isNull);
-      expect(res1.newBalance, equals(100000.0));
-      expect(res1.difference, equals(0.0));
-      expect(res1.draft, isNull);
+        expect(res1.isBaseline, isTrue);
+        expect(res1.previousBalance, isNull);
+        expect(res1.newBalance, equals(100000.0));
+        expect(res1.difference, equals(0.0));
+        expect(res1.draft, isNull);
 
-      final accounts = await nfcRepo.getCardAccounts();
-      expect(accounts.length, equals(1));
-      expect(accounts.first.lastKnownBalance, equals(100000.0));
-    });
+        final accounts = await nfcRepo.getCardAccounts();
+        expect(accounts.length, equals(1));
+        expect(accounts.first.lastKnownBalance, equals(100000.0));
+      },
+    );
 
-    test('Scan 2 (Pengeluaran Tol/Parkir) => Buat PaymentDraft Debit', () async {
-      // Baseline 100.000
-      const scan1 = NfcCardScanResult(
-        cardId: 'MANDIRI-1001',
-        balance: 100000.0,
-        cardType: 'mandiri_emoney',
-        success: true,
-      );
-      await nfcRepo.processCardScan(scan1);
+    test(
+      'Scan 2 (Pengeluaran Tol/Parkir) => Buat PaymentDraft Debit',
+      () async {
+        // Baseline 100.000
+        const scan1 = NfcCardScanResult(
+          cardId: 'MANDIRI-1001',
+          balance: 100000.0,
+          cardType: 'mandiri_emoney',
+          success: true,
+        );
+        await nfcRepo.processCardScan(scan1);
 
-      // Scan 2: Saldo turun menjadi 80.000 (Pengeluaran 20.000)
-      const scan2 = NfcCardScanResult(
-        cardId: 'MANDIRI-1001',
-        balance: 80000.0,
-        cardType: 'mandiri_emoney',
-        success: true,
-      );
-      final res2 = await nfcRepo.processCardScan(scan2);
+        // Scan 2: Saldo turun menjadi 80.000 (Pengeluaran 20.000)
+        const scan2 = NfcCardScanResult(
+          cardId: 'MANDIRI-1001',
+          balance: 80000.0,
+          cardType: 'mandiri_emoney',
+          success: true,
+        );
+        final res2 = await nfcRepo.processCardScan(scan2);
 
-      expect(res2.isBaseline, isFalse);
-      expect(res2.previousBalance, equals(100000.0));
-      expect(res2.newBalance, equals(80000.0));
-      expect(res2.difference, equals(20000.0));
-      expect(res2.draft, isNotNull);
-      expect(res2.draft!.amount, equals(20000.0));
-      expect(res2.draft!.mutationType, equals(PaymentMutationType.debit));
+        expect(res2.isBaseline, isFalse);
+        expect(res2.previousBalance, equals(100000.0));
+        expect(res2.newBalance, equals(80000.0));
+        expect(res2.difference, equals(20000.0));
+        expect(res2.draft, isNotNull);
+        expect(res2.draft!.amount, equals(20000.0));
+        expect(res2.draft!.mutationType, equals(PaymentMutationType.debit));
 
-      final pendingDrafts = await draftRepo.getPendingDrafts();
-      expect(pendingDrafts.length, equals(1));
-      expect(pendingDrafts.first.amount, equals(20000.0));
-    });
+        final pendingDrafts = await draftRepo.getPendingDrafts();
+        expect(pendingDrafts.length, equals(1));
+        expect(pendingDrafts.first.amount, equals(20000.0));
+      },
+    );
 
     test('Scan 3 (Top-Up / Isi Ulang) => Buat PaymentDraft Credit', () async {
       // Baseline 80.000
@@ -203,31 +208,36 @@ void main() {
       expect(result.draft, isNull);
     });
 
-    test('menyimpan metadata dan snapshot scan hanya ke database NFC', () async {
-      final database = AppDatabase(NativeDatabase.memory());
-      final repository = NfcCardRepository(
-        draftRepo,
-        database: database,
-        householdId: 'migration-household',
-      );
+    test(
+      'menyimpan metadata dan snapshot scan hanya ke database NFC',
+      () async {
+        final database = AppDatabase(NativeDatabase.memory());
+        final repository = NfcCardRepository(
+          draftRepo,
+          database: database,
+          householdId: 'migration-household',
+        );
 
-      await repository.processCardScan(
-        const NfcCardScanResult(
-          cardId: 'DATABASE-1',
-          balance: 75000,
-          cardType: 'mandiri_emoney',
-          success: true,
-        ),
-      );
+        await repository.processCardScan(
+          const NfcCardScanResult(
+            cardId: 'DATABASE-1',
+            balance: 75000,
+            cardType: 'mandiri_emoney',
+            success: true,
+          ),
+        );
 
-      final cards = await database.select(database.nfcCardAccounts).get();
-      final snapshots = await database.select(database.nfcScanSnapshots).get();
-      expect(cards, hasLength(1));
-      expect(cards.single.cardType, 'mandiri_emoney');
-      expect(cards.single.cardUidHash, isNot('DATABASE-1'));
-      expect(snapshots, hasLength(1));
-      await database.close();
-    });
+        final cards = await database.select(database.nfcCardAccounts).get();
+        final snapshots = await database
+            .select(database.nfcScanSnapshots)
+            .get();
+        expect(cards, hasLength(1));
+        expect(cards.single.cardType, 'mandiri_emoney');
+        expect(cards.single.cardUidHash, isNot('DATABASE-1'));
+        expect(snapshots, hasLength(1));
+        await database.close();
+      },
+    );
 
     test('scan database kedua membuat satu draft dari selisih saldo', () async {
       final database = AppDatabase(NativeDatabase.memory());
@@ -260,65 +270,83 @@ void main() {
       // Setelah perbaikan NFC: kartu baru tidak membuat account otomatis
       // Hanya nfcCardAccounts yang dibuat dengan pending accountId
       expect(await database.select(database.accounts).get(), isEmpty);
-      expect(await database.select(database.nfcCardAccounts).get(), hasLength(1));
-      expect(await database.select(database.nfcScanSnapshots).get(), hasLength(2));
+      expect(
+        await database.select(database.nfcCardAccounts).get(),
+        hasLength(1),
+      );
+      expect(
+        await database.select(database.nfcScanSnapshots).get(),
+        hasLength(2),
+      );
       await database.close();
     });
 
-    test('updateCardAlias memperbarui alias kartu di nfcCardAccounts dan accounts', () async {
-      final database = AppDatabase(NativeDatabase.memory());
-      final repository = NfcCardRepository(
-        draftRepo,
-        database: database,
-        householdId: 'alias-household',
-      );
-
-      // Buat rekening existing di database Data Utama
-      await database.into(database.accounts).insert(
-        AccountsCompanion.insert(
-          id: 'acc-alias-1',
+    test(
+      'updateCardAlias memperbarui alias kartu di nfcCardAccounts dan accounts',
+      () async {
+        final database = AppDatabase(NativeDatabase.memory());
+        final repository = NfcCardRepository(
+          draftRepo,
+          database: database,
           householdId: 'alias-household',
-          name: 'Mandiri e-Money',
-          type: 'ewallet',
-          openingBalance: const Value(150000),
-          createdAt: DateTime.now(),
-        ),
-      );
+        );
 
-      const scan = NfcCardScanResult(
-        cardId: 'MANDIRI-ALIAS-99',
-        balance: 150000,
-        cardType: 'mandiri_emoney',
-        success: true,
-      );
-      await repository.processCardScan(scan);
+        // Buat rekening existing di database Data Utama
+        await database
+            .into(database.accounts)
+            .insert(
+              AccountsCompanion.insert(
+                id: 'acc-alias-1',
+                householdId: 'alias-household',
+                name: 'Mandiri e-Money',
+                type: 'ewallet',
+                openingBalance: const Value(150000),
+                createdAt: DateTime.now(),
+              ),
+            );
 
-      // Hubungkan kartu ke rekening existing
-      await repository.linkCardToAccount('MANDIRI-ALIAS-99', 'acc-alias-1', 'Mandiri e-Money');
+        const scan = NfcCardScanResult(
+          cardId: 'MANDIRI-ALIAS-99',
+          balance: 150000,
+          cardType: 'mandiri_emoney',
+          success: true,
+        );
+        await repository.processCardScan(scan);
 
-      // Pastikan kartu terbentuk dan terhubung
-      var cards = await repository.getCardAccounts();
-      expect(cards, hasLength(1));
-      expect(cards.first.displayName, 'Mandiri e-Money');
+        // Hubungkan kartu ke rekening existing
+        await repository.linkCardToAccount(
+          'MANDIRI-ALIAS-99',
+          'acc-alias-1',
+          'Mandiri e-Money',
+        );
 
-      // Update alias kartu menjadi nama kustom
-      final updated = await repository.updateCardAlias('MANDIRI-ALIAS-99', 'e-Money Pajero Ayah');
-      expect(updated, isTrue);
+        // Pastikan kartu terbentuk dan terhubung
+        var cards = await repository.getCardAccounts();
+        expect(cards, hasLength(1));
+        expect(cards.first.displayName, 'Mandiri e-Money');
 
-      // Cek di domain model repository
-      cards = await repository.getCardAccounts();
-      expect(cards.first.displayName, 'e-Money Pajero Ayah');
-      expect(cards.first.issuer, 'e-Money Pajero Ayah');
+        // Update alias kartu menjadi nama kustom
+        final updated = await repository.updateCardAlias(
+          'MANDIRI-ALIAS-99',
+          'e-Money Pajero Ayah',
+        );
+        expect(updated, isTrue);
 
-      // Cek di SQLite database: nfcCardAccounts & accounts
-      final dbCards = await database.select(database.nfcCardAccounts).get();
-      expect(dbCards.single.issuer, 'e-Money Pajero Ayah');
+        // Cek di domain model repository
+        cards = await repository.getCardAccounts();
+        expect(cards.first.displayName, 'e-Money Pajero Ayah');
+        expect(cards.first.issuer, 'e-Money Pajero Ayah');
 
-      final dbAccounts = await database.select(database.accounts).get();
-      expect(dbAccounts.single.name, 'e-Money Pajero Ayah');
+        // Cek di SQLite database: nfcCardAccounts & accounts
+        final dbCards = await database.select(database.nfcCardAccounts).get();
+        expect(dbCards.single.issuer, 'e-Money Pajero Ayah');
 
-      await database.close();
-    });
+        final dbAccounts = await database.select(database.accounts).get();
+        expect(dbAccounts.single.name, 'e-Money Pajero Ayah');
+
+        await database.close();
+      },
+    );
 
     test('linkCardToAccount menautkan kartu ke rekening yang ada dan membersihkan dummy account', () async {
       final database = AppDatabase(NativeDatabase.memory());
@@ -329,16 +357,18 @@ void main() {
       );
 
       // Buat rekening existing di database Data Utama
-      await database.into(database.accounts).insert(
-        AccountsCompanion.insert(
-          id: 'acc-custom-1',
-          householdId: 'link-household',
-          name: 'BCA Flazz Utama',
-          type: 'ewallet',
-          openingBalance: const Value(50000),
-          createdAt: DateTime.now(),
-        ),
-      );
+      await database
+          .into(database.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'acc-custom-1',
+              householdId: 'link-household',
+              name: 'BCA Flazz Utama',
+              type: 'ewallet',
+              openingBalance: const Value(50000),
+              createdAt: DateTime.now(),
+            ),
+          );
 
       // Scan kartu baru pertama kali (baseline)
       const scan = NfcCardScanResult(
@@ -385,47 +415,44 @@ void main() {
       await database.close();
     });
 
-    test('Scan kartu dengan history transaksi APDU membuat historyDrafts', () async {
-      final database = AppDatabase(NativeDatabase.memory());
-      final repository = NfcCardRepository(
-        draftRepo,
-        database: database,
-        householdId: 'history-household',
-      );
+    test(
+      'Scan kartu dengan history transaksi APDU membuat historyDrafts',
+      () async {
+        final database = AppDatabase(NativeDatabase.memory());
+        final repository = NfcCardRepository(
+          draftRepo,
+          database: database,
+          householdId: 'history-household',
+        );
 
-      final historyItems = [
-        const NfcTransactionLogItem(
-          recordIndex: 1,
-          amount: 15000,
-        ),
-        const NfcTransactionLogItem(
-          recordIndex: 2,
-          amount: 5000,
-        ),
-      ];
+        final historyItems = [
+          const NfcTransactionLogItem(recordIndex: 1, amount: 15000),
+          const NfcTransactionLogItem(recordIndex: 2, amount: 5000),
+        ];
 
-      final scanWithHistory = NfcCardScanResult(
-        cardId: 'MANDIRI-HIST-1',
-        balance: 80000,
-        cardType: 'mandiri_emoney',
-        success: true,
-        history: historyItems,
-      );
+        final scanWithHistory = NfcCardScanResult(
+          cardId: 'MANDIRI-HIST-1',
+          balance: 80000,
+          cardType: 'mandiri_emoney',
+          success: true,
+          history: historyItems,
+        );
 
-      final res = await repository.processCardScan(scanWithHistory);
+        final res = await repository.processCardScan(scanWithHistory);
 
-      expect(res.isBaseline, isTrue);
-      expect(res.historyDrafts, hasLength(2));
-      expect(res.historyDrafts.first.amount, 15000);
-      expect(res.historyDrafts.first.rawBody, contains('#1'));
-      expect(res.historyDrafts.last.amount, 5000);
-      expect(res.historyDrafts.last.rawBody, contains('#2'));
+        expect(res.isBaseline, isTrue);
+        expect(res.historyDrafts, hasLength(2));
+        expect(res.historyDrafts.first.amount, 15000);
+        expect(res.historyDrafts.first.rawBody, contains('#1'));
+        expect(res.historyDrafts.last.amount, 5000);
+        expect(res.historyDrafts.last.rawBody, contains('#2'));
 
-      final pendingDrafts = await draftRepo.getPendingDrafts();
-      expect(pendingDrafts, hasLength(2));
+        final pendingDrafts = await draftRepo.getPendingDrafts();
+        expect(pendingDrafts, hasLength(2));
 
-      await database.close();
-    });
+        await database.close();
+      },
+    );
 
     test('Scan hari ini lalu scan besok tidak menduplikasi draft yang sudah dikonfirmasi', () async {
       final database = AppDatabase(NativeDatabase.memory());
@@ -482,7 +509,8 @@ void main() {
     });
 
     test('Parsing URI NDEF Smart Tag Trigger ffm://action', () {
-      const fuelUriString = 'ffm://action?type=fuel&title=Bensin&category=Transportasi';
+      const fuelUriString =
+          'ffm://action?type=fuel&title=Bensin&category=Transportasi';
       final fuelUri = Uri.parse(fuelUriString);
       expect(fuelUri.scheme, 'ffm');
       expect(fuelUri.host, 'action');
@@ -495,7 +523,8 @@ void main() {
       expect(voiceUri.scheme, 'ffm');
       expect(voiceUri.queryParameters['type'], 'voice_assistant');
 
-      const timerUriString = 'ffm://action?type=timer_activity&title=Sesi+Kerja+Tani';
+      const timerUriString =
+          'ffm://action?type=timer_activity&title=Sesi+Kerja+Tani';
       final timerUri = Uri.parse(timerUriString);
       expect(timerUri.scheme, 'ffm');
       expect(timerUri.queryParameters['type'], 'timer_activity');

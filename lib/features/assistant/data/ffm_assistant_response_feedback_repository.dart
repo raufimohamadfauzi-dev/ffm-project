@@ -410,7 +410,9 @@ Laporan ini disalin manual oleh pengguna. Tidak ada tindakan otomatis dan tidak 
         buffer.writeln('processTrace.origin: ${trace['origin']}');
         buffer.writeln('processTrace.elapsedMs: ${trace['elapsedMs']}');
         if (trace['fallbackReason'] != null) {
-          buffer.writeln('processTrace.fallbackReason: ${trace['fallbackReason']}');
+          buffer.writeln(
+            'processTrace.fallbackReason: ${trace['fallbackReason']}',
+          );
         }
         if (trace['tokenUsage'] != null) {
           buffer.writeln('processTrace.tokenUsage: ${trace['tokenUsage']}');
@@ -421,7 +423,9 @@ Laporan ini disalin manual oleh pengguna. Tidak ada tindakan otomatis dan tidak 
           for (var i = 0; i < events.length; i++) {
             final ev = events[i];
             if (ev is Map) {
-              buffer.writeln('  - [${ev['elapsedMs']}ms] ${ev['label']}${ev['detail'] != null ? ' (${ev['detail']})' : ''}');
+              buffer.writeln(
+                '  - [${ev['elapsedMs']}ms] ${ev['label']}${ev['detail'] != null ? ' (${ev['detail']})' : ''}',
+              );
             }
           }
         }

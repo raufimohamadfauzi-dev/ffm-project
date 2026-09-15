@@ -103,7 +103,7 @@ class GeminiTypingIndicator extends StatelessWidget {
                         final step = entry.value;
                         final isCompleted = index < currentStepIndex;
                         final isCurrent = index == currentStepIndex;
-                        
+
                         return Padding(
                           padding: const EdgeInsets.only(left: 2, top: 4),
                           child: Row(
@@ -112,20 +112,20 @@ class GeminiTypingIndicator extends StatelessWidget {
                                 isCompleted
                                     ? Icons.check_circle
                                     : isCurrent
-                                        ? Icons.radio_button_checked
-                                        : Icons.radio_button_unchecked,
+                                    ? Icons.radio_button_checked
+                                    : Icons.radio_button_unchecked,
                                 size: 12,
                                 color: isCompleted
                                     ? (isDark
-                                        ? const Color(0xFF4CAF50)
-                                        : const Color(0xFF2E7D32))
+                                          ? const Color(0xFF4CAF50)
+                                          : const Color(0xFF2E7D32))
                                     : isCurrent
-                                        ? (isDark
-                                            ? const Color(0xFF9A9590)
-                                            : const Color(0xFFC27B5F))
-                                        : (isDark
-                                            ? Colors.white24
-                                            : Colors.black26),
+                                    ? (isDark
+                                          ? const Color(0xFF9A9590)
+                                          : const Color(0xFFC27B5F))
+                                    : (isDark
+                                          ? Colors.white24
+                                          : Colors.black26),
                               ),
                               const SizedBox(width: 6),
                               Expanded(
@@ -134,15 +134,15 @@ class GeminiTypingIndicator extends StatelessWidget {
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: isCompleted
                                         ? (isDark
-                                            ? const Color(0xFF4CAF50)
-                                            : const Color(0xFF2E7D32))
+                                              ? const Color(0xFF4CAF50)
+                                              : const Color(0xFF2E7D32))
                                         : isCurrent
-                                            ? (isDark
-                                                ? const Color(0xFF9A9590)
-                                                : const Color(0xFF6B5E4F))
-                                            : (isDark
-                                                ? Colors.white38
-                                                : Colors.black38),
+                                        ? (isDark
+                                              ? const Color(0xFF9A9590)
+                                              : const Color(0xFF6B5E4F))
+                                        : (isDark
+                                              ? Colors.white38
+                                              : Colors.black38),
                                     fontSize: 11,
                                   ),
                                 ),

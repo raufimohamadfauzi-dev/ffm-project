@@ -40,9 +40,13 @@ class TelegramMessageFormatter {
     buffer.writeln('');
 
     // Rincian Arus Kas
-    buffer.writeln('📉 <b>Pengeluaran Pekan Ini:</b> ${formatRupiah(totalExpense)}');
+    buffer.writeln(
+      '📉 <b>Pengeluaran Pekan Ini:</b> ${formatRupiah(totalExpense)}',
+    );
     if (totalIncome > 0) {
-      buffer.writeln('📈 <b>Pemasukan Pekan Ini:</b> ${formatRupiah(totalIncome)}');
+      buffer.writeln(
+        '📈 <b>Pemasukan Pekan Ini:</b> ${formatRupiah(totalIncome)}',
+      );
     }
 
     if (topExpenseCategory != null &&
@@ -54,7 +58,9 @@ class TelegramMessageFormatter {
       );
     }
 
-    buffer.writeln('💰 <b>Sisa Kas & Rekening:</b> ${formatRupiah(cashBalance)}');
+    buffer.writeln(
+      '💰 <b>Sisa Kas & Rekening:</b> ${formatRupiah(cashBalance)}',
+    );
 
     // Skor kesehatan finansial jika ada
     if (healthScore != null) {
@@ -133,8 +139,10 @@ class TelegramMessageFormatter {
 
     if (transactionDate != null) {
       try {
-        final dateStr =
-            DateFormat('dd MMM yyyy, HH:mm', 'id_ID').format(transactionDate);
+        final dateStr = DateFormat(
+          'dd MMM yyyy, HH:mm',
+          'id_ID',
+        ).format(transactionDate);
         buffer.writeln('📅 <b>Waktu:</b> $dateStr WIB');
       } catch (_) {
         buffer.writeln('📅 <b>Waktu:</b> ${transactionDate.toIso8601String()}');
@@ -188,8 +196,10 @@ class TelegramMessageFormatter {
 
     if (transactionDate != null) {
       try {
-        final dateStr =
-            DateFormat('dd MMM yyyy, HH:mm', 'id_ID').format(transactionDate);
+        final dateStr = DateFormat(
+          'dd MMM yyyy, HH:mm',
+          'id_ID',
+        ).format(transactionDate);
         buffer.writeln('📅 <b>Waktu:</b> $dateStr WIB');
       } catch (_) {
         buffer.writeln('📅 <b>Waktu:</b> ${transactionDate.toIso8601String()}');

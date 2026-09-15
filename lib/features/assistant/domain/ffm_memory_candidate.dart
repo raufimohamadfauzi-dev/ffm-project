@@ -79,7 +79,7 @@ class FfmMemoryCandidate {
 
   /// Cek apakah kandidat ini valid untuk dimasukkan ke context
   bool get isValid {
-    if (status == FfmMemoryStatus.archived || 
+    if (status == FfmMemoryStatus.archived ||
         status == FfmMemoryStatus.superseded) {
       return false;
     }
@@ -91,16 +91,12 @@ class FfmMemoryCandidate {
 
   /// Cek apakah kandidat ini conflict dengan kandidat lain
   bool conflictsWith(FfmMemoryCandidate other) {
-    return type == other.type && 
-           key == other.key && 
-           value != other.value;
+    return type == other.type && key == other.key && value != other.value;
   }
 
   /// Cek apakah kandidat ini adalah duplikat dari kandidat lain
   bool isDuplicateOf(FfmMemoryCandidate other) {
-    return type == other.type && 
-           key == other.key && 
-           value == other.value;
+    return type == other.type && key == other.key && value == other.value;
   }
 }
 
@@ -163,15 +159,25 @@ class FfmMemoryPromotionCandidate {
   /// Cek apakah candidate ini berisi data sensitif
   bool get isSensitive {
     final sensitiveKeys = [
-      'password', 'pin', 'otp', 'token', 'secret', 'key',
-      'nomor_ktp', 'nik', 'nomor_kartu', 'credit_card',
-      'cvv', 'expiry', 'security_answer',
+      'password',
+      'pin',
+      'otp',
+      'token',
+      'secret',
+      'key',
+      'nomor_ktp',
+      'nik',
+      'nomor_kartu',
+      'credit_card',
+      'cvv',
+      'expiry',
+      'security_answer',
     ];
     final lowerKey = key.toLowerCase();
     final lowerValue = value.toLowerCase();
-    
-    return sensitiveKeys.any((pattern) => 
-      lowerKey.contains(pattern) || lowerValue.contains(pattern)
+
+    return sensitiveKeys.any(
+      (pattern) => lowerKey.contains(pattern) || lowerValue.contains(pattern),
     );
   }
 }

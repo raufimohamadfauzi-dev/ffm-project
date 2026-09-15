@@ -57,14 +57,11 @@ void main() {
       }
     });
 
-    testWidgets('renders SizedBox.shrink when there is no active cycle',
-        (tester) async {
+    testWidgets('renders SizedBox.shrink when there is no active cycle', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: AdaptiveCashFlowCard(),
-          ),
-        ),
+        const MaterialApp(home: Scaffold(body: AdaptiveCashFlowCard())),
       );
       await tester.pumpAndSettle();
 
@@ -72,57 +69,62 @@ void main() {
       expect(find.byType(AdaptiveCashFlowCard), findsOneWidget);
     });
 
-    testWidgets('renders active agriculture cycle card with runway and safe-to-spend',
-        (tester) async {
-      // Seed 1 akun dengan saldo 20 juta
-      await db.into(db.accounts).insert(
-            AccountsCompanion.insert(
-              id: 'acc_bri_1',
-              householdId: AppContext.householdId,
-              name: 'BRI Simpedes',
-              type: 'bank',
-              openingBalance: const Value(20000000),
-              createdAt: DateTime.now(),
-            ),
-          );
+    testWidgets(
+      'renders active agriculture cycle card with runway and safe-to-spend',
+      (tester) async {
+        // Seed 1 akun dengan saldo 20 juta
+        await db
+            .into(db.accounts)
+            .insert(
+              AccountsCompanion.insert(
+                id: 'acc_bri_1',
+                householdId: AppContext.householdId,
+                name: 'BRI Simpedes',
+                type: 'bank',
+                openingBalance: const Value(20000000),
+                createdAt: DateTime.now(),
+              ),
+            );
 
-      // Seed 1 active agricultural profile
-      final profile = CashFlowProfile(
-        id: 'cycle_padi_1',
-        householdId: AppContext.householdId,
-        profileType: CashFlowProfileType.agriculture,
-        name: 'Kebun Padi Blok Timur MT-1',
-        commodityOrBusinessType: 'Padi Ciherang',
-        startDate: DateTime.now().subtract(const Duration(days: 30)),
-        targetHarvestDate: DateTime.now().add(const Duration(days: 75)),
-        initialCapital: 15000000,
-        estimatedInflow: 45000000,
-        dailyLivingBudget: 90000,
-        dailyOperationalBudget: 40000,
-        isActive: true,
-      );
+        // Seed 1 active agricultural profile
+        final profile = CashFlowProfile(
+          id: 'cycle_padi_1',
+          householdId: AppContext.householdId,
+          profileType: CashFlowProfileType.agriculture,
+          name: 'Kebun Padi Blok Timur MT-1',
+          commodityOrBusinessType: 'Padi Ciherang',
+          startDate: DateTime.now().subtract(const Duration(days: 30)),
+          targetHarvestDate: DateTime.now().add(const Duration(days: 75)),
+          initialCapital: 15000000,
+          estimatedInflow: 45000000,
+          dailyLivingBudget: 90000,
+          dailyOperationalBudget: 40000,
+          isActive: true,
+        );
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        'ffm_cash_flow_profiles_${AppContext.householdId}',
-        jsonEncode([profile.toJson()]),
-      );
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          'ffm_cash_flow_profiles_${AppContext.householdId}',
+          jsonEncode([profile.toJson()]),
+        );
 
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: AdaptiveCashFlowCard(),
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(child: AdaptiveCashFlowCard()),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Kebun Padi Blok Timur MT-1'), findsOneWidget);
-      expect(find.text('Siklus Pertanian / Panen • Padi Ciherang'), findsOneWidget);
-      expect(find.text('Runway Kas'), findsOneWidget);
-      expect(find.text('Batas Aman Dapur'), findsOneWidget);
-    });
+        expect(find.text('Kebun Padi Blok Timur MT-1'), findsOneWidget);
+        expect(
+          find.text('Siklus Pertanian / Panen • Padi Ciherang'),
+          findsOneWidget,
+        );
+        expect(find.text('Runway Kas'), findsOneWidget);
+        expect(find.text('Batas Aman Dapur'), findsOneWidget);
+      },
+    );
   });
 }

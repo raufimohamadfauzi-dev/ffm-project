@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
+
 import '../../domain/ffm_assistant_insight.dart';
 import '../../domain/ffm_proactive_delivery_policy.dart';
 
 class ProactiveSettingsDialog extends StatefulWidget {
-  const ProactiveSettingsDialog({
-    super.key,
-    required this.policy,
-  });
+  const ProactiveSettingsDialog({super.key, required this.policy});
 
   final FfmProactiveDeliveryPolicy policy;
 
@@ -265,13 +263,17 @@ class _ProactiveSettingsDialogState extends State<ProactiveSettingsDialog> {
                     final type = item.$1;
                     final title = item.$2;
                     final desc = item.$3;
-                    final isDetectorDisabled =
-                        _disabledDetectors.contains(type.name);
+                    final isDetectorDisabled = _disabledDetectors.contains(
+                      type.name,
+                    );
 
                     return CheckboxListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
                       title: Text(title),
-                      subtitle: Text(desc, style: const TextStyle(fontSize: 12)),
+                      subtitle: Text(
+                        desc,
+                        style: const TextStyle(fontSize: 12),
+                      ),
                       value: !isDetectorDisabled,
                       onChanged: _enabled
                           ? (checked) {

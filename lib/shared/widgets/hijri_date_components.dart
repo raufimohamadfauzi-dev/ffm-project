@@ -46,9 +46,8 @@ class HijriDateText extends StatelessWidget {
   final bool interactive;
 
   void _openSettings(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const HijriSettingsPage()),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const HijriSettingsPage()));
   }
 
   @override

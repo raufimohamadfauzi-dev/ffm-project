@@ -24,12 +24,14 @@ class NotificationListenerBridge {
   static const _accessChannel = MethodChannel('ffm/notification_access');
   static const _notifChannel = MethodChannel('ffm/notification_listener');
   static const _uuid = Uuid();
-  
+
   static const _paymentDraftChannelId = 'ffm_payment_drafts';
   static const _paymentDraftChannelName = 'Draft Pembayaran';
-  static const _paymentDraftChannelDescription = 'Notifikasi untuk draft pembayaran yang terdeteksi';
-  
-  final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+  static const _paymentDraftChannelDescription =
+      'Notifikasi untuk draft pembayaran yang terdeteksi';
+
+  final FlutterLocalNotificationsPlugin _notificationsPlugin =
+      FlutterLocalNotificationsPlugin();
   bool _notificationsInitialized = false;
 
   /// Callback saat draft baru berhasil ditambahkan.
@@ -72,15 +74,17 @@ class NotificationListenerBridge {
 
   Future<void> _initializeNotifications() async {
     if (_notificationsInitialized) return;
-    
+
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    
+
     await _notificationsPlugin.initialize(
       settings: const InitializationSettings(android: android),
     );
-    
+
     await _notificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(
           const AndroidNotificationChannel(
             _paymentDraftChannelId,
@@ -89,17 +93,17 @@ class NotificationListenerBridge {
             importance: Importance.defaultImportance,
           ),
         );
-    
+
     _notificationsInitialized = true;
   }
 
   Future<void> _showDraftNotification(PaymentDraft draft) async {
     if (!_notificationsInitialized) return;
-    
+
     final isDebit = draft.mutationType == PaymentMutationType.debit;
     final typeLabel = isDebit ? 'Pengeluaran' : 'Pemasukan';
     final emoji = isDebit ? '💸' : '💰';
-    
+
     final androidDetails = AndroidNotificationDetails(
       _paymentDraftChannelId,
       _paymentDraftChannelName,
@@ -107,13 +111,14 @@ class NotificationListenerBridge {
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
     );
-    
+
     final notificationDetails = NotificationDetails(android: androidDetails);
-    
+
     await _notificationsPlugin.show(
       id: draft.id.hashCode,
       title: 'Draft Pembayaran Baru',
-      body: '$emoji $typeLabel ${draft.formattedAmount} dari ${draft.accountLabel}',
+      body:
+          '$emoji $typeLabel ${draft.formattedAmount} dari ${draft.accountLabel}',
       notificationDetails: notificationDetails,
       payload: draft.id,
     );

@@ -49,7 +49,9 @@ class TelegramBotService {
       );
     }
 
-    final url = Uri.parse('https://api.telegram.org/bot$cleanToken/sendMessage');
+    final url = Uri.parse(
+      'https://api.telegram.org/bot$cleanToken/sendMessage',
+    );
 
     try {
       final response = await _client
@@ -95,12 +97,14 @@ class TelegramBotService {
     } on SocketException {
       return const TelegramSendResult(
         success: false,
-        message: 'Koneksi internet tidak tersedia atau gagal terhubung ke Telegram.',
+        message:
+            'Koneksi internet tidak tersedia atau gagal terhubung ke Telegram.',
       );
     } on TimeoutException {
       return const TelegramSendResult(
         success: false,
-        message: 'Waktu tunggu habis saat menghubungi Telegram (Timeout 15 detik).',
+        message:
+            'Waktu tunggu habis saat menghubungi Telegram (Timeout 15 detik).',
       );
     } catch (e) {
       return TelegramSendResult(
@@ -126,11 +130,7 @@ class TelegramBotService {
         'berhasil terhubung dan siap mengawal radar keuangan rumah tangga.\n\n'
         '✅ <i>Laporan mingguan & peringatan radar finansial akan dikirimkan ke chat ini.</i>';
 
-    return sendMessage(
-      botToken: botToken,
-      chatId: chatId,
-      text: testText,
-    );
+    return sendMessage(botToken: botToken, chatId: chatId, text: testText);
   }
 
   static String _translateError(int code, String description) {
@@ -141,10 +141,14 @@ class TelegramBotService {
     if (code == 400 && desc.contains('chat not found')) {
       return 'Chat ID tidak ditemukan (Error 400). Jika Chat Pribadi, buka bot di Telegram lalu tekan "Start". Jika Grup, pastikan bot sudah di-add ke grup dan Anda sudah mengirim /start@bot_anda di grup.';
     }
-    if (code == 400 && (desc.contains('is deactivated') || desc.contains('chat_id is empty'))) {
+    if (code == 400 &&
+        (desc.contains('is deactivated') ||
+            desc.contains('chat_id is empty'))) {
       return 'Format Chat ID salah atau akun tidak aktif. Chat ID pribadi berupa angka (contoh: 123456789), sedangkan ID Grup dimulai dengan tanda minus (contoh: -100123456789).';
     }
-    if (code == 403 || desc.contains('bot was blocked') || desc.contains('forbidden')) {
+    if (code == 403 ||
+        desc.contains('bot was blocked') ||
+        desc.contains('forbidden')) {
       return 'Bot tidak diizinkan mengirim pesan (Error 403). Buka blokir bot di Telegram, atau jika di Grup, pastikan bot memiliki hak akses untuk mengirim pesan.';
     }
     if (code == 429 || desc.contains('too many requests')) {

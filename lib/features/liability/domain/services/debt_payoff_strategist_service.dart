@@ -172,12 +172,13 @@ class DebtPayoffStrategistService {
   }) async {
     final effectiveNow = now ?? DateTime.now();
 
-    final activeLiabilities = await (_db.select(_db.liabilities)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) & row.isActive.equals(true),
-          ))
-        .get();
+    final activeLiabilities =
+        await (_db.select(_db.liabilities)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
 
     if (activeLiabilities.isEmpty) return [];
 
@@ -210,21 +211,24 @@ class DebtPayoffStrategistService {
       }
 
       // 2. Jika tidak diisi (0): cek riwayat pembayaran kas aktual (liability_payment)
-      final payments = await (_db.select(_db.transactions)
-            ..where(
-              (t) =>
-                  t.householdId.equals(householdId) &
-                  t.source.equals('liability_payment') &
-                  t.sourceId.equals(l.id) &
-                  t.isDeleted.equals(false) &
-                  t.isArchived.equals(false),
-            )
-            ..orderBy([(t) => OrderingTerm.desc(t.date)]))
-          .get();
+      final payments =
+          await (_db.select(_db.transactions)
+                ..where(
+                  (t) =>
+                      t.householdId.equals(householdId) &
+                      t.source.equals('liability_payment') &
+                      t.sourceId.equals(l.id) &
+                      t.isDeleted.equals(false) &
+                      t.isArchived.equals(false),
+                )
+                ..orderBy([(t) => OrderingTerm.desc(t.date)]))
+              .get();
 
       if (payments.isNotEmpty) {
-        final totalPaid =
-            payments.fold<int>(0, (sum, tx) => sum + tx.amount.abs());
+        final totalPaid = payments.fold<int>(
+          0,
+          (sum, tx) => sum + tx.amount.abs(),
+        );
         final avgPayment = (totalPaid / payments.length).round();
 
         if (avgPayment > 0) {
@@ -253,7 +257,8 @@ class DebtPayoffStrategistService {
       final remainingMonths = (diffDays / 30).ceil();
 
       if (remainingMonths > 0) {
-        final amortizedInstallment = (l.remainingBalance / remainingMonths).ceil();
+        final amortizedInstallment = (l.remainingBalance / remainingMonths)
+            .ceil();
         if (amortizedInstallment > 0) {
           result.add(
             AdaptiveLiability(
@@ -267,8 +272,7 @@ class DebtPayoffStrategistService {
               startDate: l.startDate,
               dueDate: dueDate,
               isExplicitInstallment: false,
-              installmentOrigin:
-                  AdaptiveInstallmentOrigin.dueDateAmortization,
+              installmentOrigin: AdaptiveInstallmentOrigin.dueDateAmortization,
             ),
           );
           continue;
@@ -278,8 +282,9 @@ class DebtPayoffStrategistService {
       // 4. Fallback minimum floor: 5% dari sisa saldo atau minimal Rp 50.000
       final floorVal = (l.remainingBalance * 0.05).round();
       final finalFloor = floorVal > 50000 ? floorVal : 50000;
-      final safeInstallment =
-          finalFloor > l.remainingBalance ? l.remainingBalance : finalFloor;
+      final safeInstallment = finalFloor > l.remainingBalance
+          ? l.remainingBalance
+          : finalFloor;
 
       result.add(
         AdaptiveLiability(
@@ -310,8 +315,9 @@ class DebtPayoffStrategistService {
   }) {
     final effectiveStart = startDate ?? DateTime.now();
 
-    final activeLiabilities =
-        liabilities.where((l) => l.remainingBalance > 0).toList();
+    final activeLiabilities = liabilities
+        .where((l) => l.remainingBalance > 0)
+        .toList();
 
     if (activeLiabilities.isEmpty) {
       return DebtPayoffSimulationResult(
@@ -369,8 +375,9 @@ class DebtPayoffStrategistService {
       var availableBudget = (totalBaseMonthly + extraMonthlyPayment).toDouble();
 
       // 3. Tentukan urutan prioritas target pelunasan
-      final unpaid =
-          activeLiabilities.where((l) => balances[l.id]! > 0.01).toList();
+      final unpaid = activeLiabilities
+          .where((l) => balances[l.id]! > 0.01)
+          .toList();
 
       if (unpaid.isEmpty) {
         currentMonth--;
@@ -423,8 +430,9 @@ class DebtPayoffStrategistService {
       // 5. Alokasikan SELURUH sisa dana yang terkumpul ke target debt utama (Snowball Roll-Over)
       while (availableBudget > 0 && unpaid.any((d) => balances[d.id]! > 0.01)) {
         // Cari target aktif berikutnya
-        final currentActive =
-            unpaid.where((d) => balances[d.id]! > 0.01).toList();
+        final currentActive = unpaid
+            .where((d) => balances[d.id]! > 0.01)
+            .toList();
         if (currentActive.isEmpty) break;
 
         final currentTarget = currentActive.first;
@@ -467,10 +475,12 @@ class DebtPayoffStrategistService {
       }
     }
 
-    final totalInterest =
-        interestPaid.values.fold<double>(0.0, (sum, v) => sum + v).round();
-    final totalPrincipal =
-        principalPaid.values.fold<double>(0.0, (sum, v) => sum + v).round();
+    final totalInterest = interestPaid.values
+        .fold<double>(0.0, (sum, v) => sum + v)
+        .round();
+    final totalPrincipal = principalPaid.values
+        .fold<double>(0.0, (sum, v) => sum + v)
+        .round();
 
     final debtFreeDate = DateTime(
       effectiveStart.year,
@@ -527,20 +537,24 @@ class DebtPayoffStrategistService {
     final monthsSavedSnowball = (baseline.totalMonths - snowball.totalMonths)
         .clamp(0, baseline.totalMonths);
     final interestSavedSnowball =
-        (baseline.totalInterestPaid - snowball.totalInterestPaid)
-            .clamp(0, baseline.totalInterestPaid);
+        (baseline.totalInterestPaid - snowball.totalInterestPaid).clamp(
+          0,
+          baseline.totalInterestPaid,
+        );
 
     final monthsSavedAvalanche = (baseline.totalMonths - avalanche.totalMonths)
         .clamp(0, baseline.totalMonths);
     final interestSavedAvalanche =
-        (baseline.totalInterestPaid - avalanche.totalInterestPaid)
-            .clamp(0, baseline.totalInterestPaid);
+        (baseline.totalInterestPaid - avalanche.totalInterestPaid).clamp(
+          0,
+          baseline.totalInterestPaid,
+        );
 
     // Buat kalimat rekomendasi otonom natural bahasa Indonesia
     final String recommendation;
-    if (liabilities.isEmpty || liabilities.every((l) => l.remainingBalance <= 0)) {
-      recommendation =
-          'Keluarga Anda saat ini bebas hutang. Pertahankan kondisi ini dan fokus perbesar pos tabungan & investasi.';
+    if (liabilities.isEmpty ||
+        liabilities.every((l) => l.remainingBalance <= 0)) {
+      recommendation = 'Keluarga Anda saat ini bebas hutang. Pertahankan kondisi ini dan fokus perbesar pos tabungan & investasi.';
     } else {
       final highestInterestDebt = List.of(liabilities)
         ..sort((a, b) => b.interestRate.compareTo(a.interestRate));
@@ -577,9 +591,9 @@ class DebtPayoffStrategistService {
   /// Mendeteksi estimasi kelebihan anggaran/surplus belanja yang bisa dialokasikan.
   Future<int> estimateSuggestedExtraPayment(String householdId) async {
     try {
-      final budgets = await (_db.select(_db.envelopeBudgets)
-            ..where((row) => row.householdId.equals(householdId)))
-          .get();
+      final budgets = await (_db.select(
+        _db.envelopeBudgets,
+      )..where((row) => row.householdId.equals(householdId))).get();
 
       // Cek surplus dari amplop belanja non-pokok jika ada
       if (budgets.isNotEmpty) {

@@ -89,22 +89,25 @@ void main() {
     );
   });
 
-  test('memvalidasi tanggal jatuh tempo tidak boleh mendahului tanggal mulai', () {
-    expect(
-      validateDebtReceivableDates(
-        startDate: DateTime(2026, 9, 10),
-        dueDate: DateTime(2026, 9, 5),
-      ),
-      'Tanggal jatuh tempo tidak boleh sebelum tanggal mulai.',
-    );
-    expect(
-      validateDebtReceivableDates(
-        startDate: DateTime(2026, 9, 10),
-        dueDate: DateTime(2026, 9, 15),
-      ),
-      isNull,
-    );
-  });
+  test(
+    'memvalidasi tanggal jatuh tempo tidak boleh mendahului tanggal mulai',
+    () {
+      expect(
+        validateDebtReceivableDates(
+          startDate: DateTime(2026, 9, 10),
+          dueDate: DateTime(2026, 9, 5),
+        ),
+        'Tanggal jatuh tempo tidak boleh sebelum tanggal mulai.',
+      );
+      expect(
+        validateDebtReceivableDates(
+          startDate: DateTime(2026, 9, 10),
+          dueDate: DateTime(2026, 9, 15),
+        ),
+        isNull,
+      );
+    },
+  );
 
   test('memvalidasi nominal pembayaran hutang/piutang', () {
     expect(
@@ -112,15 +115,24 @@ void main() {
       'Nominal pembayaran harus lebih besar dari nol.',
     );
     expect(
-      validateDebtPaymentAmount(paymentAmount: 600000, remainingBalance: 500000),
+      validateDebtPaymentAmount(
+        paymentAmount: 600000,
+        remainingBalance: 500000,
+      ),
       'Nominal pembayaran tidak boleh melebihi sisa saldo (500000).',
     );
     expect(
-      validateDebtPaymentAmount(paymentAmount: 300000, remainingBalance: 500000),
+      validateDebtPaymentAmount(
+        paymentAmount: 300000,
+        remainingBalance: 500000,
+      ),
       isNull,
     );
     expect(
-      validateDebtPaymentAmount(paymentAmount: 500000, remainingBalance: 500000),
+      validateDebtPaymentAmount(
+        paymentAmount: 500000,
+        remainingBalance: 500000,
+      ),
       isNull,
     );
   });

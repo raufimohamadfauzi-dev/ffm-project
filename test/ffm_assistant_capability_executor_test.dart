@@ -310,7 +310,10 @@ void main() {
         ),
       );
 
-    final result = controller.failPlan('failure-message-plan', 'adapter timeout');
+    final result = controller.failPlan(
+      'failure-message-plan',
+      'adapter timeout',
+    );
 
     expect(result?.blockedReason, 'adapter timeout');
   });

@@ -32,8 +32,7 @@ class TelegramDeliveryRepository {
   }) async {
     final entityClause = entityId == null ? 'NULL' : '?';
     final dedupeClause = dedupeKey == null ? 'NULL' : '?';
-    final fingerprintClause =
-        credentialFingerprint == null ? 'NULL' : '?';
+    final fingerprintClause = credentialFingerprint == null ? 'NULL' : '?';
     final variables = <Variable<Object>>[
       Variable.withString(deliveryId),
       Variable.withString(householdId),
@@ -71,21 +70,23 @@ class TelegramDeliveryRepository {
   }) async {
     final current = now ?? _now();
     final cutoff = current.subtract(maxAge);
-    final changed = await (_db.update(_db.telegramDeliveries)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.status.isIn(const ['pending', 'failed']) &
-                row.createdAt.isSmallerThanValue(cutoff),
-          ))
-        .write(
-      TelegramDeliveriesCompanion(
-        status: const Value('expired'),
-        retryable: const Value(false),
-        lastError: const Value('Laporan kedaluwarsa sebelum sempat terkirim.'),
-        lastAttemptAt: Value(current),
-      ),
-    );
+    final changed =
+        await (_db.update(_db.telegramDeliveries)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.status.isIn(const ['pending', 'failed']) &
+                  row.createdAt.isSmallerThanValue(cutoff),
+            ))
+            .write(
+              TelegramDeliveriesCompanion(
+                status: const Value('expired'),
+                retryable: const Value(false),
+                lastError: const Value(
+                  'Laporan kedaluwarsa sebelum sempat terkirim.',
+                ),
+                lastAttemptAt: Value(current),
+              ),
+            );
     return changed;
   }
 
@@ -97,10 +98,7 @@ class TelegramDeliveryRepository {
     DateTime? now,
   }) async {
     final current = now ?? _now();
-    await expireStaleDeliveries(
-      householdId: householdId,
-      now: current,
-    );
+    await expireStaleDeliveries(householdId: householdId, now: current);
 
     final boundedLimit = limit < 1
         ? 1
@@ -207,10 +205,9 @@ class TelegramDeliveryRepository {
     );
   }
 
-  Future<TelegramDelivery?> deliveryById(String deliveryId) =>
-      (_db.select(_db.telegramDeliveries)
-            ..where((row) => row.deliveryId.equals(deliveryId)))
-          .getSingleOrNull();
+  Future<TelegramDelivery?> deliveryById(String deliveryId) => (_db.select(
+    _db.telegramDeliveries,
+  )..where((row) => row.deliveryId.equals(deliveryId))).getSingleOrNull();
 
   /// Riwayat pengiriman terbaru untuk ditampilkan di halaman setup.
   Future<List<TelegramDelivery>> recentDeliveries({

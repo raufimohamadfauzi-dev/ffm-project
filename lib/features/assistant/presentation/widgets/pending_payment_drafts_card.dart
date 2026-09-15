@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
-import '../../../transaction/domain/entities/transaction_entity.dart';
 import '../../../transaction/domain/usecases/transaction_crud_usecases.dart';
-import '../../../transaction/presentation/pages/transaction_form_page.dart';
 import '../../data/payment_draft_repository.dart';
 import '../../data/payment_notification_parser.dart';
 
@@ -17,10 +15,7 @@ import '../../data/payment_notification_parser.dart';
 /// - [Edit]: Membuka form transaksi dengan data yang sudah terisi otomatis.
 /// - [Abaikan]: Menghapus draft dari daftar tunggu.
 class PendingPaymentDraftsCard extends StatefulWidget {
-  const PendingPaymentDraftsCard({
-    super.key,
-    this.onDraftProcessed,
-  });
+  const PendingPaymentDraftsCard({super.key, this.onDraftProcessed});
 
   final VoidCallback? onDraftProcessed;
 
@@ -76,14 +71,15 @@ class _PendingPaymentDraftsCardState extends State<PendingPaymentDraftsCard>
     try {
       final db = getIt<AppDatabase>();
       final isDebit = draft.mutationType == PaymentMutationType.debit;
-      final signedAmount =
-          isDebit ? -draft.amount.round() : draft.amount.round();
+      final signedAmount = isDebit
+          ? -draft.amount.round()
+          : draft.amount.round();
       final txId = 'tx_notif_${draft.id}';
 
       // 1. Cari akun yang cocok berdasarkan sourceApp & accountLabel
-      final accounts = await (db.select(db.accounts)
-            ..where((a) => a.isArchived.equals(false)))
-          .get();
+      final accounts = await (db.select(
+        db.accounts,
+      )..where((a) => a.isArchived.equals(false))).get();
       Account? matchedAccount;
       final lowerSource = draft.sourceApp.toLowerCase();
       final lowerLabel = draft.accountLabel.toLowerCase();
@@ -150,9 +146,9 @@ class _PendingPaymentDraftsCardState extends State<PendingPaymentDraftsCard>
       matchedAccount ??= accounts.isNotEmpty ? accounts.first : null;
 
       // 2. Cari kategori yang cocok
-      final categories = await (db.select(db.categories)
-            ..where((c) => c.isActive.equals(true)))
-          .get();
+      final categories = await (db.select(
+        db.categories,
+      )..where((c) => c.isActive.equals(true))).get();
       Category? matchedCategory;
       if (draft.suggestedCategory != null) {
         final targetCat = draft.suggestedCategory!.toLowerCase();
@@ -168,7 +164,7 @@ class _PendingPaymentDraftsCardState extends State<PendingPaymentDraftsCard>
         final targetType = isDebit ? 'expense' : 'income';
         matchedCategory =
             categories.where((c) => c.type == targetType).firstOrNull ??
-                categories.firstOrNull;
+            categories.firstOrNull;
       }
 
       // 3. Simpan transaksi secara nyata ke database
@@ -199,8 +195,9 @@ class _PendingPaymentDraftsCardState extends State<PendingPaymentDraftsCard>
       widget.onDraftProcessed?.call();
 
       if (mounted) {
-        final targetInfo =
-            matchedAccount != null ? ' ke ${matchedAccount.name}' : '';
+        final targetInfo = matchedAccount != null
+            ? ' ke ${matchedAccount.name}'
+            : '';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -225,30 +222,113 @@ class _PendingPaymentDraftsCardState extends State<PendingPaymentDraftsCard>
   }
 
   Future<void> _editDraft(PaymentDraft draft) async {
-    final isDebit = draft.mutationType == PaymentMutationType.debit;
-    final saved = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => TransactionFormPage(
-          initialType:
-              isDebit ? TransactionType.expense : TransactionType.income,
-          initialAmount: draft.amount.round(),
-          initialDate: draft.createdAt,
-          initialAccountName: draft.accountLabel,
-          initialCategoryName: draft.suggestedCategory,
-          initialPartyName:
-              draft.merchantName.isNotEmpty ? draft.merchantName : null,
-          initialNote:
-              'Otomatis dari notifikasi ${draft.accountLabel}${draft.merchantName.isNotEmpty ? ' (${draft.merchantName})' : ''}',
-        ),
-      ),
+    final amountController = TextEditingController(
+      text: draft.amount.round().toString(),
+    );
+    final merchantController = TextEditingController(text: draft.merchantName);
+    String selectedType = draft.mutationType.name;
+
+    final edited = await showDialog<PaymentDraft>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Edit Draft Transaksi'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pastikan nominal, tipe, dan merchant sudah benar sebelum simpan.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: amountController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nominal (rupiah)',
+                      prefixText: 'Rp ',
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: merchantController,
+                    decoration: const InputDecoration(
+                      labelText: 'Merchant / pihak terkait',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedType,
+                    decoration: const InputDecoration(
+                      labelText: 'Tipe transaksi',
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'debit',
+                        child: Text('Pengeluaran'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'credit',
+                        child: Text('Pemasukan'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        selectedType = value;
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final parsedAmount = int.tryParse(
+                  amountController.text.replaceAll('.', '').replaceAll(',', ''),
+                );
+                if (parsedAmount == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Nominal tidak valid. Masukkan angka yang benar.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+
+                final fix = draft.copyWith(
+                  amount: parsedAmount.toDouble(),
+                  merchantName: merchantController.text.trim().isEmpty
+                      ? draft.merchantName
+                      : merchantController.text.trim(),
+                  mutationType: selectedType == 'credit'
+                      ? PaymentMutationType.credit
+                      : PaymentMutationType.debit,
+                );
+                Navigator.of(context).pop(fix);
+              },
+              child: const Text('Simpan Perubahan'),
+            ),
+          ],
+        );
+      },
     );
 
-    if (saved == true) {
-      await _draftRepo.updateStatus(draft.id, PaymentDraftStatus.confirmed);
-      await _loadPendingDrafts();
-      widget.onDraftProcessed?.call();
-    }
+    if (edited == null) return;
+
+    await _draftRepo.updateDraft(edited);
+    await _loadPendingDrafts();
   }
 
   Future<void> _dismissDraft(PaymentDraft draft) async {
@@ -310,8 +390,10 @@ class _PendingPaymentDraftsCardState extends State<PendingPaymentDraftsCard>
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: colorScheme.primary,
                     borderRadius: BorderRadius.circular(12),
@@ -336,10 +418,10 @@ class _PendingPaymentDraftsCardState extends State<PendingPaymentDraftsCard>
                 const Divider(height: 1, indent: 16, endIndent: 16),
             itemBuilder: (context, index) {
               final draft = _pendingDrafts[index];
-              final isExpense =
-                  draft.mutationType == PaymentMutationType.debit;
-              final amountColor =
-                  isExpense ? Colors.red.shade400 : Colors.green.shade500;
+              final isExpense = draft.mutationType == PaymentMutationType.debit;
+              final amountColor = isExpense
+                  ? Colors.red.shade400
+                  : Colors.green.shade500;
               final prefix = isExpense ? '-' : '+';
 
               return Padding(

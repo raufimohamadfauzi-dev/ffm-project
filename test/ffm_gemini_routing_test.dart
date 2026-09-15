@@ -762,4 +762,30 @@ void main() {
     expect(intent.response, contains('Rentang transaksi harus berurutan'));
     expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
   });
+
+  test('pertanyaan halaman aktif dengan destination Aktivitas tidak memanggil Gemini dan menjawab Aktivitas', () async {
+    final gemini = _FakeGemini(
+      const GeminiResult(
+        model: 'gemini-2.5-flash',
+        statusCode: 200,
+        message: 'OK',
+        text: 'Jawaban salah dari Gemini',
+      ),
+    );
+    final interpreter = FfmAssistantInterpreter(
+      database,
+      config: _FakeConfig(mode: 'agent', verified: true),
+      geminiService: gemini,
+    );
+
+    final intent = await interpreter.interpret(
+      'jadi sekarang sedang di halaman apa',
+      currentDestination: FfmAssistantDestination.activity,
+      routingMode: FfmAssistantRoutingMode.geminiCloud,
+    );
+
+    expect(gemini.calls, 0);
+    expect(intent.response, contains('Aktivitas'));
+    expect(intent.destination, FfmAssistantDestination.activity);
+  });
 }

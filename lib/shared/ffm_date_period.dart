@@ -134,8 +134,7 @@ class FfmDatePeriod {
     if (normalized.contains('kemarin')) {
       return fromPreset(FfmDatePeriodPreset.yesterday, now: reference);
     }
-    if (normalized.contains('minggu ini') ||
-        normalized.contains('seminggu')) {
+    if (normalized.contains('minggu ini') || normalized.contains('seminggu')) {
       return fromPreset(FfmDatePeriodPreset.thisWeek, now: reference);
     }
     if (normalized.contains('bulan ini')) {

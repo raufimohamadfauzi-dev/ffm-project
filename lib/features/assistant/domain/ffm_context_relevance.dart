@@ -49,13 +49,13 @@ class FfmContextRelevanceScore {
   double calculateFinalScore([FfmContextRelevanceWeights? weights]) {
     final w = weights ?? defaultWeights;
     return (semanticOrLexicalMatch * w.semanticOrLexicalMatch) +
-           (topicMatch * w.topicMatch) +
-           (entityMatch * w.entityMatch) +
-           (recency * w.recency) +
-           (importance * w.importance) +
-           (confidence * w.confidence) +
-           (goalRelevance * w.goalRelevance) +
-           (usageFrequency * w.usageFrequency);
+        (topicMatch * w.topicMatch) +
+        (entityMatch * w.entityMatch) +
+        (recency * w.recency) +
+        (importance * w.importance) +
+        (confidence * w.confidence) +
+        (goalRelevance * w.goalRelevance) +
+        (usageFrequency * w.usageFrequency);
   }
 
   FfmContextRelevanceScore copyWith({
@@ -68,7 +68,8 @@ class FfmContextRelevanceScore {
     double? goalRelevance,
     double? usageFrequency,
   }) => FfmContextRelevanceScore(
-    semanticOrLexicalMatch: semanticOrLexicalMatch ?? this.semanticOrLexicalMatch,
+    semanticOrLexicalMatch:
+        semanticOrLexicalMatch ?? this.semanticOrLexicalMatch,
     topicMatch: topicMatch ?? this.topicMatch,
     entityMatch: entityMatch ?? this.entityMatch,
     recency: recency ?? this.recency,
@@ -111,7 +112,8 @@ class FfmContextRelevanceWeights {
     double? goalRelevance,
     double? usageFrequency,
   }) => FfmContextRelevanceWeights(
-    semanticOrLexicalMatch: semanticOrLexicalMatch ?? this.semanticOrLexicalMatch,
+    semanticOrLexicalMatch:
+        semanticOrLexicalMatch ?? this.semanticOrLexicalMatch,
     topicMatch: topicMatch ?? this.topicMatch,
     entityMatch: entityMatch ?? this.entityMatch,
     recency: recency ?? this.recency,

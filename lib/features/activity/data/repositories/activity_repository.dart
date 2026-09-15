@@ -160,8 +160,7 @@ class ActivityRepository {
     return rows;
   }
 
-  /// Menyimpan Catatan Harian beserta tag/lahan secara atomik.
-  /// Catatan baru wajib memiliki minimal satu tag aktif dari household yang sama.
+  /// Menyimpan Catatan Kejadian beserta tag/lahan opsional secara atomik.
   Future<void> saveDailyNote({
     required String id,
     required String householdId,
@@ -170,6 +169,7 @@ class ActivityRepository {
     required List<String> tagIds,
     String? title,
     String? treatmentType,
+    int priority = 0,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) async {
@@ -185,9 +185,6 @@ class ActivityRepository {
         'body',
         'Isi Catatan Harian wajib diisi.',
       );
-    }
-    if (cleanTagIds.isEmpty) {
-      throw StateError('Pilih minimal satu tag/lahan untuk Catatan Harian.');
     }
     final cleanTreatment = treatmentType?.trim().toLowerCase();
     if (cleanTreatment != null &&
@@ -226,6 +223,7 @@ class ActivityRepository {
               treatmentType: Value(
                 cleanTreatment?.isEmpty == true ? null : cleanTreatment,
               ),
+              priority: Value(priority),
               createdAt: createdAt ?? DateTime.now(),
               updatedAt: Value(updatedAt ?? DateTime.now()),
             ),
@@ -604,6 +602,145 @@ class ActivityRepository {
       householdId: householdId,
       newValue: {'id': id},
     );
+  }
+
+  Future<void> archiveDailyNote(String householdId, String id) async {
+    await (database.update(database.dailyNotes)..where(
+          (row) => row.householdId.equals(householdId) & row.id.equals(id),
+        ))
+        .write(
+          DailyNotesCompanion(
+            isArchived: const Value(true),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+    await auditLogger.record(
+      action: 'archive',
+      entity: 'daily_note',
+      householdId: householdId,
+      newValue: {'id': id},
+    );
+  }
+
+  Future<void> deleteDailyNotePermanently(String householdId, String id) async {
+    await database.transaction(() async {
+      await (database.delete(
+        database.dailyNoteTags,
+      )..where((row) => row.dailyNoteId.equals(id))).go();
+      await (database.delete(database.dailyNotes)..where(
+            (row) => row.householdId.equals(householdId) & row.id.equals(id),
+          ))
+          .go();
+    });
+    await auditLogger.record(
+      action: 'delete_permanently',
+      entity: 'daily_note',
+      householdId: householdId,
+      oldValue: {'id': id},
+    );
+  }
+
+  Future<void> setDailyNotePriority(
+    String householdId,
+    String id,
+    int priority,
+  ) async {
+    await (database.update(database.dailyNotes)..where(
+          (row) => row.householdId.equals(householdId) & row.id.equals(id),
+        ))
+        .write(
+          DailyNotesCompanion(
+            priority: Value(priority),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+  }
+
+  Future<Map<String, List<Tag>>> getDailyNoteTags(
+    String householdId,
+    Iterable<String> noteIds,
+  ) async {
+    final ids = noteIds.toSet();
+    if (ids.isEmpty) return const {};
+    final links = await (database.select(
+      database.dailyNoteTags,
+    )..where((row) => row.dailyNoteId.isIn(ids))).get();
+    final tags = await (database.select(
+      database.tags,
+    )..where((row) => row.householdId.equals(householdId))).get();
+    final byId = {for (final tag in tags) tag.id: tag};
+    final result = <String, List<Tag>>{};
+    for (final link in links) {
+      final tag = byId[link.tagId];
+      if (tag != null) result.putIfAbsent(link.dailyNoteId, () => []).add(tag);
+    }
+    return result;
+  }
+
+  Future<void> migrateHistorySessionsToDailyNotes(String householdId) async {
+    const prefKey = 'migration_history_sessions_to_daily_notes_v1_done';
+    final alreadyDone =
+        await (database.select(database.userPreferences)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.preferenceKey.equals(prefKey),
+            ))
+            .getSingleOrNull();
+    if (alreadyDone?.preferenceValue == 'true') return;
+
+    await database.transaction(() async {
+      final legacy =
+          await (database.select(database.activitySessions)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    (row.mode.equals('history') | row.kind.equals('note')),
+              ))
+              .get();
+      for (final session in legacy) {
+        await database
+            .into(database.dailyNotes)
+            .insertOnConflictUpdate(
+              DailyNotesCompanion.insert(
+                id: session.id,
+                householdId: session.householdId,
+                noteDate: session.startedAt,
+                title: Value(session.title),
+                body: session.notes?.trim().isNotEmpty == true
+                    ? session.notes!.trim()
+                    : session.title,
+                priority: Value(session.priority),
+                isArchived: Value(session.isArchived),
+                createdAt: session.createdAt,
+                updatedAt: Value(session.updatedAt),
+              ),
+            );
+        await (database.delete(
+          database.activityCheckpoints,
+        )..where((row) => row.sessionId.equals(session.id))).go();
+        await (database.update(database.activityEntries)
+              ..where((row) => row.sessionId.equals(session.id)))
+            .write(const ActivityEntriesCompanion(sessionId: Value(null)));
+        await (database.update(
+          database.activitySessions,
+        )..where((row) => row.parentSessionId.equals(session.id))).write(
+          const ActivitySessionsCompanion(parentSessionId: Value(null)),
+        );
+        await (database.delete(
+          database.activitySessions,
+        )..where((row) => row.id.equals(session.id))).go();
+      }
+      await database
+          .into(database.userPreferences)
+          .insertOnConflictUpdate(
+            UserPreferencesCompanion.insert(
+              id: 'pref-history-notes-$householdId',
+              householdId: householdId,
+              preferenceKey: prefKey,
+              preferenceValue: 'true',
+              updatedAt: DateTime.now(),
+            ),
+          );
+    });
   }
 
   Future<void> _ensureNotesTable() async {

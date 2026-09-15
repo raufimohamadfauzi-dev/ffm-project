@@ -47,12 +47,19 @@ class BillReminderRepository {
     await _db.into(_db.reminders).insertOnConflictUpdate(reminder);
 
     if (syncToCalendar) {
-      await _syncToCalendar(reminderId, title, description, dueDate, amount, category);
+      await _syncToCalendar(
+        reminderId,
+        title,
+        description,
+        dueDate,
+        amount,
+        category,
+      );
     }
 
-    final inserted = await (_db.select(_db.reminders)
-          ..where((row) => row.id.equals(reminderId)))
-        .getSingle();
+    final inserted = await (_db.select(
+      _db.reminders,
+    )..where((row) => row.id.equals(reminderId))).getSingle();
 
     return _toBillReminder(inserted);
   }
@@ -70,9 +77,9 @@ class BillReminderRepository {
     bool? isActive,
     bool syncToCalendar = true,
   }) async {
-    final existing = await (_db.select(_db.reminders)
-          ..where((row) => row.id.equals(reminderId)))
-        .getSingleOrNull();
+    final existing = await (_db.select(
+      _db.reminders,
+    )..where((row) => row.id.equals(reminderId))).getSingleOrNull();
 
     if (existing == null) {
       throw Exception('Pengingat tidak ditemukan');
@@ -115,31 +122,34 @@ class BillReminderRepository {
 
   /// Menghapus pengingat tagihan dan menghapus dari kalender jika disinkronkan.
   Future<void> deleteBillReminder(String reminderId) async {
-    final existing = await (_db.select(_db.reminders)
-          ..where((row) => row.id.equals(reminderId)))
-        .getSingleOrNull();
+    final existing = await (_db.select(
+      _db.reminders,
+    )..where((row) => row.id.equals(reminderId))).getSingleOrNull();
 
     if (existing != null && existing.calendarEventId != null) {
       await _deleteFromCalendar(existing.calendarEventId!);
     }
 
-    await (_db.delete(_db.reminders)..where((row) => row.id.equals(reminderId))).go();
+    await (_db.delete(
+      _db.reminders,
+    )..where((row) => row.id.equals(reminderId))).go();
   }
 
   /// Mengambil pengingat tagihan berdasarkan ID.
   Future<BillReminder?> getBillReminder(String reminderId) async {
-    final reminder = await (_db.select(_db.reminders)
-          ..where((row) => row.id.equals(reminderId)))
-        .getSingleOrNull();
+    final reminder = await (_db.select(
+      _db.reminders,
+    )..where((row) => row.id.equals(reminderId))).getSingleOrNull();
     return reminder != null ? _toBillReminder(reminder) : null;
   }
 
   /// Mengambil semua pengingat tagihan untuk household.
   Future<List<BillReminder>> getBillReminders(String householdId) async {
-    final reminders = await (_db.select(_db.reminders)
-          ..where((row) => row.householdId.equals(householdId))
-          ..orderBy([(row) => OrderingTerm.asc(row.scheduledAt)]))
-        .get();
+    final reminders =
+        await (_db.select(_db.reminders)
+              ..where((row) => row.householdId.equals(householdId))
+              ..orderBy([(row) => OrderingTerm.asc(row.scheduledAt)]))
+            .get();
 
     return reminders.map(_toBillReminder).toList();
   }
@@ -150,14 +160,17 @@ class BillReminderRepository {
     DateTime startDate,
     DateTime endDate,
   ) async {
-    final reminders = await (_db.select(_db.reminders)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.isActive.equals(true) &
-              row.scheduledAt.isBiggerOrEqualValue(startDate) &
-              row.scheduledAt.isSmallerOrEqualValue(endDate))
-          ..orderBy([(row) => OrderingTerm.asc(row.scheduledAt)]))
-        .get();
+    final reminders =
+        await (_db.select(_db.reminders)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isActive.equals(true) &
+                    row.scheduledAt.isBiggerOrEqualValue(startDate) &
+                    row.scheduledAt.isSmallerOrEqualValue(endDate),
+              )
+              ..orderBy([(row) => OrderingTerm.asc(row.scheduledAt)]))
+            .get();
 
     return reminders.map(_toBillReminder).toList();
   }
@@ -183,13 +196,15 @@ class BillReminderRepository {
       final result = await _calendarBridge.createBillReminder(data);
 
       if (result.success && result.eventId != null) {
-        await (_db.update(_db.reminders)
-              ..where((row) => row.id.equals(reminderId)))
-            .write(RemindersCompanion(
-          calendarEventId: Value(result.eventId),
-          isSyncedToCalendar: const Value(true),
-          syncedAt: Value(DateTime.now()),
-        ));
+        await (_db.update(
+          _db.reminders,
+        )..where((row) => row.id.equals(reminderId))).write(
+          RemindersCompanion(
+            calendarEventId: Value(result.eventId),
+            isSyncedToCalendar: const Value(true),
+            syncedAt: Value(DateTime.now()),
+          ),
+        );
       }
     } catch (e) {
       debugPrint('Gagal menyinkronkan ke kalender: $e');
@@ -231,12 +246,14 @@ class BillReminderRepository {
 
   /// Retry sinkronisasi untuk pengingat yang belum disinkronkan.
   Future<void> retrySyncForUnsynced(String householdId) async {
-    final unsynced = await (_db.select(_db.reminders)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.isSyncedToCalendar.equals(false) &
-              row.isActive.equals(true)))
-        .get();
+    final unsynced =
+        await (_db.select(_db.reminders)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isSyncedToCalendar.equals(false) &
+                  row.isActive.equals(true),
+            ))
+            .get();
 
     for (final reminder in unsynced) {
       await _syncToCalendar(

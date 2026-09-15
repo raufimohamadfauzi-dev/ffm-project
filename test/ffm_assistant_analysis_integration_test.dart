@@ -20,8 +20,11 @@ void main() {
       ];
 
       for (final period in requiredPeriods) {
-        expect(FfmAnalysisPeriod.values.contains(period), isTrue,
-            reason: 'Analysis period $period should be defined');
+        expect(
+          FfmAnalysisPeriod.values.contains(period),
+          isTrue,
+          reason: 'Analysis period $period should be defined',
+        );
       }
     });
 
@@ -34,8 +37,11 @@ void main() {
       ];
 
       for (final type in requiredTypes) {
-        expect(FfmTrendType.values.contains(type), isTrue,
-            reason: 'Trend type $type should be defined');
+        expect(
+          FfmTrendType.values.contains(type),
+          isTrue,
+          reason: 'Trend type $type should be defined',
+        );
       }
     });
 
@@ -43,25 +49,34 @@ void main() {
       // Verify no duplicate values in enum
       final values = FfmAnalysisPeriod.values;
       final uniqueValues = values.toSet();
-      
-      expect(values.length, equals(uniqueValues.length),
-          reason: 'All analysis periods should be unique');
+
+      expect(
+        values.length,
+        equals(uniqueValues.length),
+        reason: 'All analysis periods should be unique',
+      );
     });
 
     test('TrendType values should be distinct', () {
       // Verify no duplicate values in enum
       final values = FfmTrendType.values;
       final uniqueValues = values.toSet();
-      
-      expect(values.length, equals(uniqueValues.length),
-          reason: 'All trend types should be unique');
+
+      expect(
+        values.length,
+        equals(uniqueValues.length),
+        reason: 'All trend types should be unique',
+      );
     });
 
     test('AnalysisPeriod should have reasonable count', () {
       // Verify we have a reasonable number of analysis periods
       // This prevents accidental removal of periods
-      expect(FfmAnalysisPeriod.values.length, greaterThanOrEqualTo(6),
-          reason: 'Should have at least 6 analysis periods');
+      expect(
+        FfmAnalysisPeriod.values.length,
+        greaterThanOrEqualTo(6),
+        reason: 'Should have at least 6 analysis periods',
+      );
     });
 
     test('PeriodAnalysis should have required fields', () {
@@ -148,7 +163,7 @@ void main() {
 
       expect(result.period, equals('30 hari terakhir'));
       expect(result.categoryPatterns.length, greaterThan(0));
-      
+
       final pattern = result.categoryPatterns['Makanan']!;
       expect(pattern.category, equals('Makanan'));
       expect(pattern.count, equals(15));

@@ -20,36 +20,33 @@ Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
 void main() {
   group('FfmAssistantChatIntro', () {
-    testWidgets(
-      'menampilkan pengantar singkat dan contoh yang dapat diketuk',
-      (tester) async {
-        String? filled;
-        await tester.pumpWidget(
-          _wrap(
-            FfmAssistantChatIntro(
-              examples: _defaultExamples,
-              onFillExample: (text) => filled = text,
-            ),
+    testWidgets('menampilkan pengantar singkat dan contoh yang dapat diketuk', (
+      tester,
+    ) async {
+      String? filled;
+      await tester.pumpWidget(
+        _wrap(
+          FfmAssistantChatIntro(
+            examples: _defaultExamples,
+            onFillExample: (text) => filled = text,
           ),
-        );
+        ),
+      );
 
-        expect(
-          find.textContaining('satu permintaan atau beberapa sekaligus'),
-          findsOneWidget,
-        );
-        expect(find.text('Draft transaksi'), findsOneWidget);
-        expect(find.text('Draft anggaran'), findsOneWidget);
+      expect(
+        find.textContaining('satu permintaan atau beberapa sekaligus'),
+        findsOneWidget,
+      );
+      expect(find.text('Draft transaksi'), findsOneWidget);
+      expect(find.text('Draft anggaran'), findsOneWidget);
 
-        await tester.tap(find.text('Draft transaksi'));
-        expect(
-          filled,
-          'Catat pengeluaran makan Rp50.000 hari ini',
-        );
-      },
-    );
+      await tester.tap(find.text('Draft transaksi'));
+      expect(filled, 'Catat pengeluaran makan Rp50.000 hari ini');
+    });
 
-    testWidgets('contoh menghasilkan teks asli tanpa menambahkan data',
-        (tester) async {
+    testWidgets('contoh menghasilkan teks asli tanpa menambahkan data', (
+      tester,
+    ) async {
       String? filled;
       await tester.pumpWidget(
         _wrap(
@@ -65,27 +62,26 @@ void main() {
       expect(find.text('Draft anggaran'), findsOneWidget);
     });
 
-    testWidgets(
-      'mode compact mengecil menjadi satu aksi "Contoh"',
-      (tester) async {
-        await tester.pumpWidget(
-          _wrap(
-            FfmAssistantChatIntro(
-              examples: _defaultExamples,
-              onFillExample: (_) {},
-              compact: true,
-            ),
+    testWidgets('mode compact mengecil menjadi satu aksi "Contoh"', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          FfmAssistantChatIntro(
+            examples: _defaultExamples,
+            onFillExample: (_) {},
+            compact: true,
           ),
-        );
+        ),
+      );
 
-        expect(find.text('Contoh'), findsOneWidget);
-        expect(find.text('Draft transaksi'), findsNothing);
+      expect(find.text('Contoh'), findsOneWidget);
+      expect(find.text('Draft transaksi'), findsNothing);
 
-        await tester.tap(find.text('Contoh'));
-        await tester.pumpAndSettle();
-        expect(find.text('Contoh permintaan'), findsOneWidget);
-      },
-    );
+      await tester.tap(find.text('Contoh'));
+      await tester.pumpAndSettle();
+      expect(find.text('Contoh permintaan'), findsOneWidget);
+    });
 
     testWidgets('contoh cepat memiliki label aksesibilitas', (tester) async {
       await tester.pumpWidget(
@@ -128,8 +124,9 @@ void main() {
   });
 
   group('FfmAssistantContextualSuggestions', () {
-    testWidgets('menampilkan saran dan mengisi input lewat callback',
-        (tester) async {
+    testWidgets('menampilkan saran dan mengisi input lewat callback', (
+      tester,
+    ) async {
       String? filled;
       await tester.pumpWidget(
         _wrap(
@@ -165,16 +162,14 @@ void main() {
         ),
       );
 
-      expect(
-        find.text('Dari rekening mana pembayarannya?'),
-        findsOneWidget,
-      );
+      expect(find.text('Dari rekening mana pembayarannya?'), findsOneWidget);
       await tester.tap(find.text('SeaBank'));
       expect(selected, 'SeaBank');
     });
 
-    testWidgets('tidak menampilkan pilihan saat tidak ada pilihan aman',
-        (tester) async {
+    testWidgets('tidak menampilkan pilihan saat tidak ada pilihan aman', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(
           FfmAssistantAmbiguousClarification(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/theme/app_theme.dart';
 
 class NewEntrySheetBody extends StatefulWidget {
@@ -56,7 +57,9 @@ class _NewEntrySheetBodyState extends State<NewEntrySheetBody> {
               : _section == 2
               ? 'Input manual dan impor JSON dari LLM eksternal.'
               : 'Pilih alurnya.',
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),

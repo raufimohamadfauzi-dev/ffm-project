@@ -119,8 +119,9 @@ class FfmAssistantActionPlan {
     } else {
       for (var i = 0; i < mutationIndexes.length; i++) {
         final currentMutIdx = mutationIndexes[i];
-        final nextMutIdx =
-            i + 1 < mutationIndexes.length ? mutationIndexes[i + 1] : steps.length;
+        final nextMutIdx = i + 1 < mutationIndexes.length
+            ? mutationIndexes[i + 1]
+            : steps.length;
         final hasVerification = steps
             .sublist(currentMutIdx + 1, nextMutIdx)
             .any((step) => step.capabilityId.startsWith('verify.'));

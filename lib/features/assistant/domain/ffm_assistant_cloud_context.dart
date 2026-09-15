@@ -115,7 +115,12 @@ class FfmAssistantCloudDraftContext {
         add('discount', draft.discount);
         addSafeFormValues();
         if (draft.items.isNotEmpty) {
-          add('items', draft.items.map((i) => '${i.name}: ${i.price} x ${i.quantity}').join(', '));
+          add(
+            'items',
+            draft.items
+                .map((i) => '${i.name}: ${i.price} x ${i.quantity}')
+                .join(', '),
+          );
         }
         addDate();
       case FfmAssistantDraftKind.expense:
@@ -132,7 +137,12 @@ class FfmAssistantCloudDraftContext {
         add('discount', draft.discount);
         addSafeFormValues();
         if (draft.items.isNotEmpty) {
-          add('items', draft.items.map((i) => '${i.name}: ${i.price} x ${i.quantity}').join(', '));
+          add(
+            'items',
+            draft.items
+                .map((i) => '${i.name}: ${i.price} x ${i.quantity}')
+                .join(', '),
+          );
         }
         addDate();
       case FfmAssistantDraftKind.transfer:

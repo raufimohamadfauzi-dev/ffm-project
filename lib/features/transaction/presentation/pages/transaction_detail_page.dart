@@ -67,11 +67,13 @@ class TransactionDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final transaction = entry.transaction;
     final isIncome = transaction.type == 'income';
-    final isTransfer = transaction.type == 'transfer' || transaction.transferId != null;
+    final isTransfer =
+        transaction.type == 'transfer' || transaction.transferId != null;
 
     final itemsSubtotal = entry.items.fold<int>(
       0,
-      (sum, it) => sum + (it.amount > 0 ? it.amount : (it.price * it.qty).round()),
+      (sum, it) =>
+          sum + (it.amount > 0 ? it.amount : (it.price * it.qty).round()),
     );
 
     return FfmAssistantPageContext(
@@ -115,7 +117,10 @@ class TransactionDetailPage extends StatelessWidget {
                             visualDensity: VisualDensity.compact,
                             label: Text(
                               transaction.source!.toUpperCase(),
-                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                       ],
@@ -128,13 +133,27 @@ class TransactionDetailPage extends StatelessWidget {
                     if (accountLabel?.trim().isNotEmpty == true)
                       _DetailLine(label: 'Rekening', value: accountLabel!),
                     if (merchantLabel?.trim().isNotEmpty == true)
-                      _DetailLine(label: 'Toko / Merchant', value: merchantLabel!),
+                      _DetailLine(
+                        label: 'Toko / Merchant',
+                        value: merchantLabel!,
+                      ),
                     if (transaction.receiptNumber?.trim().isNotEmpty == true)
-                      _DetailLine(label: 'No. Nota', value: transaction.receiptNumber!),
-                    if (transaction.receiptPaidAmount != null && transaction.receiptPaidAmount! > 0)
-                      _DetailLine(label: 'Nominal Dibayar', value: 'Rp ${transaction.receiptPaidAmount}'),
-                    if (transaction.receiptChangeAmount != null && transaction.receiptChangeAmount! > 0)
-                      _DetailLine(label: 'Kembalian', value: 'Rp ${transaction.receiptChangeAmount}'),
+                      _DetailLine(
+                        label: 'No. Nota',
+                        value: transaction.receiptNumber!,
+                      ),
+                    if (transaction.receiptPaidAmount != null &&
+                        transaction.receiptPaidAmount! > 0)
+                      _DetailLine(
+                        label: 'Nominal Dibayar',
+                        value: 'Rp ${transaction.receiptPaidAmount}',
+                      ),
+                    if (transaction.receiptChangeAmount != null &&
+                        transaction.receiptChangeAmount! > 0)
+                      _DetailLine(
+                        label: 'Kembalian',
+                        value: 'Rp ${transaction.receiptChangeAmount}',
+                      ),
                     if (transaction.location?.trim().isNotEmpty == true)
                       _DetailLine(
                         label: 'Lokasi',
@@ -166,7 +185,10 @@ class TransactionDetailPage extends StatelessWidget {
                         width: double.infinity,
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest
+                              .withValues(alpha: 0.4),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -202,22 +224,22 @@ class TransactionDetailPage extends StatelessWidget {
                       ),
                     ),
                     const Divider(height: 1),
-                    ...entry.items.map(
-                      (item) {
-                        final itemSubtotal = item.amount > 0 ? item.amount : (item.price * item.qty).round();
-                        return ListTile(
-                          dense: true,
-                          title: Text(item.itemName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: Text(
-                            'Jumlah: ${item.qty} ${item.unit ?? 'item'} · Harga satuan: Rp ${item.price}',
-                          ),
-                          trailing: AppMoneyText(
-                            itemSubtotal,
-                            compact: true,
-                          ),
-                        );
-                      },
-                    ),
+                    ...entry.items.map((item) {
+                      final itemSubtotal = item.amount > 0
+                          ? item.amount
+                          : (item.price * item.qty).round();
+                      return ListTile(
+                        dense: true,
+                        title: Text(
+                          item.itemName,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          'Jumlah: ${item.qty} ${item.unit ?? 'item'} · Harga satuan: Rp ${item.price}',
+                        ),
+                        trailing: AppMoneyText(itemSubtotal, compact: true),
+                      );
+                    }),
                     const Divider(height: 1),
                     Padding(
                       padding: const EdgeInsets.all(16),
@@ -261,14 +283,16 @@ class TransactionDetailPage extends StatelessWidget {
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest
+                              .withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: SelectableText(
                           transaction.receiptRawText!,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                fontFamily: 'monospace',
-                              ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(fontFamily: 'monospace'),
                         ),
                       ),
                     ),
@@ -285,7 +309,9 @@ class TransactionDetailPage extends StatelessWidget {
                     label: const Text('Hapus'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Theme.of(context).colorScheme.error,
-                      side: BorderSide(color: Theme.of(context).colorScheme.error),
+                      side: BorderSide(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     onPressed: () => _confirmDelete(context),
@@ -328,14 +354,12 @@ class _DetailLine extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
           ),
           Expanded(
-            child: Text(
-              value,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+            child: Text(value, style: Theme.of(context).textTheme.bodyMedium),
           ),
         ],
       ),

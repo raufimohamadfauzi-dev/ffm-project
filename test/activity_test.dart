@@ -38,6 +38,55 @@ void main() {
     );
   });
 
+  test('Catatan Kejadian dapat disimpan tanpa tag', () async {
+    final now = DateTime(2026, 9, 15, 9);
+    await repository.saveDailyNote(
+      id: 'note-without-tag',
+      householdId: 'local-household',
+      noteDate: now,
+      title: 'Ganti oli',
+      body: 'Belum mengganti oli mesin.',
+      tagIds: const [],
+    );
+
+    final note = await database.select(database.dailyNotes).getSingle();
+    expect(note.title, 'Ganti oli');
+    expect(await database.select(database.dailyNoteTags).get(), isEmpty);
+  });
+
+  test(
+    'migrasi memindahkan sesi history ke Catatan Kejadian kanonis',
+    () async {
+      final now = DateTime(2026, 9, 13, 17, 1);
+      await repository.saveSession(
+        ActivitySessionEntity(
+          id: 'legacy-history-note',
+          householdId: 'local-household',
+          title: 'amistar top dan abacel',
+          category: 'Pekerjaan',
+          kind: ActivityKind.note,
+          mode: ActivityMode.history,
+          startedAt: now,
+          endedAt: now,
+          status: ActivitySessionStatus.completed,
+          notes: '1 ml per liter dua-duanya',
+          priority: 1,
+          createdAt: now,
+        ),
+      );
+
+      await repository.migrateHistorySessionsToDailyNotes('local-household');
+
+      expect(await database.select(database.activitySessions).get(), isEmpty);
+      final migrated = await database.select(database.dailyNotes).getSingle();
+      expect(migrated.id, 'legacy-history-note');
+      expect(migrated.title, 'amistar top dan abacel');
+      expect(migrated.body, '1 ml per liter dua-duanya');
+      expect(migrated.noteDate, now);
+      expect(migrated.priority, 1);
+    },
+  );
+
   test(
     'checkpoint tersimpan berurutan dan sesi aktif bisa ditemukan',
     () async {
@@ -543,7 +592,7 @@ void main() {
     expect(bloc.state.sessions, isEmpty);
   });
 
-  test('auto-healing ActivityBloc menyembuhkan catatan lama agar tidak berstatus berjalan', () async {
+  test('ActivityBloc memigrasikan catatan sesi lama ke daily notes', () async {
     final oldTime = DateTime(2026, 8, 1, 8);
     // Simpan catatan lama dengan endedAt null dan status active
     await repository.saveSession(
@@ -565,13 +614,15 @@ void main() {
 
     await bloc.load();
 
-    final healed = bloc.state.sessions.firstWhere(
-      (s) => s.id == 'old-note-broken',
+    final migrated = bloc.state.dailyNotes.firstWhere(
+      (note) => note.id == 'old-note-broken',
     );
-    expect(healed.status, ActivitySessionStatus.completed);
-    expect(healed.endedAt, oldTime);
-    expect(healed.isCompleted, isTrue);
-    // Memastikan tidak muncul di activeSessions
+    expect(migrated.title, 'Beli benih di toko tani');
+    expect(migrated.noteDate, oldTime);
+    expect(
+      bloc.state.sessions.where((s) => s.id == 'old-note-broken'),
+      isEmpty,
+    );
     expect(
       bloc.state.activeSessions.where((s) => s.id == 'old-note-broken'),
       isEmpty,

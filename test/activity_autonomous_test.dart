@@ -28,60 +28,72 @@ void main() {
     await database.close();
   });
 
-  test('ActivityBloc memuat aksi otonom dari AutonomousActivityRepository', () async {
-    final record = AutonomousActivityRecord(
-      id: 'auto-1',
-      householdId: 'local-household',
-      title: 'Pencatatan BBM Otomatis',
-      description: 'Konsumsi BBM 25L Pertalite tercatat',
-      activityType: AutonomousActivityType.fuelLog,
-      occurredAt: DateTime.now(),
-      status: AutonomousActivityStatus.active,
-    );
-    await autonomousRepository.recordActivity(record);
+  test(
+    'ActivityBloc memuat aksi otonom dari AutonomousActivityRepository',
+    () async {
+      final record = AutonomousActivityRecord(
+        id: 'auto-1',
+        householdId: 'local-household',
+        title: 'Pencatatan BBM Otomatis',
+        description: 'Konsumsi BBM 25L Pertalite tercatat',
+        activityType: AutonomousActivityType.fuelLog,
+        occurredAt: DateTime.now(),
+        status: AutonomousActivityStatus.active,
+      );
+      await autonomousRepository.recordActivity(record);
 
-    final bloc = ActivityBloc(
-      activityRepository,
-      autonomousRepository: autonomousRepository,
-    );
-    addTearDown(bloc.close);
+      final bloc = ActivityBloc(
+        activityRepository,
+        autonomousRepository: autonomousRepository,
+      );
+      addTearDown(bloc.close);
 
-    await bloc.load();
+      await bloc.load();
 
-    expect(bloc.state.autonomousActivities, hasLength(1));
-    expect(bloc.state.autonomousActivities.first.id, 'auto-1');
-    expect(bloc.state.autonomousActivities.first.title, 'Pencatatan BBM Otomatis');
-  });
+      expect(bloc.state.autonomousActivities, hasLength(1));
+      expect(bloc.state.autonomousActivities.first.id, 'auto-1');
+      expect(
+        bloc.state.autonomousActivities.first.title,
+        'Pencatatan BBM Otomatis',
+      );
+    },
+  );
 
-  test('ActivityBloc revertAutonomousActivity membatalkan aksi otonom', () async {
-    final record = AutonomousActivityRecord(
-      id: 'auto-revert',
-      householdId: 'local-household',
-      title: 'Pergeseran Anggaran Defisit',
-      description: 'Plafon defisit Rp 50.000 diseimbangkan',
-      activityType: AutonomousActivityType.envelopeRebalance,
-      occurredAt: DateTime.now(),
-      status: AutonomousActivityStatus.active,
-    );
-    await autonomousRepository.recordActivity(record);
+  test(
+    'ActivityBloc revertAutonomousActivity membatalkan aksi otonom',
+    () async {
+      final record = AutonomousActivityRecord(
+        id: 'auto-revert',
+        householdId: 'local-household',
+        title: 'Pergeseran Anggaran Defisit',
+        description: 'Plafon defisit Rp 50.000 diseimbangkan',
+        activityType: AutonomousActivityType.envelopeRebalance,
+        occurredAt: DateTime.now(),
+        status: AutonomousActivityStatus.active,
+      );
+      await autonomousRepository.recordActivity(record);
 
-    final bloc = ActivityBloc(
-      activityRepository,
-      autonomousRepository: autonomousRepository,
-    );
-    addTearDown(bloc.close);
+      final bloc = ActivityBloc(
+        activityRepository,
+        autonomousRepository: autonomousRepository,
+      );
+      addTearDown(bloc.close);
 
-    await bloc.load();
-    expect(bloc.state.autonomousActivities.first.status, AutonomousActivityStatus.active);
+      await bloc.load();
+      expect(
+        bloc.state.autonomousActivities.first.status,
+        AutonomousActivityStatus.active,
+      );
 
-    final reverted = await bloc.revertAutonomousActivity('auto-revert');
-    expect(reverted, isTrue);
+      final reverted = await bloc.revertAutonomousActivity('auto-revert');
+      expect(reverted, isTrue);
 
-    expect(
-      bloc.state.autonomousActivities.first.status,
-      AutonomousActivityStatus.reverted,
-    );
-  });
+      expect(
+        bloc.state.autonomousActivities.first.status,
+        AutonomousActivityStatus.reverted,
+      );
+    },
+  );
 
   test('SaveTransaction menautkan transaksi ke sesi aktif secara otonom dan mencatat checkpoint', () async {
     final now = DateTime.now();
@@ -116,9 +128,9 @@ void main() {
     await saveTransaction(transaction);
 
     // Verifikasi transaksi tertaut ke sesi aktif
-    final dbRows = await (database.select(database.transactions)
-          ..where((t) => t.id.equals('tx-fuel-1')))
-        .get();
+    final dbRows = await (database.select(
+      database.transactions,
+    )..where((t) => t.id.equals('tx-fuel-1'))).get();
     expect(dbRows, hasLength(1));
     expect(dbRows.first.linkedActivityId, 'session-trip');
 
@@ -132,48 +144,51 @@ void main() {
     expect(cost, 50000);
   });
 
-  test('generateDailyAiJournal menyusun ringkasan sesi kegiatan dan finansial', () async {
-    final testDate = DateTime(2026, 9, 8, 15, 0);
+  test(
+    'generateDailyAiJournal menyusun ringkasan sesi kegiatan dan finansial',
+    () async {
+      final testDate = DateTime(2026, 9, 8, 15, 0);
 
-    // Sesi 1
-    await activityRepository.saveSession(
-      ActivitySessionEntity(
-        id: 's-1',
-        householdId: 'local-household',
-        title: 'Kerja di Kebun',
-        category: 'Pekerjaan',
-        startedAt: testDate.subtract(const Duration(hours: 3)),
-        endedAt: testDate.subtract(const Duration(hours: 1)),
-        status: ActivitySessionStatus.completed,
-        createdAt: testDate.subtract(const Duration(hours: 3)),
-      ),
-    );
+      // Sesi 1
+      await activityRepository.saveSession(
+        ActivitySessionEntity(
+          id: 's-1',
+          householdId: 'local-household',
+          title: 'Kerja di Kebun',
+          category: 'Pekerjaan',
+          startedAt: testDate.subtract(const Duration(hours: 3)),
+          endedAt: testDate.subtract(const Duration(hours: 1)),
+          status: ActivitySessionStatus.completed,
+          createdAt: testDate.subtract(const Duration(hours: 3)),
+        ),
+      );
 
-    // Aksi Otonom
-    await autonomousRepository.recordActivity(
-      AutonomousActivityRecord(
-        id: 'auto-harvest',
-        householdId: 'local-household',
-        title: 'Penyesuaian Siklus Panen',
-        description: 'Jadwal panen disesuaikan 30 hari ke depan',
-        activityType: AutonomousActivityType.harvestShift,
-        occurredAt: testDate,
-        status: AutonomousActivityStatus.active,
-      ),
-    );
+      // Aksi Otonom
+      await autonomousRepository.recordActivity(
+        AutonomousActivityRecord(
+          id: 'auto-harvest',
+          householdId: 'local-household',
+          title: 'Penyesuaian Siklus Panen',
+          description: 'Jadwal panen disesuaikan 30 hari ke depan',
+          activityType: AutonomousActivityType.harvestShift,
+          occurredAt: testDate,
+          status: AutonomousActivityStatus.active,
+        ),
+      );
 
-    final bloc = ActivityBloc(
-      activityRepository,
-      autonomousRepository: autonomousRepository,
-    );
-    addTearDown(bloc.close);
+      final bloc = ActivityBloc(
+        activityRepository,
+        autonomousRepository: autonomousRepository,
+      );
+      addTearDown(bloc.close);
 
-    await bloc.load();
+      await bloc.load();
 
-    final journal = await bloc.generateDailyAiJournal(targetDate: testDate);
-    expect(journal, isNotNull);
-    expect(journal!.title, contains('Refleksi Jurnal Harian'));
-    expect(journal.notes, contains('Kerja di Kebun'));
-    expect(journal.notes, contains('Penyesuaian Siklus Panen'));
-  });
+      final journal = await bloc.generateDailyAiJournal(targetDate: testDate);
+      expect(journal, isNotNull);
+      expect(journal!.title, contains('Refleksi Jurnal Harian'));
+      expect(journal.notes, contains('Kerja di Kebun'));
+      expect(journal.notes, contains('Penyesuaian Siklus Panen'));
+    },
+  );
 }

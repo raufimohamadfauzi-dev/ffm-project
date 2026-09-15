@@ -21,9 +21,15 @@ void main() {
 
     db = createInMemoryDatabaseForTests();
     getIt.registerSingleton<AppDatabase>(db);
-    getIt.registerLazySingleton<MarketNewsRadarService>(MarketNewsRadarService.new);
-    getIt.registerLazySingleton<MarketNewsCacheRepository>(MarketNewsCacheRepository.new);
-    getIt.registerLazySingleton<AssetAutoValuationService>(() => AssetAutoValuationService(db));
+    getIt.registerLazySingleton<MarketNewsRadarService>(
+      MarketNewsRadarService.new,
+    );
+    getIt.registerLazySingleton<MarketNewsCacheRepository>(
+      MarketNewsCacheRepository.new,
+    );
+    getIt.registerLazySingleton<AssetAutoValuationService>(
+      () => AssetAutoValuationService(db),
+    );
   });
 
   tearDown(() async {
@@ -31,13 +37,13 @@ void main() {
     await getIt.reset();
   });
 
-  testWidgets('MarketPriceTickerCard renders header and price chips', (tester) async {
+  testWidgets('MarketPriceTickerCard renders header and price chips', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: SingleChildScrollView(
-            child: MarketPriceTickerCard(),
-          ),
+          body: SingleChildScrollView(child: MarketPriceTickerCard()),
         ),
       ),
     );

@@ -142,69 +142,77 @@ void main() {
       },
     );
 
-    test(
-      'autonomous evaluation creates draft action plan when insight has actionPayload',
-      () async {
-        AutonomousEvaluationCoordinator.resetDebounce();
-        final autonomyRepo = FfmAssistantAutonomyRepository(db, now: () => now);
+    test('autonomous evaluation creates draft action plan when insight has actionPayload', () async {
+      AutonomousEvaluationCoordinator.resetDebounce();
+      final autonomyRepo = FfmAssistantAutonomyRepository(db, now: () => now);
 
-        await db.into(db.envelopeBudgets).insert(
-          EnvelopeBudgetsCompanion.insert(
-            id: 'budget-deficit',
-            householdId: 'house-draft',
-            name: 'Makan',
-            startDate: now.subtract(const Duration(days: 10)),
-            endDate: now.add(const Duration(days: 20)),
-            createdAt: now,
-            categoryId: const drift.Value('cat-makan'),
-            allocated: const drift.Value(1000000),
-          ),
-        );
-        await db.into(db.envelopeBudgets).insert(
-          EnvelopeBudgetsCompanion.insert(
-            id: 'budget-surplus',
-            householdId: 'house-draft',
-            name: 'Hiburan',
-            startDate: now.subtract(const Duration(days: 10)),
-            endDate: now.add(const Duration(days: 20)),
-            createdAt: now,
-            categoryId: const drift.Value('cat-hiburan'),
-            allocated: const drift.Value(2000000),
-          ),
-        );
-        await db.into(db.transactions).insert(
-          TransactionsCompanion.insert(
-            id: 'tx-deficit-1',
-            householdId: 'house-draft',
-            type: 'expense',
-            amount: -950000,
-            categoryId: const drift.Value('cat-makan'),
-            date: now.subtract(const Duration(days: 2)),
-            recordedAt: now,
-            createdAt: now,
-          ),
-        );
+      await db
+          .into(db.envelopeBudgets)
+          .insert(
+            EnvelopeBudgetsCompanion.insert(
+              id: 'budget-deficit',
+              householdId: 'house-draft',
+              name: 'Makan',
+              startDate: now.subtract(const Duration(days: 10)),
+              endDate: now.add(const Duration(days: 20)),
+              createdAt: now,
+              categoryId: const drift.Value('cat-makan'),
+              allocated: const drift.Value(1000000),
+            ),
+          );
+      await db
+          .into(db.envelopeBudgets)
+          .insert(
+            EnvelopeBudgetsCompanion.insert(
+              id: 'budget-surplus',
+              householdId: 'house-draft',
+              name: 'Hiburan',
+              startDate: now.subtract(const Duration(days: 10)),
+              endDate: now.add(const Duration(days: 20)),
+              createdAt: now,
+              categoryId: const drift.Value('cat-hiburan'),
+              allocated: const drift.Value(2000000),
+            ),
+          );
+      await db
+          .into(db.transactions)
+          .insert(
+            TransactionsCompanion.insert(
+              id: 'tx-deficit-1',
+              householdId: 'house-draft',
+              type: 'expense',
+              amount: -950000,
+              categoryId: const drift.Value('cat-makan'),
+              date: now.subtract(const Duration(days: 2)),
+              recordedAt: now,
+              createdAt: now,
+            ),
+          );
 
-        final coordinator = AutonomousEvaluationCoordinator(
-          database: db,
-          insightRepository: repo,
-          autonomyRepository: autonomyRepo,
-          clock: () => now,
-        );
+      final coordinator = AutonomousEvaluationCoordinator(
+        database: db,
+        insightRepository: repo,
+        autonomyRepository: autonomyRepo,
+        clock: () => now,
+      );
 
-        final insights = await coordinator.runEvaluation(householdId: 'house-draft', force: true);
-        expect(insights.any((i) => i.actionPayload != null), isTrue);
+      final insights = await coordinator.runEvaluation(
+        householdId: 'house-draft',
+        force: true,
+      );
+      expect(insights.any((i) => i.actionPayload != null), isTrue);
 
-        final recentRuns = await autonomyRepo.recentRuns(householdId: 'house-draft');
-        expect(recentRuns, hasLength(1));
-        expect(recentRuns.single.householdId, 'house-draft');
+      final recentRuns = await autonomyRepo.recentRuns(
+        householdId: 'house-draft',
+      );
+      expect(recentRuns, hasLength(1));
+      expect(recentRuns.single.householdId, 'house-draft');
 
-        final approval = await autonomyRepo.approvalByRunId(recentRuns.single.id);
-        expect(approval, isNotNull);
-        expect(approval!.householdId, 'house-draft');
-        expect(approval.status, FfmAssistantApprovalStatus.requested.name);
-      },
-    );
+      final approval = await autonomyRepo.approvalByRunId(recentRuns.single.id);
+      expect(approval, isNotNull);
+      expect(approval!.householdId, 'house-draft');
+      expect(approval.status, FfmAssistantApprovalStatus.requested.name);
+    });
 
     test(
       'checkAndSendWeeklyReport sends report and updates lastWeeklyReportSent',

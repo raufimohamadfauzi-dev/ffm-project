@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
+
 import '../../../../core/utils/safe_date_format.dart';
 
 import '../../../../core/database/app_context.dart';
@@ -505,5 +506,8 @@ class _BalanceMetric extends StatelessWidget {
   }
 }
 
-String _stamp(DateTime value) =>
-    SafeDateFormat.format(value, pattern: 'dd/MM/yyyy HH:mm:ss', locale: 'id_ID');
+String _stamp(DateTime value) => SafeDateFormat.format(
+  value,
+  pattern: 'dd/MM/yyyy HH:mm:ss',
+  locale: 'id_ID',
+);

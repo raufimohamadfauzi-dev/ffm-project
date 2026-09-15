@@ -79,30 +79,24 @@ void main() {
     },
   );
 
-  test(
-    'deep link opens transaksi with periode dari teks',
-    () async {
-      final lastYear = DateTime(DateTime.now().year - 1, 1, 1);
-      final intent = await interpreter.interpret('buka transaksi tahun lalu');
+  test('deep link opens transaksi with periode dari teks', () async {
+    final lastYear = DateTime(DateTime.now().year - 1, 1, 1);
+    final intent = await interpreter.interpret('buka transaksi tahun lalu');
 
-      expect(intent.type, FfmAssistantIntentType.openPage);
-      expect(intent.destination, FfmAssistantDestination.transactions);
-      expect(intent.periodStart, lastYear);
-      expect(intent.periodEnd, DateTime(DateTime.now().year, 1, 1));
-    },
-  );
+    expect(intent.type, FfmAssistantIntentType.openPage);
+    expect(intent.destination, FfmAssistantDestination.transactions);
+    expect(intent.periodStart, lastYear);
+    expect(intent.periodEnd, DateTime(DateTime.now().year, 1, 1));
+  });
 
-  test(
-    'deep link aktivitas tanpa periode tidak mengisi filter',
-    () async {
-      final intent = await interpreter.interpret('buka halaman aktivitas');
+  test('deep link aktivitas tanpa periode tidak mengisi filter', () async {
+    final intent = await interpreter.interpret('buka halaman aktivitas');
 
-      expect(intent.type, FfmAssistantIntentType.openPage);
-      expect(intent.destination, FfmAssistantDestination.activity);
-      expect(intent.periodStart, isNull);
-      expect(intent.periodEnd, isNull);
-    },
-  );
+    expect(intent.type, FfmAssistantIntentType.openPage);
+    expect(intent.destination, FfmAssistantDestination.activity);
+    expect(intent.periodStart, isNull);
+    expect(intent.periodEnd, isNull);
+  });
 
   test(
     'membuat draft edit kategori aktivitas dengan field kategori eksplisit',
@@ -1116,40 +1110,45 @@ void main() {
     },
   );
 
-  test('mengubah aktivitas natural hari Rabu menjadi aktivitas terjadwal', () async {
-    final fixedNow = DateTime(2026, 9, 11, 10);
-    final naturalInterpreter = FfmAssistantInterpreter(
-      database,
-      clock: () => fixedNow,
-    );
+  test(
+    'mengubah aktivitas natural hari Rabu menjadi aktivitas terjadwal',
+    () async {
+      final fixedNow = DateTime(2026, 9, 11, 10);
+      final naturalInterpreter = FfmAssistantInterpreter(
+        database,
+        clock: () => fixedNow,
+      );
 
-    final intent = await naturalInterpreter.interpret('Cek kebun hari Rabu');
+      final intent = await naturalInterpreter.interpret('Cek kebun hari Rabu');
 
-    expect(intent.type, FfmAssistantIntentType.createActivity);
-    expect(intent.draft?.title, 'Cek kebun');
-    expect(intent.draft?.date, DateTime(2026, 9, 16));
-    expect(intent.needsConfirmation, isTrue);
-  });
+      expect(intent.type, FfmAssistantIntentType.createActivity);
+      expect(intent.draft?.title, 'Cek kebun');
+      expect(intent.draft?.date, DateTime(2026, 9, 16));
+      expect(intent.needsConfirmation, isTrue);
+    },
+  );
 
-  test('menyambungkan jawaban mau dong ke tawaran pengingat sebelumnya', () async {
-    final fixedNow = DateTime(2026, 9, 11, 10);
-    final naturalInterpreter = FfmAssistantInterpreter(
-      database,
-      clock: () => fixedNow,
-    );
+  test(
+    'menyambungkan jawaban mau dong ke tawaran pengingat sebelumnya',
+    () async {
+      final fixedNow = DateTime(2026, 9, 11, 10);
+      final naturalInterpreter = FfmAssistantInterpreter(
+        database,
+        clock: () => fixedNow,
+      );
 
-    final intent = await naturalInterpreter.interpret(
-      'mau dong',
-      lastAssistantMessage:
-          'Mau saya bantu buatkan pengingat rutinnya sekarang? Panen pepaya biasanya hari Kamis, cukup beri tahu jam berapa ingin diingatkan.',
-    );
+      final intent = await naturalInterpreter.interpret(
+        'mau dong',
+        lastAssistantMessage: 'Mau saya bantu buatkan pengingat rutinnya sekarang? Panen pepaya biasanya hari Kamis, cukup beri tahu jam berapa ingin diingatkan.',
+      );
 
-    expect(intent.type, FfmAssistantIntentType.createReminder);
-    expect(intent.draft?.title, 'Panen pepaya');
-    expect(intent.draft?.date, DateTime(2026, 9, 17));
-    expect(intent.needsClarification, isTrue);
-    expect(intent.response, contains('Jam berapa'));
-  });
+      expect(intent.type, FfmAssistantIntentType.createReminder);
+      expect(intent.draft?.title, 'Panen pepaya');
+      expect(intent.draft?.date, DateTime(2026, 9, 17));
+      expect(intent.needsClarification, isTrue);
+      expect(intent.response, contains('Jam berapa'));
+    },
+  );
 
   test(
     'meminta informasi yang kurang daripada membuat hutang sembarang',

@@ -14,13 +14,15 @@ void main() {
       db = AppDatabase(NativeDatabase.memory());
       service = DebtPayoffStrategistService(db);
 
-      await db.into(db.households).insert(
-        HouseholdsCompanion.insert(
-          id: householdId,
-          name: 'Keluarga Mandiri',
-          createdAt: DateTime.now(),
-        ),
-      );
+      await db
+          .into(db.households)
+          .insert(
+            HouseholdsCompanion.insert(
+              id: householdId,
+              name: 'Keluarga Mandiri',
+              createdAt: DateTime.now(),
+            ),
+          );
     });
 
     tearDown(() async {
@@ -28,20 +30,22 @@ void main() {
     });
 
     test('getAdaptiveLiabilities resolves explicit input when monthlyInstallment > 0', () async {
-      await db.into(db.liabilities).insert(
-        LiabilitiesCompanion.insert(
-          id: 'debt-explicit',
-          householdId: householdId,
-          name: 'Cicilan Motor',
-          originalAmount: 15000000,
-          remainingBalance: 10000000,
-          monthlyInstallment: const drift.Value(750000),
-          interestRate: const drift.Value(6.0),
-          startDate: DateTime(2025, 1, 1),
-          dueDate: drift.Value(DateTime(2026, 6, 1)),
-          createdAt: DateTime.now(),
-        ),
-      );
+      await db
+          .into(db.liabilities)
+          .insert(
+            LiabilitiesCompanion.insert(
+              id: 'debt-explicit',
+              householdId: householdId,
+              name: 'Cicilan Motor',
+              originalAmount: 15000000,
+              remainingBalance: 10000000,
+              monthlyInstallment: const drift.Value(750000),
+              interestRate: const drift.Value(6.0),
+              startDate: DateTime(2025, 1, 1),
+              dueDate: drift.Value(DateTime(2026, 6, 1)),
+              createdAt: DateTime.now(),
+            ),
+          );
 
       final result = await service.getAdaptiveLiabilities(householdId);
       expect(result.length, 1);
@@ -53,46 +57,52 @@ void main() {
     });
 
     test('getAdaptiveLiabilities resolves historical payment average when monthlyInstallment == 0', () async {
-      await db.into(db.liabilities).insert(
-        LiabilitiesCompanion.insert(
-          id: 'debt-history',
-          householdId: householdId,
-          name: 'Pinjaman Kerabat',
-          originalAmount: 5000000,
-          remainingBalance: 3000000,
-          monthlyInstallment: const drift.Value(0),
-          startDate: DateTime(2025, 1, 1),
-          createdAt: DateTime.now(),
-        ),
-      );
+      await db
+          .into(db.liabilities)
+          .insert(
+            LiabilitiesCompanion.insert(
+              id: 'debt-history',
+              householdId: householdId,
+              name: 'Pinjaman Kerabat',
+              originalAmount: 5000000,
+              remainingBalance: 3000000,
+              monthlyInstallment: const drift.Value(0),
+              startDate: DateTime(2025, 1, 1),
+              createdAt: DateTime.now(),
+            ),
+          );
 
       // Seed 2 historical payments
-      await db.into(db.transactions).insert(
-        TransactionsCompanion.insert(
-          id: 'tx-pay-1',
-          householdId: householdId,
-          type: 'expense',
-          source: const drift.Value('liability_payment'),
-          sourceId: const drift.Value('debt-history'),
-          amount: -500000,
-          date: DateTime(2025, 2, 1),
-          recordedAt: DateTime.now(),
-          createdAt: DateTime.now(),
-        ),
-      );
-      await db.into(db.transactions).insert(
-        TransactionsCompanion.insert(
-          id: 'tx-pay-2',
-          householdId: householdId,
-          type: 'expense',
-          source: const drift.Value('liability_payment'),
-          sourceId: const drift.Value('debt-history'),
-          amount: -300000,
-          date: DateTime(2025, 3, 1),
-          recordedAt: DateTime.now(),
-          createdAt: DateTime.now(),
-        ),
-      );
+      await db
+          .into(db.transactions)
+          .insert(
+            TransactionsCompanion.insert(
+              id: 'tx-pay-1',
+              householdId: householdId,
+              type: 'expense',
+              source: const drift.Value('liability_payment'),
+              sourceId: const drift.Value('debt-history'),
+              amount: -500000,
+              date: DateTime(2025, 2, 1),
+              recordedAt: DateTime.now(),
+              createdAt: DateTime.now(),
+            ),
+          );
+      await db
+          .into(db.transactions)
+          .insert(
+            TransactionsCompanion.insert(
+              id: 'tx-pay-2',
+              householdId: householdId,
+              type: 'expense',
+              source: const drift.Value('liability_payment'),
+              sourceId: const drift.Value('debt-history'),
+              amount: -300000,
+              date: DateTime(2025, 3, 1),
+              recordedAt: DateTime.now(),
+              createdAt: DateTime.now(),
+            ),
+          );
 
       final result = await service.getAdaptiveLiabilities(householdId);
       expect(result.length, 1);
@@ -101,33 +111,44 @@ void main() {
       // Rata-rata dari 500rb dan 300rb = 400rb
       expect(debt.monthlyInstallment, 400000);
       expect(debt.isExplicitInstallment, isFalse);
-      expect(debt.installmentOrigin, AdaptiveInstallmentOrigin.historicalPaymentAverage);
+      expect(
+        debt.installmentOrigin,
+        AdaptiveInstallmentOrigin.historicalPaymentAverage,
+      );
     });
 
     test('getAdaptiveLiabilities resolves dueDate amortization when no history exists', () async {
       final now = DateTime(2026, 1, 1);
       final due = DateTime(2026, 6, 1); // ~5 bulan ke depan
 
-      await db.into(db.liabilities).insert(
-        LiabilitiesCompanion.insert(
-          id: 'debt-due',
-          householdId: householdId,
-          name: 'Hutang Pupuk',
-          originalAmount: 2500000,
-          remainingBalance: 2500000,
-          monthlyInstallment: const drift.Value(0),
-          startDate: now,
-          dueDate: drift.Value(due),
-          createdAt: now,
-        ),
-      );
+      await db
+          .into(db.liabilities)
+          .insert(
+            LiabilitiesCompanion.insert(
+              id: 'debt-due',
+              householdId: householdId,
+              name: 'Hutang Pupuk',
+              originalAmount: 2500000,
+              remainingBalance: 2500000,
+              monthlyInstallment: const drift.Value(0),
+              startDate: now,
+              dueDate: drift.Value(due),
+              createdAt: now,
+            ),
+          );
 
-      final result = await service.getAdaptiveLiabilities(householdId, now: now);
+      final result = await service.getAdaptiveLiabilities(
+        householdId,
+        now: now,
+      );
       expect(result.length, 1);
       final debt = result.first;
       expect(debt.id, 'debt-due');
       expect(debt.isExplicitInstallment, isFalse);
-      expect(debt.installmentOrigin, AdaptiveInstallmentOrigin.dueDateAmortization);
+      expect(
+        debt.installmentOrigin,
+        AdaptiveInstallmentOrigin.dueDateAmortization,
+      );
       expect(debt.monthlyInstallment, greaterThan(0));
     });
 
@@ -185,37 +206,43 @@ void main() {
       expect(avalancheResult.milestones.first.debtId, 'debt-high-interest');
 
       // Avalanche harus menghemat total bunga dibanding Snowball pada skenario hutang berbunga tinggi
-      expect(avalancheResult.totalInterestPaid, lessThan(snowballResult.totalInterestPaid));
-    });
-
-    test('compareStrategies computes savings and recommendation text properly', () {
-      final now = DateTime(2026, 1, 1);
-      final debts = [
-        AdaptiveLiability(
-          id: 'debt-1',
-          householdId: householdId,
-          name: 'Kartu Kredit',
-          originalAmount: 4000000,
-          remainingBalance: 2000000,
-          monthlyInstallment: 200000,
-          interestRate: 24.0,
-          startDate: now,
-          dueDate: now.add(const Duration(days: 365)),
-          isExplicitInstallment: true,
-          installmentOrigin: AdaptiveInstallmentOrigin.explicitInput,
-        ),
-      ];
-
-      final comp = service.compareStrategies(
-        liabilities: debts,
-        extraMonthlyPayment: 300000,
-        startDate: now,
+      expect(
+        avalancheResult.totalInterestPaid,
+        lessThan(snowballResult.totalInterestPaid),
       );
-
-      expect(comp.monthsSavedAvalanche, greaterThanOrEqualTo(0));
-      expect(comp.interestSavedAvalanche, greaterThanOrEqualTo(0));
-      expect(comp.recommendationText, contains('Kartu Kredit'));
-      expect(comp.recommendationText, contains('Rp 300.000'));
     });
+
+    test(
+      'compareStrategies computes savings and recommendation text properly',
+      () {
+        final now = DateTime(2026, 1, 1);
+        final debts = [
+          AdaptiveLiability(
+            id: 'debt-1',
+            householdId: householdId,
+            name: 'Kartu Kredit',
+            originalAmount: 4000000,
+            remainingBalance: 2000000,
+            monthlyInstallment: 200000,
+            interestRate: 24.0,
+            startDate: now,
+            dueDate: now.add(const Duration(days: 365)),
+            isExplicitInstallment: true,
+            installmentOrigin: AdaptiveInstallmentOrigin.explicitInput,
+          ),
+        ];
+
+        final comp = service.compareStrategies(
+          liabilities: debts,
+          extraMonthlyPayment: 300000,
+          startDate: now,
+        );
+
+        expect(comp.monthsSavedAvalanche, greaterThanOrEqualTo(0));
+        expect(comp.interestSavedAvalanche, greaterThanOrEqualTo(0));
+        expect(comp.recommendationText, contains('Kartu Kredit'));
+        expect(comp.recommendationText, contains('Rp 300.000'));
+      },
+    );
   });
 }

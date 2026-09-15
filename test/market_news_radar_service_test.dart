@@ -207,24 +207,27 @@ void main() {
       expect(updated, equals(['kopi', 'gabah', 'longsor']));
     });
 
-    test('Unknown publication date uses fetch time for cache retention', () async {
-      final repo = MarketNewsCacheRepository();
-      final item = NewsAlertItem(
-        id: 'unknown-date-1',
-        title: 'Berita terbaru tanpa tanggal',
-        snippet: 'Diambil sekarang dari RSS',
-        sourceName: 'Test',
-        publishedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-        fetchedAt: DateTime.now(),
-        isPublishedAtKnown: false,
-        category: NewsCategory.all,
-      );
+    test(
+      'Unknown publication date uses fetch time for cache retention',
+      () async {
+        final repo = MarketNewsCacheRepository();
+        final item = NewsAlertItem(
+          id: 'unknown-date-1',
+          title: 'Berita terbaru tanpa tanggal',
+          snippet: 'Diambil sekarang dari RSS',
+          sourceName: 'Test',
+          publishedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+          fetchedAt: DateTime.now(),
+          isPublishedAtKnown: false,
+          category: NewsCategory.all,
+        );
 
-      await repo.saveNewsItems([item]);
-      final cached = await repo.getCachedNews();
+        await repo.saveNewsItems([item]);
+        final cached = await repo.getCachedNews();
 
-      expect(cached.single.id, equals('unknown-date-1'));
-    });
+        expect(cached.single.id, equals('unknown-date-1'));
+      },
+    );
 
     test('Refresh interval preference persists locally', () async {
       final repo = MarketNewsCacheRepository();
@@ -600,7 +603,8 @@ void main() {
     });
 
     test('parses official BMKG earthquake payload as disaster news', () {
-      const payload = '''{"Infogempa":{"gempa":{"DateTime":"2026-09-09T01:04:26+00:00","Magnitude":"4.4","Kedalaman":"21 km","Wilayah":"20 km Timur Wanokaka","Potensi":"Tidak berpotensi tsunami"}}}''';
+      const payload =
+          '''{"Infogempa":{"gempa":{"DateTime":"2026-09-09T01:04:26+00:00","Magnitude":"4.4","Kedalaman":"21 km","Wilayah":"20 km Timur Wanokaka","Potensi":"Tidak berpotensi tsunami"}}}''';
 
       final items = MarketNewsRadarService.parseBmkgEarthquake(payload);
 
@@ -627,54 +631,57 @@ void main() {
       },
     );
 
-    test('news relevance keeps core categories and matches user keywords locally', () {
-      final finance = NewsAlertItem(
-        id: 'finance-1',
-        title: 'Perubahan suku bunga bank',
-        snippet: 'Informasi ekonomi terbaru',
-        sourceName: 'Test',
-        publishedAt: DateTime(2026, 9, 9),
-        category: NewsCategory.finance,
-      );
-      final general = NewsAlertItem(
-        id: 'general-1',
-        title: 'Harga pupuk untuk musim tanam',
-        snippet: 'Ringkasan pasar pertanian',
-        sourceName: 'Test',
-        publishedAt: DateTime(2026, 9, 9),
-        category: NewsCategory.all,
-      );
-      final unrelated = NewsAlertItem(
-        id: 'general-2',
-        title: 'Jadwal pertandingan akhir pekan',
-        snippet: 'Berita olahraga',
-        sourceName: 'Test',
-        publishedAt: DateTime(2026, 9, 9),
-        category: NewsCategory.all,
-      );
+    test(
+      'news relevance keeps core categories and matches user keywords locally',
+      () {
+        final finance = NewsAlertItem(
+          id: 'finance-1',
+          title: 'Perubahan suku bunga bank',
+          snippet: 'Informasi ekonomi terbaru',
+          sourceName: 'Test',
+          publishedAt: DateTime(2026, 9, 9),
+          category: NewsCategory.finance,
+        );
+        final general = NewsAlertItem(
+          id: 'general-1',
+          title: 'Harga pupuk untuk musim tanam',
+          snippet: 'Ringkasan pasar pertanian',
+          sourceName: 'Test',
+          publishedAt: DateTime(2026, 9, 9),
+          category: NewsCategory.all,
+        );
+        final unrelated = NewsAlertItem(
+          id: 'general-2',
+          title: 'Jadwal pertandingan akhir pekan',
+          snippet: 'Berita olahraga',
+          sourceName: 'Test',
+          publishedAt: DateTime(2026, 9, 9),
+          category: NewsCategory.all,
+        );
 
-      expect(
-        MarketNewsRadarService.isRelevantForUser(
-          finance,
-          keywords: const ['kurs'],
-        ),
-        isTrue,
-      );
-      expect(
-        MarketNewsRadarService.isRelevantForUser(
-          general,
-          keywords: const ['pupuk'],
-        ),
-        isTrue,
-      );
-      expect(
-        MarketNewsRadarService.isRelevantForUser(
-          unrelated,
-          keywords: const ['pupuk'],
-        ),
-        isFalse,
-      );
-    });
+        expect(
+          MarketNewsRadarService.isRelevantForUser(
+            finance,
+            keywords: const ['kurs'],
+          ),
+          isTrue,
+        );
+        expect(
+          MarketNewsRadarService.isRelevantForUser(
+            general,
+            keywords: const ['pupuk'],
+          ),
+          isTrue,
+        );
+        expect(
+          MarketNewsRadarService.isRelevantForUser(
+            unrelated,
+            keywords: const ['pupuk'],
+          ),
+          isFalse,
+        );
+      },
+    );
 
     test(
       'offline fallback is explicitly marked and has a stable date',

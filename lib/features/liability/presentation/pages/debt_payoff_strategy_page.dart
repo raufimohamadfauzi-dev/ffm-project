@@ -36,7 +36,9 @@ class _DebtPayoffStrategyPageState extends State<DebtPayoffStrategyPage> {
     super.initState();
     _selectedStrategy = widget.initialStrategy;
     _extraPayment = widget.initialExtraPayment ?? 250000;
-    _customExtraController.text = _extraPayment > 0 ? _extraPayment.toString() : '';
+    _customExtraController.text = _extraPayment > 0
+        ? _extraPayment.toString()
+        : '';
     _loadData();
   }
 
@@ -49,8 +51,12 @@ class _DebtPayoffStrategyPageState extends State<DebtPayoffStrategyPage> {
   Future<void> _loadData() async {
     try {
       final service = getIt<DebtPayoffStrategistService>();
-      final items = await service.getAdaptiveLiabilities(AppContext.householdId);
-      final suggested = await service.estimateSuggestedExtraPayment(AppContext.householdId);
+      final items = await service.getAdaptiveLiabilities(
+        AppContext.householdId,
+      );
+      final suggested = await service.estimateSuggestedExtraPayment(
+        AppContext.householdId,
+      );
 
       if (!mounted) return;
       setState(() {
@@ -121,174 +127,166 @@ class _DebtPayoffStrategyPageState extends State<DebtPayoffStrategyPage> {
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.liabilities,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Simulator Bebas Hutang'),
-        ),
+        appBar: AppBar(title: const Text('Simulator Bebas Hutang')),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        size: 48,
+                        color: AppColors.negative,
+                      ),
+                      const SizedBox(height: 12),
+                      Text('Gagal memuat simulasi: $_error'),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: _loadData,
+                        child: const Text('Coba Lagi'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : _liabilities.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircleAvatar(
+                        radius: 40,
+                        backgroundColor: AppColors.positiveSoft,
+                        child: Icon(
+                          Icons.celebration,
+                          size: 40,
+                          color: AppColors.positive,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Bebas Hutang! 🎉',
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Keluarga Anda tidak memiliki catatan hutang aktif. Pertahankan kondisi ini dan fokus perbesar pos tabungan!',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(color: AppColors.inkMuted),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : RefreshIndicator(
+                onRefresh: _loadData,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+                  children: [
+                    // 1. Selector Strategi
+                    SegmentedButton<DebtPayoffStrategy>(
+                      segments: const [
+                        ButtonSegment(
+                          value: DebtPayoffStrategy.snowball,
+                          icon: Icon(Icons.ac_unit),
+                          label: Text('Debt Snowball'),
+                        ),
+                        ButtonSegment(
+                          value: DebtPayoffStrategy.avalanche,
+                          icon: Icon(Icons.bolt),
+                          label: Text('Debt Avalanche'),
+                        ),
+                      ],
+                      selected: {_selectedStrategy},
+                      onSelectionChanged: (set) {
+                        setState(() => _selectedStrategy = set.first);
+                      },
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Penjelasan Strategi Terpilih
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: _selectedStrategy == DebtPayoffStrategy.snowball
+                            ? AppColors.primarySoft
+                            : AppColors.warningSoft,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.error_outline,
-                              size: 48, color: AppColors.negative),
-                          const SizedBox(height: 12),
-                          Text('Gagal memuat simulasi: $_error'),
-                          const SizedBox(height: 16),
-                          FilledButton(
-                            onPressed: _loadData,
-                            child: const Text('Coba Lagi'),
+                          Icon(
+                            _selectedStrategy == DebtPayoffStrategy.snowball
+                                ? Icons.psychology_outlined
+                                : Icons.savings_outlined,
+                            size: 20,
+                            color:
+                                _selectedStrategy == DebtPayoffStrategy.snowball
+                                ? AppColors.primary
+                                : AppColors.warning,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _selectedStrategy == DebtPayoffStrategy.snowball
+                                  ? 'Snowball melunasi saldo terkecil lebih dulu. Cocok untuk dorongan motivasi mental dan kemenangan cepat!'
+                                  : 'Avalanche melunasi bunga tertinggi lebih dulu. Pilihan paling hemat untuk memangkas total beban bunga!',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color:
+                                        _selectedStrategy ==
+                                            DebtPayoffStrategy.snowball
+                                        ? AppColors.primary
+                                        : AppColors.ink,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  )
-                : _liabilities.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const CircleAvatar(
-                                radius: 40,
-                                backgroundColor: AppColors.positiveSoft,
-                                child: Icon(Icons.celebration,
-                                    size: 40, color: AppColors.positive),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Bebas Hutang! 🎉',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineSmall
-                                    ?.copyWith(fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Keluarga Anda tidak memiliki catatan hutang aktif. Pertahankan kondisi ini dan fokus perbesar pos tabungan!',
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(color: AppColors.inkMuted),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _loadData,
-                        child: ListView(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-                          children: [
-                            // 1. Selector Strategi
-                            SegmentedButton<DebtPayoffStrategy>(
-                              segments: const [
-                                ButtonSegment(
-                                  value: DebtPayoffStrategy.snowball,
-                                  icon: Icon(Icons.ac_unit),
-                                  label: Text('Debt Snowball'),
-                                ),
-                                ButtonSegment(
-                                  value: DebtPayoffStrategy.avalanche,
-                                  icon: Icon(Icons.bolt),
-                                  label: Text('Debt Avalanche'),
-                                ),
-                              ],
-                              selected: {_selectedStrategy},
-                              onSelectionChanged: (set) {
-                                setState(() => _selectedStrategy = set.first);
-                              },
-                            ),
 
-                            const SizedBox(height: 12),
+                    const SizedBox(height: 16),
 
-                            // Penjelasan Strategi Terpilih
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: _selectedStrategy ==
-                                        DebtPayoffStrategy.snowball
-                                    ? AppColors.primarySoft
-                                    : AppColors.warningSoft,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(
-                                    _selectedStrategy ==
-                                            DebtPayoffStrategy.snowball
-                                        ? Icons.psychology_outlined
-                                        : Icons.savings_outlined,
-                                    size: 20,
-                                    color: _selectedStrategy ==
-                                            DebtPayoffStrategy.snowball
-                                        ? AppColors.primary
-                                        : AppColors.warning,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      _selectedStrategy ==
-                                              DebtPayoffStrategy.snowball
-                                          ? 'Snowball melunasi saldo terkecil lebih dulu. Cocok untuk dorongan motivasi mental dan kemenangan cepat!'
-                                          : 'Avalanche melunasi bunga tertinggi lebih dulu. Pilihan paling hemat untuk memangkas total beban bunga!',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            color: _selectedStrategy ==
-                                                    DebtPayoffStrategy.snowball
-                                                ? AppColors.primary
-                                                : AppColors.ink,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                    // 2. Kartu Hasil Proyeksi Utama
+                    if (activeResult != null && comparison != null)
+                      _buildResultCard(context, activeResult, comparison),
 
-                            const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                            // 2. Kartu Hasil Proyeksi Utama
-                            if (activeResult != null && comparison != null)
-                              _buildResultCard(context, activeResult, comparison),
+                    // 3. Simulasi Alokasi Dana Ekstra
+                    _buildExtraPaymentCard(context),
 
-                            const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
-                            // 3. Simulasi Alokasi Dana Ekstra
-                            _buildExtraPaymentCard(context),
+                    // 4. Urutan Prioritas Pelunasan
+                    Text(
+                      'Urutan Prioritas Pelunasan',
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Alokasikan cicilan minimum ke semua hutang, lalu pusatkan dana ekstra ke Prioritas #1 sampai lunas!',
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: AppColors.inkMuted),
+                    ),
+                    const SizedBox(height: 12),
 
-                            const SizedBox(height: 20),
-
-                            // 4. Urutan Prioritas Pelunasan
-                            Text(
-                              'Urutan Prioritas Pelunasan',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Alokasikan cicilan minimum ke semua hutang, lalu pusatkan dana ekstra ke Prioritas #1 sampai lunas!',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(color: AppColors.inkMuted),
-                            ),
-                            const SizedBox(height: 12),
-
-                            ..._buildPriorityList(context, activeResult),
-                          ],
-                        ),
-                      ),
+                    ..._buildPriorityList(context, activeResult),
+                  ],
+                ),
+              ),
       ),
     );
   }
@@ -311,10 +309,7 @@ class _DebtPayoffStrategyPageState extends State<DebtPayoffStrategyPage> {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            AppColors.primary.withAlpha(230),
-            const Color(0xFF003838),
-          ],
+          colors: [AppColors.primary.withAlpha(230), const Color(0xFF003838)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -338,19 +333,17 @@ class _DebtPayoffStrategyPageState extends State<DebtPayoffStrategyPage> {
               Text(
                 'Estimasi 100% Bebas Hutang',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             dateStr,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
+            style: Theme.of(context).textTheme.headlineMedium
+                ?.copyWith(color: Colors.white, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 4),
           Text(
@@ -386,11 +379,15 @@ class _DebtPayoffStrategyPageState extends State<DebtPayoffStrategyPage> {
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.green.withAlpha(50),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.greenAccent.withAlpha(120)),
+                      border: Border.all(
+                        color: Colors.greenAccent.withAlpha(120),
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -439,14 +436,15 @@ class _DebtPayoffStrategyPageState extends State<DebtPayoffStrategyPage> {
           children: [
             Row(
               children: [
-                const Icon(Icons.add_circle_outline,
-                    size: 20, color: AppColors.positive),
+                const Icon(
+                  Icons.add_circle_outline,
+                  size: 20,
+                  color: AppColors.positive,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Alokasi Ekstra Tiap Bulan',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
+                  style: Theme.of(context).textTheme.titleSmall
                       ?.copyWith(fontWeight: FontWeight.bold),
                 ),
               ],
@@ -454,9 +452,7 @@ class _DebtPayoffStrategyPageState extends State<DebtPayoffStrategyPage> {
             const SizedBox(height: 4),
             Text(
               'Gunakan kelebihan uang belanja atau pos tabungan bebas untuk memotong pokok hutang lebih cepat.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
+              style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: AppColors.inkMuted),
             ),
             const SizedBox(height: 12),
@@ -528,14 +524,15 @@ class _DebtPayoffStrategyPageState extends State<DebtPayoffStrategyPage> {
           padding: const EdgeInsets.only(bottom: 10),
           child: AppCard(
             child: ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 6,
+              ),
               leading: CircleAvatar(
                 backgroundColor: isTopPriority
                     ? AppColors.primary
                     : AppColors.surfaceContainer,
-                foregroundColor:
-                    isTopPriority ? Colors.white : AppColors.ink,
+                foregroundColor: isTopPriority ? Colors.white : AppColors.ink,
                 child: Text(
                   '#${i + 1}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
@@ -580,7 +577,9 @@ class _DebtPayoffStrategyPageState extends State<DebtPayoffStrategyPage> {
                         const SizedBox(width: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.primarySoft,
                             borderRadius: BorderRadius.circular(4),
@@ -613,7 +612,9 @@ class _DebtPayoffStrategyPageState extends State<DebtPayoffStrategyPage> {
               trailing: isTopPriority
                   ? Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.primarySoft,
                         borderRadius: BorderRadius.circular(6),

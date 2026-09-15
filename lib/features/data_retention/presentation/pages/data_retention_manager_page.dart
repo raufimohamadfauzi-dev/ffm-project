@@ -66,7 +66,9 @@ class _DataRetentionManagerPageState extends State<DataRetentionManagerPage> {
       lastDate: DateTime(2100),
     );
     if (picked == null || !mounted) return;
-    setState(() => _beforeDate = DateTime(picked.year, picked.month, picked.day));
+    setState(
+      () => _beforeDate = DateTime(picked.year, picked.month, picked.day),
+    );
     await _refreshPreviews();
   }
 
@@ -110,7 +112,10 @@ class _DataRetentionManagerPageState extends State<DataRetentionManagerPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.negative),
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: AppColors.negative,
+        ),
       );
       setState(() => _working = false);
     }
@@ -123,9 +128,10 @@ class _DataRetentionManagerPageState extends State<DataRetentionManagerPage> {
       final service = getIt<JsonBackupService>();
       final content = await service.exportJson();
       final bytes = Uint8List.fromList(utf8.encode(content));
-      final stamp = DateTime.now()
-          .toIso8601String()
-          .replaceAll(RegExp(r'[:.]'), '-');
+      final stamp = DateTime.now().toIso8601String().replaceAll(
+        RegExp(r'[:.]'),
+        '-',
+      );
       final path = await FilePicker.saveFile(
         dialogTitle: 'Simpan Cadangan Sebelum Penghapusan',
         fileName: 'ffm-cadangan-sebelum-hapus-$stamp.json',
@@ -198,13 +204,11 @@ class _DataRetentionManagerPageState extends State<DataRetentionManagerPage> {
           ),
           FilledButton(
             onPressed: () {
-              final ok = controller.text.trim().toUpperCase() ==
-                  'HAPUS PERMANEN';
+              final ok =
+                  controller.text.trim().toUpperCase() == 'HAPUS PERMANEN';
               Navigator.pop(context, ok);
             },
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.negative,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.negative),
             child: const Text('Hapus Sekarang'),
           ),
         ],
@@ -242,7 +246,10 @@ class _DataRetentionManagerPageState extends State<DataRetentionManagerPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.negative),
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: AppColors.negative,
+        ),
       );
       setState(() => _working = false);
     }
@@ -276,7 +283,9 @@ class _DataRetentionManagerPageState extends State<DataRetentionManagerPage> {
           Text(
             'Kelola data lama lintas jenis. Arsip bersifat reversible; '
             'hapus permanen hanya untuk data terarsip dan wajib cadangan dahulu.',
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 16),
           Card(
@@ -393,12 +402,8 @@ class _DataRetentionManagerPageState extends State<DataRetentionManagerPage> {
                       child: OutlinedButton.icon(
                         onPressed: _working ? null : _createBackup,
                         icon: Icon(
-                          _backupVerified
-                              ? Icons.verified
-                              : Icons.save_alt,
-                          color: _backupVerified
-                              ? AppColors.positive
-                              : null,
+                          _backupVerified ? Icons.verified : Icons.save_alt,
+                          color: _backupVerified ? AppColors.positive : null,
                         ),
                         label: Text(
                           _backupVerified
@@ -424,8 +429,7 @@ class _DataRetentionManagerPageState extends State<DataRetentionManagerPage> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        onPressed:
-                            (del == null || del.isEmpty || _working)
+                        onPressed: (del == null || del.isEmpty || _working)
                             ? null
                             : _deleteBefore,
                         style: FilledButton.styleFrom(

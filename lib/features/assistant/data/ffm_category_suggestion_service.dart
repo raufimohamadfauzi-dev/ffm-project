@@ -113,13 +113,12 @@ class FfmCategorySuggestionService {
 
   Future<List<String>> _activeCategoryNames(String type) async {
     final rows =
-        await (database.select(database.categories)
-              ..where(
-                (row) =>
-                    row.householdId.equals(householdId) &
-                    row.isActive.equals(true) &
-                    row.type.equals(type),
-              ))
+        await (database.select(database.categories)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true) &
+                  row.type.equals(type),
+            ))
             .get();
     final names = rows.map((row) => row.name.trim()).toList()
       ..sort((a, b) => a.length.compareTo(b.length));

@@ -13824,6 +13824,16 @@ class $RemindersTable extends Reminders
     requiredDuringInsert: false,
     defaultValue: const Constant('user'),
   );
+  static const VerificationMeta _modeMeta = const VerificationMeta('mode');
+  @override
+  late final GeneratedColumn<String> mode = GeneratedColumn<String>(
+    'mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('notification'),
+  );
   static const VerificationMeta _calendarEventIdMeta = const VerificationMeta(
     'calendarEventId',
   );
@@ -13879,6 +13889,7 @@ class $RemindersTable extends Reminders
     sourceType,
     sourceId,
     origin,
+    mode,
     calendarEventId,
     isSyncedToCalendar,
     syncedAt,
@@ -14024,6 +14035,12 @@ class $RemindersTable extends Reminders
         origin.isAcceptableOrUnknown(data['origin']!, _originMeta),
       );
     }
+    if (data.containsKey('mode')) {
+      context.handle(
+        _modeMeta,
+        mode.isAcceptableOrUnknown(data['mode']!, _modeMeta),
+      );
+    }
     if (data.containsKey('calendar_event_id')) {
       context.handle(
         _calendarEventIdMeta,
@@ -14125,6 +14142,10 @@ class $RemindersTable extends Reminders
         DriftSqlType.string,
         data['${effectivePrefix}origin'],
       )!,
+      mode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mode'],
+      )!,
       calendarEventId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}calendar_event_id'],
@@ -14164,6 +14185,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
   final String? sourceType;
   final String? sourceId;
   final String origin;
+  final String mode;
   final int? calendarEventId;
   final bool isSyncedToCalendar;
   final DateTime? syncedAt;
@@ -14185,6 +14207,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     this.sourceType,
     this.sourceId,
     required this.origin,
+    required this.mode,
     this.calendarEventId,
     required this.isSyncedToCalendar,
     this.syncedAt,
@@ -14221,6 +14244,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
       map['source_id'] = Variable<String>(sourceId);
     }
     map['origin'] = Variable<String>(origin);
+    map['mode'] = Variable<String>(mode);
     if (!nullToAbsent || calendarEventId != null) {
       map['calendar_event_id'] = Variable<int>(calendarEventId);
     }
@@ -14260,6 +14284,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
           ? const Value.absent()
           : Value(sourceId),
       origin: Value(origin),
+      mode: Value(mode),
       calendarEventId: calendarEventId == null && nullToAbsent
           ? const Value.absent()
           : Value(calendarEventId),
@@ -14295,6 +14320,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
       sourceType: serializer.fromJson<String?>(json['sourceType']),
       sourceId: serializer.fromJson<String?>(json['sourceId']),
       origin: serializer.fromJson<String>(json['origin']),
+      mode: serializer.fromJson<String>(json['mode']),
       calendarEventId: serializer.fromJson<int?>(json['calendarEventId']),
       isSyncedToCalendar: serializer.fromJson<bool>(json['isSyncedToCalendar']),
       syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
@@ -14321,6 +14347,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
       'sourceType': serializer.toJson<String?>(sourceType),
       'sourceId': serializer.toJson<String?>(sourceId),
       'origin': serializer.toJson<String>(origin),
+      'mode': serializer.toJson<String>(mode),
       'calendarEventId': serializer.toJson<int?>(calendarEventId),
       'isSyncedToCalendar': serializer.toJson<bool>(isSyncedToCalendar),
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
@@ -14345,6 +14372,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     Value<String?> sourceType = const Value.absent(),
     Value<String?> sourceId = const Value.absent(),
     String? origin,
+    String? mode,
     Value<int?> calendarEventId = const Value.absent(),
     bool? isSyncedToCalendar,
     Value<DateTime?> syncedAt = const Value.absent(),
@@ -14366,6 +14394,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     sourceType: sourceType.present ? sourceType.value : this.sourceType,
     sourceId: sourceId.present ? sourceId.value : this.sourceId,
     origin: origin ?? this.origin,
+    mode: mode ?? this.mode,
     calendarEventId: calendarEventId.present
         ? calendarEventId.value
         : this.calendarEventId,
@@ -14405,6 +14434,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
           : this.sourceType,
       sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
       origin: data.origin.present ? data.origin.value : this.origin,
+      mode: data.mode.present ? data.mode.value : this.mode,
       calendarEventId: data.calendarEventId.present
           ? data.calendarEventId.value
           : this.calendarEventId,
@@ -14435,6 +14465,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
           ..write('sourceType: $sourceType, ')
           ..write('sourceId: $sourceId, ')
           ..write('origin: $origin, ')
+          ..write('mode: $mode, ')
           ..write('calendarEventId: $calendarEventId, ')
           ..write('isSyncedToCalendar: $isSyncedToCalendar, ')
           ..write('syncedAt: $syncedAt')
@@ -14443,7 +14474,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     householdId,
     title,
@@ -14461,10 +14492,11 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     sourceType,
     sourceId,
     origin,
+    mode,
     calendarEventId,
     isSyncedToCalendar,
     syncedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -14486,6 +14518,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
           other.sourceType == this.sourceType &&
           other.sourceId == this.sourceId &&
           other.origin == this.origin &&
+          other.mode == this.mode &&
           other.calendarEventId == this.calendarEventId &&
           other.isSyncedToCalendar == this.isSyncedToCalendar &&
           other.syncedAt == this.syncedAt);
@@ -14509,6 +14542,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
   final Value<String?> sourceType;
   final Value<String?> sourceId;
   final Value<String> origin;
+  final Value<String> mode;
   final Value<int?> calendarEventId;
   final Value<bool> isSyncedToCalendar;
   final Value<DateTime?> syncedAt;
@@ -14531,6 +14565,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     this.sourceType = const Value.absent(),
     this.sourceId = const Value.absent(),
     this.origin = const Value.absent(),
+    this.mode = const Value.absent(),
     this.calendarEventId = const Value.absent(),
     this.isSyncedToCalendar = const Value.absent(),
     this.syncedAt = const Value.absent(),
@@ -14554,6 +14589,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     this.sourceType = const Value.absent(),
     this.sourceId = const Value.absent(),
     this.origin = const Value.absent(),
+    this.mode = const Value.absent(),
     this.calendarEventId = const Value.absent(),
     this.isSyncedToCalendar = const Value.absent(),
     this.syncedAt = const Value.absent(),
@@ -14582,6 +14618,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     Expression<String>? sourceType,
     Expression<String>? sourceId,
     Expression<String>? origin,
+    Expression<String>? mode,
     Expression<int>? calendarEventId,
     Expression<bool>? isSyncedToCalendar,
     Expression<DateTime>? syncedAt,
@@ -14606,6 +14643,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
       if (sourceType != null) 'source_type': sourceType,
       if (sourceId != null) 'source_id': sourceId,
       if (origin != null) 'origin': origin,
+      if (mode != null) 'mode': mode,
       if (calendarEventId != null) 'calendar_event_id': calendarEventId,
       if (isSyncedToCalendar != null)
         'is_synced_to_calendar': isSyncedToCalendar,
@@ -14632,6 +14670,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     Value<String?>? sourceType,
     Value<String?>? sourceId,
     Value<String>? origin,
+    Value<String>? mode,
     Value<int?>? calendarEventId,
     Value<bool>? isSyncedToCalendar,
     Value<DateTime?>? syncedAt,
@@ -14655,6 +14694,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
       sourceType: sourceType ?? this.sourceType,
       sourceId: sourceId ?? this.sourceId,
       origin: origin ?? this.origin,
+      mode: mode ?? this.mode,
       calendarEventId: calendarEventId ?? this.calendarEventId,
       isSyncedToCalendar: isSyncedToCalendar ?? this.isSyncedToCalendar,
       syncedAt: syncedAt ?? this.syncedAt,
@@ -14716,6 +14756,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     if (origin.present) {
       map['origin'] = Variable<String>(origin.value);
     }
+    if (mode.present) {
+      map['mode'] = Variable<String>(mode.value);
+    }
     if (calendarEventId.present) {
       map['calendar_event_id'] = Variable<int>(calendarEventId.value);
     }
@@ -14751,6 +14794,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
           ..write('sourceType: $sourceType, ')
           ..write('sourceId: $sourceId, ')
           ..write('origin: $origin, ')
+          ..write('mode: $mode, ')
           ..write('calendarEventId: $calendarEventId, ')
           ..write('isSyncedToCalendar: $isSyncedToCalendar, ')
           ..write('syncedAt: $syncedAt, ')
@@ -19190,6 +19234,18 @@ class $DailyNotesTable extends DailyNotes
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _priorityMeta = const VerificationMeta(
+    'priority',
+  );
+  @override
+  late final GeneratedColumn<int> priority = GeneratedColumn<int>(
+    'priority',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _isArchivedMeta = const VerificationMeta(
     'isArchived',
   );
@@ -19235,6 +19291,7 @@ class $DailyNotesTable extends DailyNotes
     title,
     body,
     treatmentType,
+    priority,
     isArchived,
     createdAt,
     updatedAt,
@@ -19298,6 +19355,12 @@ class $DailyNotesTable extends DailyNotes
         ),
       );
     }
+    if (data.containsKey('priority')) {
+      context.handle(
+        _priorityMeta,
+        priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta),
+      );
+    }
     if (data.containsKey('is_archived')) {
       context.handle(
         _isArchivedMeta,
@@ -19351,6 +19414,10 @@ class $DailyNotesTable extends DailyNotes
         DriftSqlType.string,
         data['${effectivePrefix}treatment_type'],
       ),
+      priority: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}priority'],
+      )!,
       isArchived: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_archived'],
@@ -19379,6 +19446,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
   final String? title;
   final String body;
   final String? treatmentType;
+  final int priority;
   final bool isArchived;
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -19389,6 +19457,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
     this.title,
     required this.body,
     this.treatmentType,
+    required this.priority,
     required this.isArchived,
     required this.createdAt,
     this.updatedAt,
@@ -19406,6 +19475,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
     if (!nullToAbsent || treatmentType != null) {
       map['treatment_type'] = Variable<String>(treatmentType);
     }
+    map['priority'] = Variable<int>(priority);
     map['is_archived'] = Variable<bool>(isArchived);
     map['created_at'] = Variable<DateTime>(createdAt);
     if (!nullToAbsent || updatedAt != null) {
@@ -19426,6 +19496,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
       treatmentType: treatmentType == null && nullToAbsent
           ? const Value.absent()
           : Value(treatmentType),
+      priority: Value(priority),
       isArchived: Value(isArchived),
       createdAt: Value(createdAt),
       updatedAt: updatedAt == null && nullToAbsent
@@ -19446,6 +19517,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
       title: serializer.fromJson<String?>(json['title']),
       body: serializer.fromJson<String>(json['body']),
       treatmentType: serializer.fromJson<String?>(json['treatmentType']),
+      priority: serializer.fromJson<int>(json['priority']),
       isArchived: serializer.fromJson<bool>(json['isArchived']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
@@ -19461,6 +19533,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
       'title': serializer.toJson<String?>(title),
       'body': serializer.toJson<String>(body),
       'treatmentType': serializer.toJson<String?>(treatmentType),
+      'priority': serializer.toJson<int>(priority),
       'isArchived': serializer.toJson<bool>(isArchived),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime?>(updatedAt),
@@ -19474,6 +19547,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
     Value<String?> title = const Value.absent(),
     String? body,
     Value<String?> treatmentType = const Value.absent(),
+    int? priority,
     bool? isArchived,
     DateTime? createdAt,
     Value<DateTime?> updatedAt = const Value.absent(),
@@ -19486,6 +19560,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
     treatmentType: treatmentType.present
         ? treatmentType.value
         : this.treatmentType,
+    priority: priority ?? this.priority,
     isArchived: isArchived ?? this.isArchived,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
@@ -19502,6 +19577,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
       treatmentType: data.treatmentType.present
           ? data.treatmentType.value
           : this.treatmentType,
+      priority: data.priority.present ? data.priority.value : this.priority,
       isArchived: data.isArchived.present
           ? data.isArchived.value
           : this.isArchived,
@@ -19519,6 +19595,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
           ..write('title: $title, ')
           ..write('body: $body, ')
           ..write('treatmentType: $treatmentType, ')
+          ..write('priority: $priority, ')
           ..write('isArchived: $isArchived, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -19534,6 +19611,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
     title,
     body,
     treatmentType,
+    priority,
     isArchived,
     createdAt,
     updatedAt,
@@ -19548,6 +19626,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
           other.title == this.title &&
           other.body == this.body &&
           other.treatmentType == this.treatmentType &&
+          other.priority == this.priority &&
           other.isArchived == this.isArchived &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -19560,6 +19639,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
   final Value<String?> title;
   final Value<String> body;
   final Value<String?> treatmentType;
+  final Value<int> priority;
   final Value<bool> isArchived;
   final Value<DateTime> createdAt;
   final Value<DateTime?> updatedAt;
@@ -19571,6 +19651,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
     this.title = const Value.absent(),
     this.body = const Value.absent(),
     this.treatmentType = const Value.absent(),
+    this.priority = const Value.absent(),
     this.isArchived = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -19583,6 +19664,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
     this.title = const Value.absent(),
     required String body,
     this.treatmentType = const Value.absent(),
+    this.priority = const Value.absent(),
     this.isArchived = const Value.absent(),
     required DateTime createdAt,
     this.updatedAt = const Value.absent(),
@@ -19599,6 +19681,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
     Expression<String>? title,
     Expression<String>? body,
     Expression<String>? treatmentType,
+    Expression<int>? priority,
     Expression<bool>? isArchived,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -19611,6 +19694,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
       if (title != null) 'title': title,
       if (body != null) 'body': body,
       if (treatmentType != null) 'treatment_type': treatmentType,
+      if (priority != null) 'priority': priority,
       if (isArchived != null) 'is_archived': isArchived,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -19625,6 +19709,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
     Value<String?>? title,
     Value<String>? body,
     Value<String?>? treatmentType,
+    Value<int>? priority,
     Value<bool>? isArchived,
     Value<DateTime>? createdAt,
     Value<DateTime?>? updatedAt,
@@ -19637,6 +19722,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
       title: title ?? this.title,
       body: body ?? this.body,
       treatmentType: treatmentType ?? this.treatmentType,
+      priority: priority ?? this.priority,
       isArchived: isArchived ?? this.isArchived,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -19665,6 +19751,9 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
     if (treatmentType.present) {
       map['treatment_type'] = Variable<String>(treatmentType.value);
     }
+    if (priority.present) {
+      map['priority'] = Variable<int>(priority.value);
+    }
     if (isArchived.present) {
       map['is_archived'] = Variable<bool>(isArchived.value);
     }
@@ -19689,6 +19778,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
           ..write('title: $title, ')
           ..write('body: $body, ')
           ..write('treatmentType: $treatmentType, ')
+          ..write('priority: $priority, ')
           ..write('isArchived: $isArchived, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -34408,26 +34498,24 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   ];
 }
 
-typedef $$HouseholdsTableCreateCompanionBuilder =
-    HouseholdsCompanion Function({
-      required String id,
-      required String name,
-      Value<String?> husbandName,
-      Value<String?> wifeName,
-      required DateTime createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$HouseholdsTableUpdateCompanionBuilder =
-    HouseholdsCompanion Function({
-      Value<String> id,
-      Value<String> name,
-      Value<String?> husbandName,
-      Value<String?> wifeName,
-      Value<DateTime> createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$HouseholdsTableCreateCompanionBuilder = HouseholdsCompanion Function({
+  required String id,
+  required String name,
+  Value<String?> husbandName,
+  Value<String?> wifeName,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$HouseholdsTableUpdateCompanionBuilder = HouseholdsCompanion Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String?> husbandName,
+  Value<String?> wifeName,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$HouseholdsTableFilterComposer
     extends Composer<_$AppDatabase, $HouseholdsTable> {
@@ -34626,30 +34714,28 @@ typedef $$HouseholdsTableProcessedTableManager =
       Household,
       PrefetchHooks Function()
     >;
-typedef $$CategoriesTableCreateCompanionBuilder =
-    CategoriesCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      required String type,
-      Value<String?> parentId,
-      Value<String> defaultBudgetPeriod,
-      Value<bool> isActive,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$CategoriesTableUpdateCompanionBuilder =
-    CategoriesCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String> type,
-      Value<String?> parentId,
-      Value<String> defaultBudgetPeriod,
-      Value<bool> isActive,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$CategoriesTableCreateCompanionBuilder = CategoriesCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  required String type,
+  Value<String?> parentId,
+  Value<String> defaultBudgetPeriod,
+  Value<bool> isActive,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$CategoriesTableUpdateCompanionBuilder = CategoriesCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String> type,
+  Value<String?> parentId,
+  Value<String> defaultBudgetPeriod,
+  Value<bool> isActive,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$CategoriesTableFilterComposer
     extends Composer<_$AppDatabase, $CategoriesTable> {
@@ -34881,26 +34967,24 @@ typedef $$CategoriesTableProcessedTableManager =
       Category,
       PrefetchHooks Function()
     >;
-typedef $$MerchantsTableCreateCompanionBuilder =
-    MerchantsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      Value<String?> details,
-      Value<bool> isActive,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$MerchantsTableUpdateCompanionBuilder =
-    MerchantsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String?> details,
-      Value<bool> isActive,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$MerchantsTableCreateCompanionBuilder = MerchantsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  Value<String?> details,
+  Value<bool> isActive,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$MerchantsTableUpdateCompanionBuilder = MerchantsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String?> details,
+  Value<bool> isActive,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$MerchantsTableFilterComposer
     extends Composer<_$AppDatabase, $MerchantsTable> {
@@ -35096,24 +35180,22 @@ typedef $$MerchantsTableProcessedTableManager =
       Merchant,
       PrefetchHooks Function()
     >;
-typedef $$TagsTableCreateCompanionBuilder =
-    TagsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$TagsTableUpdateCompanionBuilder =
-    TagsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$TagsTableCreateCompanionBuilder = TagsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$TagsTableUpdateCompanionBuilder = TagsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$TagsTableFilterComposer extends Composer<_$AppDatabase, $TagsTable> {
   $$TagsTableFilterComposer({
@@ -35292,30 +35374,28 @@ typedef $$TagsTableProcessedTableManager =
       Tag,
       PrefetchHooks Function()
     >;
-typedef $$AccountsTableCreateCompanionBuilder =
-    AccountsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      required String type,
-      Value<int> openingBalance,
-      Value<bool> isActive,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$AccountsTableUpdateCompanionBuilder =
-    AccountsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String> type,
-      Value<int> openingBalance,
-      Value<bool> isActive,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$AccountsTableCreateCompanionBuilder = AccountsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  required String type,
+  Value<int> openingBalance,
+  Value<bool> isActive,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$AccountsTableUpdateCompanionBuilder = AccountsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String> type,
+  Value<int> openingBalance,
+  Value<bool> isActive,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$AccountsTableFilterComposer
     extends Composer<_$AppDatabase, $AccountsTable> {
@@ -38111,40 +38191,38 @@ typedef $$UtilityTokenPurchasesTableProcessedTableManager =
       UtilityTokenPurchase,
       PrefetchHooks Function()
     >;
-typedef $$TransfersTableCreateCompanionBuilder =
-    TransfersCompanion Function({
-      required String id,
-      required String householdId,
-      required String fromAccountId,
-      required String toAccountId,
-      required int amount,
-      Value<int> adminFee,
-      Value<String?> feeTransactionId,
-      required DateTime date,
-      required DateTime recordedAt,
-      Value<String?> note,
-      Value<String?> source,
-      Value<bool> isDeleted,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$TransfersTableUpdateCompanionBuilder =
-    TransfersCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> fromAccountId,
-      Value<String> toAccountId,
-      Value<int> amount,
-      Value<int> adminFee,
-      Value<String?> feeTransactionId,
-      Value<DateTime> date,
-      Value<DateTime> recordedAt,
-      Value<String?> note,
-      Value<String?> source,
-      Value<bool> isDeleted,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$TransfersTableCreateCompanionBuilder = TransfersCompanion Function({
+  required String id,
+  required String householdId,
+  required String fromAccountId,
+  required String toAccountId,
+  required int amount,
+  Value<int> adminFee,
+  Value<String?> feeTransactionId,
+  required DateTime date,
+  required DateTime recordedAt,
+  Value<String?> note,
+  Value<String?> source,
+  Value<bool> isDeleted,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$TransfersTableUpdateCompanionBuilder = TransfersCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> fromAccountId,
+  Value<String> toAccountId,
+  Value<int> amount,
+  Value<int> adminFee,
+  Value<String?> feeTransactionId,
+  Value<DateTime> date,
+  Value<DateTime> recordedAt,
+  Value<String?> note,
+  Value<String?> source,
+  Value<bool> isDeleted,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$TransfersTableFilterComposer
     extends Composer<_$AppDatabase, $TransfersTable> {
@@ -39208,34 +39286,32 @@ typedef $$EnvelopeTransfersTableProcessedTableManager =
       EnvelopeTransfer,
       PrefetchHooks Function()
     >;
-typedef $$AssetsTableCreateCompanionBuilder =
-    AssetsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      required String assetType,
-      Value<int> value,
-      Value<String> placement,
-      Value<String?> note,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$AssetsTableUpdateCompanionBuilder =
-    AssetsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String> assetType,
-      Value<int> value,
-      Value<String> placement,
-      Value<String?> note,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$AssetsTableCreateCompanionBuilder = AssetsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  required String assetType,
+  Value<int> value,
+  Value<String> placement,
+  Value<String?> note,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$AssetsTableUpdateCompanionBuilder = AssetsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String> assetType,
+  Value<int> value,
+  Value<String> placement,
+  Value<String?> note,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$AssetsTableFilterComposer
     extends Composer<_$AppDatabase, $AssetsTable> {
@@ -39501,34 +39577,32 @@ typedef $$AssetsTableProcessedTableManager =
       Asset,
       PrefetchHooks Function()
     >;
-typedef $$GoalsTableCreateCompanionBuilder =
-    GoalsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      Value<String?> note,
-      required int targetAmount,
-      Value<int> currentAmount,
-      Value<DateTime?> targetDate,
-      Value<String?> categoryId,
-      Value<bool> isActive,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$GoalsTableUpdateCompanionBuilder =
-    GoalsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String?> note,
-      Value<int> targetAmount,
-      Value<int> currentAmount,
-      Value<DateTime?> targetDate,
-      Value<String?> categoryId,
-      Value<bool> isActive,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$GoalsTableCreateCompanionBuilder = GoalsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  Value<String?> note,
+  required int targetAmount,
+  Value<int> currentAmount,
+  Value<DateTime?> targetDate,
+  Value<String?> categoryId,
+  Value<bool> isActive,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$GoalsTableUpdateCompanionBuilder = GoalsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String?> note,
+  Value<int> targetAmount,
+  Value<int> currentAmount,
+  Value<DateTime?> targetDate,
+  Value<String?> categoryId,
+  Value<bool> isActive,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$GoalsTableFilterComposer extends Composer<_$AppDatabase, $GoalsTable> {
   $$GoalsTableFilterComposer({
@@ -41164,54 +41238,54 @@ typedef $$RecurringTransactionRunsTableProcessedTableManager =
       RecurringTransactionRun,
       PrefetchHooks Function()
     >;
-typedef $$RemindersTableCreateCompanionBuilder =
-    RemindersCompanion Function({
-      required String id,
-      required String householdId,
-      required String title,
-      Value<String?> note,
-      required DateTime scheduledAt,
-      Value<String> recurrenceType,
-      Value<String> weekdaysJson,
-      Value<bool> isActive,
-      Value<String?> soundUri,
-      Value<String?> soundName,
-      Value<int> defaultSnoozeMinutes,
-      required int notificationId,
-      required DateTime createdAt,
-      Value<DateTime?> updatedAt,
-      Value<String?> sourceType,
-      Value<String?> sourceId,
-      Value<String> origin,
-      Value<int?> calendarEventId,
-      Value<bool> isSyncedToCalendar,
-      Value<DateTime?> syncedAt,
-      Value<int> rowid,
-    });
-typedef $$RemindersTableUpdateCompanionBuilder =
-    RemindersCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> title,
-      Value<String?> note,
-      Value<DateTime> scheduledAt,
-      Value<String> recurrenceType,
-      Value<String> weekdaysJson,
-      Value<bool> isActive,
-      Value<String?> soundUri,
-      Value<String?> soundName,
-      Value<int> defaultSnoozeMinutes,
-      Value<int> notificationId,
-      Value<DateTime> createdAt,
-      Value<DateTime?> updatedAt,
-      Value<String?> sourceType,
-      Value<String?> sourceId,
-      Value<String> origin,
-      Value<int?> calendarEventId,
-      Value<bool> isSyncedToCalendar,
-      Value<DateTime?> syncedAt,
-      Value<int> rowid,
-    });
+typedef $$RemindersTableCreateCompanionBuilder = RemindersCompanion Function({
+  required String id,
+  required String householdId,
+  required String title,
+  Value<String?> note,
+  required DateTime scheduledAt,
+  Value<String> recurrenceType,
+  Value<String> weekdaysJson,
+  Value<bool> isActive,
+  Value<String?> soundUri,
+  Value<String?> soundName,
+  Value<int> defaultSnoozeMinutes,
+  required int notificationId,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<String?> sourceType,
+  Value<String?> sourceId,
+  Value<String> origin,
+  Value<String> mode,
+  Value<int?> calendarEventId,
+  Value<bool> isSyncedToCalendar,
+  Value<DateTime?> syncedAt,
+  Value<int> rowid,
+});
+typedef $$RemindersTableUpdateCompanionBuilder = RemindersCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> title,
+  Value<String?> note,
+  Value<DateTime> scheduledAt,
+  Value<String> recurrenceType,
+  Value<String> weekdaysJson,
+  Value<bool> isActive,
+  Value<String?> soundUri,
+  Value<String?> soundName,
+  Value<int> defaultSnoozeMinutes,
+  Value<int> notificationId,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<String?> sourceType,
+  Value<String?> sourceId,
+  Value<String> origin,
+  Value<String> mode,
+  Value<int?> calendarEventId,
+  Value<bool> isSyncedToCalendar,
+  Value<DateTime?> syncedAt,
+  Value<int> rowid,
+});
 
 class $$RemindersTableFilterComposer
     extends Composer<_$AppDatabase, $RemindersTable> {
@@ -41304,6 +41378,11 @@ class $$RemindersTableFilterComposer
 
   ColumnFilters<String> get origin => $composableBuilder(
     column: $table.origin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mode => $composableBuilder(
+    column: $table.mode,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -41417,6 +41496,11 @@ class $$RemindersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get mode => $composableBuilder(
+    column: $table.mode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get calendarEventId => $composableBuilder(
     column: $table.calendarEventId,
     builder: (column) => ColumnOrderings(column),
@@ -41507,6 +41591,9 @@ class $$RemindersTableAnnotationComposer
   GeneratedColumn<String> get origin =>
       $composableBuilder(column: $table.origin, builder: (column) => column);
 
+  GeneratedColumn<String> get mode =>
+      $composableBuilder(column: $table.mode, builder: (column) => column);
+
   GeneratedColumn<int> get calendarEventId => $composableBuilder(
     column: $table.calendarEventId,
     builder: (column) => column,
@@ -41566,6 +41653,7 @@ class $$RemindersTableTableManager
                 Value<String?> sourceType = const Value.absent(),
                 Value<String?> sourceId = const Value.absent(),
                 Value<String> origin = const Value.absent(),
+                Value<String> mode = const Value.absent(),
                 Value<int?> calendarEventId = const Value.absent(),
                 Value<bool> isSyncedToCalendar = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
@@ -41588,6 +41676,7 @@ class $$RemindersTableTableManager
                 sourceType: sourceType,
                 sourceId: sourceId,
                 origin: origin,
+                mode: mode,
                 calendarEventId: calendarEventId,
                 isSyncedToCalendar: isSyncedToCalendar,
                 syncedAt: syncedAt,
@@ -41612,6 +41701,7 @@ class $$RemindersTableTableManager
                 Value<String?> sourceType = const Value.absent(),
                 Value<String?> sourceId = const Value.absent(),
                 Value<String> origin = const Value.absent(),
+                Value<String> mode = const Value.absent(),
                 Value<int?> calendarEventId = const Value.absent(),
                 Value<bool> isSyncedToCalendar = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
@@ -41634,6 +41724,7 @@ class $$RemindersTableTableManager
                 sourceType: sourceType,
                 sourceId: sourceId,
                 origin: origin,
+                mode: mode,
                 calendarEventId: calendarEventId,
                 isSyncedToCalendar: isSyncedToCalendar,
                 syncedAt: syncedAt,
@@ -43698,32 +43789,32 @@ typedef $$ActivityEntriesTableProcessedTableManager =
       ActivityEntry,
       PrefetchHooks Function()
     >;
-typedef $$DailyNotesTableCreateCompanionBuilder =
-    DailyNotesCompanion Function({
-      required String id,
-      required String householdId,
-      required DateTime noteDate,
-      Value<String?> title,
-      required String body,
-      Value<String?> treatmentType,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$DailyNotesTableUpdateCompanionBuilder =
-    DailyNotesCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<DateTime> noteDate,
-      Value<String?> title,
-      Value<String> body,
-      Value<String?> treatmentType,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$DailyNotesTableCreateCompanionBuilder = DailyNotesCompanion Function({
+  required String id,
+  required String householdId,
+  required DateTime noteDate,
+  Value<String?> title,
+  required String body,
+  Value<String?> treatmentType,
+  Value<int> priority,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$DailyNotesTableUpdateCompanionBuilder = DailyNotesCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<DateTime> noteDate,
+  Value<String?> title,
+  Value<String> body,
+  Value<String?> treatmentType,
+  Value<int> priority,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$DailyNotesTableFilterComposer
     extends Composer<_$AppDatabase, $DailyNotesTable> {
@@ -43761,6 +43852,11 @@ class $$DailyNotesTableFilterComposer
 
   ColumnFilters<String> get treatmentType => $composableBuilder(
     column: $table.treatmentType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get priority => $composableBuilder(
+    column: $table.priority,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -43819,6 +43915,11 @@ class $$DailyNotesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isArchived => $composableBuilder(
     column: $table.isArchived,
     builder: (column) => ColumnOrderings(column),
@@ -43865,6 +43966,9 @@ class $$DailyNotesTableAnnotationComposer
     column: $table.treatmentType,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get priority =>
+      $composableBuilder(column: $table.priority, builder: (column) => column);
 
   GeneratedColumn<bool> get isArchived => $composableBuilder(
     column: $table.isArchived,
@@ -43915,6 +44019,7 @@ class $$DailyNotesTableTableManager
                 Value<String?> title = const Value.absent(),
                 Value<String> body = const Value.absent(),
                 Value<String?> treatmentType = const Value.absent(),
+                Value<int> priority = const Value.absent(),
                 Value<bool> isArchived = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime?> updatedAt = const Value.absent(),
@@ -43926,6 +44031,7 @@ class $$DailyNotesTableTableManager
                 title: title,
                 body: body,
                 treatmentType: treatmentType,
+                priority: priority,
                 isArchived: isArchived,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -43939,6 +44045,7 @@ class $$DailyNotesTableTableManager
                 Value<String?> title = const Value.absent(),
                 required String body,
                 Value<String?> treatmentType = const Value.absent(),
+                Value<int> priority = const Value.absent(),
                 Value<bool> isArchived = const Value.absent(),
                 required DateTime createdAt,
                 Value<DateTime?> updatedAt = const Value.absent(),
@@ -43950,6 +44057,7 @@ class $$DailyNotesTableTableManager
                 title: title,
                 body: body,
                 treatmentType: treatmentType,
+                priority: priority,
                 isArchived: isArchived,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -43977,34 +44085,32 @@ typedef $$DailyNotesTableProcessedTableManager =
       DailyNote,
       PrefetchHooks Function()
     >;
-typedef $$TasksTableCreateCompanionBuilder =
-    TasksCompanion Function({
-      required String id,
-      required String householdId,
-      required String title,
-      Value<String?> note,
-      Value<DateTime?> dueDate,
-      Value<String> status,
-      Value<DateTime?> completedAt,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$TasksTableUpdateCompanionBuilder =
-    TasksCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> title,
-      Value<String?> note,
-      Value<DateTime?> dueDate,
-      Value<String> status,
-      Value<DateTime?> completedAt,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
+  required String id,
+  required String householdId,
+  required String title,
+  Value<String?> note,
+  Value<DateTime?> dueDate,
+  Value<String> status,
+  Value<DateTime?> completedAt,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> title,
+  Value<String?> note,
+  Value<DateTime?> dueDate,
+  Value<String> status,
+  Value<DateTime?> completedAt,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
   $$TasksTableFilterComposer({

@@ -23,7 +23,8 @@ class FfmAssistantProfileTools extends StatefulWidget {
   final Future<void> Function()? onImported;
 
   @override
-  State<FfmAssistantProfileTools> createState() => _FfmAssistantProfileToolsState();
+  State<FfmAssistantProfileTools> createState() =>
+      _FfmAssistantProfileToolsState();
 }
 
 class _FfmAssistantProfileToolsState extends State<FfmAssistantProfileTools> {
@@ -64,7 +65,8 @@ class _FfmAssistantProfileToolsState extends State<FfmAssistantProfileTools> {
         _patternCount = patterns
             .where(
               (p) =>
-                  p.sampleCount >= FfmPersonalizationPattern.minimumSampleCount &&
+                  p.sampleCount >=
+                      FfmPersonalizationPattern.minimumSampleCount &&
                   p.confidenceScore >=
                       FfmPersonalizationPattern.minimumConfidenceScore,
             )

@@ -183,7 +183,7 @@ class FfmAssistantMarkdownText extends StatelessWidget {
   InlineSpan _inlineSpans(String value, Color color, {bool bold = false}) {
     // Sanitasi text untuk mencegah UTF-16 crash
     final sanitizedValue = StringSanitizer.sanitizeForTextWidget(value);
-    
+
     final spans = <InlineSpan>[];
     final pattern = RegExp(r'(\*\*|__)(.+?)\1');
     var cursor = 0;
@@ -210,12 +210,18 @@ class FfmAssistantMarkdownText extends StatelessWidget {
     if (cursor < sanitizedValue.length) {
       spans.add(
         TextSpan(
-          children: _linkSpans(sanitizedValue.substring(cursor), color, bold: bold),
+          children: _linkSpans(
+            sanitizedValue.substring(cursor),
+            color,
+            bold: bold,
+          ),
         ),
       );
     }
     if (spans.isEmpty) {
-      spans.add(TextSpan(children: _linkSpans(sanitizedValue, color, bold: bold)));
+      spans.add(
+        TextSpan(children: _linkSpans(sanitizedValue, color, bold: bold)),
+      );
     }
     if (bold) {
       return TextSpan(
@@ -240,7 +246,7 @@ class FfmAssistantMarkdownText extends StatelessWidget {
   List<InlineSpan> _linkSpans(String value, Color color, {required bool bold}) {
     // Sanitasi text untuk mencegah UTF-16 crash
     final sanitizedValue = StringSanitizer.sanitizeForTextWidget(value);
-    
+
     final spans = <InlineSpan>[];
     final inlineCode = RegExp(r'`([^`]+)`');
     var cursor = 0;
@@ -283,7 +289,7 @@ class FfmAssistantMarkdownText extends StatelessWidget {
   }) {
     // Sanitasi text untuk mencegah UTF-16 crash
     final sanitizedValue = StringSanitizer.sanitizeForTextWidget(value);
-    
+
     final spans = <InlineSpan>[];
     final links = FfmAssistantExternalLinkParser.parse(sanitizedValue);
     var cursor = 0;

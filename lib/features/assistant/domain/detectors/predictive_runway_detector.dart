@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
+
 import '../../../../core/database/app_database.dart';
 import '../../../advisor/data/cash_flow_profile_repository.dart';
 import '../../../advisor/domain/entities/cash_flow_profile_models.dart';
@@ -7,10 +8,7 @@ import '../ffm_assistant_insight.dart';
 import '../ffm_assistant_models.dart';
 
 class PredictiveRunwayDetector {
-  const PredictiveRunwayDetector(
-    this._db, {
-    this.cashFlowRepo,
-  });
+  const PredictiveRunwayDetector(this._db, {this.cashFlowRepo});
 
   final AppDatabase _db;
   final CashFlowProfileRepository? cashFlowRepo;
@@ -22,18 +20,20 @@ class PredictiveRunwayDetector {
     int defaultPaydayDay = 25,
   }) async {
     // 1. Hitung saldo likuid (rekening aktif non-arsip bertipe bank, ewallet, cash)
-    final accounts = await (_db.select(_db.accounts)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.isActive.equals(true) &
-              row.isArchived.equals(false)))
-        .get();
+    final accounts =
+        await (_db.select(_db.accounts)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
 
     if (accounts.isEmpty) return null;
 
-    final allTxs = await (_db.select(_db.transactions)
-          ..where((row) => row.householdId.equals(householdId)))
-        .get();
+    final allTxs = await (_db.select(
+      _db.transactions,
+    )..where((row) => row.householdId.equals(householdId))).get();
 
     final txs = allTxs
         .where((row) => !row.isArchived && !row.isDeleted)
@@ -76,11 +76,13 @@ class PredictiveRunwayDetector {
     if (daysToTarget <= 0) return null;
 
     // 3. Hitung kewajiban tagihan/cicilan yang belum jatuh tempo sebelum target date
-    final liabilities = await (_db.select(_db.liabilities)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.isActive.equals(true)))
-        .get();
+    final liabilities =
+        await (_db.select(_db.liabilities)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
 
     final upcomingLiabilities = liabilities.where((l) {
       if (l.dueDate == null) return false;
@@ -104,26 +106,32 @@ class PredictiveRunwayDetector {
     final fourteenDaysAgo = now.subtract(const Duration(days: 14));
     final recentExpenses = txs.where(
       (t) =>
-        t.type == 'expense' &&
-        t.amount < 0 &&
-        t.date.isAfter(fourteenDaysAgo) &&
-        !t.date.isAfter(now),
+          t.type == 'expense' &&
+          t.amount < 0 &&
+          t.date.isAfter(fourteenDaysAgo) &&
+          !t.date.isAfter(now),
     );
 
-    final totalRecentSpent =
-        recentExpenses.fold<int>(0, (sum, t) => sum + t.amount.abs());
+    final totalRecentSpent = recentExpenses.fold<int>(
+      0,
+      (sum, t) => sum + t.amount.abs(),
+    );
     final currentDailyBurn = (totalRecentSpent / 14).round();
 
     // Trigger jika pengeluaran harian > 1.25x dari batas aman belanja harian
     if (currentDailyBurn > (safeDailySpend * 1.25)) {
       final daysUntilRunwayEmpty = (spendableCash / currentDailyBurn).floor();
-      final estimatedCashoutDate = now.add(Duration(days: daysUntilRunwayEmpty));
+      final estimatedCashoutDate = now.add(
+        Duration(days: daysUntilRunwayEmpty),
+      );
       final daysShort = daysToTarget - daysUntilRunwayEmpty;
 
       if (daysShort <= 0) return null;
 
       final dedupeMonth = '${now.year}-${now.month.toString().padLeft(2, '0')}';
-      final isAgro = activeProfile != null && activeProfile.profileType == CashFlowProfileType.agriculture;
+      final isAgro =
+          activeProfile != null &&
+          activeProfile.profileType == CashFlowProfileType.agriculture;
       final title = isAgro
           ? 'Peringatan Ketahanan Kas Menuju Panen (${activeProfile.commodityOrBusinessType})'
           : 'Peringatan Laju Pengeluaran Sebelum $targetLabel';

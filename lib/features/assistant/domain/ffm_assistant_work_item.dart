@@ -261,7 +261,8 @@ class FfmAssistantUnderstandingResult extends Iterable<FfmAssistantIntent> {
   final String normalizedText;
 
   /// Apakah ada pekerjaan yang memerlukan klarifikasi?
-  bool get needsClarification => workItems.any((item) => item.needsClarification);
+  bool get needsClarification =>
+      workItems.any((item) => item.needsClarification);
 
   /// Apakah ada pekerjaan yang siap untuk draft?
   bool get hasReadyItems => workItems.any((item) => item.isReadyForDraft);

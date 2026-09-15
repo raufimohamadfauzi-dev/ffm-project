@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -38,18 +39,22 @@ void main() {
       expect(html, contains('Arus kas sehat dan cadangan operasional aman.'));
     });
 
-    test('formatAlertMessage produces clean alert layout with recommendations', () {
-      final alert = TelegramMessageFormatter.formatAlertMessage(
-        title: 'Lonjakan Belanja Pupuk',
-        summary: 'Pengeluaran pupuk minggu ini melebihi 150% dari rata-rata.',
-        recommendation: 'Tinjau kembali stok gudang sebelum pembelian berikutnya.',
-      );
+    test(
+      'formatAlertMessage produces clean alert layout with recommendations',
+      () {
+        final alert = TelegramMessageFormatter.formatAlertMessage(
+          title: 'Lonjakan Belanja Pupuk',
+          summary: 'Pengeluaran pupuk minggu ini melebihi 150% dari rata-rata.',
+          recommendation:
+              'Tinjau kembali stok gudang sebelum pembelian berikutnya.',
+        );
 
-      expect(alert, contains('⚠️ <b>Peringatan Radar Asisten FFM</b>'));
-      expect(alert, contains('Lonjakan Belanja Pupuk'));
-      expect(alert, contains('melebihi 150%'));
-      expect(alert, contains('Saran: Tinjau kembali stok gudang'));
-    });
+        expect(alert, contains('⚠️ <b>Peringatan Radar Asisten FFM</b>'));
+        expect(alert, contains('Lonjakan Belanja Pupuk'));
+        expect(alert, contains('melebihi 150%'));
+        expect(alert, contains('Saran: Tinjau kembali stok gudang'));
+      },
+    );
 
     test('formatNewTransactionMessage formats expense and income notifications properly', () {
       final expenseMsg = TelegramMessageFormatter.formatNewTransactionMessage(
@@ -92,9 +97,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       prefs = await SharedPreferences.getInstance();
       FlutterSecureStorage.setMockInitialValues({});
-      repository = TelegramConfigRepository(
-        preferences: prefs,
-      );
+      repository = TelegramConfigRepository(preferences: prefs);
     });
 
     test('default configuration is unconfigured and disabled', () async {
@@ -145,11 +148,13 @@ void main() {
     });
 
     test('clearConfig wipes stored credentials and tracking data', () async {
-      await repository.saveConfig(const TelegramConfig(
-        botToken: 'token123',
-        chatId: 'chat456',
-        isEnabled: true,
-      ));
+      await repository.saveConfig(
+        const TelegramConfig(
+          botToken: 'token123',
+          chatId: 'chat456',
+          isEnabled: true,
+        ),
+      );
       await repository.saveLastWeeklyReportSent(DateTime.now());
 
       await repository.clearConfig();
@@ -170,9 +175,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       prefs = await SharedPreferences.getInstance();
       FlutterSecureStorage.setMockInitialValues({});
-      repository = TelegramConfigRepository(
-        preferences: prefs,
-      );
+      repository = TelegramConfigRepository(preferences: prefs);
     });
 
     test('weekly report claim blocks concurrent duplicate sends', () async {
@@ -184,36 +187,45 @@ void main() {
       // Pemicu kedua yang datang bersamaan harus ditolak.
       expect(
         await repository.claimWeeklyReport(
-            periodKey: 'hh-1', now: now.add(const Duration(seconds: 1))),
+          periodKey: 'hh-1',
+          now: now.add(const Duration(seconds: 1)),
+        ),
         isFalse,
       );
     });
 
-    test('stale pending claim can be reclaimed after validity window', () async {
-      final now = DateTime(2026, 9, 9, 9, 0);
-      // Instance pertama mengklaim lalu "mati" sehingga klaim pending tertinggal di prefs.
-      final firstRepo = TelegramConfigRepository(preferences: prefs);
-      expect(
-        await firstRepo.claimWeeklyReport(periodKey: 'hh-2', now: now),
-        isTrue,
-      );
+    test(
+      'stale pending claim can be reclaimed after validity window',
+      () async {
+        final now = DateTime(2026, 9, 9, 9, 0);
+        // Instance pertama mengklaim lalu "mati" sehingga klaim pending tertinggal di prefs.
+        final firstRepo = TelegramConfigRepository(preferences: prefs);
+        expect(
+          await firstRepo.claimWeeklyReport(periodKey: 'hh-2', now: now),
+          isTrue,
+        );
 
-      // Instance baru (proses baru) tetap terblokir selama klaim masih segar.
-      final secondRepo = TelegramConfigRepository(preferences: prefs);
-      expect(
-        await secondRepo.claimWeeklyReport(
-            periodKey: 'hh-2', now: now.add(const Duration(minutes: 5))),
-        isFalse,
-      );
+        // Instance baru (proses baru) tetap terblokir selama klaim masih segar.
+        final secondRepo = TelegramConfigRepository(preferences: prefs);
+        expect(
+          await secondRepo.claimWeeklyReport(
+            periodKey: 'hh-2',
+            now: now.add(const Duration(minutes: 5)),
+          ),
+          isFalse,
+        );
 
-      // Klaim yang menggantung > 10 menit bisa diklaim ulang agar tidak macet selamanya.
-      final thirdRepo = TelegramConfigRepository(preferences: prefs);
-      expect(
-        await thirdRepo.claimWeeklyReport(
-            periodKey: 'hh-2', now: now.add(const Duration(minutes: 11))),
-        isTrue,
-      );
-    });
+        // Klaim yang menggantung > 10 menit bisa diklaim ulang agar tidak macet selamanya.
+        final thirdRepo = TelegramConfigRepository(preferences: prefs);
+        expect(
+          await thirdRepo.claimWeeklyReport(
+            periodKey: 'hh-2',
+            now: now.add(const Duration(minutes: 11)),
+          ),
+          isTrue,
+        );
+      },
+    );
 
     test('completed weekly report blocks resend for 6 days', () async {
       final now = DateTime(2026, 9, 9, 9, 0);
@@ -221,19 +233,22 @@ void main() {
         await repository.claimWeeklyReport(periodKey: 'hh-3', now: now),
         isTrue,
       );
-      await repository.completeWeeklyReport(
-          periodKey: 'hh-3', now: now);
+      await repository.completeWeeklyReport(periodKey: 'hh-3', now: now);
 
       expect(await repository.loadLastWeeklyReportSent(), isNotNull);
 
       expect(
         await repository.claimWeeklyReport(
-            periodKey: 'hh-3', now: now.add(const Duration(days: 2))),
+          periodKey: 'hh-3',
+          now: now.add(const Duration(days: 2)),
+        ),
         isFalse,
       );
       expect(
         await repository.claimWeeklyReport(
-            periodKey: 'hh-3', now: now.add(const Duration(days: 7))),
+          periodKey: 'hh-3',
+          now: now.add(const Duration(days: 7)),
+        ),
         isTrue,
       );
     });
@@ -248,7 +263,9 @@ void main() {
       // Status 'failed' tidak memblokir klaim ulang.
       expect(
         await repository.claimWeeklyReport(
-            periodKey: 'hh-4', now: now.add(const Duration(minutes: 1))),
+          periodKey: 'hh-4',
+          now: now.add(const Duration(minutes: 1)),
+        ),
         isTrue,
       );
     });
@@ -273,36 +290,41 @@ void main() {
       // Dalam cooldown 10 menit -> ditolak.
       expect(
         await repository.tryBeginAlertRetry(
-            now.add(const Duration(minutes: 5))),
+          now.add(const Duration(minutes: 5)),
+        ),
         isFalse,
       );
       // Lewat cooldown -> diizinkan lagi.
       expect(
         await repository.tryBeginAlertRetry(
-            now.add(const Duration(minutes: 11))),
+          now.add(const Duration(minutes: 11)),
+        ),
         isTrue,
       );
     });
 
-    test('operational status records verification and delivery results', () async {
-      final at = DateTime(2026, 9, 9, 9, 30);
-      await repository.recordVerificationResult(ok: true, at: at);
-      await repository.recordDeliveryStatus(
-        status: TelegramDeliveryStatus.sent,
-        message: 'Laporan mingguan terkirim.',
-      );
+    test(
+      'operational status records verification and delivery results',
+      () async {
+        final at = DateTime(2026, 9, 9, 9, 30);
+        await repository.recordVerificationResult(ok: true, at: at);
+        await repository.recordDeliveryStatus(
+          status: TelegramDeliveryStatus.sent,
+          message: 'Laporan mingguan terkirim.',
+        );
 
-      final status = await repository.loadOperationalStatus();
-      expect(status.hasVerified, isTrue);
-      expect(status.lastVerifiedAt, isNotNull);
-      expect(status.lastDeliveryStatus, TelegramDeliveryStatus.sent);
-      expect(status.lastDeliveryMessage, contains('terkirim'));
+        final status = await repository.loadOperationalStatus();
+        expect(status.hasVerified, isTrue);
+        expect(status.lastVerifiedAt, isNotNull);
+        expect(status.lastDeliveryStatus, TelegramDeliveryStatus.sent);
+        expect(status.lastDeliveryMessage, contains('terkirim'));
 
-      await repository.clearConfig();
-      final cleared = await repository.loadOperationalStatus();
-      expect(cleared.hasVerified, isFalse);
-      expect(cleared.lastDeliveryStatus, TelegramDeliveryStatus.none);
-    });
+        await repository.clearConfig();
+        final cleared = await repository.loadOperationalStatus();
+        expect(cleared.hasVerified, isFalse);
+        expect(cleared.lastDeliveryStatus, TelegramDeliveryStatus.none);
+      },
+    );
 
     test('verified failure is recorded distinctly from success', () async {
       final at = DateTime(2026, 9, 9, 9, 30);
@@ -318,14 +340,16 @@ void main() {
     });
 
     test('saveConfig persists and loads across instances', () async {
-      await repository.saveConfig(const TelegramConfig(
-        botToken: 'token-new',
-        chatId: 'chat-new',
-        isEnabled: true,
-        weeklyReportEnabled: false,
-        notifyOnNewTransaction: true,
-        notifyMinAmount: 100000,
-      ));
+      await repository.saveConfig(
+        const TelegramConfig(
+          botToken: 'token-new',
+          chatId: 'chat-new',
+          isEnabled: true,
+          weeklyReportEnabled: false,
+          notifyOnNewTransaction: true,
+          notifyMinAmount: 100000,
+        ),
+      );
 
       final reloaded = TelegramConfigRepository(preferences: prefs)
           .loadConfig();
@@ -340,27 +364,39 @@ void main() {
   });
 
   group('TelegramBotService Tests with Mock HTTP Client', () {
-    test('sendMessage returns success when Telegram returns HTTP 200', () async {
-      final mockClient = MockClient((request) async {
-        expect(request.url.toString(), contains('api.telegram.org/botMY_TOKEN/sendMessage'));
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        expect(body['chat_id'], equals('12345'));
-        expect(body['text'], equals('Halo dunia'));
-        expect(body['parse_mode'], equals('HTML'));
+    test(
+      'sendMessage returns success when Telegram returns HTTP 200',
+      () async {
+        final mockClient = MockClient((request) async {
+          expect(
+            request.url.toString(),
+            contains('api.telegram.org/botMY_TOKEN/sendMessage'),
+          );
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['chat_id'], equals('12345'));
+          expect(body['text'], equals('Halo dunia'));
+          expect(body['parse_mode'], equals('HTML'));
 
-        return http.Response(jsonEncode({'ok': true, 'result': {'message_id': 1}}), 200);
-      });
+          return http.Response(
+            jsonEncode({
+              'ok': true,
+              'result': {'message_id': 1},
+            }),
+            200,
+          );
+        });
 
-      final service = TelegramBotService(client: mockClient);
-      final result = await service.sendMessage(
-        botToken: 'MY_TOKEN',
-        chatId: '12345',
-        text: 'Halo dunia',
-      );
+        final service = TelegramBotService(client: mockClient);
+        final result = await service.sendMessage(
+          botToken: 'MY_TOKEN',
+          chatId: '12345',
+          text: 'Halo dunia',
+        );
 
-      expect(result.success, isTrue);
-      expect(result.message, contains('berhasil terkirim'));
-    });
+        expect(result.success, isTrue);
+        expect(result.message, contains('berhasil terkirim'));
+      },
+    );
 
     test('sendMessage translates 401 Unauthorized to user-friendly Indonesian error', () async {
       final mockClient = MockClient((request) async {
@@ -386,50 +422,64 @@ void main() {
       expect(result.message, contains('Token Bot tidak valid'));
     });
 
-    test('sendMessage translates 400 Chat Not Found to helpful instruction', () async {
-      final mockClient = MockClient((request) async {
-        return http.Response(
-          jsonEncode({
-            'ok': false,
-            'error_code': 400,
-            'description': 'Bad Request: chat not found',
-          }),
-          400,
+    test(
+      'sendMessage translates 400 Chat Not Found to helpful instruction',
+      () async {
+        final mockClient = MockClient((request) async {
+          return http.Response(
+            jsonEncode({
+              'ok': false,
+              'error_code': 400,
+              'description': 'Bad Request: chat not found',
+            }),
+            400,
+          );
+        });
+
+        final service = TelegramBotService(client: mockClient);
+        final result = await service.sendMessage(
+          botToken: 'MY_TOKEN',
+          chatId: 'INVALID_CHAT',
+          text: 'Halo',
         );
-      });
 
-      final service = TelegramBotService(client: mockClient);
-      final result = await service.sendMessage(
-        botToken: 'MY_TOKEN',
-        chatId: 'INVALID_CHAT',
-        text: 'Halo',
-      );
+        expect(result.success, isFalse);
+        expect(result.errorCode, equals(400));
+        expect(result.message, contains('Chat ID tidak ditemukan'));
+        expect(result.message, contains('Start'));
+      },
+    );
 
-      expect(result.success, isFalse);
-      expect(result.errorCode, equals(400));
-      expect(result.message, contains('Chat ID tidak ditemukan'));
-      expect(result.message, contains('Start'));
-    });
+    test(
+      'sendMessage rejects empty token or chat ID without sending HTTP request',
+      () async {
+        var requestSent = false;
+        final mockClient = MockClient((request) async {
+          requestSent = true;
+          return http.Response('', 200);
+        });
 
-    test('sendMessage rejects empty token or chat ID without sending HTTP request', () async {
-      var requestSent = false;
-      final mockClient = MockClient((request) async {
-        requestSent = true;
-        return http.Response('', 200);
-      });
+        final service = TelegramBotService(client: mockClient);
 
-      final service = TelegramBotService(client: mockClient);
+        final r1 = await service.sendMessage(
+          botToken: '',
+          chatId: '12345',
+          text: 'Test',
+        );
+        expect(r1.success, isFalse);
+        expect(r1.message, contains('Token bot belum diisi'));
 
-      final r1 = await service.sendMessage(botToken: '', chatId: '12345', text: 'Test');
-      expect(r1.success, isFalse);
-      expect(r1.message, contains('Token bot belum diisi'));
+        final r2 = await service.sendMessage(
+          botToken: 'TOKEN',
+          chatId: '',
+          text: 'Test',
+        );
+        expect(r2.success, isFalse);
+        expect(r2.message, contains('Chat ID belum diisi'));
 
-      final r2 = await service.sendMessage(botToken: 'TOKEN', chatId: '', text: 'Test');
-      expect(r2.success, isFalse);
-      expect(r2.message, contains('Chat ID belum diisi'));
-
-      expect(requestSent, isFalse);
-    });
+        expect(requestSent, isFalse);
+      },
+    );
 
     test('testConnection constructs greeting and sends to Telegram', () async {
       var sentText = '';

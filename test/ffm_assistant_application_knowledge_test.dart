@@ -53,7 +53,10 @@ void main() {
 
       expect(intent.type, FfmAssistantIntentType.setupGuide);
       expect(intent.response, contains('belum ada rekening aktif'));
-      expect(intent.response, contains('Isi nama keluarga di halaman Profil Keluarga'));
+      expect(
+        intent.response,
+        contains('Isi nama keluarga di halaman Profil Keluarga'),
+      );
       expect(intent.response, contains('Catat transaksi pertama'));
     },
   );

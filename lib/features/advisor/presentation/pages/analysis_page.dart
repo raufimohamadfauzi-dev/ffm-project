@@ -87,10 +87,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
     }).toList();
     final assets = await getIt<GetAssets>()(householdId);
     final liabilities = await getIt<GetLiabilities>()(householdId);
-    final profiles = await getIt<CashFlowProfileRepository>().getAllProfiles(householdId);
+    final profiles = await getIt<CashFlowProfileRepository>().getAllProfiles(
+      householdId,
+    );
     final nfcAccounts = await getIt<nfc_repository.NfcCardRepository>()
-      .getCardAccounts();
-    final pendingDrafts = await getIt<PaymentDraftRepository>().getPendingDrafts();
+        .getCardAccounts();
+    final pendingDrafts = await getIt<PaymentDraftRepository>()
+        .getPendingDrafts();
 
     // Ambil nama kategori dari database lokal
     final db = getIt<AppDatabase>();
@@ -110,7 +113,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
     final emergencyFund = assets
         .where((asset) => asset.assetType == 'cash')
         .fold<int>(0, (sum, asset) => sum + asset.value);
-    final totalAssetsVal = assets.fold<int>(0, (sum, asset) => sum + asset.value);
+    final totalAssetsVal = assets.fold<int>(
+      0,
+      (sum, asset) => sum + asset.value,
+    );
     final totalLiabilitiesVal = liabilities.fold<int>(
       0,
       (sum, liability) => sum + liability.remainingBalance,
@@ -128,10 +134,13 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
 
-    final activeCycle = profiles.where((p) => p.isActive).firstOrNull ?? profiles.firstOrNull;
+    final activeCycle =
+        profiles.where((p) => p.isActive).firstOrNull ?? profiles.firstOrNull;
     CashFlowRunwayResult? runway;
     if (activeCycle != null) {
-      final daysRemaining = activeCycle.targetHarvestDate.difference(DateTime.now()).inDays;
+      final daysRemaining = activeCycle.targetHarvestDate
+          .difference(DateTime.now())
+          .inDays;
       runway = const FlexibleCashFlowCalculator().calculateRunway(
         effectiveLiquidCash: activeCycle.initialCapital > 0
             ? activeCycle.initialCapital
@@ -171,7 +180,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
     // 4. Harga Pasar Terkini (Emas & Valas) dari Cache Lokal
     MarketPriceSnapshot? marketPrices;
     try {
-      marketPrices = await getIt<MarketNewsCacheRepository>().getLatestPriceSnapshot();
+      marketPrices = await getIt<MarketNewsCacheRepository>()
+          .getLatestPriceSnapshot();
     } catch (_) {
       // Graceful degradation
     }
@@ -225,11 +235,11 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
         final summary = snapshot.hasData
             ? 'Analisa Keuangan FFM: Skor ${bundle!.healthScore.totalScore}/100 (${bundle.healthScore.statusLabel}), $incomeCount masuk, $expenseCount keluar, Arus Kas Rp ${bundle.healthScore.cashflow}. '
-              'Proyeksi Akhir Bulan: ${bundle.projection.isSurplus ? "Surplus" : "Defisit"} Rp ${bundle.projection.projectedNetCashflow} (Laju Belanja Rp ${bundle.projection.dailyBurnRate}/hari, Batas Aman Rp ${bundle.projection.safeDailySpend}/hari). '
-              '${bundle.leaks.isNotEmpty ? "Terdeteksi ${bundle.leaks.length} pos bocor mikro (total Rp ${bundle.leaks.fold<int>(0, (s, l) => s + l.totalAmount)}). " : ""}'
-              '${bundle.topCategories.isNotEmpty ? "Pos Terbesar: ${bundle.topCategories.map((c) => "${c.categoryName} ${(c.percentage * 100).toStringAsFixed(0)}%").join(", ")}. " : ""}'
-              '${bundle.activeCycle != null ? "Siklus ${bundle.activeCycle!.commodityOrBusinessType} Runway ${bundle.cycleRunway?.runwayDays ?? 0} hari. " : ""}'
-              '${bundle.nfcAccounts.isNotEmpty ? "${bundle.nfcAccounts.length} kartu NFC terhubung dengan saldo tercatat Rp ${bundle.nfcAccounts.fold<double>(0, (sum, card) => sum + card.lastKnownBalance).round()}. " : ""}'
+                  'Proyeksi Akhir Bulan: ${bundle.projection.isSurplus ? "Surplus" : "Defisit"} Rp ${bundle.projection.projectedNetCashflow} (Laju Belanja Rp ${bundle.projection.dailyBurnRate}/hari, Batas Aman Rp ${bundle.projection.safeDailySpend}/hari). '
+                  '${bundle.leaks.isNotEmpty ? "Terdeteksi ${bundle.leaks.length} pos bocor mikro (total Rp ${bundle.leaks.fold<int>(0, (s, l) => s + l.totalAmount)}). " : ""}'
+                  '${bundle.topCategories.isNotEmpty ? "Pos Terbesar: ${bundle.topCategories.map((c) => "${c.categoryName} ${(c.percentage * 100).toStringAsFixed(0)}%").join(", ")}. " : ""}'
+                  '${bundle.activeCycle != null ? "Siklus ${bundle.activeCycle!.commodityOrBusinessType} Runway ${bundle.cycleRunway?.runwayDays ?? 0} hari. " : ""}'
+                  '${bundle.nfcAccounts.isNotEmpty ? "${bundle.nfcAccounts.length} kartu NFC terhubung dengan saldo tercatat Rp ${bundle.nfcAccounts.fold<double>(0, (sum, card) => sum + card.lastKnownBalance).round()}. " : ""}'
             : 'Sedang menganalisa kondisi keuangan...';
 
         return FfmAssistantPageContext(
@@ -249,8 +259,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   onPressed: () => showAppInfoDialog(
                     context,
                     title: 'Pusat Analisa & Kesehatan Finansial',
-                    message:
-                        'Halaman ini menyajikan diagnosis kesehatan keuangan keluarga 4 pilar, proyeksi kas akhir bulan, deteksi kebocoran mikro, dan ketahanan siklus kas secara deterministik.',
+                    message: 'Halaman ini menyajikan diagnosis kesehatan keuangan keluarga 4 pilar, proyeksi kas akhir bulan, deteksi kebocoran mikro, dan ketahanan siklus kas secara deterministik.',
                   ),
                   icon: const Icon(Icons.info_outline),
                 ),
@@ -336,7 +345,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
         _MicroExpenseLeakCard(leaks: bundle.leaks),
         const SizedBox(height: 16),
 
-        if (bundle.nfcAccounts.isNotEmpty || bundle.pendingNfcDraftCount > 0) ...[
+        if (bundle.nfcAccounts.isNotEmpty ||
+            bundle.pendingNfcDraftCount > 0) ...[
           _NfcAnalysisCard(
             accounts: bundle.nfcAccounts,
             pendingDraftCount: bundle.pendingNfcDraftCount,
@@ -441,7 +451,10 @@ class _FinancialHealthHeroCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
@@ -491,7 +504,9 @@ class _FinancialHealthHeroCard extends StatelessWidget {
                     textAlign: TextAlign.end,
                     style: theme.textTheme.bodySmall?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: isDark ? const Color(0xFFD4C7B8) : const Color(0xFF5A4A3B),
+                      color: isDark
+                          ? const Color(0xFFD4C7B8)
+                          : const Color(0xFF5A4A3B),
                     ),
                   ),
                 ),
@@ -503,7 +518,9 @@ class _FinancialHealthHeroCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 8,
-              backgroundColor: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+              backgroundColor: isDark
+                  ? Colors.grey.shade800
+                  : Colors.grey.shade200,
               valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
           ),
@@ -590,14 +607,15 @@ class _PillarRow extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
                 ),
                 Text(
                   target,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    fontSize: 10,
-                  ),
+                  style: Theme.of(context).textTheme.labelSmall
+                      ?.copyWith(color: scheme.onSurfaceVariant, fontSize: 10),
                 ),
               ],
             ),
@@ -627,7 +645,9 @@ class _MonthlyProjectionCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final isSurplus = projection.isSurplus;
-    final statusColor = isSurplus ? const Color(0xFF059669) : const Color(0xFFDC2626);
+    final statusColor = isSurplus
+        ? const Color(0xFF059669)
+        : const Color(0xFFDC2626);
 
     return AppCard(
       child: Column(
@@ -684,7 +704,9 @@ class _MonthlyProjectionCard extends StatelessWidget {
                   label: 'Laju Belanja',
                   value: _formatCompactRupiah(projection.dailyBurnRate),
                   caption: 'Rata-rata/Hari',
-                  color: isDark ? const Color(0xFFD4C7B8) : const Color(0xFF5A4A3B),
+                  color: isDark
+                      ? const Color(0xFFD4C7B8)
+                      : const Color(0xFF5A4A3B),
                 ),
               ),
               const SizedBox(width: 8),
@@ -737,7 +759,11 @@ class _TopExpenseCategoriesCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.pie_chart_outline_rounded, size: 22, color: Color(0xFF2563EB)),
+              const Icon(
+                Icons.pie_chart_outline_rounded,
+                size: 22,
+                color: Color(0xFF2563EB),
+              ),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
@@ -754,7 +780,9 @@ class _TopExpenseCategoriesCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             'Kategori dengan serapan dana terbesar bulan ini. Evaluasi pos ini untuk efisiensi maksimal.',
-            style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 14),
 
@@ -792,13 +820,19 @@ class _TopExpenseCategoriesCard extends StatelessWidget {
                   Container(
                     width: 10,
                     height: 10,
-                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       item.categoryName,
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                   Text(
@@ -811,7 +845,10 @@ class _TopExpenseCategoriesCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(6),
@@ -845,8 +882,7 @@ class _MicroExpenseLeakCard extends StatelessWidget {
     final open = FfmAssistantContextScope.openAssistantOf(context);
     if (open != null) {
       open(
-        initialPrompt:
-            'Tolong analisa kebocoran pengeluaran mikro saya dan beri saya 3 strategi hemat agar tidak boncos di pos-pos kecil.',
+        initialPrompt: 'Tolong analisa kebocoran pengeluaran mikro saya dan beri saya 3 strategi hemat agar tidak boncos di pos-pos kecil.',
       );
     }
   }
@@ -860,7 +896,11 @@ class _MicroExpenseLeakCard extends StatelessWidget {
       return AppCard(
         child: Row(
           children: [
-            const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF059669), size: 24),
+            const Icon(
+              Icons.check_circle_outline_rounded,
+              color: Color(0xFF059669),
+              size: 24,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -872,7 +912,9 @@ class _MicroExpenseLeakCard extends StatelessWidget {
                   ),
                   Text(
                     'Tidak ditemukan transaksi kecil berulang (<Rp50rb) yang berpotensi bocor bulan ini.',
-                    style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -890,7 +932,11 @@ class _MicroExpenseLeakCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.water_drop_outlined, color: Color(0xFFD97706), size: 22),
+              const Icon(
+                Icons.water_drop_outlined,
+                color: Color(0xFFD97706),
+                size: 22,
+              ),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
@@ -907,7 +953,9 @@ class _MicroExpenseLeakCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: const Color(0xFFD97706).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFD97706).withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: const Color(0xFFD97706).withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Text(
                   'TOTAL ${_formatCompactRupiah(totalLeak)}',
@@ -923,7 +971,9 @@ class _MicroExpenseLeakCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             'Transaksi nominal kecil (<Rp50.000) yang sering berulang dapat menggerogoti potensi tabungan tanpa disadari.',
-            style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 12),
 
@@ -944,11 +994,16 @@ class _MicroExpenseLeakCard extends StatelessWidget {
                       children: [
                         Text(
                           leak.title,
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
                         ),
                         Text(
                           '${leak.frequency}x transaksi • Kategori: ${leak.categoryName}',
-                          style: theme.textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -1071,7 +1126,11 @@ class _AgroTrackCycleCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.agriculture_rounded, color: Color(0xFF2E7D32), size: 22),
+                const Icon(
+                  Icons.agriculture_rounded,
+                  color: Color(0xFF2E7D32),
+                  size: 22,
+                ),
                 const SizedBox(width: 8),
                 const Text(
                   'SIKLUS KAS & AGROTRACK',
@@ -1103,7 +1162,9 @@ class _AgroTrackCycleCard extends StatelessWidget {
 
     final p = profile!;
     final r = runway;
-    final statusColor = r != null ? _healthColor(r.healthStatus) : const Color(0xFF2E7D32);
+    final statusColor = r != null
+        ? _healthColor(r.healthStatus)
+        : const Color(0xFF2E7D32);
     final daysRemaining = p.targetHarvestDate.difference(DateTime.now()).inDays;
 
     return AppCard(
@@ -1112,7 +1173,11 @@ class _AgroTrackCycleCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.agriculture_rounded, color: Color(0xFF2E7D32), size: 22),
+              const Icon(
+                Icons.agriculture_rounded,
+                color: Color(0xFF2E7D32),
+                size: 22,
+              ),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
@@ -1126,11 +1191,16 @@ class _AgroTrackCycleCard extends StatelessWidget {
               ),
               if (r != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: statusColor.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Text(
                     r.healthStatus.name.toUpperCase(),
@@ -1164,7 +1234,9 @@ class _AgroTrackCycleCard extends StatelessWidget {
                   label: 'Sisa Waktu',
                   value: '${daysRemaining > 0 ? daysRemaining : 0} Hari',
                   caption: 'Menuju Panen',
-                  color: isDark ? const Color(0xFFC9B8A8) : const Color(0xFF5A4A3B),
+                  color: isDark
+                      ? const Color(0xFFC9B8A8)
+                      : const Color(0xFF5A4A3B),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1180,7 +1252,9 @@ class _AgroTrackCycleCard extends StatelessWidget {
               Expanded(
                 child: _CycleMetricBox(
                   label: 'Belanja Dapur',
-                  value: _formatCompactRupiah(r?.safeToSpendDaily ?? p.dailyLivingBudget),
+                  value: _formatCompactRupiah(
+                    r?.safeToSpendDaily ?? p.dailyLivingBudget,
+                  ),
                   caption: 'Batas Aman/Hari',
                   color: const Color(0xFF059669),
                 ),
@@ -1233,12 +1307,18 @@ class _AgroTrackCycleCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                color: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.3,
+                ),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.radar_rounded, size: 14, color: Color(0xFFD97706)),
+                  const Icon(
+                    Icons.radar_rounded,
+                    size: 14,
+                    color: Color(0xFFD97706),
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     'Acuan Pasar: Emas 24K Rp ${_formatCompactRupiah(marketPrices!.goldPrice24K)}/gr • Kurs USD Rp ${_formatCompactRupiah(marketPrices!.usdRate.round())}',
@@ -1338,7 +1418,9 @@ class _AiConsultantCard extends StatelessWidget {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Buka Asisten AI dari tombol mengambang di pojok kanan bawah.'),
+          content: Text(
+            'Buka Asisten AI dari tombol mengambang di pojok kanan bawah.',
+          ),
         ),
       );
     }
@@ -1370,7 +1452,11 @@ class _AiConsultantCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_awesome_rounded, color: Color(0xFFD97706), size: 20),
+              const Icon(
+                Icons.auto_awesome_rounded,
+                color: Color(0xFFD97706),
+                size: 20,
+              ),
               const SizedBox(width: 8),
               const Text(
                 'KONSULTASI ANALISIS AI',
@@ -1397,7 +1483,10 @@ class _AiConsultantCard extends StatelessWidget {
             children: [
               ActionChip(
                 avatar: const Icon(Icons.insights_rounded, size: 14),
-                label: const Text('Evaluasi kesehatan saya', style: TextStyle(fontSize: 11)),
+                label: const Text(
+                  'Evaluasi kesehatan saya',
+                  style: TextStyle(fontSize: 11),
+                ),
                 onPressed: () => _ask(
                   context,
                   'Bagaimana evaluasi kesehatan keuangan dan ketahanan kas saya saat ini? Berikan 3 langkah perbaikan.',
@@ -1405,7 +1494,10 @@ class _AiConsultantCard extends StatelessWidget {
               ),
               ActionChip(
                 avatar: const Icon(Icons.timeline_rounded, size: 14),
-                label: const Text('Proyeksi akhir bulan', style: TextStyle(fontSize: 11)),
+                label: const Text(
+                  'Proyeksi akhir bulan',
+                  style: TextStyle(fontSize: 11),
+                ),
                 onPressed: () => _ask(
                   context,
                   'Berdasarkan laju belanja harian saya saat ini, bagaimana proyeksi saldo akhir bulan dan berapa batas belanja harian yang aman?',
@@ -1413,7 +1505,10 @@ class _AiConsultantCard extends StatelessWidget {
               ),
               ActionChip(
                 avatar: const Icon(Icons.search_rounded, size: 14),
-                label: const Text('Cek pos paling boros', style: TextStyle(fontSize: 11)),
+                label: const Text(
+                  'Cek pos paling boros',
+                  style: TextStyle(fontSize: 11),
+                ),
                 onPressed: () => _ask(
                   context,
                   'Kategori mana yang paling boros dan di mana letak kebocoran pengeluaran saya?',
@@ -1422,7 +1517,10 @@ class _AiConsultantCard extends StatelessWidget {
               if (hasLeaks)
                 ActionChip(
                   avatar: const Icon(Icons.water_drop_outlined, size: 14),
-                  label: const Text('Solusi kebocoran mikro', style: TextStyle(fontSize: 11)),
+                  label: const Text(
+                    'Solusi kebocoran mikro',
+                    style: TextStyle(fontSize: 11),
+                  ),
                   onPressed: () => _ask(
                     context,
                     'Tolong berikan strategi untuk menekan kebocoran pengeluaran mikro yang sering berulang.',

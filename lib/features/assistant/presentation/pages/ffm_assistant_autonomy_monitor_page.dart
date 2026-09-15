@@ -75,17 +75,21 @@ class _FfmAssistantAutonomyMonitorPageState
           householdId: widget.householdId,
         );
         activeCount = allInsights
-            .where((i) =>
-                i.status == FfmAssistantInsightStatus.newInsight ||
-                i.status == FfmAssistantInsightStatus.seen)
+            .where(
+              (i) =>
+                  i.status == FfmAssistantInsightStatus.newInsight ||
+                  i.status == FfmAssistantInsightStatus.seen,
+            )
             .length;
         actedCount = allInsights
             .where((i) => i.status == FfmAssistantInsightStatus.acted)
             .length;
         dismissedCount = allInsights
-            .where((i) =>
-                i.status == FfmAssistantInsightStatus.dismissed ||
-                i.status == FfmAssistantInsightStatus.expired)
+            .where(
+              (i) =>
+                  i.status == FfmAssistantInsightStatus.dismissed ||
+                  i.status == FfmAssistantInsightStatus.expired,
+            )
             .length;
       } catch (_) {}
 
@@ -273,8 +277,10 @@ class _FfmAssistantAutonomyMonitorPageState
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: _foregroundServiceEnabled
                         ? Colors.green.withValues(alpha: 0.15)
@@ -282,7 +288,9 @@ class _FfmAssistantAutonomyMonitorPageState
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    _foregroundServiceEnabled ? 'STATUS BAR AKTIF' : 'WORKMANAGER',
+                    _foregroundServiceEnabled
+                        ? 'STATUS BAR AKTIF'
+                        : 'WORKMANAGER',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
@@ -351,8 +359,10 @@ class _FfmAssistantAutonomyMonitorPageState
                         padding: const EdgeInsets.symmetric(horizontal: 10),
                       ),
                       onPressed: _requestIgnoreBattery,
-                      child: const Text('Buka Izin',
-                          style: TextStyle(fontSize: 11)),
+                      child: const Text(
+                        'Buka Izin',
+                        style: TextStyle(fontSize: 11),
+                      ),
                     ),
                   ],
                 ),
@@ -386,7 +396,9 @@ class _FfmAssistantAutonomyMonitorPageState
                 Icon(
                   Icons.inbox_outlined,
                   size: 20,
-                  color: isDark ? const Color(0xFFC49A6B) : const Color(0xFFB07A4A),
+                  color: isDark
+                      ? const Color(0xFFC49A6B)
+                      : const Color(0xFFB07A4A),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -414,9 +426,14 @@ class _FfmAssistantAutonomyMonitorPageState
               children: [
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 12,
+                    ),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
+                      color: theme.colorScheme.primaryContainer.withValues(
+                        alpha: 0.2,
+                      ),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Column(
@@ -430,7 +447,10 @@ class _FfmAssistantAutonomyMonitorPageState
                           ),
                         ),
                         const SizedBox(height: 2),
-                        const Text('Aktif & Baru', style: TextStyle(fontSize: 12)),
+                        const Text(
+                          'Aktif & Baru',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ],
                     ),
                   ),
@@ -438,7 +458,10 @@ class _FfmAssistantAutonomyMonitorPageState
                 const SizedBox(width: 8),
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.green.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
@@ -454,7 +477,10 @@ class _FfmAssistantAutonomyMonitorPageState
                           ),
                         ),
                         const SizedBox(height: 2),
-                        const Text('Ditindaklanjuti', style: TextStyle(fontSize: 12)),
+                        const Text(
+                          'Ditindaklanjuti',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ],
                     ),
                   ),
@@ -462,9 +488,13 @@ class _FfmAssistantAutonomyMonitorPageState
                 const SizedBox(width: 8),
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 12,
+                    ),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                      color: theme.colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Column(
@@ -478,7 +508,10 @@ class _FfmAssistantAutonomyMonitorPageState
                           ),
                         ),
                         const SizedBox(height: 2),
-                        const Text('Riwayat Selesai', style: TextStyle(fontSize: 12)),
+                        const Text(
+                          'Riwayat Selesai',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ],
                     ),
                   ),

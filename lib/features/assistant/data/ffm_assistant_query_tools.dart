@@ -501,11 +501,8 @@ class _ExpenseExtremeQueryTool implements FfmAssistantQueryTool {
       r'\b(?:terbesar|paling\s+besar|tertinggi|terkecil|paling\s+kecil|terendah)\b',
       caseSensitive: false,
     ).hasMatch(normalizedText);
-    final hasPeriod = FfmDatePeriod.fromText(
-      normalizedText,
-      now: DateTime.now(),
-    ) !=
-        null;
+    final hasPeriod =
+        FfmDatePeriod.fromText(normalizedText, now: DateTime.now()) != null;
     return asksExpense && asksExtreme && hasPeriod;
   }
 
@@ -612,10 +609,7 @@ class _ExpenseExtremeQueryTool implements FfmAssistantQueryTool {
     );
   }
 
-  String _formatExpenseRow(
-    Transaction row,
-    Map<String, String> categoryNames,
-  ) {
+  String _formatExpenseRow(Transaction row, Map<String, String> categoryNames) {
     final date = DateFormat('dd/MM/yyyy').format(row.date);
     final category = row.categoryId == null
         ? 'tanpa kategori'
@@ -708,7 +702,6 @@ class _LatestTransactionQueryTool implements FfmAssistantQueryTool {
   FfmDatePeriod? _periodBounds(String text, DateTime now) =>
       FfmDatePeriod.fromText(text, now: now);
 }
-
 
 class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
   const _LatestDailyNoteQueryTool(this._database);
@@ -1168,7 +1161,9 @@ class _MarketPriceQueryTool implements FfmAssistantQueryTool {
       priceDetails.add('Kurs EUR: ${currencyFormat.format(snapshot.eurRate)}');
     }
 
-    if (text.contains('chf') || text.contains('franc') || text.contains('swiss')) {
+    if (text.contains('chf') ||
+        text.contains('franc') ||
+        text.contains('swiss')) {
       priceDetails.add(
         'Kurs CHF (Franc Swiss): ${currencyFormat.format(snapshot.chfRate)}',
       );
@@ -1382,8 +1377,8 @@ class _AssetCalculationQueryTool implements FfmAssistantQueryTool {
     }
 
     // Extract CHF amount
-    final chfMatch =
-        RegExp(r'(\d+([.,]\d+)?)\s*(chf|franc|swiss)').firstMatch(text);
+    final chfMatch = RegExp(r'(\d+([.,]\d+)?)\s*(chf|franc|swiss)')
+        .firstMatch(text);
     if (chfMatch != null) {
       final amountStr = chfMatch.group(1)!.replaceAll(',', '.');
       final amount = double.tryParse(amountStr);
@@ -1558,21 +1553,25 @@ class _CashflowCommitmentQueryTool extends FfmAssistantQueryTool {
 
   @override
   bool canHandle(String normalizedText) {
-    final asksCashflow = normalizedText.contains('arus kas') ||
+    final asksCashflow =
+        normalizedText.contains('arus kas') ||
         normalizedText.contains('cashflow') ||
         normalizedText.contains('kas saya') ||
         normalizedText.contains('sisa uang') ||
         normalizedText.contains('sisa kas');
-    final asksDebt = normalizedText.contains('cicil') ||
+    final asksDebt =
+        normalizedText.contains('cicil') ||
         normalizedText.contains('utang') ||
         normalizedText.contains('hutang') ||
         normalizedText.contains('kewajiban') ||
         normalizedText.contains('angsuran');
-    final asksGoal = normalizedText.contains('target') ||
+    final asksGoal =
+        normalizedText.contains('target') ||
         normalizedText.contains('tujuan') ||
         normalizedText.contains('tabungan') ||
         normalizedText.contains('goal');
-    final asksSufficiency = normalizedText.contains('cukup') ||
+    final asksSufficiency =
+        normalizedText.contains('cukup') ||
         normalizedText.contains('aman') ||
         normalizedText.contains('bisa') ||
         normalizedText.contains('mampu') ||
@@ -1593,31 +1592,35 @@ class _CashflowCommitmentQueryTool extends FfmAssistantQueryTool {
       HijriCalendarService(_database),
     ).readCurrentMonth(householdId: request.householdId, now: request.now);
 
-    final activeGoals = await (_database.select(_database.goals)
-          ..where(
-            (row) =>
-                row.householdId.equals(request.householdId) &
-                row.isActive.equals(true),
-          ))
-        .get();
+    final activeGoals =
+        await (_database.select(_database.goals)..where(
+              (row) =>
+                  row.householdId.equals(request.householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
 
     int totalMonthlyGoalAllocation = 0;
     final goalDetails = <String>[];
 
     for (final goal in activeGoals) {
-      final remaining =
-          (goal.targetAmount - goal.currentAmount).clamp(0, goal.targetAmount);
+      final remaining = (goal.targetAmount - goal.currentAmount).clamp(
+        0,
+        goal.targetAmount,
+      );
       if (remaining <= 0) continue;
 
       int monthlyNeed;
       if (goal.targetDate != null && goal.targetDate!.isAfter(request.now)) {
-        final monthsLeft = ((goal.targetDate!.year - request.now.year) * 12 +
-                (goal.targetDate!.month - request.now.month))
-            .clamp(1, 120);
+        final monthsLeft =
+            ((goal.targetDate!.year - request.now.year) * 12 +
+                    (goal.targetDate!.month - request.now.month))
+                .clamp(1, 120);
         monthlyNeed = (remaining / monthsLeft).ceil();
       } else {
-        monthlyNeed =
-            remaining > 1000000 ? (remaining * 0.1).ceil() : remaining;
+        monthlyNeed = remaining > 1000000
+            ? (remaining * 0.1).ceil()
+            : remaining;
       }
       totalMonthlyGoalAllocation += monthlyNeed;
       goalDetails.add(

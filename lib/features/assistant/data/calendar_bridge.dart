@@ -103,7 +103,9 @@ class CalendarBridge {
   /// Meminta izin kalender ke pengguna.
   Future<bool> requestCalendarPermissions() async {
     try {
-      final res = await _channel.invokeMethod<bool>('requestCalendarPermissions');
+      final res = await _channel.invokeMethod<bool>(
+        'requestCalendarPermissions',
+      );
       return res ?? false;
     } on PlatformException {
       return false;
@@ -121,7 +123,9 @@ class CalendarBridge {
   }
 
   /// Membuat pengingat tagihan di kalender.
-  Future<CalendarOperationResult> createBillReminder(BillReminderData data) async {
+  Future<CalendarOperationResult> createBillReminder(
+    BillReminderData data,
+  ) async {
     try {
       final res = await _channel.invokeMethod<Map<dynamic, dynamic>>(
         'createBillReminder',
@@ -143,10 +147,7 @@ class CalendarBridge {
     BillReminderData data,
   ) async {
     try {
-      final params = {
-        'eventId': eventId,
-        ...data.toMap(),
-      };
+      final params = {'eventId': eventId, ...data.toMap()};
       final res = await _channel.invokeMethod<Map<dynamic, dynamic>>(
         'updateBillReminder',
         params,

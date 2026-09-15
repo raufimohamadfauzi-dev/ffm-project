@@ -1,4 +1,3 @@
-
 /// Model entitas untuk Buku Saku Meteran Listrik & Token (Pillar 3).
 ///
 /// Menyimpan nomor meteran PLN / ID Pelanggan untuk berbagai properti

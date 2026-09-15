@@ -191,9 +191,7 @@ class FfmAgentHarness {
             .join('\n') ??
         '';
     final logicList =
-        inventory[FfmPluginCategory.logic]
-            ?.map((n) => '- 🧮 $n')
-            .join('\n') ??
+        inventory[FfmPluginCategory.logic]?.map((n) => '- 🧮 $n').join('\n') ??
         '';
 
     final parts = <String>[];

@@ -86,7 +86,7 @@ class _TwoTurnGeminiService extends GeminiService {
 
 class _MockReadCapabilityService extends FfmGeminiReadCapabilityService {
   _MockReadCapabilityService(this.evidenceToReturn)
-      : super(_FakeSnapshotService());
+    : super(_FakeSnapshotService());
 
   final String evidenceToReturn;
 
@@ -137,35 +137,38 @@ void main() {
       expect(result.errorMessage, contains('hanya satu tindakan per putaran'));
     });
 
-    test('Gemini mengembalikan satu function call diproses dengan sukses', () async {
-      final gemini = _TwoTurnGeminiService(
-        firstTurnFunctionCalls: [
-          const GeminiFunctionCall(
-            name: 'read_data',
-            args: {'capabilityId': 'read.summary'},
-          ),
-        ],
-        secondTurnText: 'Saldo Anda adalah Rp 1.500.000.',
-      );
+    test(
+      'Gemini mengembalikan satu function call diproses dengan sukses',
+      () async {
+        final gemini = _TwoTurnGeminiService(
+          firstTurnFunctionCalls: [
+            const GeminiFunctionCall(
+              name: 'read_data',
+              args: {'capabilityId': 'read.summary'},
+            ),
+          ],
+          secondTurnText: 'Saldo Anda adalah Rp 1.500.000.',
+        );
 
-      final orchestrator = FfmGeminiCloudOrchestrator(
-        gemini: gemini,
-        config: _TestConfig(),
-        readCapabilities: _MockReadCapabilityService('Saldo total: 1500000'),
-        clock: () => DateTime(2026, 9, 3),
-      );
+        final orchestrator = FfmGeminiCloudOrchestrator(
+          gemini: gemini,
+          config: _TestConfig(),
+          readCapabilities: _MockReadCapabilityService('Saldo total: 1500000'),
+          clock: () => DateTime(2026, 9, 3),
+        );
 
-      final result = await orchestrator.run(
-        userText: 'berapa saldo saya',
-        boundedContext: 'konteks dummy',
-        householdId: 'test-household',
-      );
+        final result = await orchestrator.run(
+          userText: 'berapa saldo saya',
+          boundedContext: 'konteks dummy',
+          householdId: 'test-household',
+        );
 
-      expect(result.ok, isTrue);
-      expect(result.usedReadCapability, 'read.summary');
-      expect(result.readEvidence, 'Saldo total: 1500000');
-      expect(result.text, 'Saldo Anda adalah Rp 1.500.000.');
-    });
+        expect(result.ok, isTrue);
+        expect(result.usedReadCapability, 'read.summary');
+        expect(result.readEvidence, 'Saldo total: 1500000');
+        expect(result.text, 'Saldo Anda adalah Rp 1.500.000.');
+      },
+    );
 
     test('Gemini mengembalikan function call tidak dikenal ditolak', () async {
       final gemini = _MultiFunctionGeminiService([
@@ -206,18 +209,21 @@ void main() {
       expect(error, contains('belum dapat diverifikasi dari data lokal'));
     });
 
-    test('Grounding validator meloloskan klaim angka yang ada dalam readEvidence', () {
-      const toolEvidence = 'Saldo total: 1500000, pengeluaran: 350000';
+    test(
+      'Grounding validator meloloskan klaim angka yang ada dalam readEvidence',
+      () {
+        const toolEvidence = 'Saldo total: 1500000, pengeluaran: 350000';
 
-      final error = FfmAssistantGroundingValidator.validatePlainText(
-        geminiText: 'Saldo Anda saat ini tercatat sebesar Rp 1.500.000.',
-        verifiedFacts: null,
-        analysisFacts: null,
-        capabilityEvidence: toolEvidence,
-      );
+        final error = FfmAssistantGroundingValidator.validatePlainText(
+          geminiText: 'Saldo Anda saat ini tercatat sebesar Rp 1.500.000.',
+          verifiedFacts: null,
+          analysisFacts: null,
+          capabilityEvidence: toolEvidence,
+        );
 
-      expect(error, isNull);
-    });
+        expect(error, isNull);
+      },
+    );
   });
 
   group('F2 Multi-Step Bounded Tool Loop', () {
@@ -297,40 +303,73 @@ void main() {
       expect(groundError, isNull);
     });
 
-    test('Perulangan capability yang identik dihentikan oleh proteksi anti-loop', () async {
-      var callCount = 0;
-      final loopingGemini = _CustomStepGeminiService((_) {
-        callCount++;
+    test(
+      'Perulangan capability yang identik dihentikan oleh proteksi anti-loop',
+      () async {
+        var callCount = 0;
+        final loopingGemini = _CustomStepGeminiService((_) {
+          callCount++;
+          return const GeminiResult(
+            model: 'gemini-2.5-flash',
+            statusCode: 200,
+            message: 'OK',
+            functionCalls: [
+              GeminiFunctionCall(
+                name: 'read_data',
+                args: {'capabilityId': 'read.summary'},
+              ),
+            ],
+          );
+        });
+
+        final orchestrator = FfmGeminiCloudOrchestrator(
+          gemini: loopingGemini,
+          config: _TestConfig(),
+          readCapabilities: _MockReadCapabilityService('Ringkasan data'),
+          clock: () => DateTime(2026, 9, 3),
+        );
+
+        final result = await orchestrator.run(
+          userText: 'cek ringkasan terus menerus',
+          boundedContext: 'konteks dummy',
+          householdId: 'test-household',
+        );
+
+        expect(result.ok, isTrue);
+        // Dipanggil 2 kali (awal + 1 retry identik yang langsung di-break)
+        expect(callCount, 2);
+        expect(result.usedReadCapability, 'read.summary');
+      },
+    );
+
+    test('Repeated read.dailyNotes request tidak mengembalikan JSON mentah dan mengisi teks dengan evidence lokal', () async {
+      final loopingTextGemini = _CustomStepGeminiService((_) {
         return const GeminiResult(
           model: 'gemini-2.5-flash',
           statusCode: 200,
           message: 'OK',
-          functionCalls: [
-            GeminiFunctionCall(
-              name: 'read_data',
-              args: {'capabilityId': 'read.summary'},
-            ),
-          ],
+          text: '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.dailyNotes","arguments":{}}',
         );
       });
 
       final orchestrator = FfmGeminiCloudOrchestrator(
-        gemini: loopingGemini,
+        gemini: loopingTextGemini,
         config: _TestConfig(),
-        readCapabilities: _MockReadCapabilityService('Ringkasan data'),
+        readCapabilities: _MockReadCapabilityService(
+          'Panen 100kg apel pada 14 September',
+        ),
         clock: () => DateTime(2026, 9, 3),
       );
 
       final result = await orchestrator.run(
-        userText: 'cek ringkasan terus menerus',
+        userText: 'catatan harian isinya apa saja terbaru',
         boundedContext: 'konteks dummy',
         householdId: 'test-household',
       );
 
       expect(result.ok, isTrue);
-      // Dipanggil 2 kali (awal + 1 retry identik yang langsung di-break)
-      expect(callCount, 2);
-      expect(result.usedReadCapability, 'read.summary');
+      expect(result.text, isNot(contains('read_capability_request')));
+      expect(result.text, contains('Panen 100kg apel pada 14 September'));
     });
   });
 }
@@ -357,7 +396,8 @@ class _CustomStepGeminiService extends GeminiService {
 }
 
 class _DynamicMockReadCapabilityService extends FfmGeminiReadCapabilityService {
-  _DynamicMockReadCapabilityService(this.evidences) : super(_FakeSnapshotService());
+  _DynamicMockReadCapabilityService(this.evidences)
+    : super(_FakeSnapshotService());
   final Map<String, String> evidences;
 
   @override

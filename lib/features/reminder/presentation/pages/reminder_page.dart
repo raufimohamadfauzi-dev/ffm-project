@@ -19,6 +19,7 @@ class ReminderPage extends StatelessWidget {
     this.initialNote,
     this.initialScheduledAt,
     this.initialRecurrence,
+    this.initialMode,
     this.initialSourceType,
     this.initialSourceId,
     this.initialSoundUri,
@@ -33,6 +34,7 @@ class ReminderPage extends StatelessWidget {
   /// Pre-fill the scheduled date/time from an assistant draft (item 29).
   final DateTime? initialScheduledAt;
   final ReminderRecurrenceType? initialRecurrence;
+  final ReminderMode? initialMode;
   final ReminderSourceType? initialSourceType;
   final String? initialSourceId;
   final String? initialSoundUri;
@@ -59,6 +61,7 @@ class ReminderPage extends StatelessWidget {
               initialNote: initialNote,
               initialScheduledAt: initialScheduledAt,
               initialRecurrence: initialRecurrence,
+              initialMode: initialMode,
               initialSourceType: initialSourceType,
               initialSourceId: initialSourceId,
               initialSoundUri: initialSoundUri,
@@ -79,6 +82,7 @@ class _ReminderView extends StatefulWidget {
     this.initialNote,
     this.initialScheduledAt,
     this.initialRecurrence,
+    this.initialMode,
     this.initialSourceType,
     this.initialSourceId,
     this.initialSoundUri,
@@ -91,6 +95,7 @@ class _ReminderView extends StatefulWidget {
   final String? initialNote;
   final DateTime? initialScheduledAt;
   final ReminderRecurrenceType? initialRecurrence;
+  final ReminderMode? initialMode;
   final ReminderSourceType? initialSourceType;
   final String? initialSourceId;
   final String? initialSoundUri;
@@ -121,6 +126,7 @@ class _ReminderViewState extends State<_ReminderView> {
             initialNote: widget.initialNote,
             initialScheduledAt: widget.initialScheduledAt,
             initialRecurrence: widget.initialRecurrence,
+            initialMode: widget.initialMode,
             initialSourceType: widget.initialSourceType,
             initialSourceId: widget.initialSourceId,
             initialSoundUri: widget.initialSoundUri,
@@ -138,6 +144,7 @@ class _ReminderViewState extends State<_ReminderView> {
     String? initialNote,
     DateTime? initialScheduledAt,
     ReminderRecurrenceType? initialRecurrence,
+    ReminderMode? initialMode,
     ReminderSourceType? initialSourceType,
     String? initialSourceId,
     String? initialSoundUri,
@@ -151,6 +158,7 @@ class _ReminderViewState extends State<_ReminderView> {
         initialNote: initialNote,
         initialScheduledAt: initialScheduledAt,
         initialRecurrence: initialRecurrence,
+        initialMode: initialMode ?? widget.initialMode,
         initialSourceType: initialSourceType,
         initialSourceId: initialSourceId,
         initialSoundUri: initialSoundUri,
@@ -213,286 +221,377 @@ class _ReminderViewState extends State<_ReminderView> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Pengingat')),
-    floatingActionButton: FloatingActionButton.extended(
-      heroTag: 'reminder_add_fab',
-      onPressed: () => _openDialog(context),
-      icon: const Icon(Icons.add_alert_outlined),
-      label: const Text('Tambah'),
-    ),
-    body: BlocConsumer<ReminderBloc, ReminderState>(
-      listener: (context, state) {
-        _notifyPendingHistory(state);
-        _revealNotificationTarget(state);
-        final message = state.errorMessage;
-        if (message != null) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(message)));
-        }
-      },
-      builder: (context, state) {
-        if (state.isLoading && state.reminders.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final history = _historyFilter == null
-            ? state.history
-            : state.history
-                  .where((item) => item.history.status == _historyFilter)
-                  .toList(growable: false);
-        final rawReminders = _originFilter == null
-            ? state.reminders
-            : state.reminders
-                  .where((item) => item.origin == _originFilter)
-                  .toList(growable: false);
-        final now = DateTime.now();
-        final reminders = List<ReminderEntity>.from(rawReminders)
-          ..sort((a, b) {
-            final aIsPastDue = a.recurrenceType == ReminderRecurrenceType.once &&
-                a.scheduledAt.isBefore(now);
-            final bIsPastDue = b.recurrenceType == ReminderRecurrenceType.once &&
-                b.scheduledAt.isBefore(now);
-            final aIsUpcoming = a.isActive && !aIsPastDue;
-            final bIsUpcoming = b.isActive && !bIsPastDue;
-
-            if (aIsUpcoming && !bIsUpcoming) return -1;
-            if (!aIsUpcoming && bIsUpcoming) return 1;
-
-            if (aIsUpcoming && bIsUpcoming) {
-              return a.scheduledAt.compareTo(b.scheduledAt);
-            } else {
-              return b.scheduledAt.compareTo(a.scheduledAt);
-            }
-          });
-        if (state.reminders.isEmpty && history.isEmpty) {
-          return AppEmptyState(
-            icon: Icons.notifications_none_outlined,
-            title: 'Belum ada pengingat',
-            message: 'Tambahkan jadwal lokal. Pengingat tetap tersimpan di perangkat.',
-            action: FilledButton.icon(
-              onPressed: () => _openDialog(context),
-              icon: const Icon(Icons.add_alert_outlined),
-              label: const Text('Tambah pengingat'),
+  Widget build(BuildContext context) => DefaultTabController(
+    length: 2,
+    child: Scaffold(
+      appBar: AppBar(
+        title: const Text('Pengingat'),
+        bottom: const TabBar(
+          tabs: [
+            Tab(
+              icon: Icon(Icons.notifications_active_outlined),
+              text: 'Jadwal Aktif',
             ),
-          );
-        }
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-          children: [
-            if (state.permissionState != null &&
-                !state.permissionState!.canSchedule)
-              _PermissionBanner(
-                notificationsEnabled:
-                    state.permissionState!.notificationsEnabled,
-                exactAlarmEnabled: state.permissionState!.exactAlarmEnabled,
-              ),
-            if (state.reminders.isNotEmpty) ...[
-              Text(
-                'Jadwal pengingat',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
+            Tab(icon: Icon(Icons.history_rounded), text: 'Riwayat Pengingat'),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'reminder_add_fab',
+        onPressed: () => _openDialog(context),
+        icon: const Icon(Icons.add_alert_outlined),
+        label: const Text('Tambah'),
+      ),
+      body: BlocConsumer<ReminderBloc, ReminderState>(
+        listener: (context, state) {
+          _notifyPendingHistory(state);
+          _revealNotificationTarget(state);
+          final message = state.errorMessage;
+          if (message != null) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(message)));
+          }
+        },
+        builder: (context, state) {
+          if (state.isLoading && state.reminders.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final history = _historyFilter == null
+              ? state.history
+              : state.history
+                    .where((item) => item.history.status == _historyFilter)
+                    .toList(growable: false);
+
+          final rawReminders = _originFilter == null
+              ? state.reminders
+              : state.reminders
+                    .where((item) => item.origin == _originFilter)
+                    .toList(growable: false);
+
+          final now = DateTime.now();
+          final reminders = List<ReminderEntity>.from(rawReminders)
+            ..sort((a, b) {
+              final aIsPastDue =
+                  a.recurrenceType == ReminderRecurrenceType.once &&
+                  a.scheduledAt.isBefore(now);
+              final bIsPastDue =
+                  b.recurrenceType == ReminderRecurrenceType.once &&
+                  b.scheduledAt.isBefore(now);
+              final aIsUpcoming = a.isActive && !aIsPastDue;
+              final bIsUpcoming = b.isActive && !bIsPastDue;
+
+              if (aIsUpcoming && !bIsUpcoming) return -1;
+              if (!aIsUpcoming && bIsUpcoming) return 1;
+
+              if (aIsUpcoming && bIsUpcoming) {
+                return a.scheduledAt.compareTo(b.scheduledAt);
+              } else {
+                return b.scheduledAt.compareTo(a.scheduledAt);
+              }
+            });
+
+          return TabBarView(
+            children: [
+              // Tab 1: Jadwal Aktif
+              ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 children: [
-                  FilterChip(
-                    label: const Text('Semua'),
-                    selected: _originFilter == null,
-                    onSelected: (_) => setState(() => _originFilter = null),
-                  ),
-                  FilterChip(
-                    label: const Text('Otonom'),
-                    selected: _originFilter == ReminderOrigin.autonomous,
-                    onSelected: (_) => setState(
-                      () => _originFilter = ReminderOrigin.autonomous,
+                  if (state.permissionState != null &&
+                      !state.permissionState!.canSchedule)
+                    _PermissionBanner(
+                      notificationsEnabled:
+                          state.permissionState!.notificationsEnabled,
+                      exactAlarmEnabled:
+                          state.permissionState!.exactAlarmEnabled,
                     ),
+                  Text(
+                    'Jadwal pengingat',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  FilterChip(
-                    label: const Text('Saya'),
-                    selected: _originFilter == ReminderOrigin.user,
-                    onSelected: (_) =>
-                        setState(() => _originFilter = ReminderOrigin.user),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (reminders.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: Text('Belum ada pengingat pada filter ini.'),
-                  ),
-                )
-              else
-                ...reminders.map(
-                  (reminder) => ReminderScheduleCard(
-                    reminder: reminder,
-                    onTap: () => _openDialog(context, initial: reminder),
-                    onActiveChanged: (value) => context
-                        .read<ReminderBloc>()
-                        .add(ReminderActiveChanged(reminder, value)),
-                    onEdit: () => _openDialog(context, initial: reminder),
-                    onDelete: () => context.read<ReminderBloc>().add(
-                      ReminderDeleted(reminder),
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 20),
-            ],
-            if (state.history.isNotEmpty) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Riwayat pengingat',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ),
-                  DropdownButton<ReminderHistoryStatus?>(
-                    value: _historyFilter,
-                    hint: const Text('Semua'),
-                    underline: const SizedBox.shrink(),
-                    items: [
-                      const DropdownMenuItem<ReminderHistoryStatus?>(
-                        value: null,
-                        child: Text('Semua'),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      FilterChip(
+                        label: const Text('Semua'),
+                        selected: _originFilter == null,
+                        onSelected: (_) => setState(() => _originFilter = null),
                       ),
-                      ...ReminderHistoryStatus.values.map(
-                        (status) => DropdownMenuItem(
-                          value: status,
-                          child: Text(status.label),
+                      FilterChip(
+                        label: const Text('Otonom'),
+                        selected: _originFilter == ReminderOrigin.autonomous,
+                        onSelected: (_) => setState(
+                          () => _originFilter = ReminderOrigin.autonomous,
                         ),
                       ),
+                      FilterChip(
+                        label: const Text('Saya'),
+                        selected: _originFilter == ReminderOrigin.user,
+                        onSelected: (_) =>
+                            setState(() => _originFilter = ReminderOrigin.user),
+                      ),
                     ],
-                    onChanged: (value) =>
-                        setState(() => _historyFilter = value),
                   ),
+                  const SizedBox(height: 12),
+                  if (reminders.isEmpty)
+                    AppEmptyState(
+                      icon: Icons.notifications_none_outlined,
+                      title: 'Belum ada jadwal pengingat',
+                      message: 'Tambahkan jadwal pengingat untuk mengelola keuangan dan tugas Anda.',
+                      action: FilledButton.icon(
+                        onPressed: () => _openDialog(context),
+                        icon: const Icon(Icons.add_alert_outlined),
+                        label: const Text('Tambah pengingat'),
+                      ),
+                    )
+                  else
+                    ...reminders.map(
+                      (reminder) => ReminderScheduleCard(
+                        reminder: reminder,
+                        onTap: () => _openDialog(context, initial: reminder),
+                        onActiveChanged: (value) => context
+                            .read<ReminderBloc>()
+                            .add(ReminderActiveChanged(reminder, value)),
+                        onEdit: () => _openDialog(context, initial: reminder),
+                        onDelete: () => context.read<ReminderBloc>().add(
+                          ReminderDeleted(reminder),
+                        ),
+                      ),
+                    ),
                 ],
               ),
-              const SizedBox(height: 8),
-              if (history.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: Text('Belum ada riwayat dengan filter ini.'),
+
+              // Tab 2: Riwayat Pengingat
+              ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Riwayat pengingat',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      DropdownButton<ReminderHistoryStatus?>(
+                        value: _historyFilter,
+                        hint: const Text('Semua Status'),
+                        underline: const SizedBox.shrink(),
+                        items: [
+                          const DropdownMenuItem<ReminderHistoryStatus?>(
+                            value: null,
+                            child: Text('Semua Status'),
+                          ),
+                          ...ReminderHistoryStatus.values.map(
+                            (status) => DropdownMenuItem(
+                              value: status,
+                              child: Text(status.label),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _historyFilter = value),
+                      ),
+                    ],
                   ),
-                )
-              else
-                ...history.map((item) {
-                  final historyItem = item.history;
-                  final isActionable =
-                      historyItem.status != ReminderHistoryStatus.completed &&
-                      historyItem.status != ReminderHistoryStatus.cancelled;
-                  final isHighlighted =
-                      historyItem.id == _lastNotifiedPendingHistoryId ||
-                      (historyItem.id == widget.focusHistoryId &&
-                          historyItem.reminderId == widget.focusReminderId);
-                  final colorScheme = Theme.of(context).colorScheme;
-                  final subtitle = historyItem.snoozedUntil == null
-                      ? '${_formatReminderDateTime(historyItem.scheduledAt)} · ${historyItem.status.label}'
-                      : '${_formatReminderDateTime(historyItem.scheduledAt)} · ${historyItem.status.label} sampai ${_formatReminderDateTime(historyItem.snoozedUntil!)}';
-                  return AppCard(
-                    key: historyItem.id == widget.focusHistoryId
-                        ? _focusedHistoryKey
-                        : null,
-                    color: isHighlighted ? colorScheme.tertiaryContainer : null,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                  const SizedBox(height: 8),
+                  if (history.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: AppEmptyState(
+                        icon: Icons.history_toggle_off_rounded,
+                        title: 'Riwayat kosong',
+                        message: _historyFilter == null
+                            ? 'Belum ada riwayat pengingat yang tercatat.'
+                            : 'Belum ada riwayat dengan filter status ${_historyFilter!.label}.',
+                      ),
+                    )
+                  else
+                    ...history.map((item) {
+                      final historyItem = item.history;
+                      final reminderMode =
+                          item.reminder?.mode ?? ReminderMode.notification;
+                      final isActionable =
+                          historyItem.status !=
+                              ReminderHistoryStatus.completed &&
+                          historyItem.status != ReminderHistoryStatus.cancelled;
+                      final isMissed =
+                          historyItem.status == ReminderHistoryStatus.missed;
+                      final isCompleted =
+                          historyItem.status == ReminderHistoryStatus.completed;
+                      final isHighlighted =
+                          historyItem.id == _lastNotifiedPendingHistoryId ||
+                          (historyItem.id == widget.focusHistoryId &&
+                              historyItem.reminderId == widget.focusReminderId);
+                      final colorScheme = Theme.of(context).colorScheme;
+
+                      final subtitle = historyItem.snoozedUntil == null
+                          ? '${_formatReminderDateTime(historyItem.scheduledAt)} · ${historyItem.status.label}'
+                          : '${_formatReminderDateTime(historyItem.scheduledAt)} · ${historyItem.status.label} sampai ${_formatReminderDateTime(historyItem.snoozedUntil!)}';
+
+                      final cardColor = isMissed
+                          ? colorScheme.errorContainer.withAlpha(120)
+                          : isCompleted
+                          ? colorScheme.surfaceContainerHighest.withAlpha(120)
+                          : isHighlighted
+                          ? colorScheme.tertiaryContainer
+                          : null;
+
+                      return AppCard(
+                        key: historyItem.id == widget.focusHistoryId
+                            ? _focusedHistoryKey
+                            : null,
+                        color: cardColor,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(_statusIcon(historyItem.status)),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      historyItem.title,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                      ),
+                              Row(
+                                children: [
+                                  Icon(
+                                    _statusIcon(historyItem.status),
+                                    color: isMissed
+                                        ? colorScheme.error
+                                        : isCompleted
+                                        ? colorScheme.primary
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                historyItem.title,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  color: isMissed
+                                                      ? colorScheme
+                                                            .onErrorContainer
+                                                      : null,
+                                                ),
+                                              ),
+                                            ),
+                                            if (isMissed) ...[
+                                              const SizedBox(width: 6),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: colorScheme.error,
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  'Terlewat',
+                                                  style: TextStyle(
+                                                    color: colorScheme.onError,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                        Text(subtitle),
+                                      ],
                                     ),
-                                    Text(subtitle),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuButton<String>(
-                                tooltip: 'Aksi riwayat',
-                                onSelected: (value) {
-                                  if (value == 'hapus') {
-                                    context.read<ReminderBloc>().add(
-                                      ReminderHistoryDeleted(historyItem),
-                                    );
-                                  }
-                                },
-                                itemBuilder: (_) => const [
-                                  PopupMenuItem(
-                                    value: 'hapus',
-                                    child: Text('Hapus dari riwayat'),
+                                  ),
+                                  PopupMenuButton<String>(
+                                    tooltip: 'Aksi riwayat',
+                                    onSelected: (value) {
+                                      if (value == 'hapus') {
+                                        context.read<ReminderBloc>().add(
+                                          ReminderHistoryDeleted(historyItem),
+                                        );
+                                      }
+                                    },
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem(
+                                        value: 'hapus',
+                                        child: Text('Hapus dari riwayat'),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
-                          if (isHighlighted) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              'Alarm baru masuk. Pilih tindakan di bawah.',
-                              style: TextStyle(fontWeight: FontWeight.w700),
-                            ),
-                          ],
-                          if (isActionable) ...[
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: FilledButton.icon(
-                                    onPressed: () =>
-                                        context.read<ReminderBloc>().add(
-                                          ReminderHistoryStatusChanged(
-                                            history: historyItem,
-                                            status:
-                                                ReminderHistoryStatus.completed,
-                                          ),
-                                        ),
-                                    icon: const Icon(Icons.check_rounded),
-                                    label: const Text('Selesai'),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: () =>
-                                        context.read<ReminderBloc>().add(
-                                          ReminderHistoryStatusChanged(
-                                            history: historyItem,
-                                            status:
-                                                ReminderHistoryStatus.snoozed,
-                                            snoozedUntil: DateTime.now().add(
-                                              const Duration(minutes: 10),
-                                            ),
-                                          ),
-                                        ),
-                                    icon: const Icon(Icons.snooze_rounded),
-                                    label: const Text('Tunda 10 mnt'),
+                              if (isHighlighted) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Pengingat baru masuk. Pilih tindakan di bawah.',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  );
-                }),
+                              if (isActionable) ...[
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: FilledButton.icon(
+                                        onPressed: () =>
+                                            context.read<ReminderBloc>().add(
+                                              ReminderHistoryStatusChanged(
+                                                history: historyItem,
+                                                status: ReminderHistoryStatus
+                                                    .completed,
+                                              ),
+                                            ),
+                                        icon: const Icon(Icons.check_rounded),
+                                        label: const Text('Selesai'),
+                                      ),
+                                    ),
+                                    if (reminderMode == ReminderMode.alarm) ...[
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: () =>
+                                              context.read<ReminderBloc>().add(
+                                                ReminderHistoryStatusChanged(
+                                                  history: historyItem,
+                                                  status: ReminderHistoryStatus
+                                                      .snoozed,
+                                                  snoozedUntil: DateTime.now()
+                                                      .add(
+                                                        const Duration(
+                                                          minutes: 10,
+                                                        ),
+                                                      ),
+                                                ),
+                                              ),
+                                          icon: const Icon(
+                                            Icons.snooze_rounded,
+                                          ),
+                                          label: const Text('Tunda 10 mnt'),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                ],
+              ),
             ],
-          ],
-        );
-      },
+          );
+        },
+      ),
     ),
   );
 
@@ -577,11 +676,7 @@ class _ReminderSourceTypeBadge extends StatelessWidget {
         'Profil Keluarga',
         Colors.purple.shade700,
       ),
-      _ => (
-        Icons.info_outline,
-        sourceType.label,
-        colorScheme.primary,
-      ),
+      _ => (Icons.info_outline, sourceType.label, colorScheme.primary),
     };
 
     return Container(
@@ -589,10 +684,7 @@ class _ReminderSourceTypeBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest.withAlpha(160),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: color.withAlpha(90),
-          width: 0.8,
-        ),
+        border: Border.all(color: color.withAlpha(90), width: 0.8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -602,10 +694,10 @@ class _ReminderSourceTypeBadge extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 10.5,
-                  color: colorScheme.onSurfaceVariant,
-                ),
+              fontWeight: FontWeight.w600,
+              fontSize: 10.5,
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -634,7 +726,8 @@ class ReminderScheduleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final now = DateTime.now();
-    final isPastDue = reminder.recurrenceType == ReminderRecurrenceType.once &&
+    final isPastDue =
+        reminder.recurrenceType == ReminderRecurrenceType.once &&
         reminder.scheduledAt.isBefore(now);
     final isUpcoming =
         reminder.isActive && !isPastDue && !reminder.scheduledAt.isBefore(now);
@@ -646,10 +739,10 @@ class ReminderScheduleCard extends StatelessWidget {
     final countdownStatus = !reminder.isActive
         ? _CountdownStatus.inactive
         : (isPastDue
-            ? _CountdownStatus.pastDue
-            : (isUpcoming
-                ? _CountdownStatus.upcoming
-                : _CountdownStatus.recurringWait));
+              ? _CountdownStatus.pastDue
+              : (isUpcoming
+                    ? _CountdownStatus.upcoming
+                    : _CountdownStatus.recurringWait));
 
     final cardContent = Padding(
       padding: const EdgeInsets.fromLTRB(14, 12, 8, 8),
@@ -664,8 +757,8 @@ class ReminderScheduleCard extends StatelessWidget {
                 child: Icon(
                   reminder.isActive
                       ? (isPastDue
-                          ? Icons.alarm_off_outlined
-                          : Icons.notifications_active_outlined)
+                            ? Icons.alarm_off_outlined
+                            : Icons.notifications_active_outlined)
                       : Icons.notifications_off_outlined,
                   color: reminder.isActive
                       ? (isPastDue ? colorScheme.error : colorScheme.primary)
@@ -702,17 +795,23 @@ class ReminderScheduleCard extends StatelessWidget {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: reminder.origin == ReminderOrigin.autonomous
+                              color:
+                                  reminder.origin == ReminderOrigin.autonomous
                                   ? (colorScheme.brightness == Brightness.dark
-                                      ? Colors.deepPurple.shade900.withAlpha(190)
-                                      : Colors.deepPurple.shade50)
+                                        ? Colors.deepPurple.shade900.withAlpha(
+                                            190,
+                                          )
+                                        : Colors.deepPurple.shade50)
                                   : colorScheme.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(
-                                color: reminder.origin == ReminderOrigin.autonomous
+                                color:
+                                    reminder.origin == ReminderOrigin.autonomous
                                     ? (colorScheme.brightness == Brightness.dark
-                                        ? Colors.purple.shade300.withAlpha(140)
-                                        : Colors.deepPurple.shade400)
+                                          ? Colors.purple.shade300.withAlpha(
+                                              140,
+                                            )
+                                          : Colors.deepPurple.shade400)
                                     : colorScheme.outlineVariant,
                                 width: 1,
                               ),
@@ -725,25 +824,27 @@ class ReminderScheduleCard extends StatelessWidget {
                                       ? Icons.auto_awesome
                                       : Icons.person_outline,
                                   size: 12,
-                                  color: reminder.origin == ReminderOrigin.autonomous
-                                      ? (colorScheme.brightness == Brightness.dark
-                                          ? Colors.purple.shade200
-                                          : Colors.deepPurple.shade800)
+                                  color:
+                                      reminder.origin ==
+                                          ReminderOrigin.autonomous
+                                      ? (colorScheme.brightness ==
+                                                Brightness.dark
+                                            ? Colors.purple.shade200
+                                            : Colors.deepPurple.shade800)
                                       : colorScheme.onSurfaceVariant,
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
                                   reminder.origin.label,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .labelSmall
+                                  style: Theme.of(context).textTheme.labelSmall
                                       ?.copyWith(
-                                        color: reminder.origin ==
+                                        color:
+                                            reminder.origin ==
                                                 ReminderOrigin.autonomous
                                             ? (colorScheme.brightness ==
-                                                    Brightness.dark
-                                                ? Colors.purple.shade100
-                                                : Colors.deepPurple.shade900)
+                                                      Brightness.dark
+                                                  ? Colors.purple.shade100
+                                                  : Colors.deepPurple.shade900)
                                             : colorScheme.onSurfaceVariant,
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -777,7 +878,8 @@ class ReminderScheduleCard extends StatelessWidget {
                                 ? Icons.music_note_rounded
                                 : Icons.notifications_none_rounded,
                             size: 13,
-                            color: reminder.soundName != null &&
+                            color:
+                                reminder.soundName != null &&
                                     reminder.soundName!.isNotEmpty
                                 ? colorScheme.primary
                                 : colorScheme.outline,
@@ -788,21 +890,22 @@ class ReminderScheduleCard extends StatelessWidget {
                               reminder.soundName != null &&
                                       reminder.soundName!.isNotEmpty
                                   ? 'Nada: ${reminder.soundName}'
-                                  : (reminder.origin == ReminderOrigin.autonomous
-                                      ? 'Nada: Nada otonom FFM'
-                                      : 'Nada: Bawaan FFM'),
+                                  : (reminder.origin ==
+                                            ReminderOrigin.autonomous
+                                        ? 'Nada: Nada otonom FFM'
+                                        : 'Nada: Bawaan FFM'),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     fontSize: 11,
-                                    color: reminder.soundName != null &&
+                                    color:
+                                        reminder.soundName != null &&
                                             reminder.soundName!.isNotEmpty
                                         ? colorScheme.primary
                                         : colorScheme.outline,
-                                    fontWeight: reminder.soundName != null &&
+                                    fontWeight:
+                                        reminder.soundName != null &&
                                             reminder.soundName!.isNotEmpty
                                         ? FontWeight.w600
                                         : FontWeight.normal,
@@ -843,9 +946,7 @@ class ReminderScheduleCard extends StatelessWidget {
                                   reminder.note!.trim(),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
+                                  style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
                                         color: colorScheme.onSurfaceVariant,
                                         fontSize: 11,
@@ -906,20 +1007,14 @@ class ReminderScheduleCard extends StatelessWidget {
       padding: EdgeInsets.zero,
       onTap: onTap,
       child: isPastDue
-          ? Opacity(
-              opacity: 0.72,
-              child: cardContent,
-            )
+          ? Opacity(opacity: 0.72, child: cardContent)
           : cardContent,
     );
   }
 }
 
 class _ReminderCountdownChip extends StatelessWidget {
-  const _ReminderCountdownChip({
-    required this.text,
-    this.status,
-  });
+  const _ReminderCountdownChip({required this.text, this.status});
 
   final String text;
   final _CountdownStatus? status;
@@ -975,10 +1070,8 @@ class _ReminderCountdownChip extends StatelessWidget {
             text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: fg,
-            ),
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(fontWeight: FontWeight.w700, color: fg),
           ),
         ],
       ),
@@ -1027,6 +1120,7 @@ class _ReminderDialog extends StatefulWidget {
     this.initialNote,
     this.initialScheduledAt,
     this.initialRecurrence,
+    this.initialMode,
     this.initialSourceType,
     this.initialSourceId,
     this.initialSoundUri,
@@ -1040,6 +1134,7 @@ class _ReminderDialog extends StatefulWidget {
   /// Pre-filled schedule coming from an assistant draft (item 29).
   final DateTime? initialScheduledAt;
   final ReminderRecurrenceType? initialRecurrence;
+  final ReminderMode? initialMode;
   final ReminderSourceType? initialSourceType;
   final String? initialSourceId;
   final String? initialSoundUri;
@@ -1054,6 +1149,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
   late final TextEditingController _noteController;
   late DateTime _scheduledAt;
   late ReminderRecurrenceType _recurrence;
+  late ReminderMode _mode;
   late List<int> _weekday;
   String? _soundUri;
   String? _soundName;
@@ -1077,6 +1173,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
         initial?.recurrenceType ??
         widget.initialRecurrence ??
         ReminderRecurrenceType.once;
+    _mode = initial?.mode ?? widget.initialMode ?? ReminderMode.notification;
     _weekday = [...?initial?.weekdays];
     _soundUri = initial?.soundUri ?? widget.initialSoundUri;
     _soundName = initial?.soundName ?? widget.initialSoundName;
@@ -1193,6 +1290,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
         sourceType: initial?.sourceType ?? widget.initialSourceType,
         sourceId: initial?.sourceId ?? widget.initialSourceId,
         origin: initial?.origin ?? ReminderOrigin.user,
+        mode: _mode,
       ),
     );
   }
@@ -1245,6 +1343,19 @@ class _ReminderDialogState extends State<_ReminderDialog> {
             onChanged: (value) => setState(
               () => _recurrence = value ?? ReminderRecurrenceType.once,
             ),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<ReminderMode>(
+            initialValue: _mode,
+            decoration: const InputDecoration(labelText: 'Tipe pengingat'),
+            items: ReminderMode.values
+                .map(
+                  (item) =>
+                      DropdownMenuItem(value: item, child: Text(item.label)),
+                )
+                .toList(),
+            onChanged: (value) =>
+                setState(() => _mode = value ?? ReminderMode.notification),
           ),
           const SizedBox(height: 12),
           Container(

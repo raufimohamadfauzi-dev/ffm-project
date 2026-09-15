@@ -28,9 +28,9 @@ void main() {
         name: 'Dana darurat',
         targetAmount: 5000000,
         currentAmount: 1000000,
-             targetDate: DateTime(2026, 12, 31),
-             note: 'Dana untuk kondisi darurat',
-             createdAt: now,
+        targetDate: DateTime(2026, 12, 31),
+        note: 'Dana untuk kondisi darurat',
+        createdAt: now,
       ),
     );
   });
@@ -326,9 +326,9 @@ void main() {
           'kind': 'goal',
           'title': 'Renovasi rumah',
           'amount': 12000000,
-           'date': '2027-01-15T00:00:00.000',
-           'note': 'Renovasi bertahap',
-           '_idempotencyKey': key,
+          'date': '2027-01-15T00:00:00.000',
+          'note': 'Renovasi bertahap',
+          '_idempotencyKey': key,
         },
       );
       expect(

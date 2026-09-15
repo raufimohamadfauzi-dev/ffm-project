@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:uuid/uuid.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -157,9 +158,7 @@ class FfmErrorLoggingService {
           .whereType<Map>()
           .map((m) {
             try {
-              return FfmErrorLogEntry.fromJson(
-                Map<String, dynamic>.from(m),
-              );
+              return FfmErrorLogEntry.fromJson(Map<String, dynamic>.from(m));
             } on Object {
               return null;
             }

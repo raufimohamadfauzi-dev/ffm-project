@@ -10,7 +10,10 @@ void main() {
     totalCashBalance: 2500000,
     yesterdayExpense: 120000,
     monthExpenseSoFar: 450000,
-    dueItems: const ['Pola rutin Belanja Sayur (Rp 50.000)', 'Pengingat: Bayar Wifi'],
+    dueItems: const [
+      'Pola rutin Belanja Sayur (Rp 50.000)',
+      'Pengingat: Bayar Wifi',
+    ],
     textSummary: 'Ringkasan pagi...',
     spokenScript: 'Selamat pagi keluarga bahagia...',
     generatedAt: DateTime(2026, 9, 5, 7, 0),
@@ -40,7 +43,9 @@ void main() {
   }
 
   group('MorningBriefingCard Widget Tests', () {
-    testWidgets('renders header, metrics, and due items properly', (tester) async {
+    testWidgets('renders header, metrics, and due items properly', (
+      tester,
+    ) async {
       await tester.pumpWidget(createWidget());
 
       expect(find.text('Executive Morning Briefing'), findsOneWidget);
@@ -65,14 +70,18 @@ void main() {
       expect(played, isTrue);
     });
 
-    testWidgets('renders Jeda and Berhenti when isPlaying is true', (tester) async {
+    testWidgets('renders Jeda and Berhenti when isPlaying is true', (
+      tester,
+    ) async {
       var paused = false;
       var stopped = false;
-      await tester.pumpWidget(createWidget(
-        isPlaying: true,
-        onPauseAudio: () => paused = true,
-        onStopAudio: () => stopped = true,
-      ));
+      await tester.pumpWidget(
+        createWidget(
+          isPlaying: true,
+          onPauseAudio: () => paused = true,
+          onStopAudio: () => stopped = true,
+        ),
+      );
 
       expect(find.text('Jeda'), findsOneWidget);
       expect(find.text('Berhenti'), findsOneWidget);
@@ -88,10 +97,9 @@ void main() {
 
     testWidgets('renders Lanjutkan when isPaused is true', (tester) async {
       var resumed = false;
-      await tester.pumpWidget(createWidget(
-        isPaused: true,
-        onPlayAudio: () => resumed = true,
-      ));
+      await tester.pumpWidget(
+        createWidget(isPaused: true, onPlayAudio: () => resumed = true),
+      );
 
       expect(find.text('Lanjutkan'), findsOneWidget);
       await tester.tap(find.text('Lanjutkan'));

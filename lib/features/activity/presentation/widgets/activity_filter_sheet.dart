@@ -5,6 +5,7 @@ import '../../../../shared/ffm_date_period.dart';
 class ActivityFilterFilterState {
   const ActivityFilterFilterState({
     this.categoryId,
+    this.tagId,
     this.dayFilter,
     this.startDateFilter,
     this.endDateFilter,
@@ -13,6 +14,7 @@ class ActivityFilterFilterState {
   });
 
   final String? categoryId;
+  final String? tagId;
   final DateTime? dayFilter;
   final DateTime? startDateFilter;
   final DateTime? endDateFilter;
@@ -22,6 +24,7 @@ class ActivityFilterFilterState {
   int get activeFiltersCount {
     var count = 0;
     if (categoryId != null) count++;
+    if (tagId != null) count++;
     if (dayFilter != null || startDateFilter != null || endDateFilter != null) {
       count++;
     }
@@ -39,11 +42,13 @@ class ActivityFilterSheet extends StatefulWidget {
     required this.initialState,
     required this.categories,
     required this.categoryIds,
+    required this.tags,
   });
 
   final ActivityFilterFilterState initialState;
   final List<String> categories;
   final Map<String, String> categoryIds;
+  final List<({String id, String name})> tags;
 
   @override
   State<ActivityFilterSheet> createState() => _ActivityFilterSheetState();
@@ -51,6 +56,7 @@ class ActivityFilterSheet extends StatefulWidget {
 
 class _ActivityFilterSheetState extends State<ActivityFilterSheet> {
   late String? _selectedCategoryId;
+  late String? _selectedTagId;
   late DateTime? _dayFilter;
   late DateTime? _startDateFilter;
   late DateTime? _endDateFilter;
@@ -61,6 +67,7 @@ class _ActivityFilterSheetState extends State<ActivityFilterSheet> {
   void initState() {
     super.initState();
     _selectedCategoryId = widget.initialState.categoryId;
+    _selectedTagId = widget.initialState.tagId;
     _dayFilter = widget.initialState.dayFilter;
     _startDateFilter = widget.initialState.startDateFilter;
     _endDateFilter = widget.initialState.endDateFilter;
@@ -71,6 +78,7 @@ class _ActivityFilterSheetState extends State<ActivityFilterSheet> {
   void _reset() {
     setState(() {
       _selectedCategoryId = null;
+      _selectedTagId = null;
       _dayFilter = null;
       _startDateFilter = null;
       _endDateFilter = null;
@@ -154,14 +162,14 @@ class _ActivityFilterSheetState extends State<ActivityFilterSheet> {
                 ),
               ),
               const Spacer(),
-              TextButton(
-                onPressed: _reset,
-                child: const Text('Reset'),
-              ),
+              TextButton(onPressed: _reset, child: const Text('Reset')),
             ],
           ),
           const SizedBox(height: 12),
-          const Text('Kategori', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+          const Text(
+            'Kategori',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          ),
           const SizedBox(height: 6),
           Wrap(
             spacing: 8,
@@ -185,7 +193,35 @@ class _ActivityFilterSheetState extends State<ActivityFilterSheet> {
             ],
           ),
           const SizedBox(height: 16),
-          const Text('Periode Waktu', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+          const Text(
+            'Tag catatan',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              ChoiceChip(
+                label: const Text('Semua tag'),
+                selected: _selectedTagId == null,
+                onSelected: (_) => setState(() => _selectedTagId = null),
+              ),
+              ...widget.tags.map(
+                (tag) => ChoiceChip(
+                  label: Text(tag.name),
+                  selected: _selectedTagId == tag.id,
+                  onSelected: (selected) =>
+                      setState(() => _selectedTagId = selected ? tag.id : null),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Periode Waktu',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          ),
           const SizedBox(height: 6),
           Row(
             children: [
@@ -193,7 +229,11 @@ class _ActivityFilterSheetState extends State<ActivityFilterSheet> {
                 child: OutlinedButton.icon(
                   onPressed: _pickDay,
                   icon: const Icon(Icons.calendar_today, size: 16),
-                  label: Text(_dateLabel(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  label: Text(
+                    _dateLabel(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -201,14 +241,32 @@ class _ActivityFilterSheetState extends State<ActivityFilterSheet> {
                 tooltip: 'Preset periode',
                 onSelected: _applyPeriodPreset,
                 itemBuilder: (context) => const [
-                  PopupMenuItem(value: FfmDatePeriodPreset.allTime, child: Text('Semua periode')),
-                  PopupMenuItem(value: FfmDatePeriodPreset.thisMonth, child: Text('Bulan ini')),
-                  PopupMenuItem(value: FfmDatePeriodPreset.lastMonth, child: Text('Bulan lalu')),
-                  PopupMenuItem(value: FfmDatePeriodPreset.last3Months, child: Text('3 bulan terakhir')),
-                  PopupMenuItem(value: FfmDatePeriodPreset.thisYear, child: Text('Tahun ini')),
+                  PopupMenuItem(
+                    value: FfmDatePeriodPreset.allTime,
+                    child: Text('Semua periode'),
+                  ),
+                  PopupMenuItem(
+                    value: FfmDatePeriodPreset.thisMonth,
+                    child: Text('Bulan ini'),
+                  ),
+                  PopupMenuItem(
+                    value: FfmDatePeriodPreset.lastMonth,
+                    child: Text('Bulan lalu'),
+                  ),
+                  PopupMenuItem(
+                    value: FfmDatePeriodPreset.last3Months,
+                    child: Text('3 bulan terakhir'),
+                  ),
+                  PopupMenuItem(
+                    value: FfmDatePeriodPreset.thisYear,
+                    child: Text('Tahun ini'),
+                  ),
                 ],
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     border: Border.all(color: theme.colorScheme.outline),
                     borderRadius: BorderRadius.circular(8),
@@ -231,19 +289,34 @@ class _ActivityFilterSheetState extends State<ActivityFilterSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Tipe Sesi', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                    const Text(
+                      'Tipe Sesi',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
                       initialValue: _modeFilter,
                       decoration: const InputDecoration(
                         isDense: true,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
                         border: OutlineInputBorder(),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'Semua mode', child: Text('Semua')),
+                        DropdownMenuItem(
+                          value: 'Semua mode',
+                          child: Text('Semua'),
+                        ),
                         DropdownMenuItem(value: 'Timer', child: Text('Timer')),
-                        DropdownMenuItem(value: 'Catatan', child: Text('Catatan')),
+                        DropdownMenuItem(
+                          value: 'Catatan',
+                          child: Text('Catatan'),
+                        ),
                       ],
                       onChanged: (val) {
                         if (val != null) setState(() => _modeFilter = val);
@@ -257,12 +330,19 @@ class _ActivityFilterSheetState extends State<ActivityFilterSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Tampilkan Arsip', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                    const Text(
+                      'Tampilkan Arsip',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     FilterChip(
                       label: const Text('Arsip'),
                       selected: _includeArchived,
-                      onSelected: (val) => setState(() => _includeArchived = val),
+                      onSelected: (val) =>
+                          setState(() => _includeArchived = val),
                     ),
                   ],
                 ),
@@ -278,6 +358,7 @@ class _ActivityFilterSheetState extends State<ActivityFilterSheet> {
                   context,
                   ActivityFilterFilterState(
                     categoryId: _selectedCategoryId,
+                    tagId: _selectedTagId,
                     dayFilter: _dayFilter,
                     startDateFilter: _startDateFilter,
                     endDateFilter: _endDateFilter,

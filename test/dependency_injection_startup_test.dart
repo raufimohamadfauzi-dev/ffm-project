@@ -16,23 +16,32 @@ void main() {
     await getIt.reset();
   });
 
-  test('configureDependencies runs once in a clean process without failure', () async {
-    final db = AppDatabase(NativeDatabase.memory());
-    await configureDependencies(database: db);
+  test(
+    'configureDependencies runs once in a clean process without failure',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      await configureDependencies(database: db);
 
-    expect(getIt.isRegistered<AppDatabase>(), isTrue);
-    expect(getIt.isRegistered<FfmAssistantChatHistoryRepository>(), isTrue);
-    expect(getIt<FfmAssistantChatHistoryRepository>(), isA<FfmAssistantChatHistoryRepository>());
-  });
+      expect(getIt.isRegistered<AppDatabase>(), isTrue);
+      expect(getIt.isRegistered<FfmAssistantChatHistoryRepository>(), isTrue);
+      expect(
+        getIt<FfmAssistantChatHistoryRepository>(),
+        isA<FfmAssistantChatHistoryRepository>(),
+      );
+    },
+  );
 
-  test('configureDependencies is idempotent and does not throw on multiple calls', () async {
-    final db = AppDatabase(NativeDatabase.memory());
-    await configureDependencies(database: db);
-    // Second call should return early and not throw
-    await configureDependencies(database: db);
+  test(
+    'configureDependencies is idempotent and does not throw on multiple calls',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      await configureDependencies(database: db);
+      // Second call should return early and not throw
+      await configureDependencies(database: db);
 
-    expect(getIt.isRegistered<FfmAssistantChatHistoryRepository>(), isTrue);
-  });
+      expect(getIt.isRegistered<FfmAssistantChatHistoryRepository>(), isTrue);
+    },
+  );
 
   test('FfmAssistantChatHistoryRepository pre-registration does not cause duplicate error', () async {
     final customRepo = FfmAssistantChatHistoryRepository();

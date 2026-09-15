@@ -38,4 +38,22 @@ void main() {
 
     expect(plan.sourceIds, contains('chat_history'));
   });
+
+  test('catatan harian memilih activity dan tidak fallback ke summary', () {
+    final plan = FfmAssistantKnowledgeIndex.planForRequest(
+      'catatan harian isinya apa saja terbaru',
+    );
+
+    expect(plan.sourceIds, contains('activity'));
+    expect(plan.sourceIds, isNot(contains('summary')));
+  });
+
+  test('pertanyaan halaman aktif memilih page_context bukan summary', () {
+    final plan = FfmAssistantKnowledgeIndex.planForRequest(
+      'jadi sekarang sedang di halaman apa',
+    );
+
+    expect(plan.sourceIds, contains('page_context'));
+    expect(plan.sourceIds, isNot(contains('summary')));
+  });
 }

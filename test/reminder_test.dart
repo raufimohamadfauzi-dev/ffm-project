@@ -168,6 +168,47 @@ void main() {
       await database.close();
     });
 
+    test(
+      'menyimpan dan membaca reminder dengan ReminderMode yang tepat',
+      () async {
+        final notificationItem = ReminderEntity(
+          id: 'rem-notif',
+          householdId: householdId,
+          title: 'Cek notifikasi',
+          scheduledAt: DateTime(2026, 8, 25, 7),
+          recurrenceType: ReminderRecurrenceType.once,
+          weekdays: const [],
+          notificationId: 1001,
+          mode: ReminderMode.notification,
+        );
+        final alarmItem = ReminderEntity(
+          id: 'rem-alarm',
+          householdId: householdId,
+          title: 'Cek alarm',
+          scheduledAt: DateTime(2026, 8, 25, 8),
+          recurrenceType: ReminderRecurrenceType.once,
+          weekdays: const [],
+          notificationId: 1002,
+          mode: ReminderMode.alarm,
+        );
+
+        await repository.saveReminder(notificationItem);
+        await repository.saveReminder(alarmItem);
+
+        final loadedNotif = await repository.getReminder(
+          householdId,
+          notificationItem.id,
+        );
+        final loadedAlarm = await repository.getReminder(
+          householdId,
+          alarmItem.id,
+        );
+
+        expect(loadedNotif?.mode, ReminderMode.notification);
+        expect(loadedAlarm?.mode, ReminderMode.alarm);
+      },
+    );
+
     test('ensureHistory idempotent untuk occurrence yang sama', () async {
       final item = reminder(scheduledAt: DateTime(2026, 8, 25, 7));
       final occurrence = calculator.nextOccurrence(

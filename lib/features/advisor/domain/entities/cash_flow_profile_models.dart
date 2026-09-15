@@ -141,19 +141,19 @@ class CashFlowProfile {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'householdId': householdId,
-        'profileType': profileType.name,
-        'name': name,
-        'commodityOrBusinessType': commodityOrBusinessType,
-        'startDate': startDate.toIso8601String(),
-        'targetHarvestDate': targetHarvestDate.toIso8601String(),
-        'initialCapital': initialCapital,
-        'estimatedInflow': estimatedInflow,
-        'dailyLivingBudget': dailyLivingBudget,
-        'dailyOperationalBudget': dailyOperationalBudget,
-        'isActive': isActive,
-      };
+    'id': id,
+    'householdId': householdId,
+    'profileType': profileType.name,
+    'name': name,
+    'commodityOrBusinessType': commodityOrBusinessType,
+    'startDate': startDate.toIso8601String(),
+    'targetHarvestDate': targetHarvestDate.toIso8601String(),
+    'initialCapital': initialCapital,
+    'estimatedInflow': estimatedInflow,
+    'dailyLivingBudget': dailyLivingBudget,
+    'dailyOperationalBudget': dailyOperationalBudget,
+    'isActive': isActive,
+  };
 
   factory CashFlowProfile.fromJson(Map<String, dynamic> json) =>
       CashFlowProfile(

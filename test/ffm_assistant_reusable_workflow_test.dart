@@ -19,32 +19,34 @@ void main() {
   });
 
   group('F6 Reusable Approved Workflows', () {
-    test('Proposed workflow starts as pending and is not active for replay',
-        () async {
-      final candidate = await candidateService.proposeWorkflow(
-        trigger: 'analisis pengeluaran kopi',
-        steps: [
-          {
-            'capabilityId': 'read.transactions',
-            'parameters': {'query': 'kopi'},
-          },
-        ],
-      );
+    test(
+      'Proposed workflow starts as pending and is not active for replay',
+      () async {
+        final candidate = await candidateService.proposeWorkflow(
+          trigger: 'analisis pengeluaran kopi',
+          steps: [
+            {
+              'capabilityId': 'read.transactions',
+              'parameters': {'query': 'kopi'},
+            },
+          ],
+        );
 
-      expect(candidate.isPending, isTrue);
-      expect(candidate.isApproved, isFalse);
+        expect(candidate.isPending, isTrue);
+        expect(candidate.isApproved, isFalse);
 
-      final pendingList = await candidateService.readPending();
-      expect(pendingList.length, 1);
-      expect(pendingList.first.id, candidate.id);
+        final pendingList = await candidateService.readPending();
+        expect(pendingList.length, 1);
+        expect(pendingList.first.id, candidate.id);
 
-      final approvedList = await candidateService.readApproved();
-      expect(approvedList, isEmpty);
+        final approvedList = await candidateService.readApproved();
+        expect(approvedList, isEmpty);
 
-      // Pending workflow cannot be resolved to an action plan
-      final plan = candidateService.resolveApprovedPlan(candidate);
-      expect(plan, isNull);
-    });
+        // Pending workflow cannot be resolved to an action plan
+        final plan = candidateService.resolveApprovedPlan(candidate);
+        expect(plan, isNull);
+      },
+    );
 
     test('Approved workflow resolves into validated action plan', () async {
       final candidate = await candidateService.proposeWorkflow(
@@ -63,8 +65,9 @@ void main() {
       final approvedList = await candidateService.readApproved();
       expect(approvedList.length, 1);
 
-      final match =
-          await candidateService.findApprovedWorkflow('Tolong rekap bulanan belanja dong');
+      final match = await candidateService.findApprovedWorkflow(
+        'Tolong rekap bulanan belanja dong',
+      );
       expect(match, isNotNull);
       expect(match!.id, approved.id);
 
@@ -75,33 +78,35 @@ void main() {
       expect(plan.requiresConfirmation, isFalse); // Read-only capability
     });
 
-    test('Workflow with mutating capability strictly requires confirmation',
-        () async {
-      final candidate = await candidateService.proposeWorkflow(
-        trigger: 'simpan rutin donasi',
-        steps: [
-          {
-            'capabilityId': 'mutate.save_draft',
-            'parameters': {'amount': 50000},
-          },
-        ],
-      );
+    test(
+      'Workflow with mutating capability strictly requires confirmation',
+      () async {
+        final candidate = await candidateService.proposeWorkflow(
+          trigger: 'simpan rutin donasi',
+          steps: [
+            {
+              'capabilityId': 'mutate.save_draft',
+              'parameters': {'amount': 50000},
+            },
+          ],
+        );
 
-      final approved = await candidateService.approve(candidate);
-      final plan = candidateService.resolveApprovedPlan(approved);
+        final approved = await candidateService.approve(candidate);
+        final plan = candidateService.resolveApprovedPlan(approved);
 
-      expect(plan, isNotNull);
-      expect(plan!.requiresConfirmation, isTrue); // Mutating requires confirmation
-    });
+        expect(plan, isNotNull);
+        expect(
+          plan!.requiresConfirmation,
+          isTrue,
+        ); // Mutating requires confirmation
+      },
+    );
 
     test('Workflow with unknown capability is rejected safely', () async {
       final candidate = await candidateService.proposeWorkflow(
         trigger: 'perintah berbahaya',
         steps: [
-          {
-            'capabilityId': 'system.wipe_phone_storage',
-            'parameters': {},
-          },
+          {'capabilityId': 'system.wipe_phone_storage', 'parameters': {}},
         ],
       );
 
@@ -115,10 +120,7 @@ void main() {
       final candidate = await candidateService.proposeWorkflow(
         trigger: 'workflow sementara',
         steps: [
-          {
-            'capabilityId': 'read.transactions',
-            'parameters': {},
-          },
+          {'capabilityId': 'read.transactions', 'parameters': {}},
         ],
       );
 
@@ -127,8 +129,9 @@ void main() {
       final pending = await candidateService.readPending();
       expect(pending, isEmpty);
 
-      final match =
-          await candidateService.findApprovedWorkflow('workflow sementara');
+      final match = await candidateService.findApprovedWorkflow(
+        'workflow sementara',
+      );
       expect(match, isNull);
     });
   });

@@ -1,4 +1,5 @@
 import 'package:uuid/uuid.dart';
+
 import '../../../../core/database/app_database.dart';
 import '../ffm_assistant_insight.dart';
 import '../ffm_assistant_models.dart';
@@ -15,9 +16,9 @@ class MicroExpenseLeakDetector {
     int microThreshold = 30000,
   }) async {
     final fourteenDaysAgo = now.subtract(const Duration(days: 14));
-    final allTxs = await (_db.select(_db.transactions)
-          ..where((row) => row.householdId.equals(householdId)))
-        .get();
+    final allTxs = await (_db.select(
+      _db.transactions,
+    )..where((row) => row.householdId.equals(householdId))).get();
 
     final txs = allTxs.where((t) {
       return !t.isArchived &&
@@ -33,15 +34,21 @@ class MicroExpenseLeakDetector {
     }).toList();
     if (expenses.length < 5) return null;
 
-    final totalExpense = expenses.fold<int>(0, (sum, t) => sum + t.amount.abs());
+    final totalExpense = expenses.fold<int>(
+      0,
+      (sum, t) => sum + t.amount.abs(),
+    );
     if (totalExpense <= 0) return null;
 
-    final microExpenses =
-        expenses.where((t) => t.amount.abs() <= microThreshold).toList();
+    final microExpenses = expenses
+        .where((t) => t.amount.abs() <= microThreshold)
+        .toList();
     if (microExpenses.length < 4) return null;
 
-    final totalMicroExpense =
-        microExpenses.fold<int>(0, (sum, t) => sum + t.amount.abs());
+    final totalMicroExpense = microExpenses.fold<int>(
+      0,
+      (sum, t) => sum + t.amount.abs(),
+    );
 
     // Identifikasi biaya admin transfer/top-up berulang
     final feeTxs = microExpenses.where((t) {
@@ -53,8 +60,10 @@ class MicroExpenseLeakDetector {
           note.contains('topup') ||
           note.contains('top up');
     }).toList();
-    final totalFeeExpense =
-        feeTxs.fold<int>(0, (sum, t) => sum + t.amount.abs());
+    final totalFeeExpense = feeTxs.fold<int>(
+      0,
+      (sum, t) => sum + t.amount.abs(),
+    );
 
     // Hitung rasio terhadap total pengeluaran
     final microRatio = totalMicroExpense / totalExpense;
@@ -68,7 +77,8 @@ class MicroExpenseLeakDetector {
 
     if (shouldTrigger) {
       final monthlyProjected = (totalMicroExpense * 2.14).round();
-      final dedupeKey = 'latte_factor_${now.year}_${now.month}_${now.day ~/ 14}';
+      final dedupeKey =
+          'latte_factor_${now.year}_${now.month}_${now.day ~/ 14}';
 
       final feeInfo = feeTxs.isNotEmpty
           ? ' (termasuk ${feeTxs.length}x biaya admin sebesar Rp ${_formatRupiah(totalFeeExpense)})'

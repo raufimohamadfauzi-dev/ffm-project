@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
@@ -82,6 +83,7 @@ class _ActivityView extends StatefulWidget {
 class _ActivityViewState extends State<_ActivityView>
     with WidgetsBindingObserver {
   String? _categoryFilterId;
+  String? _tagFilterId;
   String _modeFilter = 'Semua mode';
   String _riwayatTab = 'Semua';
   bool _includeArchived = false;
@@ -350,6 +352,46 @@ class _ActivityViewState extends State<_ActivityView>
     return widgets;
   }
 
+  List<Widget> _buildGroupedDailyNoteCards({
+    required List<DailyNote> notes,
+    required ActivityState state,
+  }) {
+    final widgets = <Widget>[];
+    String? lastMonth;
+    for (final note in notes) {
+      final key =
+          '${note.noteDate.year}-${note.noteDate.month.toString().padLeft(2, '0')}';
+      if (key != lastMonth) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 4),
+            child: Text(
+              _activityMonthLabel(note.noteDate),
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.inkMuted,
+              ),
+            ),
+          ),
+        );
+        lastMonth = key;
+      }
+      widgets.add(
+        _DailyNoteCard(
+          note: note,
+          tags: state.dailyNoteTags[note.id] ?? const [],
+          onEdit: () => _startDailyNote(existing: note),
+          onTogglePriority: () =>
+              context.read<ActivityBloc>().toggleDailyNotePriority(note.id),
+          onArchive: () => _confirmArchiveDailyNote(note),
+          onRestore: () => _confirmRestoreDailyNote(note),
+          onDelete: () => _confirmDeleteDailyNote(note),
+        ),
+      );
+    }
+    return widgets;
+  }
+
   String _activityMonthLabel(DateTime date) {
     const months = [
       '',
@@ -402,6 +444,7 @@ class _ActivityViewState extends State<_ActivityView>
       builder: (_) => ActivityFilterSheet(
         initialState: ActivityFilterFilterState(
           categoryId: _categoryFilterId,
+          tagId: _tagFilterId,
           dayFilter: _dayFilter,
           startDateFilter: _startDateFilter,
           endDateFilter: _endDateFilter,
@@ -410,11 +453,13 @@ class _ActivityViewState extends State<_ActivityView>
         ),
         categories: _voiceCategories,
         categoryIds: _activityCategoryIds,
+        tags: _voiceTags.map((tag) => (id: tag.id, name: tag.name)).toList(),
       ),
     );
     if (result == null || !mounted) return;
     setState(() {
       _categoryFilterId = result.categoryId;
+      _tagFilterId = result.tagId;
       _dayFilter = result.dayFilter;
       _startDateFilter = result.startDateFilter;
       _endDateFilter = result.endDateFilter;
@@ -433,6 +478,14 @@ class _ActivityViewState extends State<_ActivityView>
     DateTime? initialStartedAt,
     ActivityMode? initialMode,
   }) async {
+    if (initialMode == ActivityMode.history) {
+      await _startDailyNote(
+        initialTitle: initialTitle,
+        initialBody: initialNotes,
+        initialDate: initialStartedAt,
+      );
+      return;
+    }
     final result = await showModalBottomSheet<_SessionDraft>(
       context: context,
       isScrollControlled: true,
@@ -447,20 +500,10 @@ class _ActivityViewState extends State<_ActivityView>
         initialCategory: initialCategory,
         initialNotes: initialNotes,
         initialStartedAt: initialStartedAt,
-        initialMode: initialMode,
-        activityTags: _voiceTags,
+        initialMode: ActivityMode.timeTracking,
       ),
     );
     if (result == null || !mounted) return;
-    if (result.mode == ActivityMode.history) {
-      await context.read<ActivityBloc>().saveDailyNote(
-        title: result.title,
-        body: result.notes ?? result.title,
-        noteDate: result.startedAt,
-        tagIds: result.tagIds,
-      );
-      return;
-    }
     await context.read<ActivityBloc>().startSession(
       title: result.title,
       category: result.category,
@@ -472,6 +515,55 @@ class _ActivityViewState extends State<_ActivityView>
       parentSessionId: parentSessionId,
     );
   }
+
+  Future<void> _startDailyNote({
+    String? initialTitle,
+    String? initialBody,
+    DateTime? initialDate,
+    DailyNote? existing,
+  }) async {
+    final existingTags = existing == null
+        ? const <Tag>[]
+        : stateTagsFor(existing.id);
+    final result = await showModalBottomSheet<_DailyNoteDraft>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _DailyNoteForm(
+        initialTitle: initialTitle ?? existing?.title,
+        initialBody: initialBody ?? existing?.body,
+        initialDate: initialDate ?? existing?.noteDate,
+        initialTags: _voiceTags,
+        selectedTagIds: existingTags.map((tag) => tag.id).toSet(),
+        tagRepository: _tagRepository,
+      ),
+    );
+    if (result == null || !mounted) return;
+    if (existing == null) {
+      await context.read<ActivityBloc>().saveDailyNote(
+        title: result.title,
+        body: result.body,
+        noteDate: result.date,
+        tagIds: result.tagIds,
+      );
+    } else {
+      await context.read<ActivityBloc>().updateDailyNote(
+        note: existing,
+        title: result.title,
+        body: result.body,
+        noteDate: result.date,
+        tagIds: result.tagIds,
+      );
+    }
+    await _loadVoiceTags();
+  }
+
+  List<Tag> stateTagsFor(String noteId) =>
+      context.read<ActivityBloc>().state.dailyNoteTags[noteId] ?? const [];
 
   Future<void> _addCheckpoint({String? sessionId}) async {
     final result = await showModalBottomSheet<_CheckpointDraft>(
@@ -1407,6 +1499,56 @@ class _ActivityViewState extends State<_ActivityView>
     await context.read<ActivityBloc>().restoreDailyNote(note.id);
   }
 
+  Future<void> _confirmArchiveDailyNote(DailyNote note) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Arsipkan catatan?'),
+        content: Text(
+          '“${note.title?.trim().isNotEmpty == true ? note.title : 'Catatan kejadian'}” akan disembunyikan dari daftar aktif. Data tetap tersimpan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Arsipkan'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await context.read<ActivityBloc>().archiveDailyNote(note.id);
+    }
+  }
+
+  Future<void> _confirmDeleteDailyNote(DailyNote note) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Hapus catatan permanen?'),
+        content: const Text(
+          'Catatan dan hubungan tagnya akan dihapus dari perangkat. Tindakan ini tidak bisa dibatalkan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Hapus permanen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await context.read<ActivityBloc>().deleteDailyNotePermanently(note.id);
+    }
+  }
+
   Future<void> _confirmDeleteSession(ActivitySessionEntity session) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1521,7 +1663,7 @@ class _ActivityViewState extends State<_ActivityView>
             const SizedBox(width: 8),
             FloatingActionButton.extended(
               heroTag: 'activity_note_fab',
-              onPressed: () => _startSession(initialMode: ActivityMode.history),
+              onPressed: _startDailyNote,
               tooltip: 'Catat kejadian atau riwayat selesai',
               backgroundColor: Colors.purple.shade700,
               foregroundColor: Colors.white,
@@ -1633,12 +1775,13 @@ class _ActivityViewState extends State<_ActivityView>
                       Badge(
                         isLabelVisible:
                             _categoryFilterId != null ||
+                            _tagFilterId != null ||
                             _dayFilter != null ||
                             _startDateFilter != null ||
                             _modeFilter != 'Semua mode' ||
                             _includeArchived,
                         label: Text(
-                          '${(_categoryFilterId != null ? 1 : 0) + (_dayFilter != null || _startDateFilter != null ? 1 : 0) + (_modeFilter != 'Semua mode' ? 1 : 0) + (_includeArchived ? 1 : 0)}',
+                          '${(_categoryFilterId != null ? 1 : 0) + (_tagFilterId != null ? 1 : 0) + (_dayFilter != null || _startDateFilter != null ? 1 : 0) + (_modeFilter != 'Semua mode' ? 1 : 0) + (_includeArchived ? 1 : 0)}',
                         ),
                         child: IconButton.filledTonal(
                           onPressed: _openFilterSheet,
@@ -1649,6 +1792,7 @@ class _ActivityViewState extends State<_ActivityView>
                     ],
                   ),
                   if (_categoryFilterId != null ||
+                      _tagFilterId != null ||
                       _dayFilter != null ||
                       _startDateFilter != null ||
                       _modeFilter != 'Semua mode' ||
@@ -1671,6 +1815,20 @@ class _ActivityViewState extends State<_ActivityView>
                             ),
                             onDeleted: () {
                               setState(() => _categoryFilterId = null);
+                              _onFilterChanged();
+                            },
+                          ),
+                        if (_tagFilterId != null)
+                          Chip(
+                            label: Text(
+                              _voiceTags
+                                      .where((tag) => tag.id == _tagFilterId)
+                                      .map((tag) => '#${tag.name}')
+                                      .firstOrNull ??
+                                  'Tag',
+                            ),
+                            onDeleted: () {
+                              setState(() => _tagFilterId = null);
                               _onFilterChanged();
                             },
                           ),
@@ -1714,6 +1872,7 @@ class _ActivityViewState extends State<_ActivityView>
                           onPressed: () {
                             setState(() {
                               _categoryFilterId = null;
+                              _tagFilterId = null;
                               _dayFilter = null;
                               _startDateFilter = null;
                               _endDateFilter = null;
@@ -1778,6 +1937,11 @@ class _ActivityViewState extends State<_ActivityView>
                           .where(
                             (note) =>
                                 _matchesDay(note.noteDate) &&
+                                (_tagFilterId == null ||
+                                    (state.dailyNoteTags[note.id] ?? const [])
+                                        .any(
+                                          (tag) => tag.id == _tagFilterId,
+                                        )) &&
                                 (_searchQuery.trim().isEmpty ||
                                     (note.title ?? '').toLowerCase().contains(
                                       _searchQuery.trim().toLowerCase(),
@@ -1785,16 +1949,6 @@ class _ActivityViewState extends State<_ActivityView>
                                     note.body.toLowerCase().contains(
                                       _searchQuery.trim().toLowerCase(),
                                     )),
-                          )
-                          .toList();
-                      final dailyNoteIds = visibleDailyNotes
-                          .map((note) => note.id)
-                          .toSet();
-                      final visibleHistorySessions = visibleSessions
-                          .where(
-                            (session) =>
-                                session.isHistory &&
-                                !dailyNoteIds.contains(session.id),
                           )
                           .toList();
                       return Column(
@@ -1861,8 +2015,7 @@ class _ActivityViewState extends State<_ActivityView>
                                         (_riwayatTab == '📝 Catatan Harian' ||
                                             _riwayatTab == 'Catatan' ||
                                             _riwayatTab == 'Jurnal Harian')
-                                        ? (visibleDailyNotes.length +
-                                              visibleHistorySessions.length)
+                                        ? visibleDailyNotes.length
                                         : (_riwayatTab == '⏱️ Timer' ||
                                               _riwayatTab == 'Timer')
                                         ? visibleSessions
@@ -1940,8 +2093,7 @@ class _ActivityViewState extends State<_ActivityView>
                           if (_riwayatTab == '📝 Catatan Harian' ||
                               _riwayatTab == 'Catatan' ||
                               _riwayatTab == 'Jurnal Harian') ...[
-                            if (visibleDailyNotes.isEmpty &&
-                                visibleHistorySessions.isEmpty)
+                            if (visibleDailyNotes.isEmpty)
                               const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 36),
                                 child: Center(
@@ -1950,66 +2102,11 @@ class _ActivityViewState extends State<_ActivityView>
                                   ),
                                 ),
                               )
-                            else ...[
-                              for (final note in visibleDailyNotes)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: AppCard(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .tertiaryContainer
-                                        .withValues(alpha: 0.55),
-                                    child: ListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      leading: CircleAvatar(
-                                        backgroundColor: Theme.of(context)
-                                            .colorScheme
-                                            .tertiary,
-                                        foregroundColor: Theme.of(context)
-                                            .colorScheme
-                                            .onTertiary,
-                                        child: const Icon(
-                                          Icons.edit_note_rounded,
-                                        ),
-                                      ),
-                                      title: Text(
-                                        (note.title ?? '').trim().isEmpty
-                                            ? 'Catatan Harian'
-                                            : note.title!.trim(),
-                                      ),
-                                      subtitle: Text(
-                                        '${_dateOnly(note.noteDate)}\n${note.body}${note.isArchived ? '\nArsip' : ''}',
-                                        maxLines: 4,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      trailing: note.isArchived
-                                          ? IconButton(
-                                              tooltip: 'Pulihkan dari arsip',
-                                              icon: const Icon(
-                                                Icons.unarchive_outlined,
-                                              ),
-                                              onPressed: () =>
-                                                  _confirmRestoreDailyNote(
-                                                    note,
-                                                  ),
-                                            )
-                                          : null,
-                                      isThreeLine: true,
-                                    ),
-                                  ),
-                                ),
-                              if (visibleHistorySessions.isNotEmpty) ...[
-                                _SectionTitle(
-                                  title: 'Catatan dari Aktivitas',
-                                  count: visibleHistorySessions.length,
-                                  icon: Icons.edit_note_outlined,
-                                ),
-                                ..._buildGroupedSessionCards(
-                                  visibleSessions: visibleHistorySessions,
-                                  state: state,
-                                ),
-                              ],
-                            ],
+                            else
+                              ..._buildGroupedDailyNoteCards(
+                                notes: visibleDailyNotes,
+                                state: state,
+                              ),
                             if (state.hasMoreDailyNotes)
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
@@ -2076,41 +2173,10 @@ class _ActivityViewState extends State<_ActivityView>
                                 count: visibleDailyNotes.length,
                                 icon: Icons.edit_note_rounded,
                               ),
-                              for (final note in visibleDailyNotes)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: AppCard(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .tertiaryContainer
-                                        .withValues(alpha: 0.55),
-                                    child: ListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      leading: CircleAvatar(
-                                        backgroundColor: Theme.of(context)
-                                            .colorScheme
-                                            .tertiary,
-                                        foregroundColor: Theme.of(context)
-                                            .colorScheme
-                                            .onTertiary,
-                                        child: const Icon(
-                                          Icons.edit_note_rounded,
-                                        ),
-                                      ),
-                                      title: Text(
-                                        (note.title ?? '').trim().isEmpty
-                                            ? 'Catatan Harian'
-                                            : note.title!.trim(),
-                                      ),
-                                      subtitle: Text(
-                                        '${_dateOnly(note.noteDate)}\n${note.body}',
-                                        maxLines: 4,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      isThreeLine: true,
-                                    ),
-                                  ),
-                                ),
+                              ..._buildGroupedDailyNoteCards(
+                                notes: visibleDailyNotes,
+                                state: state,
+                              ),
                               const SizedBox(height: 8),
                             ],
                             if (_riwayatTab == 'Semua' &&
@@ -3143,6 +3209,502 @@ class _AutonomousActivityCard extends StatelessWidget {
   }
 }
 
+class _DailyNoteCard extends StatelessWidget {
+  const _DailyNoteCard({
+    required this.note,
+    required this.tags,
+    required this.onEdit,
+    required this.onTogglePriority,
+    required this.onArchive,
+    required this.onRestore,
+    required this.onDelete,
+  });
+
+  final DailyNote note;
+  final List<Tag> tags;
+  final VoidCallback onEdit;
+  final VoidCallback onTogglePriority;
+  final VoidCallback onArchive;
+  final VoidCallback onRestore;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isPriority = note.priority > 0;
+    final title = note.title?.trim().isNotEmpty == true
+        ? note.title!.trim()
+        : 'Catatan kejadian';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AppCard(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+        onTap: onEdit,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Catatan',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _dateTime(note.noteDate),
+              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              note.body,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: scheme.onSurface.withValues(alpha: 0.88),
+                fontSize: 13,
+              ),
+            ),
+            if (tags.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: tags
+                    .map(
+                      (tag) => Chip(
+                        visualDensity: VisualDensity.compact,
+                        label: Text('#${tag.name}'),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.edit_note_rounded,
+                    color: Colors.purple.shade800,
+                    size: 20,
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      constraints: const BoxConstraints(
+                        minWidth: 44,
+                        minHeight: 44,
+                      ),
+                      tooltip: isPriority
+                          ? 'Lepas prioritas'
+                          : 'Jadikan prioritas',
+                      onPressed: onTogglePriority,
+                      icon: Icon(
+                        isPriority
+                            ? Icons.star_rounded
+                            : Icons.star_outline_rounded,
+                        color: isPriority
+                            ? Colors.amber.shade800
+                            : scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    PopupMenuButton<String>(
+                      tooltip: 'Kelola catatan',
+                      constraints: const BoxConstraints(
+                        minWidth: 44,
+                        minHeight: 44,
+                      ),
+                      onSelected: (value) {
+                        if (value == 'edit') onEdit();
+                        if (value == 'priority') onTogglePriority();
+                        if (value == 'archive') onArchive();
+                        if (value == 'restore') onRestore();
+                        if (value == 'delete') onDelete();
+                      },
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.edit_outlined),
+                            title: Text('Edit catatan'),
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'priority',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(
+                              isPriority ? Icons.star_outline : Icons.star,
+                            ),
+                            title: Text(
+                              isPriority
+                                  ? 'Lepas prioritas'
+                                  : 'Jadikan prioritas',
+                            ),
+                          ),
+                        ),
+                        if (note.isArchived)
+                          const PopupMenuItem(
+                            value: 'restore',
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.unarchive_outlined),
+                              title: Text('Pulihkan'),
+                            ),
+                          )
+                        else
+                          const PopupMenuItem(
+                            value: 'archive',
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.archive_outlined),
+                              title: Text('Arsipkan'),
+                            ),
+                          ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.delete_forever_outlined),
+                            title: Text('Hapus permanen'),
+                          ),
+                        ),
+                      ],
+                      icon: Icon(
+                        Icons.more_vert,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DailyNoteDraft {
+  const _DailyNoteDraft({
+    required this.title,
+    required this.body,
+    required this.date,
+    required this.tagIds,
+  });
+
+  final String title;
+  final String body;
+  final DateTime date;
+  final List<String> tagIds;
+}
+
+class _DailyNoteForm extends StatefulWidget {
+  const _DailyNoteForm({
+    this.initialTitle,
+    this.initialBody,
+    this.initialDate,
+    required this.initialTags,
+    required this.selectedTagIds,
+    required this.tagRepository,
+  });
+
+  final String? initialTitle;
+  final String? initialBody;
+  final DateTime? initialDate;
+  final List<Tag> initialTags;
+  final Set<String> selectedTagIds;
+  final TagRepository tagRepository;
+
+  @override
+  State<_DailyNoteForm> createState() => _DailyNoteFormState();
+}
+
+class _DailyNoteFormState extends State<_DailyNoteForm> {
+  late final TextEditingController _title;
+  late final TextEditingController _body;
+  late DateTime _date;
+  late List<Tag> _tags;
+  late final Set<String> _selectedTagIds;
+  bool _creatingTag = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _title = TextEditingController(text: widget.initialTitle ?? '');
+    _body = TextEditingController(text: widget.initialBody ?? '');
+    _date = widget.initialDate ?? DateTime.now();
+    _tags = [...widget.initialTags];
+    _selectedTagIds = {...widget.selectedTagIds};
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _body.dispose();
+    super.dispose();
+  }
+
+  Future<void> _createTag() async {
+    var draftName = '';
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Tambah tag baru'),
+        content: TextFormField(
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'Nama tag',
+            hintText: 'Contoh: Kendaraan',
+            prefixIcon: Icon(Icons.sell_outlined),
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (value) => draftName = value,
+          onFieldSubmitted: (value) => Navigator.pop(dialogContext, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, draftName),
+            child: const Text('Simpan tag'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.trim().isEmpty || !mounted) return;
+    setState(() => _creatingTag = true);
+    try {
+      final tag = await widget.tagRepository.create(
+        id: const Uuid().v4(),
+        householdId: AppContext.householdId,
+        name: name,
+      );
+      if (!mounted) return;
+      setState(() {
+        _tags = [
+          ..._tags,
+          tag,
+        ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        _selectedTagIds.add(tag.id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Tag “${tag.name}” ditambahkan dan dipilih.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _creatingTag = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Theme.of(context).colorScheme.surface,
+    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+    child: Padding(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        8,
+        16,
+        MediaQuery.viewInsetsOf(context).bottom + 20,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.edit_note_rounded, color: Colors.purple.shade700),
+                const SizedBox(width: 10),
+                const Text(
+                  'Catat Kejadian',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _title,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Judul catatan',
+                hintText: 'Contoh: Ganti oli mesin',
+                prefixIcon: Icon(Icons.title_rounded),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _body,
+              minLines: 3,
+              maxLines: 6,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Isi catatan',
+                hintText:
+                    'Tuliskan kejadian atau informasi yang ingin disimpan',
+                prefixIcon: Icon(Icons.edit_note_outlined),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime(2100),
+                  initialDate: _date,
+                );
+                if (picked != null && mounted) {
+                  setState(() {
+                    _date = DateTime(
+                      picked.year,
+                      picked.month,
+                      picked.day,
+                      _date.hour,
+                      _date.minute,
+                    );
+                  });
+                }
+              },
+              icon: const Icon(Icons.calendar_month_outlined),
+              label: Text('Tanggal kejadian: ${_dateOnly(_date)}'),
+            ),
+            const SizedBox(height: 12),
+            InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Tag (disarankan, tidak wajib)',
+                helperText: 'Tag membantu pencarian dan penyaringan catatan.',
+                border: OutlineInputBorder(),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_tags.isEmpty)
+                    Text(
+                      'Belum ada tag. Tambahkan bila catatan perlu dikelompokkan.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    )
+                  else
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: _tags
+                          .map(
+                            (tag) => FilterChip(
+                              label: Text(tag.name),
+                              selected: _selectedTagIds.contains(tag.id),
+                              onSelected: (selected) => setState(() {
+                                if (selected) {
+                                  _selectedTagIds.add(tag.id);
+                                } else {
+                                  _selectedTagIds.remove(tag.id);
+                                }
+                              }),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: _creatingTag ? null : _createTag,
+                    icon: _creatingTag
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.add_circle_outline),
+                    label: const Text('Tambah tag baru'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 50,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.purple.shade700,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  final title = _title.text.trim();
+                  final body = _body.text.trim();
+                  if (title.isEmpty || body.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Judul dan isi catatan perlu diisi.'),
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.pop(
+                    context,
+                    _DailyNoteDraft(
+                      title: title,
+                      body: body,
+                      date: _date,
+                      tagIds: _selectedTagIds.toList(growable: false),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Simpan Catatan'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class _SessionDraft {
   const _SessionDraft(
     this.title,
@@ -3171,7 +3733,6 @@ class _SessionForm extends StatefulWidget {
     this.initialNotes,
     this.initialStartedAt,
     this.initialMode,
-    this.activityTags = const [],
   });
 
   final String? parentSessionTitle;
@@ -3180,7 +3741,6 @@ class _SessionForm extends StatefulWidget {
   final String? initialNotes;
   final DateTime? initialStartedAt;
   final ActivityMode? initialMode;
-  final List<Tag> activityTags;
 
   @override
   State<_SessionForm> createState() => _SessionFormState();
@@ -3196,8 +3756,6 @@ class _SessionFormState extends State<_SessionForm> {
   final _formSpeechService = ActivitySpeechService();
   bool _isListeningFormVoice = false;
   List<String> _activityCategories = [];
-  late final List<Tag> _activityTags = widget.activityTags;
-  final Set<String> _selectedTagIds = <String>{};
   Map<String, String> _activityCategoryIds = const {};
   String? _selectedCategory;
   bool _loadingCategories = true;
@@ -3332,7 +3890,7 @@ class _SessionFormState extends State<_SessionForm> {
           children: [
             Text(
               widget.parentSessionTitle == null
-                  ? 'Mulai sesi aktivitas'
+                  ? 'Mulai Aktivitas Timer'
                   : 'Tambah aktivitas di dalamnya',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
             ),
@@ -3417,75 +3975,85 @@ class _SessionFormState extends State<_SessionForm> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(14),
-                    onTap: () => setState(() => _mode = ActivityMode.history),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _mode == ActivityMode.history
-                            ? Colors.purple.withValues(alpha: 0.15)
-                            : Theme.of(context).colorScheme.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: _mode == ActivityMode.history
-                              ? Colors.purple.shade700
-                              : Theme.of(context).colorScheme.outlineVariant,
-                          width: _mode == ActivityMode.history ? 2 : 1,
+                if (widget.initialMode == ActivityMode.history) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => setState(() => _mode = ActivityMode.history),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
                         ),
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.edit_note_outlined,
-                                color: _mode == ActivityMode.history
-                                    ? Theme.of(context).colorScheme.onSurface
-                                    : Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                '📝 Catat Saja',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 14,
-                                  color: _mode == ActivityMode.history
-                                      ? Theme.of(context).colorScheme.onSurface
-                                      : Theme.of(context).colorScheme.onSurface,
-                                ),
-                              ),
-                            ],
+                        decoration: BoxDecoration(
+                          color: _mode == ActivityMode.history
+                              ? Colors.purple.withValues(alpha: 0.15)
+                              : Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: _mode == ActivityMode.history
+                                ? Colors.purple.shade700
+                                : Theme.of(context).colorScheme.outlineVariant,
+                            width: _mode == ActivityMode.history ? 2 : 1,
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Kejadian sekali catat',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  fontSize: 11,
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.edit_note_outlined,
                                   color: _mode == ActivityMode.history
                                       ? Theme.of(context).colorScheme.onSurface
                                       : Theme.of(context)
                                             .colorScheme
                                             .onSurfaceVariant,
+                                  size: 20,
                                 ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  '📝 Catat Saja',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14,
+                                    color: _mode == ActivityMode.history
+                                        ? Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                        : Theme.of(context)
+                                              .colorScheme
+                                              .onSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Kejadian sekali catat',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    fontSize: 11,
+                                    color: _mode == ActivityMode.history
+                                        ? Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                        : Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                  ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
             const SizedBox(height: 14),
@@ -3595,36 +4163,6 @@ class _SessionFormState extends State<_SessionForm> {
                 ],
               ),
             const SizedBox(height: 12),
-            if (_mode == ActivityMode.history) ...[
-              InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Tag/lahan (wajib)',
-                  border: OutlineInputBorder(),
-                ),
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: _activityTags
-                      .map(
-                        (tag) => FilterChip(
-                          label: Text(tag.name),
-                          selected: _selectedTagIds.contains(tag.id),
-                          onSelected: (selected) {
-                            setState(() {
-                              if (selected) {
-                                _selectedTagIds.add(tag.id);
-                              } else {
-                                _selectedTagIds.remove(tag.id);
-                              }
-                            });
-                          },
-                        ),
-                      )
-                      .toList(growable: false),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
             InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: () async {
@@ -3726,15 +4264,6 @@ class _SessionFormState extends State<_SessionForm> {
                 ),
                 onPressed: () {
                   if (_title.text.trim().isEmpty) return;
-                  if (_mode == ActivityMode.history &&
-                      _selectedTagIds.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Pilih minimal satu tag/lahan.'),
-                      ),
-                    );
-                    return;
-                  }
                   FocusManager.instance.primaryFocus?.unfocus();
                   Navigator.pop(
                     context,
@@ -3745,7 +4274,7 @@ class _SessionFormState extends State<_SessionForm> {
                       _mode,
                       _notes.text.trim().isEmpty ? null : _notes.text.trim(),
                       _startedAt,
-                      _selectedTagIds.toList(growable: false),
+                      const [],
                     ),
                   );
                 },
@@ -4026,38 +4555,39 @@ class _VoiceActivityCard extends StatelessWidget {
             ),
             if (draft!.notes?.trim().isNotEmpty == true)
               _DraftField(label: 'Catatan', value: draft!.notes!.trim()),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              initialValue: categories.contains(draft!.categoryName)
-                  ? draft!.categoryName
-                  : null,
-              isExpanded: true,
-              decoration: InputDecoration(
-                labelText: draft!.missingFields.contains('kategori')
-                    ? 'Kategori (wajib)'
-                    : 'Kategori aktivitas',
-                border: const OutlineInputBorder(),
+            if (draft!.kind != ActivityKind.note) ...[
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: categories.contains(draft!.categoryName)
+                    ? draft!.categoryName
+                    : null,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: draft!.missingFields.contains('kategori')
+                      ? 'Kategori (wajib)'
+                      : 'Kategori aktivitas',
+                  border: const OutlineInputBorder(),
+                ),
+                items: categories
+                    .map(
+                      (category) => DropdownMenuItem(
+                        value: category,
+                        child: Text(category),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) onCategoryChanged(value);
+                },
               ),
-              items: categories
-                  .map(
-                    (category) => DropdownMenuItem(
-                      value: category,
-                      child: Text(category),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) onCategoryChanged(value);
-              },
-            ),
+            ],
             if (draft!.kind == ActivityKind.note) ...[
               const SizedBox(height: 10),
               InputDecorator(
-                decoration: InputDecoration(
-                  labelText: draft!.missingFields.contains('tag/lahan')
-                      ? 'Tag/lahan (wajib)'
-                      : 'Tag/lahan',
-                  border: const OutlineInputBorder(),
+                decoration: const InputDecoration(
+                  labelText: 'Tag (disarankan, tidak wajib)',
+                  helperText: 'Tag membantu penyaringan Catatan Kejadian.',
+                  border: OutlineInputBorder(),
                 ),
                 child: Wrap(
                   spacing: 6,

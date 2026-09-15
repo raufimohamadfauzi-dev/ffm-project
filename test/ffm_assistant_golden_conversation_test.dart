@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 
 /// Golden Conversation Tests untuk FFM Assistant
-/// 
+///
 /// Test ini memvalidasi alur percakapan multi-turn untuk memastikan assistant
 /// dapat mempertahankan konteks, menangani follow-up, dan memberikan respon
 /// yang konsisten sepanjang percakapan.
-/// 
+///
 /// Kategori yang diuji:
 /// - greeting
 /// - query data
@@ -125,7 +125,8 @@ void main() {
             contextReference: 'previous 30-day analysis',
           ),
         ],
-        expectedBehavior: 'Assistant should provide analysis and compare different periods',
+        expectedBehavior:
+            'Assistant should provide analysis and compare different periods',
       );
 
       _validateConversation(test);
@@ -147,7 +148,8 @@ void main() {
             expectedKeywords: ['berhasil', 'disimpan', '50.000'],
           ),
         ],
-        expectedBehavior: 'Assistant should create draft and execute after confirmation',
+        expectedBehavior:
+            'Assistant should create draft and execute after confirmation',
       );
 
       _validateConversation(test);
@@ -222,7 +224,8 @@ void main() {
             contextReference: 'previous preference statement',
           ),
         ],
-        expectedBehavior: 'Assistant should remember user preferences and recall them',
+        expectedBehavior:
+            'Assistant should remember user preferences and recall them',
       );
 
       _validateConversation(test);
@@ -246,7 +249,8 @@ void main() {
             contextReference: 'previous balance query',
           ),
         ],
-        expectedBehavior: 'Assistant should handle different tool types in sequence',
+        expectedBehavior:
+            'Assistant should handle different tool types in sequence',
       );
 
       _validateConversation(test);
@@ -307,10 +311,18 @@ void _validateConversation(GoldenConversationTest test) {
     final turn = test.conversation[i];
 
     // Validasi basic
-    expect(turn.userMessage, isNotEmpty, reason: 'User message should not be empty');
+    expect(
+      turn.userMessage,
+      isNotEmpty,
+      reason: 'User message should not be empty',
+    );
 
     if (turn.shouldUseContext) {
-      expect(turn.contextReference, isNotEmpty, reason: 'Context reference should be provided when using context');
+      expect(
+        turn.contextReference,
+        isNotEmpty,
+        reason: 'Context reference should be provided when using context',
+      );
     }
   }
 }

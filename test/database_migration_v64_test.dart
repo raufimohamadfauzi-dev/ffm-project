@@ -4,6 +4,40 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 
 void main() {
+  test(
+    'schema 64 menambahkan priority pada daily_notes tanpa menghapus data',
+    () async {
+      final executor = NativeDatabase.memory(
+        setup: (database) {
+          database.execute(
+            'CREATE TABLE daily_notes ('
+            'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, note_date INTEGER NOT NULL, '
+            'title TEXT, body TEXT NOT NULL, treatment_type TEXT, '
+            'is_archived INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER)',
+          );
+          database.execute(
+            "INSERT INTO daily_notes (id, household_id, note_date, body, created_at) "
+            "VALUES ('legacy-note', 'household', 1, 'Isi lama', 1)",
+          );
+          database.execute('PRAGMA user_version = 63');
+        },
+      );
+      final database = AppDatabase(executor);
+      addTearDown(database.close);
+
+      final columns = await database
+          .customSelect('PRAGMA table_info("daily_notes")')
+          .get();
+      expect(
+        columns.where((row) => row.read<String>('name') == 'priority'),
+        hasLength(1),
+      );
+      final note = await database.select(database.dailyNotes).getSingle();
+      expect(note.body, 'Isi lama');
+      expect(note.priority, 0);
+    },
+  );
+
   test('schema 60 menambahkan note nullable pada Goal dan Budget tanpa menghapus data', () async {
     final executor = NativeDatabase.memory(
       setup: (database) {
@@ -37,14 +71,33 @@ void main() {
     final database = AppDatabase(executor);
     addTearDown(database.close);
 
-    final goalColumns = await database.customSelect('PRAGMA table_info("goals")').get();
-    final budgetColumns = await database.customSelect('PRAGMA table_info("envelope_budgets")').get();
-    expect(goalColumns.where((row) => row.read<String>('name') == 'note'), hasLength(1));
-    expect(budgetColumns.where((row) => row.read<String>('name') == 'note'), hasLength(1));
-    expect((await database.select(database.goals).get()).single.name, 'Dana Lama');
+    final goalColumns = await database
+        .customSelect('PRAGMA table_info("goals")')
+        .get();
+    final budgetColumns = await database
+        .customSelect('PRAGMA table_info("envelope_budgets")')
+        .get();
+    expect(
+      goalColumns.where((row) => row.read<String>('name') == 'note'),
+      hasLength(1),
+    );
+    expect(
+      budgetColumns.where((row) => row.read<String>('name') == 'note'),
+      hasLength(1),
+    );
+    expect(
+      (await database.select(database.goals).get()).single.name,
+      'Dana Lama',
+    );
     expect((await database.select(database.goals).get()).single.note, isNull);
-    expect((await database.select(database.envelopeBudgets).get()).single.name, 'Makan Lama');
-    expect((await database.select(database.envelopeBudgets).get()).single.note, isNull);
+    expect(
+      (await database.select(database.envelopeBudgets).get()).single.name,
+      'Makan Lama',
+    );
+    expect(
+      (await database.select(database.envelopeBudgets).get()).single.note,
+      isNull,
+    );
   });
 
   test('schema 62 menambahkan kolom nullable tax dan discount pada transactions tanpa menghapus data', () async {

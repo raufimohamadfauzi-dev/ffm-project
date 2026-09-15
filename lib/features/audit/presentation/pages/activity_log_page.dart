@@ -134,7 +134,8 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
     _load();
   }
 
-  String _actionLabel(String action) => _actions[action] ?? _fallbackActionLabel(action);
+  String _actionLabel(String action) =>
+      _actions[action] ?? _fallbackActionLabel(action);
 
   String _fallbackActionLabel(String action) {
     final normalized = action.replaceAll('_', ' ').trim();

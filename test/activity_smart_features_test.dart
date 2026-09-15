@@ -26,56 +26,54 @@ void main() {
     await database.close();
   });
 
-  testWidgets('Smart routine empty state renders with routine chips when sessions empty', (tester) async {
-    tester.view.physicalSize = const Size(800, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'Smart routine empty state renders with routine chips when sessions empty',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: ActivityPage(),
-      ),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(const MaterialApp(home: ActivityPage()));
+      await tester.pumpAndSettle();
 
-    // Verify empty state is rendered with time-based recommendation
-    expect(find.byType(ActionChip), findsWidgets);
-    expect(find.text('Atau buat aktivitas baru bebas'), findsOneWidget);
-  });
+      // Verify empty state is rendered with time-based recommendation
+      expect(find.byType(ActionChip), findsWidgets);
+      expect(find.text('Atau buat aktivitas baru bebas'), findsOneWidget);
+    },
+  );
 
-  testWidgets('Active session older than 8 hours displays Zombie Timer warning banner', (tester) async {
-    tester.view.physicalSize = const Size(800, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'Active session older than 8 hours displays Zombie Timer warning banner',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    final activityRepo = getIt<ActivityRepository>();
-    // Create a zombie session started 10 hours ago
-    final zombieStarted = DateTime.now().subtract(const Duration(hours: 10));
-    final zombieSession = ActivitySessionEntity(
-      id: 'zombie_1',
-      householdId: AppContext.householdId,
-      title: 'Kerja Lembur Tak Terpantau',
-      category: 'Pekerjaan',
-      kind: ActivityKind.timer,
-      status: ActivitySessionStatus.active,
-      startedAt: zombieStarted,
-      createdAt: zombieStarted,
-      updatedAt: zombieStarted,
-    );
-    await activityRepo.saveSession(zombieSession);
-    await tester.pump(const Duration(milliseconds: 350));
+      final activityRepo = getIt<ActivityRepository>();
+      // Create a zombie session started 10 hours ago
+      final zombieStarted = DateTime.now().subtract(const Duration(hours: 10));
+      final zombieSession = ActivitySessionEntity(
+        id: 'zombie_1',
+        householdId: AppContext.householdId,
+        title: 'Kerja Lembur Tak Terpantau',
+        category: 'Pekerjaan',
+        kind: ActivityKind.timer,
+        status: ActivitySessionStatus.active,
+        startedAt: zombieStarted,
+        createdAt: zombieStarted,
+        updatedAt: zombieStarted,
+      );
+      await activityRepo.saveSession(zombieSession);
+      await tester.pump(const Duration(milliseconds: 350));
 
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: ActivityPage(),
-      ),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(const MaterialApp(home: ActivityPage()));
+      await tester.pumpAndSettle();
 
-    // Verify zombie timer warning banner is displayed
-    expect(find.textContaining('Deteksi Timer Zombie'), findsOneWidget);
-    expect(find.text('Hentikan Sekarang'), findsOneWidget);
-  });
+      // Verify zombie timer warning banner is displayed
+      expect(find.textContaining('Deteksi Timer Zombie'), findsOneWidget);
+      expect(find.text('Hentikan Sekarang'), findsOneWidget);
+    },
+  );
 }

@@ -27,7 +27,10 @@ void main() {
 
   setUp(() {
     database = createInMemoryDatabaseForTests();
-    autonomyRepo = FfmAssistantAutonomyRepository(database, now: () => fixedClock);
+    autonomyRepo = FfmAssistantAutonomyRepository(
+      database,
+      now: () => fixedClock,
+    );
     monitoringService = FfmAssistantMonitoringJobService(
       database: database,
       autonomyRepository: autonomyRepo,
@@ -52,8 +55,7 @@ void main() {
   });
 
   group('F7.1 Hermes End-to-End Acceptance: Multi-Phase Integrated Workflow', () {
-    test('Complete flow: Natural language job creation -> execution -> goal check -> approved replay',
-        () async {
+    test('Complete flow: Natural language job creation -> execution -> goal check -> approved replay', () async {
       // 1. User minta penjadwalan evaluasi mingguan via chat bahasa alami
       final createJobIntent = await interpreter.interpret(
         'Jadwalkan evaluasi mingguan setiap Minggu jam 9 pagi',
@@ -80,7 +82,9 @@ void main() {
       expect(job.status, FfmAssistantJobStatus.active);
 
       // 3. Masukkan data keuangan untuk diuji
-      await database.into(database.transactions).insert(
+      await database
+          .into(database.transactions)
+          .insert(
             TransactionsCompanion.insert(
               id: 'tx-salary',
               householdId: AppContext.householdId,
@@ -91,7 +95,9 @@ void main() {
               createdAt: fixedClock,
             ),
           );
-      await database.into(database.transactions).insert(
+      await database
+          .into(database.transactions)
+          .insert(
             TransactionsCompanion.insert(
               id: 'tx-groceries',
               householdId: AppContext.householdId,
@@ -109,10 +115,15 @@ void main() {
       expect(report.title, 'Laporan Evaluasi Mingguan');
       expect(report.content, contains('Pemasukan: Rp10.000.000'));
       expect(report.content, contains('Pengeluaran: Rp3.000.000'));
-      expect(report.content, contains('Arus Kas Bersih: Rp7.000.000 (Surplus)'));
+      expect(
+        report.content,
+        contains('Arus Kas Bersih: Rp7.000.000 (Surplus)'),
+      );
 
       // 4. Buat target tabungan dan evaluasi dengan bukti riil arus kas
-      await database.into(database.goals).insert(
+      await database
+          .into(database.goals)
+          .insert(
             GoalsCompanion.insert(
               id: 'goal-emergency',
               householdId: AppContext.householdId,
@@ -164,42 +175,51 @@ void main() {
 
       // 6. Verifikasi kepatuhan boundary read-only: Saldo transaksi tetap utuh
       final allTxs = await database.select(database.transactions).get();
-      expect(allTxs.length, 2); // Hanya 2 transaksi awal yang dimasukkan secara sah
+      expect(
+        allTxs.length,
+        2,
+      ); // Hanya 2 transaksi awal yang dimasukkan secara sah
     });
 
-    test('Workflow with mutation capabilities strictly requires user confirmation', () async {
-      final candidate = await candidateService.proposeWorkflow(
-        trigger: 'catat pengeluaran rutin',
-        steps: [
-          {
-            'capabilityId': 'read.summary',
-            'parameters': {'period': 'month'},
-          },
-          {
-            'capabilityId': 'mutate.save_draft',
-            'parameters': {
-              'type': 'expense',
-              'amount': 50000,
-              'category': 'makanan',
+    test(
+      'Workflow with mutation capabilities strictly requires user confirmation',
+      () async {
+        final candidate = await candidateService.proposeWorkflow(
+          trigger: 'catat pengeluaran rutin',
+          steps: [
+            {
+              'capabilityId': 'read.summary',
+              'parameters': {'period': 'month'},
             },
-          },
-        ],
-      );
-      final approved = await candidateService.approve(candidate);
-      final plan = candidateService.resolveApprovedPlan(approved);
+            {
+              'capabilityId': 'mutate.save_draft',
+              'parameters': {
+                'type': 'expense',
+                'amount': 50000,
+                'category': 'makanan',
+              },
+            },
+          ],
+        );
+        final approved = await candidateService.approve(candidate);
+        final plan = candidateService.resolveApprovedPlan(approved);
 
-      expect(plan, isNotNull);
-      expect(plan!.requiresConfirmation, isTrue);
-      expect(plan.steps.length, 2);
-      expect(plan.steps[1].capabilityId, 'mutate.save_draft');
-    });
+        expect(plan, isNotNull);
+        expect(plan!.requiresConfirmation, isTrue);
+        expect(plan.steps.length, 2);
+        expect(plan.steps[1].capabilityId, 'mutate.save_draft');
+      },
+    );
 
-    test('Knowledge index chat history planning for past conversations (F5)', () {
-      final plan = FfmAssistantKnowledgeIndex.planForRequest(
-        'Apa yang pernah kita bicarakan tentang target tabungan?',
-      );
-      expect(plan.sourceIds, contains('chat_history'));
-      expect(plan.sourceIds, contains('goals'));
-    });
+    test(
+      'Knowledge index chat history planning for past conversations (F5)',
+      () {
+        final plan = FfmAssistantKnowledgeIndex.planForRequest(
+          'Apa yang pernah kita bicarakan tentang target tabungan?',
+        );
+        expect(plan.sourceIds, contains('chat_history'));
+        expect(plan.sourceIds, contains('goals'));
+      },
+    );
   });
 }

@@ -220,8 +220,8 @@ class GetTransactionsPage {
       ..addColumns([database.transactions.id.count()])
       ..where(
         database.transactions.householdId.equals(householdId) &
-        database.transactions.isArchived.equals(false) &
-        database.transactions.isDeleted.equals(false),
+            database.transactions.isArchived.equals(false) &
+            database.transactions.isDeleted.equals(false),
       );
     if (startDate != null) {
       countQuery.where(
@@ -229,13 +229,10 @@ class GetTransactionsPage {
       );
     }
     if (endDate != null) {
-      countQuery.where(
-        database.transactions.date.isSmallerThanValue(endDate),
-      );
+      countQuery.where(database.transactions.date.isSmallerThanValue(endDate));
     }
     final countResult = await countQuery.getSingle();
-    final totalCount =
-        countResult.read(database.transactions.id.count()) ?? 0;
+    final totalCount = countResult.read(database.transactions.id.count()) ?? 0;
 
     query
       ..orderBy([
@@ -954,8 +951,7 @@ class GetTransfersPage {
     final query = database.select(database.transfers)
       ..where(
         (row) =>
-            row.householdId.equals(householdId) &
-            row.isDeleted.equals(false),
+            row.householdId.equals(householdId) & row.isDeleted.equals(false),
       );
     if (startDate != null) {
       query.where((row) => row.date.isBiggerOrEqualValue(startDate));
@@ -967,17 +963,13 @@ class GetTransfersPage {
       ..addColumns([database.transfers.id.count()])
       ..where(
         database.transfers.householdId.equals(householdId) &
-        database.transfers.isDeleted.equals(false),
+            database.transfers.isDeleted.equals(false),
       );
     if (startDate != null) {
-      countQuery.where(
-        database.transfers.date.isBiggerOrEqualValue(startDate),
-      );
+      countQuery.where(database.transfers.date.isBiggerOrEqualValue(startDate));
     }
     if (endDate != null) {
-      countQuery.where(
-        database.transfers.date.isSmallerThanValue(endDate),
-      );
+      countQuery.where(database.transfers.date.isSmallerThanValue(endDate));
     }
     final countResult = await countQuery.getSingle();
     final totalCount = countResult.read(database.transfers.id.count()) ?? 0;

@@ -34,27 +34,37 @@ void main() {
       // Verify all patterns are detected
       for (final pattern in billReminderPatterns) {
         expect(pattern.isNotEmpty, isTrue);
-        expect(pattern.toLowerCase().contains('tagihan') || 
-               pattern.toLowerCase().contains('bayar') ||
-               pattern.toLowerCase().contains('cicilan') ||
-               pattern.toLowerCase().contains('kredit') ||
-               pattern.toLowerCase().contains('pinjaman') ||
-               pattern.toLowerCase().contains('jatuh tempo') ||
-               pattern.toLowerCase().contains('due date'), isTrue);
+        expect(
+          pattern.toLowerCase().contains('tagihan') ||
+              pattern.toLowerCase().contains('bayar') ||
+              pattern.toLowerCase().contains('cicilan') ||
+              pattern.toLowerCase().contains('kredit') ||
+              pattern.toLowerCase().contains('pinjaman') ||
+              pattern.toLowerCase().contains('jatuh tempo') ||
+              pattern.toLowerCase().contains('due date'),
+          isTrue,
+        );
       }
     });
 
     test('Calendar sync marker is added to bill reminders', () {
       // Test that bill reminders get the calendar sync marker
-      final billReminderNote = 'tagihan listrik\n\n[Sinkronisasi ke kalender dan smartwatch aktif]';
-      expect(billReminderNote.toLowerCase().contains('sinkronisasi ke kalender'), isTrue);
+      final billReminderNote =
+          'tagihan listrik\n\n[Sinkronisasi ke kalender dan smartwatch aktif]';
+      expect(
+        billReminderNote.toLowerCase().contains('sinkronisasi ke kalender'),
+        isTrue,
+      );
       expect(billReminderNote.toLowerCase().contains('smartwatch'), isTrue);
     });
 
     test('Regular reminders do not get calendar sync marker', () {
       // Test that regular reminders don't get the marker
       final regularNote = 'minum obat jam 8 pagi';
-      expect(regularNote.toLowerCase().contains('sinkronisasi ke kalender'), isFalse);
+      expect(
+        regularNote.toLowerCase().contains('sinkronisasi ke kalender'),
+        isFalse,
+      );
       expect(regularNote.toLowerCase().contains('smartwatch'), isFalse);
     });
 
@@ -72,12 +82,17 @@ void main() {
       ];
 
       for (final (title, expected) in shouldSyncCases) {
-        final shouldSync = title.toLowerCase().contains('tagihan') ||
-                          title.toLowerCase().contains('cicilan') ||
-                          title.toLowerCase().contains('kredit') ||
-                          title.toLowerCase().contains('pinjaman') ||
-                          title.toLowerCase().contains('bayar');
-        expect(shouldSync, equals(expected), reason: 'Failed for title: $title');
+        final shouldSync =
+            title.toLowerCase().contains('tagihan') ||
+            title.toLowerCase().contains('cicilan') ||
+            title.toLowerCase().contains('kredit') ||
+            title.toLowerCase().contains('pinjaman') ||
+            title.toLowerCase().contains('bayar');
+        expect(
+          shouldSync,
+          equals(expected),
+          reason: 'Failed for title: $title',
+        );
       }
     });
   });
@@ -135,8 +150,11 @@ void main() {
 
       for (final field in requiredFields) {
         expect(field.isNotEmpty, isTrue);
-        expect(field.toLowerCase().contains('calendar') || 
-               field.toLowerCase().contains('sync'), isTrue);
+        expect(
+          field.toLowerCase().contains('calendar') ||
+              field.toLowerCase().contains('sync'),
+          isTrue,
+        );
       }
     });
 
@@ -198,7 +216,9 @@ void main() {
         {'id': '4', 'isSyncedToCalendar': true},
       ];
 
-      final unsyncedCount = reminders.where((r) => r['isSyncedToCalendar'] == false).length;
+      final unsyncedCount = reminders
+          .where((r) => r['isSyncedToCalendar'] == false)
+          .length;
       expect(unsyncedCount, equals(2));
     });
   });

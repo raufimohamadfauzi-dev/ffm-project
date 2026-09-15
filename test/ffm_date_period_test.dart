@@ -54,10 +54,7 @@ void main() {
       FfmDatePeriodPreset.allTime,
       now: now,
     );
-    expect(
-      period.startOrEpoch,
-      DateTime.fromMicrosecondsSinceEpoch(0),
-    );
+    expect(period.startOrEpoch, DateTime.fromMicrosecondsSinceEpoch(0));
   });
 
   test('endOrMax returns max when endExclusive is null', () {

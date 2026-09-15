@@ -52,7 +52,11 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+            const Icon(
+              Icons.check_circle_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
             const SizedBox(width: 8),
             Expanded(child: Text(successMessage)),
           ],
@@ -69,7 +73,9 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
     final nameCtrl = TextEditingController(text: meter?.name ?? '');
     final numberCtrl = TextEditingController(text: meter?.meterNumber ?? '');
     final customerCtrl = TextEditingController(text: meter?.customerName ?? '');
-    final tariffCtrl = TextEditingController(text: meter?.tariffPower ?? 'R1/900VA');
+    final tariffCtrl = TextEditingController(
+      text: meter?.tariffPower ?? 'R1/900VA',
+    );
     final locationCtrl = TextEditingController(text: meter?.location ?? '');
     final notesCtrl = TextEditingController(text: meter?.notes ?? '');
     final tokenCtrl = TextEditingController(text: meter?.lastTokenNumber ?? '');
@@ -162,11 +168,16 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
             FilledButton(
               onPressed: () async {
                 final name = nameCtrl.text.trim();
-                final number = numberCtrl.text.trim().replaceAll(RegExp(r'\D'), '');
+                final number = numberCtrl.text.trim().replaceAll(
+                  RegExp(r'\D'),
+                  '',
+                );
                 if (name.isEmpty || number.length < 9) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Nama dan Nomor Meter (min 9 digit) wajib diisi!'),
+                      content: Text(
+                        'Nama dan Nomor Meter (min 9 digit) wajib diisi!',
+                      ),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -174,7 +185,10 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                 }
 
                 final householdId = AppContext.householdId;
-                final cleanToken = tokenCtrl.text.trim().replaceAll(RegExp(r'\D'), '');
+                final cleanToken = tokenCtrl.text.trim().replaceAll(
+                  RegExp(r'\D'),
+                  '',
+                );
 
                 final newMeter = UtilityMeter(
                   id: meter?.id ?? const Uuid().v4(),
@@ -186,7 +200,9 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                   location: locationCtrl.text.trim(),
                   notes: notesCtrl.text.trim(),
                   createdAt: meter?.createdAt ?? DateTime.now(),
-                  lastTokenNumber: cleanToken.isNotEmpty ? cleanToken : meter?.lastTokenNumber,
+                  lastTokenNumber: cleanToken.isNotEmpty
+                      ? cleanToken
+                      : meter?.lastTokenNumber,
                   lastPurchasedAt: cleanToken.isNotEmpty
                       ? (meter?.lastPurchasedAt ?? DateTime.now())
                       : meter?.lastPurchasedAt,
@@ -278,7 +294,10 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
             ),
             FilledButton(
               onPressed: () async {
-                final cleanToken = tokenCtrl.text.trim().replaceAll(RegExp(r'\D'), '');
+                final cleanToken = tokenCtrl.text.trim().replaceAll(
+                  RegExp(r'\D'),
+                  '',
+                );
                 if (cleanToken.length != 20) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -288,7 +307,9 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                   );
                   return;
                 }
-                final amount = double.tryParse(amountCtrl.text.trim().replaceAll(RegExp(r'\D'), ''));
+                final amount = double.tryParse(
+                  amountCtrl.text.trim().replaceAll(RegExp(r'\D'), ''),
+                );
 
                 await _repository.updateLastToken(
                   householdId: meter.householdId,
@@ -352,7 +373,9 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
+                        color: isDark
+                            ? const Color(0xFF1E293B)
+                            : const Color(0xFFEFF6FF),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
@@ -376,7 +399,9 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 13.5,
-                                    color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                                    color: isDark
+                                        ? const Color(0xFF93C5FD)
+                                        : const Color(0xFF1D4ED8),
                                   ),
                                 ),
                                 const SizedBox(height: 3),
@@ -384,7 +409,8 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                                   'Simpan nomor IDPEL/meteran PLN rumah, sawah ladang, ruko, atau kontrakan. Salin nomor meter atau 20-digit token dengan 1-ketukan saat beli pulsa listrik!',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.8),
                                   ),
                                 ),
                               ],
@@ -398,7 +424,9 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                     if (_meters.isEmpty)
                       _buildEmptyState(context, isDark)
                     else
-                      ..._meters.map((meter) => _buildMeterCard(context, meter, isDark)),
+                      ..._meters.map(
+                        (meter) => _buildMeterCard(context, meter, isDark),
+                      ),
                   ],
                 ),
               ),
@@ -440,7 +468,8 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65),
+              color: Theme.of(context).colorScheme.onSurface
+                  .withValues(alpha: 0.65),
             ),
           ),
           const SizedBox(height: 20),
@@ -454,7 +483,11 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
     );
   }
 
-  Widget _buildMeterCard(BuildContext context, UtilityMeter meter, bool isDark) {
+  Widget _buildMeterCard(
+    BuildContext context,
+    UtilityMeter meter,
+    bool isDark,
+  ) {
     final theme = Theme.of(context);
 
     return Card(
@@ -485,9 +518,14 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                 ),
                 if (meter.tariffPower.isNotEmpty)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                      color: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFE2E8F0),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -507,10 +545,14 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                color: isDark
+                    ? const Color(0xFF0F172A)
+                    : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: 0.4,
+                  ),
                 ),
               ),
               child: Row(
@@ -525,7 +567,9 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.5,
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -567,14 +611,18 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                         Icon(
                           Icons.person_outline_rounded,
                           size: 14,
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.6,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           meter.customerName,
                           style: TextStyle(
                             fontSize: 12,
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.75,
+                            ),
                           ),
                         ),
                       ],
@@ -586,14 +634,18 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                         Icon(
                           Icons.location_on_outlined,
                           size: 14,
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.6,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           meter.location,
                           style: TextStyle(
                             fontSize: 12,
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.75,
+                            ),
                           ),
                         ),
                       ],
@@ -604,12 +656,15 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
             ],
 
             // Strum / Token 20 Digit Box (jika ada)
-            if (meter.lastTokenNumber != null && meter.lastTokenNumber!.isNotEmpty) ...[
+            if (meter.lastTokenNumber != null &&
+                meter.lastTokenNumber!.isNotEmpty) ...[
               const SizedBox(height: 4),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF261D0C) : const Color(0xFFFFFBEB),
+                  color: isDark
+                      ? const Color(0xFF261D0C)
+                      : const Color(0xFFFFFBEB),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
@@ -632,7 +687,9 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                             fontSize: 10.5,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.4,
-                            color: isDark ? const Color(0xFFFDE68A) : const Color(0xFFB45309),
+                            color: isDark
+                                ? const Color(0xFFFDE68A)
+                                : const Color(0xFFB45309),
                           ),
                         ),
                       ],
@@ -642,7 +699,8 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                       children: [
                         Expanded(
                           child: SelectableText(
-                            meter.formattedTokenNumber ?? meter.lastTokenNumber!,
+                            meter.formattedTokenNumber ??
+                                meter.lastTokenNumber!,
                             style: const TextStyle(
                               fontFamily: 'monospace',
                               fontSize: 15,
@@ -673,7 +731,9 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                           'Dibeli pada: ${_formatDate(meter.lastPurchasedAt!)}${meter.lastAmount != null ? " • Rp ${meter.lastAmount!.toStringAsFixed(0)}" : ""}',
                           style: TextStyle(
                             fontSize: 11,
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.65,
+                            ),
                           ),
                         ),
                       ),
@@ -699,7 +759,11 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                 ),
                 IconButton(
                   tooltip: 'Hapus',
-                  icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    size: 18,
+                    color: Colors.red,
+                  ),
                   onPressed: () => _confirmDelete(meter),
                 ),
               ],
@@ -712,8 +776,19 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
 
   String _formatDate(DateTime dt) {
     const months = [
-      '', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
     ];
     return '${dt.day} ${months[dt.month]} ${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }

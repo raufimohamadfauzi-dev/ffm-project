@@ -145,13 +145,18 @@ class PaymentNotificationParser {
     caseSensitive: false,
   );
 
+  static final _promoOnlyKeywords = RegExp(
+    r'\b(promo|promosi|diskon|cashback|voucher|kupon|reward|penawaran|hadiah)\b',
+    caseSensitive: false,
+  );
+
   static final _failedOrPendingKeywords = RegExp(
     r'\b(gagal|ditolak|rejected|pending|diproses|processing|menunggu|dibatalkan|cancelled|kadaluarsa|expired)\b',
     caseSensitive: false,
   );
 
   static final _successKeywords = RegExp(
-    r'\b(berhasil|sukses|terbayar|dibayar|terkirim|diterima|masuk|keluar|potong|dipotong|transaksi|selesai|dikonfirmasi|diverifikasi|sent|paid|received|completed|success)\b',
+    r'\b(berhasil|sukses|terbayar|dibayar|terkirim|diterima|masuk|keluar|potong|dipotong|selesai|dikonfirmasi|diverifikasi|sent|paid|received|completed|success)\b',
     caseSensitive: false,
   );
 
@@ -478,6 +483,16 @@ class PaymentNotificationParser {
     if (amount == null || amount <= 0) return null;
 
     final lower = combined.toLowerCase();
+    final hasClearPaymentSignal = RegExp(
+      r'\b(?:berhasil|sukses|dibayar|terbayar|pembayaran|transfer\s+(?:ke|dari|masuk|keluar)|top.?up|isi ulang|qris|pesanan|order|checkout|bayar|membayar|paid|payment)\b',
+      caseSensitive: false,
+    ).hasMatch(lower);
+    final isPromoOnly =
+        _promoOnlyKeywords.hasMatch(lower) &&
+        !hasClearPaymentSignal &&
+        !_hasTransactionContext(lower);
+    if (isPromoOnly) return null;
+
     if (_informationalKeywords.hasMatch(lower) &&
         !_hasTransactionContext(lower)) {
       return null;
@@ -489,7 +504,11 @@ class PaymentNotificationParser {
     final mutationType = _detectMutationType(combined);
 
     // 3. Ekstrak nama merchant / penerima
-    final merchantName = _extractMerchant(title, body, packageName: packageName);
+    final merchantName = _extractMerchant(
+      title,
+      body,
+      packageName: packageName,
+    );
 
     // 4. Saran kategori
     final suggestedCategory = merchantName.isNotEmpty
@@ -522,29 +541,39 @@ class PaymentNotificationParser {
   // ---------------------------------------------------------------------------
 
   static double? _extractAmount(String text) {
-    final match = _amountRegex.firstMatch(text);
-    if (match == null) return null;
-    final raw = match.group(1) ?? '';
-    // Normalisasi format angka:
-    // - Indonesia: 1.234.567 atau 1.234,50 (titik=ribuan, koma=desimal)
-    // - Internasional (IDR): 50,000 atau 1,234,567 (koma=ribuan)
-    // Aturan: jika koma ada DAN digit setelah koma persis 3 => koma adalah ribuan
-    String normalized;
-    if (raw.contains(',')) {
-      final commaIdx = raw.lastIndexOf(',');
-      final afterComma = raw.substring(commaIdx + 1);
-      if (afterComma.length == 3 && !afterComma.contains('.')) {
-        // Koma sebagai pemisah ribuan (format internasional seperti IDR 50,000)
-        normalized = raw.replaceAll(',', '').replaceAll('.', '');
+    final matches = _amountRegex.allMatches(text).toList();
+    if (matches.isEmpty) return null;
+
+    final candidates = <({double value, int index})>[];
+    for (final match in matches) {
+      final raw = match.group(1) ?? '';
+      if (raw.trim().isEmpty) continue;
+
+      String normalized;
+      if (raw.contains(',')) {
+        final commaIdx = raw.lastIndexOf(',');
+        final afterComma = raw.substring(commaIdx + 1);
+        if (afterComma.length == 3 && !afterComma.contains('.')) {
+          normalized = raw.replaceAll(',', '').replaceAll('.', '');
+        } else {
+          normalized = raw.replaceAll('.', '').replaceAll(',', '.');
+        }
       } else {
-        // Koma sebagai pemisah desimal Indonesia (Rp 1.234,50)
-        normalized = raw.replaceAll('.', '').replaceAll(',', '.');
+        normalized = raw.replaceAll('.', '');
       }
-    } else {
-      // Tidak ada koma: titik adalah pemisah ribuan
-      normalized = raw.replaceAll('.', '');
+
+      final value = double.tryParse(normalized);
+      if (value != null && value > 0) {
+        candidates.add((value: value, index: match.start));
+      }
     }
-    return double.tryParse(normalized);
+
+    if (candidates.isEmpty) return null;
+
+    // Untuk notifikasi yang memuat promo/diskon diikuti nominal total pembayaran,
+    // ambil angka yang paling akhir agar nominal utama tidak tertukar dengan nilai promo.
+    candidates.sort((a, b) => a.index.compareTo(b.index));
+    return candidates.last.value;
   }
 
   static PaymentMutationType _detectMutationType(String text) {
@@ -590,7 +619,11 @@ class PaymentNotificationParser {
     return score.clamp(0, 100);
   }
 
-  static String _extractMerchant(String title, String body, {String? packageName}) {
+  static String _extractMerchant(
+    String title,
+    String body, {
+    String? packageName,
+  }) {
     final patterns = _merchantPatterns;
     // Coba ekstrak dari body terlebih dahulu (lebih informatif)
     for (final pattern in patterns) {

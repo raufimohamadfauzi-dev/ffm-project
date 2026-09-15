@@ -25,7 +25,10 @@ String formatTanggalLengkap(DateTime dateTime, {bool includeSeconds = false}) {
   return '${dateTime.day} ${_bulanIndonesia[dateTime.month - 1]} ${dateTime.year}$waktu';
 }
 
-String formatTanggalDenganHari(DateTime dateTime, {bool includeSeconds = false}) {
+String formatTanggalDenganHari(
+  DateTime dateTime, {
+  bool includeSeconds = false,
+}) {
   const hari = <String>[
     'Senin',
     'Selasa',

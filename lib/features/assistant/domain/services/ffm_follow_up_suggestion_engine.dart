@@ -12,7 +12,8 @@ class FfmFollowUpSuggestionEngine {
     required String assistantResponse,
     String? categoryName,
   }) {
-    final combined = '${userText.toLowerCase()} ${assistantResponse.toLowerCase()} ${categoryName?.toLowerCase() ?? ''}';
+    final combined =
+        '${userText.toLowerCase()} ${assistantResponse.toLowerCase()} ${categoryName?.toLowerCase() ?? ''}';
 
     // 1. Topik Pertanian, Kebun, Panen, dan Siklus Kas
     if (combined.contains('panen') ||

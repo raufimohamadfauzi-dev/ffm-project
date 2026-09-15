@@ -34,8 +34,7 @@ class FfmAssistantCorrectionService {
         'approved': true,
         if (originalResponse != null && originalResponse.trim().isNotEmpty)
           'original_response': originalResponse.trim(),
-        if (topic != null && topic.trim().isNotEmpty)
-          'topic': topic.trim(),
+        if (topic != null && topic.trim().isNotEmpty) 'topic': topic.trim(),
       },
     );
   }

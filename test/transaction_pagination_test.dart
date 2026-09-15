@@ -13,7 +13,9 @@ void main() {
     getPage = GetTransactionsPage(database);
 
     for (var i = 0; i < 150; i++) {
-      await database.into(database.transactions).insert(
+      await database
+          .into(database.transactions)
+          .insert(
             TransactionsCompanion.insert(
               id: 'tx-$i',
               householdId: AppContext.householdId,
@@ -30,13 +32,16 @@ void main() {
 
   tearDown(() async => database.close());
 
-  test('page pertama mengembalikan batch pertama dengan hasMore true', () async {
-    final result = await getPage(AppContext.householdId, limit: 50);
+  test(
+    'page pertama mengembalikan batch pertama dengan hasMore true',
+    () async {
+      final result = await getPage(AppContext.householdId, limit: 50);
 
-    expect(result.items, hasLength(50));
-    expect(result.hasMore, isTrue);
-    expect(result.totalCount, 150);
-  });
+      expect(result.items, hasLength(50));
+      expect(result.hasMore, isTrue);
+      expect(result.totalCount, 150);
+    },
+  );
 
   test('page terakhir mengembalikan sisa data dengan hasMore false', () async {
     final result = await getPage(
@@ -79,11 +84,7 @@ void main() {
   });
 
   test('offset nol dengan limit besar mengambil semua data', () async {
-    final result = await getPage(
-      AppContext.householdId,
-      limit: 200,
-      offset: 0,
-    );
+    final result = await getPage(AppContext.householdId, limit: 200, offset: 0);
 
     expect(result.items, hasLength(150));
     expect(result.hasMore, isFalse);
@@ -95,9 +96,11 @@ void main() {
     for (var i = 0; i < result.items.length - 1; i++) {
       expect(
         result.items[i].transaction.date.isAfter(
-              result.items[i + 1].transaction.date) ||
+              result.items[i + 1].transaction.date,
+            ) ||
             result.items[i].transaction.date.isAtSameMomentAs(
-              result.items[i + 1].transaction.date),
+              result.items[i + 1].transaction.date,
+            ),
         isTrue,
       );
     }

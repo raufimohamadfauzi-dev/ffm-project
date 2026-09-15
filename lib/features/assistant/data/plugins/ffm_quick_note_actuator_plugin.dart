@@ -58,7 +58,8 @@ class FfmQuickNoteActuatorPlugin extends FfmAgentPlugin {
     final normalized = context.normalizedText.toLowerCase();
 
     // 1. Check if user is asking for calculation of existing notes (e.g. "total luas", "hitung luas", "berapa total luas")
-    final isCalculationQuery = normalized.contains('total luas') ||
+    final isCalculationQuery =
+        normalized.contains('total luas') ||
         normalized.contains('hitung luas') ||
         normalized.contains('berapa total luas') ||
         normalized.contains('total tanah');
@@ -79,13 +80,16 @@ class FfmQuickNoteActuatorPlugin extends FfmAgentPlugin {
     buffer.writeln('📝 **Kategori:** ${extracted.category}');
     buffer.writeln('📄 **Isi:** ${extracted.text}');
     if (extracted.numericValue != null) {
-      final formattedVal = extracted.numericValue!.truncateToDouble() == extracted.numericValue!
+      final formattedVal =
+          extracted.numericValue!.truncateToDouble() == extracted.numericValue!
           ? extracted.numericValue!.toInt().toString()
           : extracted.numericValue!.toString();
       buffer.writeln('🔢 **Nilai:** $formattedVal ${extracted.unit ?? ""}');
     }
     if (extracted.latitude != null && extracted.longitude != null) {
-      buffer.writeln('📍 **Koordinat:** ${extracted.latitude}, ${extracted.longitude}');
+      buffer.writeln(
+        '📍 **Koordinat:** ${extracted.latitude}, ${extracted.longitude}',
+      );
     }
     if (activeRoot != null) {
       buffer.writeln('🔗 **Terkait Sesi:** ${activeRoot.title}');
@@ -115,11 +119,18 @@ class FfmQuickNoteActuatorPlugin extends FfmAgentPlugin {
     final snapshot = context.activitySnapshot;
     final notes = snapshot?.notes ?? const [];
 
-    final areaNotes = notes.where(
-      (n) => (n.category == 'luas_tanah' || (n.unit != null && (n.unit!.contains('m2') || n.unit!.contains('m²') || n.unit!.contains('ha')))) &&
-          n.numericValue != null &&
-          !n.isArchived,
-    ).toList();
+    final areaNotes = notes
+        .where(
+          (n) =>
+              (n.category == 'luas_tanah' ||
+                  (n.unit != null &&
+                      (n.unit!.contains('m2') ||
+                          n.unit!.contains('m²') ||
+                          n.unit!.contains('ha')))) &&
+              n.numericValue != null &&
+              !n.isArchived,
+        )
+        .toList();
 
     if (areaNotes.isEmpty) {
       return const FfmHarnessResult(
@@ -137,11 +148,17 @@ class FfmQuickNoteActuatorPlugin extends FfmAgentPlugin {
     for (final note in areaNotes) {
       final val = note.numericValue!;
       total += val;
-      final formatted = val.truncateToDouble() == val ? val.toInt().toString() : val.toString();
-      itemsBuffer.writeln('• ${note.text}: **$formatted ${note.unit ?? unit}**');
+      final formatted = val.truncateToDouble() == val
+          ? val.toInt().toString()
+          : val.toString();
+      itemsBuffer.writeln(
+        '• ${note.text}: **$formatted ${note.unit ?? unit}**',
+      );
     }
 
-    final formattedTotal = total.truncateToDouble() == total ? total.toInt().toString() : total.toString();
+    final formattedTotal = total.truncateToDouble() == total
+        ? total.toInt().toString()
+        : total.toString();
 
     final buffer = StringBuffer();
     buffer.writeln('📐 **Total Luas Tanah:** **$formattedTotal $unit**\n');
@@ -152,17 +169,16 @@ class FfmQuickNoteActuatorPlugin extends FfmAgentPlugin {
       pluginName: name,
       category: FfmPluginCategory.logic,
       text: buffer.toString().trim(),
-      metadata: {
-        'total': total,
-        'unit': unit,
-        'count': areaNotes.length,
-      },
+      metadata: {'total': total, 'unit': unit, 'count': areaNotes.length},
     );
   }
 
   _ExtractedNote? _extractNoteData(String raw, String normalized) {
     // Check for area note: e.g. "catat luas tanah 1200 m2", "tambahkan 500 m2", "luas 1200 m2"
-    final areaMatch = RegExp(r'(?:luas(?: tanah)?|tambahkan|tambah)?\s*(\d+(?:[.,]\d+)?)\s*(m2|m²|meter persegi|hektar|ha)', caseSensitive: false).firstMatch(raw);
+    final areaMatch = RegExp(
+      r'(?:luas(?: tanah)?|tambahkan|tambah)?\s*(\d+(?:[.,]\d+)?)\s*(m2|m²|meter persegi|hektar|ha)',
+      caseSensitive: false,
+    ).firstMatch(raw);
     if (areaMatch != null) {
       final numStr = areaMatch.group(1)!.replaceAll(',', '.');
       final val = double.tryParse(numStr);
@@ -176,8 +192,10 @@ class FfmQuickNoteActuatorPlugin extends FfmAgentPlugin {
     }
 
     // Check for coordinate note: e.g. "simpan koordinat -6.2088, 106.8456"
-    final coordMatch = RegExp(r'(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)').firstMatch(raw);
-    if (coordMatch != null && (normalized.contains('koordinat') || normalized.contains('lokasi'))) {
+    final coordMatch = RegExp(r'(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)')
+        .firstMatch(raw);
+    if (coordMatch != null &&
+        (normalized.contains('koordinat') || normalized.contains('lokasi'))) {
       final lat = double.tryParse(coordMatch.group(1)!);
       final lon = double.tryParse(coordMatch.group(2)!);
       return _ExtractedNote(
@@ -189,8 +207,10 @@ class FfmQuickNoteActuatorPlugin extends FfmAgentPlugin {
     }
 
     // Check for general numeric note: e.g. "catat harga 50000", "catat 100 kg"
-    final numMatch = RegExp(r'(\d+(?:[.,]\d+)?)\s*([a-zA-Z%]+)?').firstMatch(raw);
-    if (numMatch != null && (normalized.startsWith('catat') || normalized.startsWith('simpan'))) {
+    final numMatch = RegExp(r'(\d+(?:[.,]\d+)?)\s*([a-zA-Z%]+)?')
+        .firstMatch(raw);
+    if (numMatch != null &&
+        (normalized.startsWith('catat') || normalized.startsWith('simpan'))) {
       final numStr = numMatch.group(1)!.replaceAll(',', '.');
       final val = double.tryParse(numStr);
       final unit = numMatch.group(2);
@@ -203,13 +223,16 @@ class FfmQuickNoteActuatorPlugin extends FfmAgentPlugin {
     }
 
     // Generic note
-    if (normalized.startsWith('catat ') || normalized.startsWith('simpan catatan')) {
-      final cleanText = raw.replaceFirst(RegExp(r'^(catat|simpan catatan)\s+', caseSensitive: false), '').trim();
+    if (normalized.startsWith('catat ') ||
+        normalized.startsWith('simpan catatan')) {
+      final cleanText = raw
+          .replaceFirst(
+            RegExp(r'^(catat|simpan catatan)\s+', caseSensitive: false),
+            '',
+          )
+          .trim();
       if (cleanText.isNotEmpty) {
-        return _ExtractedNote(
-          text: cleanText,
-          category: 'catatan_umum',
-        );
+        return _ExtractedNote(text: cleanText, category: 'catatan_umum');
       }
     }
 

@@ -47,7 +47,8 @@ class PaymentDetectorSettingsPage extends StatefulWidget {
 }
 
 class _PaymentDetectorSettingsPageState
-    extends State<PaymentDetectorSettingsPage> with WidgetsBindingObserver {
+    extends State<PaymentDetectorSettingsPage>
+    with WidgetsBindingObserver {
   late final NotificationListenerBridge _bridge;
   late final PaymentDraftRepository _draftRepo;
   late final PaymentAnalyticsService _analytics;
@@ -56,7 +57,6 @@ class _PaymentDetectorSettingsPageState
   bool _isLoading = true;
   List<PaymentDraft> _allDrafts = [];
   final Set<String> _confirmingDrafts = {};
-
 
   @override
   void initState() {
@@ -112,19 +112,20 @@ class _PaymentDetectorSettingsPageState
     try {
       final db = getIt<AppDatabase>();
       final isDebit = draft.mutationType == PaymentMutationType.debit;
-      final signedAmount =
-          isDebit ? -draft.amount.round() : draft.amount.round();
+      final signedAmount = isDebit
+          ? -draft.amount.round()
+          : draft.amount.round();
       final txId = 'tx_notif_${draft.id}';
 
       // 1. Cari akun yang cocok (SeaBank, GoPay, BCA, dll.)
-      final accounts = await (db.select(db.accounts)
-            ..where((a) => a.isArchived.equals(false)))
-          .get();
-      
+      final accounts = await (db.select(
+        db.accounts,
+      )..where((a) => a.isArchived.equals(false))).get();
+
       if (accounts.isEmpty) {
         throw PaymentDraftError.accountNotFound;
       }
-      
+
       Account? matchedAccount;
       final lowerSource = draft.sourceApp.toLowerCase();
       final lowerLabel = draft.accountLabel.toLowerCase();
@@ -147,37 +148,44 @@ class _PaymentDetectorSettingsPageState
             matchedAccount = a;
             break;
           }
-        } else if (lowerLabel.contains('krom') || lowerSource.contains('krom')) {
+        } else if (lowerLabel.contains('krom') ||
+            lowerSource.contains('krom')) {
           if (aName.contains('krom')) {
             matchedAccount = a;
             break;
           }
-        } else if (lowerLabel.contains('jago') || lowerSource.contains('jago')) {
+        } else if (lowerLabel.contains('jago') ||
+            lowerSource.contains('jago')) {
           if (aName.contains('jago')) {
             matchedAccount = a;
             break;
           }
-        } else if (lowerLabel.contains('blu') || lowerSource.contains('bcadigital')) {
+        } else if (lowerLabel.contains('blu') ||
+            lowerSource.contains('bcadigital')) {
           if (aName.contains('blu')) {
             matchedAccount = a;
             break;
           }
-        } else if (lowerLabel.contains('jenius') || lowerSource.contains('btpn')) {
+        } else if (lowerLabel.contains('jenius') ||
+            lowerSource.contains('btpn')) {
           if (aName.contains('jenius')) {
             matchedAccount = a;
             break;
           }
-        } else if (lowerLabel.contains('shopee') || lowerSource.contains('shopee')) {
+        } else if (lowerLabel.contains('shopee') ||
+            lowerSource.contains('shopee')) {
           if (aName.contains('shopee')) {
             matchedAccount = a;
             break;
           }
-        } else if (lowerLabel.contains('tokopedia') || lowerSource.contains('tokopedia')) {
+        } else if (lowerLabel.contains('tokopedia') ||
+            lowerSource.contains('tokopedia')) {
           if (aName.contains('tokopedia') || aName.contains('gopay')) {
             matchedAccount = a;
             break;
           }
-        } else if (lowerLabel.contains('lazada') || lowerSource.contains('lazada')) {
+        } else if (lowerLabel.contains('lazada') ||
+            lowerSource.contains('lazada')) {
           if (aName.contains('lazada')) {
             matchedAccount = a;
             break;
@@ -189,32 +197,38 @@ class _PaymentDetectorSettingsPageState
             matchedAccount = a;
             break;
           }
-        } else if (lowerLabel.contains('paypal') || lowerSource.contains('paypal')) {
+        } else if (lowerLabel.contains('paypal') ||
+            lowerSource.contains('paypal')) {
           if (aName.contains('paypal')) {
             matchedAccount = a;
             break;
           }
-        } else if (lowerLabel.contains('wise') || lowerSource.contains('transferwise')) {
+        } else if (lowerLabel.contains('wise') ||
+            lowerSource.contains('transferwise')) {
           if (aName.contains('wise')) {
             matchedAccount = a;
             break;
           }
-        } else if (lowerLabel.contains('doku') || lowerSource.contains('doku')) {
+        } else if (lowerLabel.contains('doku') ||
+            lowerSource.contains('doku')) {
           if (aName.contains('doku')) {
             matchedAccount = a;
             break;
           }
-        } else if (lowerLabel.contains('google') || lowerSource.contains('walletnfcrel')) {
+        } else if (lowerLabel.contains('google') ||
+            lowerSource.contains('walletnfcrel')) {
           if (aName.contains('google')) {
             matchedAccount = a;
             break;
           }
-        } else if (lowerLabel.contains('bibit') || lowerSource.contains('bibit')) {
+        } else if (lowerLabel.contains('bibit') ||
+            lowerSource.contains('bibit')) {
           if (aName.contains('bibit')) {
             matchedAccount = a;
             break;
           }
-        } else if (lowerLabel.contains('ajaib') || lowerSource.contains('ajaib')) {
+        } else if (lowerLabel.contains('ajaib') ||
+            lowerSource.contains('ajaib')) {
           if (aName.contains('ajaib')) {
             matchedAccount = a;
             break;
@@ -227,14 +241,14 @@ class _PaymentDetectorSettingsPageState
       matchedAccount ??= accounts.first;
 
       // 2. Cari kategori yang cocok
-      final categories = await (db.select(db.categories)
-            ..where((c) => c.isActive.equals(true)))
-          .get();
-      
+      final categories = await (db.select(
+        db.categories,
+      )..where((c) => c.isActive.equals(true))).get();
+
       if (categories.isEmpty) {
         throw PaymentDraftError.categoryNotFound;
       }
-      
+
       Category? matchedCategory;
       if (draft.suggestedCategory != null) {
         final targetCat = draft.suggestedCategory!.toLowerCase();
@@ -248,7 +262,8 @@ class _PaymentDetectorSettingsPageState
       }
       if (matchedCategory == null) {
         final targetType = isDebit ? 'expense' : 'income';
-        matchedCategory = categories.where((c) => c.type == targetType).firstOrNull ??
+        matchedCategory =
+            categories.where((c) => c.type == targetType).firstOrNull ??
             categories.first;
       }
 
@@ -331,6 +346,116 @@ class _PaymentDetectorSettingsPageState
     }
   }
 
+  Future<void> _editDraft(PaymentDraft draft) async {
+    final amountController = TextEditingController(
+      text: draft.amount.round().toString(),
+    );
+    final merchantController = TextEditingController(text: draft.merchantName);
+    String selectedType = draft.mutationType.name;
+
+    final edited = await showDialog<PaymentDraft>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Edit Draft Transaksi'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pastikan nominal, tipe, dan merchant sudah benar sebelum simpan.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: amountController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nominal (rupiah)',
+                      prefixText: 'Rp ',
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: merchantController,
+                    decoration: const InputDecoration(
+                      labelText: 'Merchant / pihak terkait',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedType,
+                    decoration: const InputDecoration(
+                      labelText: 'Tipe transaksi',
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'debit',
+                        child: Text('Pengeluaran'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'credit',
+                        child: Text('Pemasukan'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        selectedType = value;
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final parsedAmount = int.tryParse(
+                  amountController.text.replaceAll('.', '').replaceAll(',', ''),
+                );
+                if (parsedAmount == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Nominal tidak valid. Masukkan angka yang benar.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+
+                final fix = draft.copyWith(
+                  amount: parsedAmount.toDouble(),
+                  merchantName: merchantController.text.trim().isEmpty
+                      ? draft.merchantName
+                      : merchantController.text.trim(),
+                  mutationType: selectedType == 'credit'
+                      ? PaymentMutationType.credit
+                      : PaymentMutationType.debit,
+                );
+                Navigator.of(context).pop(fix);
+              },
+              child: const Text('Simpan Perubahan'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (edited == null) return;
+
+    await _draftRepo.updateDraft(edited);
+    await _loadDrafts();
+  }
+
   Future<void> _dismissDraft(PaymentDraft draft) async {
     await _draftRepo.updateStatus(draft.id, PaymentDraftStatus.dismissed);
     await _analytics.recordUserDismissal();
@@ -358,109 +483,131 @@ class _PaymentDetectorSettingsPageState
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.paymentDetector,
       child: Scaffold(
-      appBar: AppBar(
-        title: const Text('Pendeteksi Bayar Otomatis'),
-        actions: [
-          if (_allDrafts.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.delete_sweep_outlined),
-              tooltip: 'Hapus semua riwayat',
-              onPressed: _clearAll,
-            ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : CustomScrollView(
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.all(16),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      // --- Status izin ---
-                      _PermissionStatusCard(
-                        isGranted: _isPermissionGranted,
-                        onRequest: _requestPermission,
-                        onRefresh: _checkPermission,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // --- Penjelasan fitur ---
-                      _FeatureInfoCard(),
-                      const SizedBox(height: 16),
-
-                      // --- Daftar bank yang dipantau ---
-                      _MonitoredAppsCard(),
-                      const SizedBox(height: 16),
-
-                      // --- Pending drafts ---
-                      if (_isPermissionGranted) ...[
-                        _SectionHeader(
-                          icon: Icons.pending_actions,
-                          title: 'Menunggu Konfirmasi',
-                          count: _allDrafts
-                              .where((d) =>
-                                  d.status == PaymentDraftStatus.pending)
-                              .length,
-                          color: colors.primary,
+        appBar: AppBar(
+          title: const Text('Pendeteksi Bayar Otomatis'),
+          actions: [
+            if (_allDrafts.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.delete_sweep_outlined),
+                tooltip: 'Hapus semua riwayat',
+                onPressed: _clearAll,
+              ),
+          ],
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.all(16),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        // --- Status izin ---
+                        _PermissionStatusCard(
+                          isGranted: _isPermissionGranted,
+                          onRequest: _requestPermission,
+                          onRefresh: _checkPermission,
                         ),
-                        ..._allDrafts
-                            .where((d) => d.status == PaymentDraftStatus.pending)
-                            .map((d) => _DraftCard(
-                                  draft: d,
-                                  isConfirming: _confirmingDrafts.contains(d.id),
-                                  onConfirm: () => _confirmDraft(d),
-                                  onDismiss: () => _dismissDraft(d),
-                                )),
                         const SizedBox(height: 16),
-                        _SectionHeader(
-                          icon: Icons.history,
-                          title: 'Riwayat',
-                          count: _allDrafts
-                              .where((d) =>
-                                  d.status != PaymentDraftStatus.pending)
-                              .length,
-                          color: colors.secondary,
-                        ),
-                        ..._allDrafts
-                            .where((d) => d.status != PaymentDraftStatus.pending)
-                            .map((d) => _HistoryDraftTile(draft: d)),
-                        if (_allDrafts.every(
-                            (d) => d.status != PaymentDraftStatus.pending) &&
-                            _allDrafts.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 32),
-                            child: Center(
-                              child: Column(
-                                children: [
-                                  Icon(Icons.inbox_outlined,
+
+                        // --- Penjelasan fitur ---
+                        _FeatureInfoCard(),
+                        const SizedBox(height: 16),
+
+                        // --- Daftar bank yang dipantau ---
+                        _MonitoredAppsCard(),
+                        const SizedBox(height: 16),
+
+                        // --- Pending drafts ---
+                        if (_isPermissionGranted) ...[
+                          _SectionHeader(
+                            icon: Icons.pending_actions,
+                            title: 'Menunggu Konfirmasi',
+                            count: _allDrafts
+                                .where(
+                                  (d) => d.status == PaymentDraftStatus.pending,
+                                )
+                                .length,
+                            color: colors.primary,
+                          ),
+                          ..._allDrafts
+                              .where(
+                                (d) => d.status == PaymentDraftStatus.pending,
+                              )
+                              .map(
+                                (d) => _DraftCard(
+                                  draft: d,
+                                  isConfirming: _confirmingDrafts.contains(
+                                    d.id,
+                                  ),
+                                  onConfirm: () => _confirmDraft(d),
+                                  onEdit: () => _editDraft(d),
+                                  onDismiss: () => _dismissDraft(d),
+                                ),
+                              ),
+                          const SizedBox(height: 16),
+                          _SectionHeader(
+                            icon: Icons.history,
+                            title: 'Riwayat',
+                            count: _allDrafts
+                                .where(
+                                  (d) => d.status != PaymentDraftStatus.pending,
+                                )
+                                .length,
+                            color: colors.secondary,
+                          ),
+                          ..._allDrafts
+                              .where(
+                                (d) => d.status != PaymentDraftStatus.pending,
+                              )
+                              .map((d) => _HistoryDraftTile(draft: d)),
+                          if (_allDrafts.every(
+                                (d) => d.status != PaymentDraftStatus.pending,
+                              ) &&
+                              _allDrafts.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 32),
+                              child: Center(
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.inbox_outlined,
                                       size: 56,
-                                      color: colors.onSurface.withValues(alpha: 0.3)),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Belum ada transaksi terdeteksi.',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: colors.onSurface.withValues(alpha: 0.5),
+                                      color: colors.onSurface.withValues(
+                                        alpha: 0.3,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Lakukan pembayaran QRIS atau transfer\ndan notifikasi akan muncul di sini.',
-                                    textAlign: TextAlign.center,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colors.onSurface.withValues(alpha: 0.4),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Belum ada transaksi terdeteksi.',
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: colors.onSurface.withValues(
+                                              alpha: 0.5,
+                                            ),
+                                          ),
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Lakukan pembayaran QRIS atau transfer\ndan notifikasi akan muncul di sini.',
+                                      textAlign: TextAlign.center,
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: colors.onSurface.withValues(
+                                              alpha: 0.4,
+                                            ),
+                                          ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                      ],
-                    ]),
+                        ],
+                      ]),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
       ),
     );
   }
@@ -491,7 +638,7 @@ class _PermissionStatusCard extends StatelessWidget {
     final desc = isGranted
         ? 'FFM dapat membaca notifikasi bank & e-wallet Anda untuk membuat draft transaksi.'
         : 'FFM memerlukan izin "Akses Notifikasi" untuk mendeteksi transaksi otomatis. '
-          'Tap tombol di bawah untuk mengaktifkan.';
+              'Tap tombol di bawah untuk mengaktifkan.';
 
     return Card(
       elevation: 0,
@@ -511,8 +658,10 @@ class _PermissionStatusCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   label,
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(color: color, fontWeight: FontWeight.w700),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const Spacer(),
                 IconButton(
@@ -565,24 +714,33 @@ class _FeatureInfoCard extends StatelessWidget {
               children: [
                 const Icon(Icons.privacy_tip_outlined, size: 18),
                 const SizedBox(width: 8),
-                Text('Cara Kerja & Keamanan',
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700)),
+                Text(
+                  'Cara Kerja & Keamanan',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 10),
             _InfoRow(
-                icon: Icons.device_hub,
-                text: '100% lokal di perangkat — tidak ada data dikirim ke cloud'),
+              icon: Icons.device_hub,
+              text: '100% lokal di perangkat — tidak ada data dikirim ke cloud',
+            ),
             _InfoRow(
-                icon: Icons.verified_user_outlined,
-                text: 'Hanya membaca notifikasi bank & e-wallet resmi yang dipilih'),
+              icon: Icons.verified_user_outlined,
+              text:
+                  'Hanya membaca notifikasi bank & e-wallet resmi yang dipilih',
+            ),
             _InfoRow(
-                icon: Icons.lock_outlined,
-                text: 'Notifikasi OTP & keamanan selalu diabaikan otomatis'),
+              icon: Icons.lock_outlined,
+              text: 'Notifikasi OTP & keamanan selalu diabaikan otomatis',
+            ),
             _InfoRow(
-                icon: Icons.touch_app_outlined,
-                text: 'Draft transaksi memerlukan ketukan "Simpan" sebelum dicatat'),
+              icon: Icons.touch_app_outlined,
+              text:
+                  'Draft transaksi memerlukan ketukan "Simpan" sebelum dicatat',
+            ),
           ],
         ),
       ),
@@ -605,9 +763,7 @@ class _InfoRow extends StatelessWidget {
         children: [
           Icon(icon, size: 16, color: theme.colorScheme.primary),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(text, style: theme.textTheme.bodySmall),
-          ),
+          Expanded(child: Text(text, style: theme.textTheme.bodySmall)),
         ],
       ),
     );
@@ -686,22 +842,25 @@ class _MonitoredAppsCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Aplikasi yang Dipantau',
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w700)),
+            Text(
+              'Aplikasi yang Dipantau',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 6,
               children: _apps
-                  .map((app) => Chip(
-                        avatar: Icon(app.$2, size: 14),
-                        label: Text(app.$1,
-                            style: theme.textTheme.labelSmall),
-                        materialTapTargetSize:
-                            MaterialTapTargetSize.shrinkWrap,
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                      ))
+                  .map(
+                    (app) => Chip(
+                      avatar: Icon(app.$2, size: 14),
+                      label: Text(app.$1, style: theme.textTheme.labelSmall),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                    ),
+                  )
                   .toList(),
             ),
           ],
@@ -738,8 +897,10 @@ class _SectionHeader extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             '$title${count > 0 ? ' ($count)' : ''}',
-            style: theme.textTheme.titleSmall
-                ?.copyWith(fontWeight: FontWeight.w700, color: color),
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
           ),
         ],
       ),
@@ -756,12 +917,14 @@ class _DraftCard extends StatelessWidget {
     required this.draft,
     required this.isConfirming,
     required this.onConfirm,
+    required this.onEdit,
     required this.onDismiss,
   });
 
   final PaymentDraft draft;
   final bool isConfirming;
   final VoidCallback onConfirm;
+  final VoidCallback onEdit;
   final VoidCallback onDismiss;
 
   @override
@@ -785,17 +948,20 @@ class _DraftCard extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: isDebit
-                        ? Colors.red.shade50
-                        : Colors.green.shade50,
+                    color: isDebit ? Colors.red.shade50 : Colors.green.shade50,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     isDebit ? '▼ Keluar' : '▲ Masuk',
                     style: theme.textTheme.labelSmall?.copyWith(
-                      color: isDebit ? Colors.red.shade700 : Colors.green.shade700,
+                      color: isDebit
+                          ? Colors.red.shade700
+                          : Colors.green.shade700,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -804,14 +970,22 @@ class _DraftCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     draft.accountLabel,
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: colors.onSurface.withValues(alpha: 0.6)),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colors.onSurface.withValues(alpha: 0.6),
+                    ),
                   ),
+                ),
+                IconButton(
+                  onPressed: isConfirming ? null : onEdit,
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  tooltip: 'Edit draft',
+                  padding: EdgeInsets.zero,
                 ),
                 Text(
                   DateFormat('d MMM HH:mm', 'id_ID').format(draft.createdAt),
-                  style: theme.textTheme.labelSmall
-                      ?.copyWith(color: colors.onSurface.withValues(alpha: 0.5)),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.onSurface.withValues(alpha: 0.5),
+                  ),
                 ),
               ],
             ),
@@ -827,16 +1001,20 @@ class _DraftCard extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 draft.merchantName,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
             if (draft.suggestedCategory != null) ...[
               const SizedBox(height: 4),
               Row(
                 children: [
-                  Icon(Icons.label_outline, size: 12,
-                      color: colors.onSurface.withValues(alpha: 0.4)),
+                  Icon(
+                    Icons.label_outline,
+                    size: 12,
+                    color: colors.onSurface.withValues(alpha: 0.4),
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     draft.suggestedCategory!,
@@ -860,7 +1038,9 @@ class _DraftCard extends StatelessWidget {
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                               ),
                             )
                           : const Icon(Icons.check, size: 16),
@@ -909,8 +1089,9 @@ class _HistoryDraftTile extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final isConfirmed = draft.status == PaymentDraftStatus.confirmed;
-    final statusIcon =
-        isConfirmed ? Icons.check_circle_outline : Icons.cancel_outlined;
+    final statusIcon = isConfirmed
+        ? Icons.check_circle_outline
+        : Icons.cancel_outlined;
     final statusColor = isConfirmed ? Colors.green.shade600 : colors.outline;
     final statusLabel = isConfirmed ? 'Tersimpan' : 'Diabaikan';
 
@@ -918,15 +1099,14 @@ class _HistoryDraftTile extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
       leading: Icon(statusIcon, color: statusColor),
       title: Text(
-        draft.merchantName.isNotEmpty
-            ? draft.merchantName
-            : draft.accountLabel,
+        draft.merchantName.isNotEmpty ? draft.merchantName : draft.accountLabel,
         style: theme.textTheme.bodyMedium,
       ),
       subtitle: Text(
         '${draft.formattedAmount} · ${draft.accountLabel}',
-        style: theme.textTheme.bodySmall
-            ?.copyWith(color: colors.onSurface.withValues(alpha: 0.6)),
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: colors.onSurface.withValues(alpha: 0.6),
+        ),
       ),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -938,8 +1118,9 @@ class _HistoryDraftTile extends StatelessWidget {
           ),
           Text(
             DateFormat('d MMM', 'id_ID').format(draft.createdAt),
-            style: theme.textTheme.labelSmall
-                ?.copyWith(color: colors.onSurface.withValues(alpha: 0.4)),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: colors.onSurface.withValues(alpha: 0.4),
+            ),
           ),
         ],
       ),

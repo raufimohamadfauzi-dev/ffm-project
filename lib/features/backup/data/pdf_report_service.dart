@@ -41,19 +41,24 @@ class PdfReportService {
 
     final monthActivities = activityEntries
         .where(
-          (e) => e.startedAt.year == month.year && e.startedAt.month == month.month,
+          (e) =>
+              e.startedAt.year == month.year &&
+              e.startedAt.month == month.month,
         )
         .toList();
 
     final monthDailyNotes = dailyNotes
         .where(
-          (n) => n.noteDate.year == month.year && n.noteDate.month == month.month,
+          (n) =>
+              n.noteDate.year == month.year && n.noteDate.month == month.month,
         )
         .toList();
 
     final monthHarvests = harvestEvents
         .where(
-          (h) => h.harvestedAt.year == month.year && h.harvestedAt.month == month.month,
+          (h) =>
+              h.harvestedAt.year == month.year &&
+              h.harvestedAt.month == month.month,
         )
         .toList();
 
@@ -89,12 +94,10 @@ class PdfReportService {
     required Map<String, String> categoryLabels,
     required FinancialHealthScore score,
   }) async {
-    final rangeRows = transactions
-        .where((entry) {
-          final d = entry.transaction.date;
-          return !d.isBefore(from) && !d.isAfter(to);
-        })
-        .toList();
+    final rangeRows = transactions.where((entry) {
+      final d = entry.transaction.date;
+      return !d.isBefore(from) && !d.isAfter(to);
+    }).toList();
 
     final rangeActivities = activityEntries
         .where((e) => !e.startedAt.isBefore(from) && !e.startedAt.isAfter(to))
@@ -105,7 +108,9 @@ class PdfReportService {
         .toList();
 
     final rangeHarvests = harvestEvents
-        .where((h) => !h.harvestedAt.isBefore(from) && !h.harvestedAt.isAfter(to))
+        .where(
+          (h) => !h.harvestedAt.isBefore(from) && !h.harvestedAt.isAfter(to),
+        )
         .toList();
 
     final fromStr = '${from.day}/${from.month}/${from.year}';
@@ -204,13 +209,17 @@ class PdfReportService {
 
     final categoryTotals = <String, int>{};
     for (final row in rows.where((item) => item.transaction.amount < 0)) {
-      final key = categoryLabels[row.transaction.categoryId] ?? 'Tanpa Kategori';
+      final key =
+          categoryLabels[row.transaction.categoryId] ?? 'Tanpa Kategori';
       categoryTotals[key] =
           (categoryTotals[key] ?? 0) + row.transaction.amount.abs();
     }
 
     final totalAssetsVal = assets.fold<int>(0, (sum, a) => sum + a.value);
-    final totalDebtVal = liabilities.fold<int>(0, (sum, l) => sum + l.remainingBalance);
+    final totalDebtVal = liabilities.fold<int>(
+      0,
+      (sum, l) => sum + l.remainingBalance,
+    );
     final netWorth = totalAssetsVal - totalDebtVal;
 
     final font = pw.Font.ttf(
@@ -263,7 +272,11 @@ class PdfReportService {
               data: budgets.map((b) {
                 final catId = b.categoryId;
                 final spent = rows
-                    .where((r) => r.transaction.amount < 0 && (catId == null || r.transaction.categoryId == catId))
+                    .where(
+                      (r) =>
+                          r.transaction.amount < 0 &&
+                          (catId == null || r.transaction.categoryId == catId),
+                    )
                     .fold(0, (sum, r) => sum + r.transaction.amount.abs());
                 final remaining = b.allocated - spent;
                 return [
@@ -287,7 +300,8 @@ class PdfReportService {
               pw.TableHelper.fromTextArray(
                 headers: const ['Tanggal', 'Aktivitas', 'Tempat', 'Catatan'],
                 data: activityEntries.take(10).map((act) {
-                  final dateStr = '${act.startedAt.day}/${act.startedAt.month}/${act.startedAt.year}';
+                  final dateStr =
+                      '${act.startedAt.day}/${act.startedAt.month}/${act.startedAt.year}';
                   return [
                     dateStr,
                     act.title,
@@ -299,7 +313,13 @@ class PdfReportService {
             if (dailyNotes.isNotEmpty)
               _section(
                 'Catatan Harian:',
-                dailyNotes.take(5).map((n) => '${n.noteDate.day}/${n.noteDate.month}: ${n.title ?? ""} ${n.body}').toList(),
+                dailyNotes
+                    .take(5)
+                    .map(
+                      (n) =>
+                          '${n.noteDate.day}/${n.noteDate.month}: ${n.title ?? ""} ${n.body}',
+                    )
+                    .toList(),
               ),
           ],
 
@@ -311,9 +331,16 @@ class PdfReportService {
             ),
             pw.SizedBox(height: 4),
             pw.TableHelper.fromTextArray(
-              headers: const ['Tanggal', 'Komoditas', 'Jumlah/Volume', 'Total Nominal', 'Pembeli'],
+              headers: const [
+                'Tanggal',
+                'Komoditas',
+                'Jumlah/Volume',
+                'Total Nominal',
+                'Pembeli',
+              ],
               data: harvestEvents.map((h) {
-                final dateStr = '${h.harvestedAt.day}/${h.harvestedAt.month}/${h.harvestedAt.year}';
+                final dateStr =
+                    '${h.harvestedAt.day}/${h.harvestedAt.month}/${h.harvestedAt.year}';
                 return [
                   dateStr,
                   h.commodity,
@@ -329,7 +356,10 @@ class PdfReportService {
             _section(
               '6. Aset',
               assets
-                  .map((item) => '${item.name} (${item.assetType}): ${_rupiah(item.value)}')
+                  .map(
+                    (item) =>
+                        '${item.name} (${item.assetType}): ${_rupiah(item.value)}',
+                  )
                   .toList(),
             ),
           if (liabilities.isNotEmpty)
@@ -370,14 +400,21 @@ class PdfReportService {
           ),
           pw.SizedBox(height: 4),
           pw.TableHelper.fromTextArray(
-            headers: const ['Tanggal', 'Jenis', 'Kategori', 'Catatan', 'Nominal'],
+            headers: const [
+              'Tanggal',
+              'Jenis',
+              'Kategori',
+              'Catatan',
+              'Nominal',
+            ],
             data: rows
                 .take(30)
                 .map(
                   (row) => [
                     '${row.transaction.date.day}/${row.transaction.date.month}/${row.transaction.date.year}',
                     row.transaction.amount >= 0 ? 'Masuk' : 'Keluar',
-                    categoryLabels[row.transaction.categoryId] ?? 'Tanpa Kategori',
+                    categoryLabels[row.transaction.categoryId] ??
+                        'Tanpa Kategori',
                     row.transaction.note ?? '-',
                     _rupiah(row.transaction.amount.abs()),
                   ],
@@ -396,16 +433,18 @@ class PdfReportService {
   }
 
   pw.Widget _section(String title, List<String> lines) => pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.SizedBox(height: 8),
-          pw.Text(
-            title,
-            style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
-          ),
-          ...lines.map((line) => pw.Text(line, style: const pw.TextStyle(fontSize: 10))),
-        ],
-      );
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      pw.SizedBox(height: 8),
+      pw.Text(
+        title,
+        style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+      ),
+      ...lines.map(
+        (line) => pw.Text(line, style: const pw.TextStyle(fontSize: 10)),
+      ),
+    ],
+  );
 
   String _rupiah(int value) =>
       'Rp${value.toString().replaceAllMapped(RegExp(r'(?=(\d{3})+(?!\d))'), (_) => '.')}';

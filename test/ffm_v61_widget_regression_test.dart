@@ -83,7 +83,9 @@ void main() {
     expect(restored.dy, closeTo(savedY!, 1));
   });
 
-  testWidgets('launcher Asisten memicu onOpen pada tap dan pergeseran mikro', (tester) async {
+  testWidgets('launcher Asisten memicu onOpen pada tap dan pergeseran mikro', (
+    tester,
+  ) async {
     SharedPreferences.setMockInitialValues({});
     var openCount = 0;
     final launcherState = ValueNotifier<FfmAssistantLauncherState>(
@@ -130,4 +132,3 @@ void main() {
     expect(find.byType(FloatingActionButton), findsOneWidget);
   });
 }
-

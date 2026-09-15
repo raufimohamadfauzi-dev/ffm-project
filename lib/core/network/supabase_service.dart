@@ -15,12 +15,15 @@ class SupabaseService {
     final userId = await _config.getUserId();
 
     try {
-      await client.from('assistant_memories_cloud').upsert({
-        'user_id': userId,
-        'content': content,
-        'category': category,
-        'metadata': metadata ?? {},
-      }).timeout(const Duration(seconds: 10));
+      await client
+          .from('assistant_memories_cloud')
+          .upsert({
+            'user_id': userId,
+            'content': content,
+            'category': category,
+            'metadata': metadata ?? {},
+          })
+          .timeout(const Duration(seconds: 10));
     } catch (e) {
       // Background sync, fail silently
     }
@@ -34,11 +37,13 @@ class SupabaseService {
     if (client == null) return [];
 
     try {
-      final response = await client.rpc('match_memories_text', params: {
-        'query_text': query,
-        'match_count': limit,
-      }).timeout(const Duration(seconds: 8));
-      
+      final response = await client
+          .rpc(
+            'match_memories_text',
+            params: {'query_text': query, 'match_count': limit},
+          )
+          .timeout(const Duration(seconds: 8));
+
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       return [];
@@ -49,7 +54,11 @@ class SupabaseService {
     final client = await SupabaseClientProvider.getInstance();
     if (client == null) return;
     try {
-      await client.from('assistant_memories_cloud').delete().eq('id', id).timeout(const Duration(seconds: 10));
+      await client
+          .from('assistant_memories_cloud')
+          .delete()
+          .eq('id', id)
+          .timeout(const Duration(seconds: 10));
     } catch (_) {}
   }
 

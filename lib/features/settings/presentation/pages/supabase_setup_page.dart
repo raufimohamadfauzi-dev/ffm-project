@@ -597,7 +597,11 @@ end; \$\$;
             children: [
               Row(
                 children: [
-                  Icon(Icons.info_outline, size: 18, color: theme.colorScheme.primary),
+                  Icon(
+                    Icons.info_outline,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -619,7 +623,10 @@ end; \$\$;
                   label: const Text('Buka aistudio.google.com'),
                   style: TextButton.styleFrom(
                     visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                   ),
                 ),
               ),
@@ -825,7 +832,9 @@ end; \$\$;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const AppSectionHeader(title: 'Status Kuota & Token (Google Free Tier)'),
+        const AppSectionHeader(
+          title: 'Status Kuota & Token (Google Free Tier)',
+        ),
         const SizedBox(height: 8),
         AppCard(
           child: Column(
@@ -833,12 +842,19 @@ end; \$\$;
             children: [
               Row(
                 children: [
-                  Icon(Icons.pie_chart_outline, color: colorScheme.primary, size: 20),
+                  Icon(
+                    Icons.pie_chart_outline,
+                    color: colorScheme.primary,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
                       'Jatah Harian Gemini Cloud',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                   IconButton(
@@ -852,11 +868,16 @@ end; \$\$;
               // Countdown Container
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: colorScheme.primaryContainer.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colorScheme.primary.withValues(alpha: 0.25)),
+                  border: Border.all(
+                    color: colorScheme.primary.withValues(alpha: 0.25),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -895,7 +916,10 @@ end; \$\$;
                 children: [
                   Text(
                     'Sisa Permintaan Hari Ini:',
-                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   Text(
                     '$remaining / $limit request',
@@ -927,7 +951,10 @@ end; \$\$;
                   ),
                   Text(
                     'Batas: 1.500 RPD',
-                    style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -944,7 +971,9 @@ end; \$\$;
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                        color: colorScheme.surfaceContainerHighest.withValues(
+                          alpha: 0.5,
+                        ),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Column(
@@ -952,12 +981,18 @@ end; \$\$;
                         children: [
                           Text(
                             'Kirim (Prompt)',
-                            style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             '${quota?.promptTokens ?? 0}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
                           ),
                         ],
                       ),
@@ -968,7 +1003,9 @@ end; \$\$;
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                        color: colorScheme.surfaceContainerHighest.withValues(
+                          alpha: 0.5,
+                        ),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Column(
@@ -976,12 +1013,18 @@ end; \$\$;
                         children: [
                           Text(
                             'Terima (AI)',
-                            style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             '${quota?.candidateTokens ?? 0}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
                           ),
                         ],
                       ),
@@ -992,7 +1035,9 @@ end; \$\$;
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: colorScheme.primaryContainer.withValues(alpha: 0.4),
+                        color: colorScheme.primaryContainer.withValues(
+                          alpha: 0.4,
+                        ),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Column(
@@ -1000,7 +1045,10 @@ end; \$\$;
                         children: [
                           Text(
                             'Total Hari Ini',
-                            style: TextStyle(fontSize: 10, color: colorScheme.primary),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: colorScheme.primary,
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -1022,12 +1070,19 @@ end; \$\$;
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.verified_outlined, size: 16, color: Colors.green),
+                  const Icon(
+                    Icons.verified_outlined,
+                    size: 16,
+                    color: Colors.green,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'API Key bersifat permanen dan tidak pernah di-reset harian oleh Google. Hanya jatah pemakaian kuota gratis (RPD) yang di-reset setiap 24 jam.',
-                      style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ],
@@ -1041,7 +1096,10 @@ end; \$\$;
                   Expanded(
                     child: Text(
                       'Batas kecepatan Free Tier: 15 request/menit (RPM) dan 1.000.000 token/menit (TPM).',
-                      style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ],

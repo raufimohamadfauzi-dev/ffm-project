@@ -32,12 +32,15 @@ void main() {
     expect(repository, isA<CategoryRepository>());
   });
 
-  test('CategoryRepository should be available after AuditLogger registration', () async {
-    final db = createInMemoryDatabaseForTests();
-    await configureDependencies(database: db);
+  test(
+    'CategoryRepository should be available after AuditLogger registration',
+    () async {
+      final db = createInMemoryDatabaseForTests();
+      await configureDependencies(database: db);
 
-    // Both should be registered
-    expect(getIt.isRegistered<CategoryRepository>(), true);
-    expect(getIt.isRegistered<AuditLogger>(), true);
-  });
+      // Both should be registered
+      expect(getIt.isRegistered<CategoryRepository>(), true);
+      expect(getIt.isRegistered<AuditLogger>(), true);
+    },
+  );
 }

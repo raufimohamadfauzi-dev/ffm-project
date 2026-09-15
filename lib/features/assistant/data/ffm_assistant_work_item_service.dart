@@ -57,7 +57,8 @@ class FfmAssistantWorkItemService {
     }
 
     final id = 'work_${DateTime.now().millisecondsSinceEpoch}_$index';
-    final targetDestination = intent.destination ?? FfmAssistantDestination.summary;
+    final targetDestination =
+        intent.destination ?? FfmAssistantDestination.summary;
 
     // Extract field information from draft if available
     final knownFields = <FfmAssistantFieldInfo>[];
@@ -75,13 +76,14 @@ class FfmAssistantWorkItemService {
       for (final issue in issues) {
         final field = issue.field ?? issue.code;
         if (issue.severity == FfmAssistantDraftIssueSeverity.conflict) {
-          ambiguousFields.add(FfmAssistantFieldInfo(
-            name: field,
-            status: FfmAssistantFieldStatus.ambiguous,
-            ambiguityReason: issue.message,
-          ));
-        } else if (issue.blocksContinuation &&
-            !unknownFields.contains(field)) {
+          ambiguousFields.add(
+            FfmAssistantFieldInfo(
+              name: field,
+              status: FfmAssistantFieldStatus.ambiguous,
+              ambiguityReason: issue.message,
+            ),
+          );
+        } else if (issue.blocksContinuation && !unknownFields.contains(field)) {
           unknownFields.add(field);
         }
       }
@@ -92,18 +94,16 @@ class FfmAssistantWorkItemService {
         intent.clarification != null ||
         unknownFields.isNotEmpty ||
         ambiguousFields.isNotEmpty;
-    final clarification = intent.clarification ??
+    final clarification =
+        intent.clarification ??
         (needsClarification
-            ? 'Aku masih perlu ${[
-                ...unknownFields,
-                ...ambiguousFields.map((field) => field.name),
-              ].join(', ')} supaya draft-nya tidak salah.'
+            ? 'Aku masih perlu ${[...unknownFields, ...ambiguousFields.map((field) => field.name)].join(', ')} supaya draft-nya tidak salah.'
             : null);
     final confidence = needsClarification
         ? FfmAssistantWorkItemConfidence.low
         : (intent.draft != null
-            ? FfmAssistantWorkItemConfidence.high
-            : FfmAssistantWorkItemConfidence.medium);
+              ? FfmAssistantWorkItemConfidence.high
+              : FfmAssistantWorkItemConfidence.medium);
 
     return FfmAssistantWorkItem(
       id: id,

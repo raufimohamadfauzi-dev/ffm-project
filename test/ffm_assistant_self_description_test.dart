@@ -6,9 +6,7 @@ void main() {
   const service = FfmAssistantSelfDescriptionService();
 
   test('self-description menyebut kemampuan nyata dan batas keamanan', () {
-    final response = service.build(
-      includeCreatorLinks: true,
-    );
+    final response = service.build(includeCreatorLinks: true);
 
     expect(response, contains('baca transaksi'));
     expect(response, contains('preview'));
@@ -18,10 +16,7 @@ void main() {
     expect(response, contains('Masih dalam pengembangan'));
     expect(response, contains('Rafi Sinkkat'));
     expect(response, contains('Family Finance Manager (FFM)'));
-    expect(
-      response,
-      contains('aplikasi pengelolaan keuangan keluarga hybrid'),
-    );
+    expect(response, contains('aplikasi pengelolaan keuangan keluarga hybrid'));
     expect(response, contains('Catatan Harian'));
     expect(
       response,

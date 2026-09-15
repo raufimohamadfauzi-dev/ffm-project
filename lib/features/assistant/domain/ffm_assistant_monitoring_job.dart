@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
@@ -10,19 +11,16 @@ enum FfmAssistantMonitoringPreset {
   dueCheck;
 
   String get label => switch (this) {
-        weeklyEvaluation => 'Evaluasi Mingguan',
-        budgetMonitor => 'Pemantauan Anggaran Kategori',
-        dueCheck => 'Pemeriksaan Tagihan & Target',
-      };
+    weeklyEvaluation => 'Evaluasi Mingguan',
+    budgetMonitor => 'Pemantauan Anggaran Kategori',
+    dueCheck => 'Pemeriksaan Tagihan & Target',
+  };
 
   String get description => switch (this) {
-        weeklyEvaluation =>
-          'Rangkuman berkala arus kas mingguan, pengeluaran terbesar, dan burn rate.',
-        budgetMonitor =>
-          'Memantau kepatuhan batas anggaran belanja kategori dan laju belanja harian.',
-        dueCheck =>
-          'Memeriksa jatuh tempo cicilan kewajiban terdekat dan progres target finansial.',
-      };
+    weeklyEvaluation => 'Rangkuman berkala arus kas mingguan, pengeluaran terbesar, dan burn rate.',
+    budgetMonitor => 'Memantau kepatuhan batas anggaran belanja kategori dan laju belanja harian.',
+    dueCheck => 'Memeriksa jatuh tempo cicilan kewajiban terdekat dan progres target finansial.',
+  };
 }
 
 enum FfmAssistantJobCadence {
@@ -32,11 +30,11 @@ enum FfmAssistantJobCadence {
   once;
 
   String get label => switch (this) {
-        daily => 'Setiap Hari',
-        weekly => 'Setiap Minggu',
-        monthly => 'Setiap Bulan',
-        once => 'Sekali',
-      };
+    daily => 'Setiap Hari',
+    weekly => 'Setiap Minggu',
+    monthly => 'Setiap Bulan',
+    once => 'Sekali',
+  };
 }
 
 enum FfmAssistantDeliveryChannel {
@@ -45,10 +43,10 @@ enum FfmAssistantDeliveryChannel {
   telegram;
 
   String get label => switch (this) {
-        inApp => 'Di Dalam Aplikasi (In-App)',
-        systemNotification => 'Notifikasi Sistem Perangkat',
-        telegram => 'Telegram Bot',
-      };
+    inApp => 'Di Dalam Aplikasi (In-App)',
+    systemNotification => 'Notifikasi Sistem Perangkat',
+    telegram => 'Telegram Bot',
+  };
 }
 
 enum FfmAssistantJobStatus {
@@ -58,11 +56,11 @@ enum FfmAssistantJobStatus {
   completed;
 
   String get label => switch (this) {
-        active => 'Aktif',
-        paused => 'Dijeda',
-        cancelled => 'Dibatalkan',
-        completed => 'Selesai',
-      };
+    active => 'Aktif',
+    paused => 'Dijeda',
+    cancelled => 'Dibatalkan',
+    completed => 'Selesai',
+  };
 }
 
 /// Model data versioned untuk job otomatisasi monitoring (F3.1).
@@ -131,11 +129,21 @@ class FfmAssistantMonitoringJob {
 
       case FfmAssistantJobCadence.monthly:
         final desiredDay = (targetDay ?? 1).clamp(1, 28);
-        var candidate =
-            DateTime(from.year, from.month, desiredDay, hour, minute);
+        var candidate = DateTime(
+          from.year,
+          from.month,
+          desiredDay,
+          hour,
+          minute,
+        );
         if (!candidate.isAfter(from)) {
-          candidate =
-              DateTime(from.year, from.month + 1, desiredDay, hour, minute);
+          candidate = DateTime(
+            from.year,
+            from.month + 1,
+            desiredDay,
+            hour,
+            minute,
+          );
         }
         return candidate;
 
@@ -149,22 +157,22 @@ class FfmAssistantMonitoringJob {
   }
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'householdId': householdId,
-        'preset': preset.name,
-        'title': title,
-        'cadence': cadence.name,
-        'targetTimeMinutes': targetTimeMinutes,
-        'targetDay': targetDay,
-        'categoryFilter': categoryFilter,
-        'deliveryChannel': deliveryChannel.name,
-        'status': status.name,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-        'lastRunAt': lastRunAt?.toIso8601String(),
-        'nextRunAt': nextRunAt?.toIso8601String(),
-        'costLimitUsd': costLimitUsd,
-      };
+    'id': id,
+    'householdId': householdId,
+    'preset': preset.name,
+    'title': title,
+    'cadence': cadence.name,
+    'targetTimeMinutes': targetTimeMinutes,
+    'targetDay': targetDay,
+    'categoryFilter': categoryFilter,
+    'deliveryChannel': deliveryChannel.name,
+    'status': status.name,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'lastRunAt': lastRunAt?.toIso8601String(),
+    'nextRunAt': nextRunAt?.toIso8601String(),
+    'costLimitUsd': costLimitUsd,
+  };
 
   static FfmAssistantMonitoringJob? fromJson(Map<String, Object?> json) {
     try {
@@ -366,14 +374,17 @@ class FfmAssistantMonitoringJob {
     DateTime? now,
   }) {
     final effectiveNow = now ?? DateTime.now();
-    final defaultTitle = title ??
+    final defaultTitle =
+        title ??
         switch (preset) {
-          FfmAssistantMonitoringPreset.weeklyEvaluation => 'Evaluasi Mingguan Otomatis',
+          FfmAssistantMonitoringPreset.weeklyEvaluation =>
+            'Evaluasi Mingguan Otomatis',
           FfmAssistantMonitoringPreset.budgetMonitor =>
             categoryFilter != null
                 ? 'Pantau Anggaran $categoryFilter'
                 : 'Pantau Anggaran Operasional',
-          FfmAssistantMonitoringPreset.dueCheck => 'Pemeriksaan Tagihan & Target',
+          FfmAssistantMonitoringPreset.dueCheck =>
+            'Pemeriksaan Tagihan & Target',
         };
 
     final tempJob = FfmAssistantMonitoringJob(
@@ -391,8 +402,6 @@ class FfmAssistantMonitoringJob {
       updatedAt: effectiveNow,
     );
 
-    return tempJob.copyWith(
-      nextRunAt: tempJob.calculateNextRun(effectiveNow),
-    );
+    return tempJob.copyWith(nextRunAt: tempJob.calculateNextRun(effectiveNow));
   }
 }

@@ -59,7 +59,8 @@ class _MasterDataPageState extends State<MasterDataPage>
   var _accountCount = 0;
   var _merchantCount = 0;
   var _incomeSourceCount = 0;
-  String? _pendingNfcCardId; // NFC card ID yang perlu ditautkan setelah rekening dibuat
+  String?
+  _pendingNfcCardId; // NFC card ID yang perlu ditautkan setelah rekening dibuat
 
   static const _tabLabels = [
     'Kategori transaksi & aktivitas',
@@ -280,13 +281,14 @@ class _MasterDataPageState extends State<MasterDataPage>
     }
     final newId = item?.id ?? const Uuid().v4();
     await _saveMaster(tab, result, item?.id);
-    
+
     // Tautkan NFC card jika ada yang pending
-    if (_pendingNfcCardId != null && tab == 3) { // Tab 3 = Rekening
+    if (_pendingNfcCardId != null && tab == 3) {
+      // Tab 3 = Rekening
       await _linkNfcCardToAccount(newId, _pendingNfcCardId!);
       _pendingNfcCardId = null;
     }
-    
+
     if (!mounted) return;
     setState(() => _refreshTick++);
     unawaited(_loadCounts());
@@ -304,14 +306,16 @@ class _MasterDataPageState extends State<MasterDataPage>
     Map<String, dynamic>? assistantFormValues,
   }) {
     final values = assistantFormValues ?? const <String, dynamic>{};
-    final openingBalance = int.tryParse(values['openingBalance']?.toString() ?? '');
+    final openingBalance = int.tryParse(
+      values['openingBalance']?.toString() ?? '',
+    );
     final nfcCardId = values['nfcCardId']?.toString();
-    
+
     // Simpan NFC card ID untuk penautan setelah rekening dibuat
     if (nfcCardId != null && nfcCardId.isNotEmpty) {
       _pendingNfcCardId = nfcCardId;
     }
-    
+
     return _MasterFormValues(
       name: assistantName?.trim().isNotEmpty == true
           ? assistantName!.trim()
@@ -367,25 +371,33 @@ class _MasterDataPageState extends State<MasterDataPage>
   /// Tautkan NFC card ke rekening yang baru dibuat
   Future<void> _linkNfcCardToAccount(String accountId, String nfcCardId) async {
     try {
-      final nfcCard = await (_database.select(_database.nfcCardAccounts)
-            ..where((n) => n.id.equals(nfcCardId)))
-          .getSingleOrNull();
-      
+      final nfcCard = await (_database.select(
+        _database.nfcCardAccounts,
+      )..where((n) => n.id.equals(nfcCardId))).getSingleOrNull();
+
       if (nfcCard != null) {
-        await _database.update(_database.nfcCardAccounts).replace(
-          NfcCardAccountsCompanion(
-            id: Value(nfcCard.id),
-            householdId: Value(nfcCard.householdId),
-            accountId: Value(accountId), // Update dengan account ID baru
-            cardUidHash: Value(nfcCard.cardUidHash),
-            issuer: nfcCard.issuer != null ? Value(nfcCard.issuer) : const Value.absent(),
-            cardType: Value(nfcCard.cardType),
-            lastKnownBalance: nfcCard.lastKnownBalance != null ? Value(nfcCard.lastKnownBalance) : const Value.absent(),
-            balanceAvailable: Value(nfcCard.balanceAvailable),
-            lastScannedAt: nfcCard.lastScannedAt != null ? Value(nfcCard.lastScannedAt) : const Value.absent(),
-            createdAt: Value(nfcCard.createdAt),
-          ),
-        );
+        await _database
+            .update(_database.nfcCardAccounts)
+            .replace(
+              NfcCardAccountsCompanion(
+                id: Value(nfcCard.id),
+                householdId: Value(nfcCard.householdId),
+                accountId: Value(accountId), // Update dengan account ID baru
+                cardUidHash: Value(nfcCard.cardUidHash),
+                issuer: nfcCard.issuer != null
+                    ? Value(nfcCard.issuer)
+                    : const Value.absent(),
+                cardType: Value(nfcCard.cardType),
+                lastKnownBalance: nfcCard.lastKnownBalance != null
+                    ? Value(nfcCard.lastKnownBalance)
+                    : const Value.absent(),
+                balanceAvailable: Value(nfcCard.balanceAvailable),
+                lastScannedAt: nfcCard.lastScannedAt != null
+                    ? Value(nfcCard.lastScannedAt)
+                    : const Value.absent(),
+                createdAt: Value(nfcCard.createdAt),
+              ),
+            );
       }
     } on Object {
       // Best-effort: gagal menautkan tidak menghalangi pembuatan rekening
@@ -630,9 +642,7 @@ class _MasterDataPageState extends State<MasterDataPage>
           ? 'Sedang memuat data utama...'
           : 'Melihat Data Utama: $_categoryCount kategori, $_accountCount rekening, $_merchantCount toko, dan $_incomeSourceCount sumber pemasukan.',
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Data Utama'),
-        ),
+        appBar: AppBar(title: const Text('Data Utama')),
         floatingActionButton: FloatingActionButton.extended(
           heroTag: 'master_data_add_fab',
           onPressed: () => _add(_activeTab),

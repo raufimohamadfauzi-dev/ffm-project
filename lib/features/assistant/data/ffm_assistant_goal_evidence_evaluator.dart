@@ -98,14 +98,15 @@ class FfmAssistantGoalEvidenceEvaluator {
     DateTime? now,
   }) async {
     final effectiveNow = now ?? _clock();
-    final goals = await (database.select(database.goals)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isActive.equals(true),
-          )
-          ..orderBy([(row) => OrderingTerm.asc(row.targetDate)]))
-        .get();
+    final goals =
+        await (database.select(database.goals)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isActive.equals(true),
+              )
+              ..orderBy([(row) => OrderingTerm.asc(row.targetDate)]))
+            .get();
 
     final avgCashflow = await _calculateAverageMonthlyCashflow(
       householdId,
@@ -127,9 +128,9 @@ class FfmAssistantGoalEvidenceEvaluator {
     DateTime? now,
   }) async {
     final effectiveNow = now ?? _clock();
-    final goal = await (database.select(database.goals)
-          ..where((row) => row.id.equals(goalId)))
-        .getSingleOrNull();
+    final goal = await (database.select(
+      database.goals,
+    )..where((row) => row.id.equals(goalId))).getSingleOrNull();
     if (goal == null) return null;
 
     final avgCashflow = await _calculateAverageMonthlyCashflow(
@@ -146,9 +147,13 @@ class FfmAssistantGoalEvidenceEvaluator {
   }) {
     final targetAmount = goal.targetAmount;
     final currentAmount = goal.currentAmount;
-    final remainingAmount = (targetAmount - currentAmount).clamp(0, targetAmount);
-    final progressPercent =
-        targetAmount > 0 ? (currentAmount / targetAmount * 100).clamp(0.0, 100.0) : 100.0;
+    final remainingAmount = (targetAmount - currentAmount).clamp(
+      0,
+      targetAmount,
+    );
+    final progressPercent = targetAmount > 0
+        ? (currentAmount / targetAmount * 100).clamp(0.0, 100.0)
+        : 100.0;
 
     if (currentAmount >= targetAmount) {
       return FfmAssistantGoalEvidenceReport(
@@ -160,8 +165,7 @@ class FfmAssistantGoalEvidenceEvaluator {
         progressPercent: 100.0,
         status: FfmAssistantGoalProgressStatus.targetReached,
         isAchievableWithCurrentCashflow: true,
-        recommendation:
-            'Target telah tercapai penuh! Dana siap dialokasikan atau target dapat ditandai selesai.',
+        recommendation: 'Target telah tercapai penuh! Dana siap dialokasikan atau target dapat ditandai selesai.',
         targetDate: goal.targetDate,
       );
     }
@@ -186,8 +190,9 @@ class FfmAssistantGoalEvidenceEvaluator {
     final targetDate = goal.targetDate!;
     final daysRemaining = targetDate.difference(now).inDays;
     final monthsRemaining = (daysRemaining / 30.4).ceil().clamp(1, 120);
-    final requiredMonthlySaving =
-        daysRemaining > 0 ? (remainingAmount / monthsRemaining).ceil() : remainingAmount;
+    final requiredMonthlySaving = daysRemaining > 0
+        ? (remainingAmount / monthsRemaining).ceil()
+        : remainingAmount;
 
     FfmAssistantGoalProgressStatus status;
     String recommendation;
@@ -196,20 +201,17 @@ class FfmAssistantGoalEvidenceEvaluator {
     if (daysRemaining <= 0) {
       status = FfmAssistantGoalProgressStatus.behindSchedule;
       achievable = false;
-      recommendation =
-          'Tenggat waktu target telah terlewati. Pertimbangkan memperpanjang tenggat atau menyuntikkan dana tambahan.';
+      recommendation = 'Tenggat waktu target telah terlewati. Pertimbangkan memperpanjang tenggat atau menyuntikkan dana tambahan.';
     } else if (avgCashflow <= 0) {
       status = FfmAssistantGoalProgressStatus.insufficientCashflow;
       achievable = false;
-      recommendation =
-          'Arus kas bulanan defisit atau nol. Penuhi dulu kebutuhan operasional dasar sebelum menambah porsi target ini.';
+      recommendation = 'Arus kas bulanan defisit atau nol. Penuhi dulu kebutuhan operasional dasar sebelum menambah porsi target ini.';
     } else if (requiredMonthlySaving <= avgCashflow) {
       final coverage = avgCashflow / requiredMonthlySaving;
       if (coverage >= 1.5) {
         status = FfmAssistantGoalProgressStatus.aheadOfSchedule;
         achievable = true;
-        recommendation =
-            'Arus kas surplus sangat aman. Target berpotensi tercapai lebih awal dari jadwal yang direncanakan.';
+        recommendation = 'Arus kas surplus sangat aman. Target berpotensi tercapai lebih awal dari jadwal yang direncanakan.';
       } else {
         status = FfmAssistantGoalProgressStatus.onTrack;
         achievable = true;
@@ -246,17 +248,18 @@ class FfmAssistantGoalEvidenceEvaluator {
     DateTime now,
   ) async {
     final ninetyDaysAgo = now.subtract(const Duration(days: 90));
-    final txs = await (database.select(database.transactions)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.date.isBiggerOrEqualValue(ninetyDaysAgo) &
-                row.date.isSmallerOrEqualValue(now),
-          ))
-        .get();
+    final txs =
+        await (database.select(database.transactions)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.date.isBiggerOrEqualValue(ninetyDaysAgo) &
+                  row.date.isSmallerOrEqualValue(now),
+            ))
+            .get();
 
-    final validTxs =
-        txs.where((t) => !t.isArchived && !t.isDeleted && t.type != 'transfer').toList();
+    final validTxs = txs
+        .where((t) => !t.isArchived && !t.isDeleted && t.type != 'transfer')
+        .toList();
 
     var netCashflow = 0;
     for (final tx in validTxs) {

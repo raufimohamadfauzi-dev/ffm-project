@@ -34,29 +34,32 @@ void main() {
       expect(notifyCount, 2);
     });
 
-    test('setByName mengenali kata kunci gelap/dark/malam/hitam/redup', () async {
-      final controller = AppThemeController();
+    test(
+      'setByName mengenali kata kunci gelap/dark/malam/hitam/redup',
+      () async {
+        final controller = AppThemeController();
 
-      var result = await controller.setByName('ubah ke dark mode');
-      expect(result, 'dark');
-      expect(controller.themeMode, ThemeMode.dark);
+        var result = await controller.setByName('ubah ke dark mode');
+        expect(result, 'dark');
+        expect(controller.themeMode, ThemeMode.dark);
 
-      result = await controller.setByName('ganti tema gelap');
-      expect(result, 'dark');
-      expect(controller.themeMode, ThemeMode.dark);
+        result = await controller.setByName('ganti tema gelap');
+        expect(result, 'dark');
+        expect(controller.themeMode, ThemeMode.dark);
 
-      result = await controller.setByName('aktifkan mode malam');
-      expect(result, 'dark');
-      expect(controller.themeMode, ThemeMode.dark);
+        result = await controller.setByName('aktifkan mode malam');
+        expect(result, 'dark');
+        expect(controller.themeMode, ThemeMode.dark);
 
-      result = await controller.setByName('mode hitam');
-      expect(result, 'dark');
-      expect(controller.themeMode, ThemeMode.dark);
+        result = await controller.setByName('mode hitam');
+        expect(result, 'dark');
+        expect(controller.themeMode, ThemeMode.dark);
 
-      result = await controller.setByName('mode redup');
-      expect(result, 'dark');
-      expect(controller.themeMode, ThemeMode.dark);
-    });
+        result = await controller.setByName('mode redup');
+        expect(result, 'dark');
+        expect(controller.themeMode, ThemeMode.dark);
+      },
+    );
 
     test('setByName mengenali kata kunci terang/light/siang/putih', () async {
       final controller = AppThemeController(initialMode: ThemeMode.dark);
@@ -98,7 +101,9 @@ void main() {
       expect(controller.themeMode, ThemeMode.light);
 
       await controller.setThemeMode(ThemeMode.dark);
-      result = await controller.setByName('jadikan defaut mode terang ya, jangan mengikuti device');
+      result = await controller.setByName(
+        'jadikan defaut mode terang ya, jangan mengikuti device',
+      );
       expect(result, 'light');
       expect(controller.themeMode, ThemeMode.light);
 
@@ -108,23 +113,32 @@ void main() {
       expect(controller.themeMode, ThemeMode.light);
     });
 
-    test('setByName mengenali kata kunci sistem jika diminta secara eksplisit', () async {
-      final controller = AppThemeController(initialMode: ThemeMode.dark);
+    test(
+      'setByName mengenali kata kunci sistem jika diminta secara eksplisit',
+      () async {
+        final controller = AppThemeController(initialMode: ThemeMode.dark);
 
-      final result = await controller.setByName('kembalikan ke sistem');
-      expect(result, 'system');
-      expect(controller.themeMode, ThemeMode.system);
-    });
+        final result = await controller.setByName('kembalikan ke sistem');
+        expect(result, 'system');
+        expect(controller.themeMode, ThemeMode.system);
+      },
+    );
 
-    test('loadSavedTheme menormalkan preferensi system atau kosong ke light mode', () async {
-      final controller = AppThemeController();
-      await controller.loadSavedTheme();
-      expect(controller.themeMode, ThemeMode.light);
+    test(
+      'loadSavedTheme menormalkan preferensi system atau kosong ke light mode',
+      () async {
+        final controller = AppThemeController();
+        await controller.loadSavedTheme();
+        expect(controller.themeMode, ThemeMode.light);
 
-      // Simulasikan nilai tersimpan lama 'system'
-      await FlutterSecureStorage().write(key: 'ffm_theme_mode', value: 'system');
-      await controller.loadSavedTheme();
-      expect(controller.themeMode, ThemeMode.light);
-    });
+        // Simulasikan nilai tersimpan lama 'system'
+        await FlutterSecureStorage().write(
+          key: 'ffm_theme_mode',
+          value: 'system',
+        );
+        await controller.loadSavedTheme();
+        expect(controller.themeMode, ThemeMode.light);
+      },
+    );
   });
 }

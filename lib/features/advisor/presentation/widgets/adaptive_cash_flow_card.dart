@@ -14,10 +14,7 @@ import '../pages/flexible_cash_flow_page.dart';
 /// Jika pengguna belum mengaktifkan profil siklus non-gajian, widget ini
 /// otomatis tersembunyi (SizedBox.shrink).
 class AdaptiveCashFlowCard extends StatefulWidget {
-  const AdaptiveCashFlowCard({
-    super.key,
-    this.onProfileChanged,
-  });
+  const AdaptiveCashFlowCard({super.key, this.onProfileChanged});
 
   final VoidCallback? onProfileChanged;
 
@@ -58,9 +55,9 @@ class _AdaptiveCashFlowCardState extends State<AdaptiveCashFlowCard> {
 
       // Hitung total kas likuid riil dari akun perbankan / tunai
       final db = getIt<AppDatabase>();
-      final accounts = await (db.select(db.accounts)
-            ..where((a) => a.isArchived.equals(false)))
-          .get();
+      final accounts = await (db.select(
+        db.accounts,
+      )..where((a) => a.isArchived.equals(false))).get();
 
       final totalLiquidCash = accounts.fold<int>(
         0,
@@ -100,20 +97,20 @@ class _AdaptiveCashFlowCardState extends State<AdaptiveCashFlowCard> {
 
     final (statusColor, statusBg, statusIcon) = switch (runway.healthStatus) {
       CycleHealthStatus.safe => (
-          Colors.green.shade600,
-          Colors.green.shade50,
-          Icons.check_circle_outline,
-        ),
+        Colors.green.shade600,
+        Colors.green.shade50,
+        Icons.check_circle_outline,
+      ),
       CycleHealthStatus.warning => (
-          Colors.orange.shade700,
-          Colors.orange.shade50,
-          Icons.warning_amber_rounded,
-        ),
+        Colors.orange.shade700,
+        Colors.orange.shade50,
+        Icons.warning_amber_rounded,
+      ),
       CycleHealthStatus.critical => (
-          Colors.red.shade700,
-          Colors.red.shade50,
-          Icons.error_outline,
-        ),
+        Colors.red.shade700,
+        Colors.red.shade50,
+        Icons.error_outline,
+      ),
     };
 
     final profileIcon = switch (profile.profileType) {
@@ -247,9 +244,11 @@ class _AdaptiveCashFlowCardState extends State<AdaptiveCashFlowCard> {
                   child: LinearProgressIndicator(
                     value: profile.progress,
                     minHeight: 7,
-                    backgroundColor:
-                        colorScheme.surfaceContainerHighest.withValues(alpha: 0.7),
-                    valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                    backgroundColor: colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.7),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      colorScheme.primary,
+                    ),
                   ),
                 ),
               ],
@@ -321,11 +320,15 @@ class _AdaptiveCashFlowCardState extends State<AdaptiveCashFlowCard> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: isDark
-                          ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.5)
+                          ? colorScheme.surfaceContainerHighest.withValues(
+                              alpha: 0.5,
+                            )
                           : colorScheme.surfaceContainerLowest,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                        color: colorScheme.outlineVariant.withValues(
+                          alpha: 0.5,
+                        ),
                       ),
                     ),
                     child: Column(
@@ -404,8 +407,8 @@ class _AdaptiveCashFlowCardState extends State<AdaptiveCashFlowCard> {
 
   static String _formatNumber(int val) {
     return val.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (m) => '${m[1]}.',
-        );
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]}.',
+    );
   }
 }

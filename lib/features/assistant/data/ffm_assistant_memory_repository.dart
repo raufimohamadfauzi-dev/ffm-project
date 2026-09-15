@@ -126,7 +126,8 @@ class FfmAssistantMemoryRepository {
         ..where((row) => row.triggerText.equals(safeTrigger))
         ..where((row) => row.isArchived.equals(false));
       final existing = await query.getSingleOrNull();
-      memoryId = existing?.id ??
+      memoryId =
+          existing?.id ??
           'assistant-memory-${now.microsecondsSinceEpoch}-${_random.nextInt(1 << 32)}';
     }
     await _db
@@ -177,11 +178,9 @@ class FfmAssistantMemoryRepository {
   /// ditemukan atau sudah diarsipkan.
   Future<bool> setApproval(String id, {required bool approved}) async {
     final row =
-        await (_db.select(_db.assistantMemories)
-              ..where(
-                (row) =>
-                    row.householdId.equals(householdId) & row.id.equals(id),
-              ))
+        await (_db.select(_db.assistantMemories)..where(
+              (row) => row.householdId.equals(householdId) & row.id.equals(id),
+            ))
             .getSingleOrNull();
     if (row == null || row.isArchived) return false;
     Map<String, dynamic> metadata = const {};

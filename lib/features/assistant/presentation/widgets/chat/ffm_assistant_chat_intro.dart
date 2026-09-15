@@ -154,10 +154,7 @@ class FfmAssistantContextualSuggestions extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            Text(
-              'Lanjutkan:',
-              style: Theme.of(context).textTheme.labelSmall,
-            ),
+            Text('Lanjutkan:', style: Theme.of(context).textTheme.labelSmall),
             const SizedBox(width: 8),
             for (final suggestion in suggestions) ...[
               Semantics(

@@ -30,14 +30,11 @@ void main() {
       }
     });
 
-    testWidgets('renders SizedBox.shrink when there are no pending drafts',
-        (tester) async {
+    testWidgets('renders SizedBox.shrink when there are no pending drafts', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: PendingPaymentDraftsCard(),
-          ),
-        ),
+        const MaterialApp(home: Scaffold(body: PendingPaymentDraftsCard())),
       );
       await tester.pumpAndSettle();
 
@@ -45,8 +42,9 @@ void main() {
       expect(find.byType(PendingPaymentDraftsCard), findsOneWidget);
     });
 
-    testWidgets('renders card with pending drafts for SeaBank and GoPay',
-        (tester) async {
+    testWidgets('renders card with pending drafts for SeaBank and GoPay', (
+      tester,
+    ) async {
       final drafts = [
         PaymentDraft(
           id: 'draft_seabank_1',
@@ -83,9 +81,7 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
-            body: SingleChildScrollView(
-              child: PendingPaymentDraftsCard(),
-            ),
+            body: SingleChildScrollView(child: PendingPaymentDraftsCard()),
           ),
         ),
       );
@@ -102,6 +98,95 @@ void main() {
       expect(find.text('Simpan'), findsNWidgets(2));
       expect(find.text('Abaikan'), findsNWidgets(2));
       expect(find.text('Edit'), findsNWidgets(2));
+    });
+
+    testWidgets(
+      'allows editing a draft before saving, and persists the corrected values',
+      (tester) async {
+        final drafts = [
+          PaymentDraft(
+            id: 'draft_edit_test',
+            sourceApp: 'com.gojek.app',
+            rawTitle: 'GoPay',
+            rawBody: 'Pembayaran QRIS Rp 25.000 ke Kopi Kenangan berhasil',
+            amount: 25000,
+            merchantName: 'KOPI KENANGAN',
+            mutationType: PaymentMutationType.debit,
+            createdAt: DateTime.now(),
+            suggestedCategory: 'Makanan & Minuman',
+            status: PaymentDraftStatus.pending,
+          ),
+        ];
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          'ffm_payment_drafts',
+          jsonEncode(drafts.map((d) => d.toJson()).toList()),
+        );
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(child: PendingPaymentDraftsCard()),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Edit'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Edit Draft Transaksi'), findsOneWidget);
+
+        await tester.enterText(find.byType(TextField).at(0), '75000');
+        await tester.enterText(find.byType(TextField).at(1), 'Tokopedia');
+        await tester.tap(find.byType(DropdownButtonFormField<String>));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Pemasukan').last);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Simpan Perubahan'));
+        await tester.pumpAndSettle();
+
+        final updatedDrafts = await repo.getAllDrafts();
+        expect(updatedDrafts.single.amount, 75000);
+        expect(updatedDrafts.single.merchantName, 'Tokopedia');
+        expect(updatedDrafts.single.mutationType, PaymentMutationType.credit);
+      },
+    );
+
+    test('does not treat two separate notifications as duplicates when timestamps differ', () async {
+      final first = PaymentDraft(
+        id: 'draft_1',
+        sourceApp: 'com.gojek.app',
+        rawTitle: 'GoPay',
+        rawBody: 'Pembayaran QRIS Rp 25.000 ke Kopi Kenangan berhasil',
+        amount: 25000,
+        merchantName: 'KOPI KENANGAN',
+        mutationType: PaymentMutationType.debit,
+        createdAt: DateTime.now().subtract(const Duration(minutes: 10)),
+        suggestedCategory: 'Makanan & Minuman',
+        status: PaymentDraftStatus.pending,
+      );
+
+      final second = PaymentDraft(
+        id: 'draft_2',
+        sourceApp: 'com.gojek.app',
+        rawTitle: 'GoPay',
+        rawBody: 'Pembayaran QRIS Rp 25.000 ke Kopi Kenangan berhasil',
+        amount: 25000,
+        merchantName: 'KOPI KENANGAN',
+        mutationType: PaymentMutationType.debit,
+        createdAt: DateTime.now(),
+        suggestedCategory: 'Makanan & Minuman',
+        status: PaymentDraftStatus.pending,
+      );
+
+      final repo = PaymentDraftRepository();
+      await repo.addIfNotDuplicate(first);
+      final duplicate = await repo.addIfNotDuplicate(second);
+
+      expect(duplicate, isNotNull);
+      expect((await repo.getAllDrafts()).length, 2);
     });
 
     testWidgets('dismisses a draft when Abaikan is tapped', (tester) async {

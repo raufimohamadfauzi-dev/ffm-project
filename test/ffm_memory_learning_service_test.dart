@@ -87,8 +87,9 @@ void main() {
       );
 
       expect(candidates, isNotEmpty);
-      final correction =
-          candidates.where((c) => c.type == FfmMemoryType.correction);
+      final correction = candidates.where(
+        (c) => c.type == FfmMemoryType.correction,
+      );
       expect(correction, isNotEmpty);
     });
 
@@ -100,8 +101,7 @@ void main() {
       );
 
       expect(candidates, isNotEmpty);
-      final habits =
-          candidates.where((c) => c.type == FfmMemoryType.habit);
+      final habits = candidates.where((c) => c.type == FfmMemoryType.habit);
       expect(habits, isNotEmpty);
     });
 
@@ -162,7 +162,6 @@ void main() {
       expect(q6, isEmpty);
     });
 
-
     test('extracts usage-based patterns when many memories used', () async {
       final usedMemories = List.generate(
         5,
@@ -187,8 +186,9 @@ void main() {
         usedMemories: usedMemories,
       );
 
-      final usageBased =
-          candidates.where((c) => c.sourceId == 'usage-analysis');
+      final usageBased = candidates.where(
+        (c) => c.sourceId == 'usage-analysis',
+      );
       expect(usageBased, isNotEmpty);
     });
   });
@@ -331,10 +331,7 @@ void main() {
         metadata: {'useCount': 0, 'importance': 0.5},
       );
 
-      await service.trackMemoryUsage(
-        [record.id],
-        repository: memoryRepository,
-      );
+      await service.trackMemoryUsage([record.id], repository: memoryRepository);
 
       final updated = await memoryRepository.readActive();
       final match = updated.where((m) => m.id == record.id).first;
@@ -349,17 +346,19 @@ void main() {
   group('applyMemoryDecay', () {
     test('archives old low-importance unused memories', () async {
       final oldDate = DateTime.now().subtract(const Duration(days: 365));
-      await database.into(database.assistantMemories).insert(
-        AssistantMemoriesCompanion(
-          id: const Value('old-memory'),
-          householdId: const Value('local-household'),
-          kind: const Value('preference'),
-          triggerText: const Value('old_key'),
-          valueText: const Value('old_value'),
-          metadataJson: const Value('{"useCount":0,"importance":0.15}'),
-          createdAt: Value(oldDate),
-        ),
-      );
+      await database
+          .into(database.assistantMemories)
+          .insert(
+            AssistantMemoriesCompanion(
+              id: const Value('old-memory'),
+              householdId: const Value('local-household'),
+              kind: const Value('preference'),
+              triggerText: const Value('old_key'),
+              valueText: const Value('old_value'),
+              metadataJson: const Value('{"useCount":0,"importance":0.15}'),
+              createdAt: Value(oldDate),
+            ),
+          );
 
       await service.applyMemoryDecay(
         repository: memoryRepository,
@@ -372,17 +371,19 @@ void main() {
 
     test('preserves high-importance memories', () async {
       final oldDate = DateTime.now().subtract(const Duration(days: 365));
-      await database.into(database.assistantMemories).insert(
-        AssistantMemoriesCompanion(
-          id: const Value('important-memory'),
-          householdId: const Value('local-household'),
-          kind: const Value('identity'),
-          triggerText: const Value('important_key'),
-          valueText: const Value('important_value'),
-          metadataJson: const Value('{"useCount":0,"importance":0.9}'),
-          createdAt: Value(oldDate),
-        ),
-      );
+      await database
+          .into(database.assistantMemories)
+          .insert(
+            AssistantMemoriesCompanion(
+              id: const Value('important-memory'),
+              householdId: const Value('local-household'),
+              kind: const Value('identity'),
+              triggerText: const Value('important_key'),
+              valueText: const Value('important_value'),
+              metadataJson: const Value('{"useCount":0,"importance":0.9}'),
+              createdAt: Value(oldDate),
+            ),
+          );
 
       await service.applyMemoryDecay(
         repository: memoryRepository,
@@ -395,17 +396,19 @@ void main() {
 
     test('preserves frequently used memories', () async {
       final oldDate = DateTime.now().subtract(const Duration(days: 365));
-      await database.into(database.assistantMemories).insert(
-        AssistantMemoriesCompanion(
-          id: const Value('used-memory'),
-          householdId: const Value('local-household'),
-          kind: const Value('preference'),
-          triggerText: const Value('used_key'),
-          valueText: const Value('used_value'),
-          metadataJson: const Value('{"useCount":5,"importance":0.3}'),
-          createdAt: Value(oldDate),
-        ),
-      );
+      await database
+          .into(database.assistantMemories)
+          .insert(
+            AssistantMemoriesCompanion(
+              id: const Value('used-memory'),
+              householdId: const Value('local-household'),
+              kind: const Value('preference'),
+              triggerText: const Value('used_key'),
+              valueText: const Value('used_value'),
+              metadataJson: const Value('{"useCount":5,"importance":0.3}'),
+              createdAt: Value(oldDate),
+            ),
+          );
 
       await service.applyMemoryDecay(
         repository: memoryRepository,

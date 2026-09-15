@@ -152,10 +152,7 @@ class FfmGeminiReadCapabilityService {
       case 'read.monitoring_jobs':
         if (getIt.isRegistered<FfmAssistantMonitoringJobService>()) {
           return await getIt<FfmAssistantMonitoringJobService>()
-              .buildMonitoringDigest(
-                householdId: householdId,
-                now: now,
-              );
+              .buildMonitoringDigest(householdId: householdId, now: now);
         }
         return 'Data pemantauan tidak tersedia.';
       default:
@@ -174,19 +171,21 @@ class FfmGeminiReadCapabilityService {
       switch (period) {
         case 'last_month':
           startDate = DateTime(now.year, now.month - 1, 1);
-          endDate = DateTime(now.year, now.month, 1).subtract(
-            const Duration(days: 1),
-          );
+          endDate = DateTime(
+            now.year,
+            now.month,
+            1,
+          ).subtract(const Duration(days: 1));
         case 'last_3_months':
           startDate = DateTime(now.year, now.month - 3, 1);
-          endDate = DateTime(now.year, now.month, 1).subtract(
-            const Duration(days: 1),
-          );
+          endDate = DateTime(
+            now.year,
+            now.month,
+            1,
+          ).subtract(const Duration(days: 1));
         case 'last_year' || 'previous_year':
           startDate = DateTime(now.year - 1, 1, 1);
-          endDate = DateTime(now.year, 1, 1).subtract(
-            const Duration(days: 1),
-          );
+          endDate = DateTime(now.year, 1, 1).subtract(const Duration(days: 1));
         case 'year_to_date':
           startDate = DateTime(now.year, 1, 1);
           endDate = now;

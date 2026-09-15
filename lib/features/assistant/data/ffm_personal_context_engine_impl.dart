@@ -51,7 +51,7 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
            ),
        _personalizationRepository =
            personalizationRepository ??
-               FfmAssistantPersonalizationRepository(database) {
+           FfmAssistantPersonalizationRepository(database) {
     _workingContextManager = workingContextManager;
   }
 

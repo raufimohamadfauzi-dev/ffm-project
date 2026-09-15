@@ -4,7 +4,10 @@ import 'package:ffm_manager/features/assistant/data/ffm_assistant_draft_feedback
 
 void main() {
   group('FfmPersonalMemoryService Pattern Matching', () {
-    final service = FfmPersonalMemoryService(null, FfmAssistantDraftFeedbackService());
+    final service = FfmPersonalMemoryService(
+      null,
+      FfmAssistantDraftFeedbackService(),
+    );
 
     test('mendeteksi tanggal gajian dari kalimat user', () {
       final insight = service.extractFromMessage('gajianku tiap tanggal 25');
@@ -33,7 +36,9 @@ void main() {
     });
 
     test('mendeteksi pekerjaan dari chat', () {
-      final insight = service.extractFromMessage('aku bekerja sebagai Software Engineer');
+      final insight = service.extractFromMessage(
+        'aku bekerja sebagai Software Engineer',
+      );
       expect(insight, isNotNull);
       expect(insight?.kind, FfmPersonalMemoryKind.preference);
       expect(insight?.key, 'occupation');
@@ -51,7 +56,9 @@ void main() {
     });
 
     test('mendeteksi budget makanan bulanan', () {
-      final insight = service.extractFromMessage('budget makan perbulan 3 juta');
+      final insight = service.extractFromMessage(
+        'budget makan perbulan 3 juta',
+      );
       expect(insight, isNotNull);
       expect(insight?.kind, FfmPersonalMemoryKind.habitChat);
       expect(insight?.key, 'budget_food');

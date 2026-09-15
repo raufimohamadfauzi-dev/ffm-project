@@ -87,8 +87,8 @@ abstract final class FfmAssistantScreenContextPolicy {
     final dataSummary = snapshot?.dataSummary;
     final summary =
         useGeneric || dataSummary == null || dataSummary.trim().isEmpty
-            ? _genericSummary(activeDestination)
-            : dataSummary.trim();
+        ? _genericSummary(activeDestination)
+        : dataSummary.trim();
     final filters =
         snapshot?.activeFilters.entries
             .where(
@@ -121,16 +121,14 @@ abstract final class FfmAssistantScreenContextPolicy {
     FfmAssistantDestination.assets => 'Sedang melihat daftar aset keluarga.',
     FfmAssistantDestination.goals => 'Sedang melihat target keuangan.',
     FfmAssistantDestination.liabilities => 'Sedang melihat hutang dan piutang.',
-    FfmAssistantDestination.activity =>
-      'Sedang melihat aktivitas bertimer, durasi, dan Catatan Harian atau jurnal teks.',
+    FfmAssistantDestination.activity => 'Sedang melihat aktivitas bertimer, durasi, dan Catatan Harian atau jurnal teks.',
     FfmAssistantDestination.reminders => 'Sedang melihat pengingat lokal.',
     FfmAssistantDestination.monthlyReport =>
       'Sedang melihat laporan periode bulanan.',
 
     FfmAssistantDestination.intelligenceDashboard =>
       'Sedang melihat pengaturan Gemini Cloud dan memori Supabase.',
-    FfmAssistantDestination.familyProfile =>
-      'Sedang melihat profil keluarga.',
+    FfmAssistantDestination.familyProfile => 'Sedang melihat profil keluarga.',
     FfmAssistantDestination.utilityMeter =>
       'Sedang melihat Buku Saku Meteran & Token Listrik PLN.',
     _ => 'Sedang melihat halaman fitur FFM.',
@@ -151,8 +149,8 @@ class FfmAssistantPageContextController
     extends ValueNotifier<FfmAssistantDestination?> {
   FfmAssistantPageContextController({
     FfmAssistantDestination? defaultDestination,
-  })  : _currentShellTab = defaultDestination,
-        super(defaultDestination);
+  }) : _currentShellTab = defaultDestination,
+       super(defaultDestination);
 
   final _entries = <Object, FfmAssistantPageContextSnapshot>{};
   final _tabSnapshots =
@@ -160,10 +158,9 @@ class FfmAssistantPageContextController
   FfmAssistantDestination? _currentShellTab;
   var _isDisposed = false;
 
-  FfmAssistantDestination? get currentDestination =>
-      _entries.values.isNotEmpty
-          ? _entries.values.last.destination
-          : _currentShellTab;
+  FfmAssistantDestination? get currentDestination => _entries.values.isNotEmpty
+      ? _entries.values.last.destination
+      : _currentShellTab;
 
   FfmAssistantPageContextSnapshot? get currentSnapshot {
     if (_entries.values.isNotEmpty) {
@@ -174,10 +171,9 @@ class FfmAssistantPageContextController
     return _tabSnapshots[shellTab] ??
         FfmAssistantPageContextSnapshot(
           destination: shellTab,
-          capabilityIds:
-              FfmAssistantCapabilityRegistry.forDestination(shellTab)
-                  .map((capability) => capability.id)
-                  .toList(growable: false),
+          capabilityIds: FfmAssistantCapabilityRegistry.forDestination(shellTab)
+              .map((capability) => capability.id)
+              .toList(growable: false),
           updatedAt: DateTime.now(),
         );
   }

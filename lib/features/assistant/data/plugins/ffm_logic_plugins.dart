@@ -117,7 +117,8 @@ class FfmZakatLogicPlugin extends FfmAgentPlugin {
     final nisabNominal = defaultGoldPricePerGram * nisabGrams;
     final wajibZakatMal = totalWealth >= nisabNominal;
     final zakatMalAmount = wajibZakatMal ? (totalWealth * 0.025).round() : 0;
-    final zakatFitrahPerPerson = (defaultRicePricePerKg * fitrahKgPerPerson).round();
+    final zakatFitrahPerPerson = (defaultRicePricePerKg * fitrahKgPerPerson)
+        .round();
 
     final lines = <String>[
       '🕋 **Kalkulator Zakat Mal & Fitrah**\n',
@@ -207,10 +208,14 @@ class FfmFinancialHealthLogicPlugin extends FfmAgentPlugin {
                   row.isActive.equals(true),
             ))
             .get();
-    final monthlyDebt =
-        liabilities.fold<int>(0, (sum, row) => sum + row.monthlyInstallment);
-    final totalLiabilities =
-        liabilities.fold<int>(0, (sum, row) => sum + row.remainingBalance);
+    final monthlyDebt = liabilities.fold<int>(
+      0,
+      (sum, row) => sum + row.monthlyInstallment,
+    );
+    final totalLiabilities = liabilities.fold<int>(
+      0,
+      (sum, row) => sum + row.remainingBalance,
+    );
 
     final assetRows =
         await (_db.select(_db.assets)..where(
@@ -219,8 +224,7 @@ class FfmFinancialHealthLogicPlugin extends FfmAgentPlugin {
                   row.isArchived.equals(false),
             ))
             .get();
-    final totalAssets =
-        assetRows.fold<int>(0, (sum, row) => sum + row.value);
+    final totalAssets = assetRows.fold<int>(0, (sum, row) => sum + row.value);
     final emergencyFund = assetRows
         .where((row) => row.assetType == 'cash')
         .fold<int>(0, (sum, row) => sum + row.value);
@@ -238,11 +242,14 @@ class FfmFinancialHealthLogicPlugin extends FfmAgentPlugin {
     );
 
     final badge = switch (score.status) {
-      FinancialHealthStatus.excellent => '🟢 **PRIMA (${score.totalScore}/100)**',
+      FinancialHealthStatus.excellent =>
+        '🟢 **PRIMA (${score.totalScore}/100)**',
       FinancialHealthStatus.good => '🟢 **SEHAT (${score.totalScore}/100)**',
       FinancialHealthStatus.fair => '🟡 **CUKUP (${score.totalScore}/100)**',
-      FinancialHealthStatus.warning => '🟠 **PERLU DIJAGA (${score.totalScore}/100)**',
-      FinancialHealthStatus.critical => '🔴 **PERLU DIBENAHI (${score.totalScore}/100)**',
+      FinancialHealthStatus.warning =>
+        '🟠 **PERLU DIJAGA (${score.totalScore}/100)**',
+      FinancialHealthStatus.critical =>
+        '🔴 **PERLU DIBENAHI (${score.totalScore}/100)**',
     };
 
     final lines = <String>[
@@ -324,8 +331,7 @@ class FfmBudgetGuardLogicPlugin extends FfmAgentPlugin {
       return const FfmHarnessResult(
         pluginName: 'budget_guard_logic',
         category: FfmPluginCategory.logic,
-        text:
-            '📋 Belum ada anggaran aktif untuk dipantau. Buat anggaran terlebih dahulu agar Budget Guard bisa bekerja.',
+        text: '📋 Belum ada anggaran aktif untuk dipantau. Buat anggaran terlebih dahulu agar Budget Guard bisa bekerja.',
       );
     }
 
@@ -351,12 +357,12 @@ class FfmBudgetGuardLogicPlugin extends FfmAgentPlugin {
 
     for (final budget in budgets) {
       final spent = spendByCategory[budget.categoryId] ?? 0;
-      final pct = budget.allocated > 0 ? (spent / budget.allocated * 100).round() : 0;
+      final pct = budget.allocated > 0
+          ? (spent / budget.allocated * 100).round()
+          : 0;
       if (spent > budget.allocated) {
         final over = spent - budget.allocated;
-        alerts.add(
-          '🔴 **$budget.name**: Melebihi ${_rupiah(over)} ($pct%)',
-        );
+        alerts.add('🔴 **$budget.name**: Melebihi ${_rupiah(over)} ($pct%)');
       } else if (pct >= 80) {
         warnings.add(
           '🟡 **${budget.name}**: Sudah $pct% terpakai (sisa ${_rupiah(budget.allocated - spent)})',
@@ -529,12 +535,14 @@ class FfmSpendingPaceLogicPlugin extends FfmAgentPlugin {
     final dayPassed = now.day;
     final remainingDays = (daysInMonth - dayPassed).clamp(1, 31);
 
-    final rows = await (_db.select(_db.transactions)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.isArchived.equals(false) &
-              row.isDeleted.equals(false)))
-        .get();
+    final rows =
+        await (_db.select(_db.transactions)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false) &
+                  row.isDeleted.equals(false),
+            ))
+            .get();
 
     var income = 0;
     var expense = 0;
@@ -556,13 +564,16 @@ class FfmSpendingPaceLogicPlugin extends FfmAgentPlugin {
       return const FfmHarnessResult(
         pluginName: 'spending_pace_logic',
         category: FfmPluginCategory.logic,
-        text: '📊 **Evaluasi Pengeluaran**\n\n'
+        text:
+            '📊 **Evaluasi Pengeluaran**\n\n'
             'Belum ada transaksi pengeluaran atau pemasukan yang dicatat bulan ini.',
       );
     }
 
     final timePercent = ((dayPassed / daysInMonth) * 100).round();
-    final expensePercent = income > 0 ? ((expense / income) * 100).round() : 100;
+    final expensePercent = income > 0
+        ? ((expense / income) * 100).round()
+        : 100;
     final dailyAverage = (expense / dayPassed).round();
     final projectedMonthEndExpense = (dailyAverage * daysInMonth).round();
 
@@ -585,9 +596,9 @@ class FfmSpendingPaceLogicPlugin extends FfmAgentPlugin {
           'Pengeluaran Anda seimbang dengan perjalanan bulan ($expensePercent% pengeluaran di $timePercent% bulan berjalan).';
     }
 
-    final categories = await (_db.select(_db.categories)
-          ..where((row) => row.householdId.equals(householdId)))
-        .get();
+    final categories = await (_db.select(
+      _db.categories,
+    )..where((row) => row.householdId.equals(householdId))).get();
     final categoryNameMap = {for (final c in categories) c.id: c.name};
 
     final sortedCategories = categoryTotals.entries.toList()
@@ -601,14 +612,15 @@ class FfmSpendingPaceLogicPlugin extends FfmAgentPlugin {
 
     final projectionText = income > 0
         ? (projectedMonthEndExpense > income
-            ? '⚠️ **Proyeksi Akhir Bulan:** Diprediksi tembus **${_rupiah(projectedMonthEndExpense)}** (Potensi Defisit ${_rupiah(projectedMonthEndExpense - income)})'
-            : '✅ **Proyeksi Akhir Bulan:** Diprediksi **${_rupiah(projectedMonthEndExpense)}** (Surplus Sisa Tabungan ${_rupiah(income - projectedMonthEndExpense)})')
+              ? '⚠️ **Proyeksi Akhir Bulan:** Diprediksi tembus **${_rupiah(projectedMonthEndExpense)}** (Potensi Defisit ${_rupiah(projectedMonthEndExpense - income)})'
+              : '✅ **Proyeksi Akhir Bulan:** Diprediksi **${_rupiah(projectedMonthEndExpense)}** (Surplus Sisa Tabungan ${_rupiah(income - projectedMonthEndExpense)})')
         : '⚠️ Belum ada data pemasukan untuk memproyeksikan surplus/defisit.';
 
     return FfmHarnessResult(
       pluginName: name,
       category: category,
-      text: '📊 **Evaluasi Pola Pengeluaran & Laju Belanja**\n\n'
+      text:
+          '📊 **Evaluasi Pola Pengeluaran & Laju Belanja**\n\n'
           '$statusTitle\n$statusExplanation\n\n'
           '📈 **Statistik Pengeluaran:**\n'
           '- Rata-rata per hari: ${_rupiah(dailyAverage)}/hari\n'
@@ -659,28 +671,34 @@ class FfmHolisticAwarenessPlugin extends FfmAgentPlugin {
     final nextMonth = DateTime(now.year, now.month + 1);
 
     // 1. Total Kas
-    final accounts = await (_db.select(_db.accounts)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.isActive.equals(true) &
-              row.isArchived.equals(false)))
-        .get();
+    final accounts =
+        await (_db.select(_db.accounts)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
     var totalCash = 0;
     for (final acc in accounts) {
-      final txs = await (_db.select(_db.transactions)
-            ..where((row) =>
-                row.householdId.equals(householdId) &
-                row.accountId.equals(acc.id) &
-                row.isArchived.equals(false) &
-                row.isDeleted.equals(false)))
-          .get();
-      final tfs = await (_db.select(_db.transfers)
-            ..where((row) =>
-                row.householdId.equals(householdId) &
-                (row.fromAccountId.equals(acc.id) |
-                    row.toAccountId.equals(acc.id)) &
-                row.isDeleted.equals(false)))
-          .get();
+      final txs =
+          await (_db.select(_db.transactions)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.accountId.equals(acc.id) &
+                    row.isArchived.equals(false) &
+                    row.isDeleted.equals(false),
+              ))
+              .get();
+      final tfs =
+          await (_db.select(_db.transfers)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    (row.fromAccountId.equals(acc.id) |
+                        row.toAccountId.equals(acc.id)) &
+                    row.isDeleted.equals(false),
+              ))
+              .get();
       var b = acc.openingBalance;
       for (final t in txs) {
         if (t.type == 'income') b += t.amount.abs();
@@ -694,12 +712,14 @@ class FfmHolisticAwarenessPlugin extends FfmAgentPlugin {
     }
 
     // 2. Transaksi Bulan Ini
-    final txRows = await (_db.select(_db.transactions)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.isArchived.equals(false) &
-              row.isDeleted.equals(false)))
-        .get();
+    final txRows =
+        await (_db.select(_db.transactions)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false) &
+                  row.isDeleted.equals(false),
+            ))
+            .get();
     var income = 0;
     var expense = 0;
     for (final row in txRows) {
@@ -709,35 +729,48 @@ class FfmHolisticAwarenessPlugin extends FfmAgentPlugin {
     }
 
     // 3. Total Hutang
-    final liabilities = await (_db.select(_db.liabilities)
-          ..where((row) =>
-              row.householdId.equals(householdId) & row.isActive.equals(true)))
-        .get();
-    final totalRemainingDebt =
-        liabilities.fold<int>(0, (sum, row) => sum + row.remainingBalance);
-    final monthlyDebt =
-        liabilities.fold<int>(0, (sum, row) => sum + row.monthlyInstallment);
+    final liabilities =
+        await (_db.select(_db.liabilities)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    final totalRemainingDebt = liabilities.fold<int>(
+      0,
+      (sum, row) => sum + row.remainingBalance,
+    );
+    final monthlyDebt = liabilities.fold<int>(
+      0,
+      (sum, row) => sum + row.monthlyInstallment,
+    );
 
     // 4. Aset
-    final assets = await (_db.select(_db.assets)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.isArchived.equals(false)))
-        .get();
+    final assets =
+        await (_db.select(_db.assets)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
     final totalAssets = assets.fold<int>(0, (sum, row) => sum + row.value);
 
     // 5. Target
-    final goals = await (_db.select(_db.goals)
-          ..where((row) =>
-              row.householdId.equals(householdId) & row.isActive.equals(true)))
-        .get();
+    final goals =
+        await (_db.select(_db.goals)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
 
     final netWorth = totalCash + totalAssets - totalRemainingDebt;
 
     return FfmHarnessResult(
       pluginName: name,
       category: category,
-      text: '🌐 **Potret Kondisi Keuangan Menyeluruh (360° View)**\n\n'
+      text:
+          '🌐 **Potret Kondisi Keuangan Menyeluruh (360° View)**\n\n'
           '💰 **Likuiditas & Arus Kas:**\n'
           '- Total Saldo Kas di Rekening: **${_rupiah(totalCash)}**\n'
           '- Pemasukan Bulan Ini: ${_rupiah(income)}\n'
@@ -788,54 +821,55 @@ class FfmEmergencyFundLogicPlugin extends FfmAgentPlugin {
 
     // Hitung rata-rata pengeluaran 3 bulan terakhir
     final threeMonthsAgo = DateTime(now.year, now.month - 3, 1);
-    final expenseRows = await (_db.select(_db.transactions)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.type.equals('expense') &
-                row.isArchived.equals(false) &
-                row.isDeleted.equals(false) &
-                row.date.isBiggerOrEqualValue(threeMonthsAgo),
-          ))
-        .get();
+    final expenseRows =
+        await (_db.select(_db.transactions)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.type.equals('expense') &
+                  row.isArchived.equals(false) &
+                  row.isDeleted.equals(false) &
+                  row.date.isBiggerOrEqualValue(threeMonthsAgo),
+            ))
+            .get();
 
     var totalExpense3Mo = 0;
     for (final t in expenseRows) {
       totalExpense3Mo += t.amount.abs();
     }
-    final avgMonthlyExpense =
-        expenseRows.isEmpty ? 0 : (totalExpense3Mo / 3).round();
+    final avgMonthlyExpense = expenseRows.isEmpty
+        ? 0
+        : (totalExpense3Mo / 3).round();
 
     // Hitung saldo kas saat ini
-    final accounts = await (_db.select(_db.accounts)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isActive.equals(true) &
-                row.isArchived.equals(false),
-          ))
-        .get();
+    final accounts =
+        await (_db.select(_db.accounts)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
 
     var currentCash = 0;
     for (final acc in accounts) {
-      final txs = await (_db.select(_db.transactions)
-            ..where(
-              (row) =>
-                  row.householdId.equals(householdId) &
-                  row.accountId.equals(acc.id) &
-                  row.isArchived.equals(false) &
-                  row.isDeleted.equals(false),
-            ))
-          .get();
-      final tfs = await (_db.select(_db.transfers)
-            ..where(
-              (row) =>
-                  row.householdId.equals(householdId) &
-                  (row.fromAccountId.equals(acc.id) |
-                      row.toAccountId.equals(acc.id)) &
-                  row.isDeleted.equals(false),
-            ))
-          .get();
+      final txs =
+          await (_db.select(_db.transactions)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.accountId.equals(acc.id) &
+                    row.isArchived.equals(false) &
+                    row.isDeleted.equals(false),
+              ))
+              .get();
+      final tfs =
+          await (_db.select(_db.transfers)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    (row.fromAccountId.equals(acc.id) |
+                        row.toAccountId.equals(acc.id)) &
+                    row.isDeleted.equals(false),
+              ))
+              .get();
       var b = acc.openingBalance;
       for (final t in txs) {
         if (t.type == 'income') b += t.amount.abs();
@@ -852,7 +886,8 @@ class FfmEmergencyFundLogicPlugin extends FfmAgentPlugin {
       return const FfmHarnessResult(
         pluginName: 'emergency_fund_logic',
         category: FfmPluginCategory.logic,
-        text: '🛡️ **Kalkulator Dana Darurat**\n\n'
+        text:
+            '🛡️ **Kalkulator Dana Darurat**\n\n'
             'Belum ada data pengeluaran yang cukup untuk menghitung kebutuhan dana darurat. '
             'Catat minimal 1 bulan pengeluaran agar asisten bisa memberikan perhitungan akurat.',
       );
@@ -862,8 +897,9 @@ class FfmEmergencyFundLogicPlugin extends FfmAgentPlugin {
     final needed6Mo = avgMonthlyExpense * 6;
     final needed12Mo = avgMonthlyExpense * 12;
 
-    final coverageMonths =
-        avgMonthlyExpense > 0 ? (currentCash / avgMonthlyExpense) : 0;
+    final coverageMonths = avgMonthlyExpense > 0
+        ? (currentCash / avgMonthlyExpense)
+        : 0;
     final coverageLabel = coverageMonths >= 12
         ? '✅ Sangat Ideal (≥12 bulan)'
         : coverageMonths >= 6
@@ -882,7 +918,8 @@ class FfmEmergencyFundLogicPlugin extends FfmAgentPlugin {
     return FfmHarnessResult(
       pluginName: name,
       category: category,
-      text: '🛡️ **Kalkulator Dana Darurat Keluarga**\n\n'
+      text:
+          '🛡️ **Kalkulator Dana Darurat Keluarga**\n\n'
           '📊 **Data Dasar (rata-rata 3 bulan terakhir):**\n'
           '- Pengeluaran bulanan rata-rata: **${_rupiah(avgMonthlyExpense)}**\n'
           '- Kas & saldo saat ini: **${_rupiah(currentCash)}**\n'
@@ -908,8 +945,10 @@ class FfmEmergencyFundLogicPlugin extends FfmAgentPlugin {
 
 /// Plugin Logika: Menghitung strategi pelunasan hutang (Debt Snowball vs Debt Avalanche).
 class FfmDebtSnowballLogicPlugin extends FfmAgentPlugin {
-  FfmDebtSnowballLogicPlugin(AppDatabase db, [DebtPayoffStrategistService? strategist])
-      : _strategist = strategist ?? DebtPayoffStrategistService(db);
+  FfmDebtSnowballLogicPlugin(
+    AppDatabase db, [
+    DebtPayoffStrategistService? strategist,
+  ]) : _strategist = strategist ?? DebtPayoffStrategistService(db);
 
   final DebtPayoffStrategistService _strategist;
 
@@ -936,14 +975,14 @@ class FfmDebtSnowballLogicPlugin extends FfmAgentPlugin {
   @override
   Future<FfmHarnessResult?> execute(FfmHarnessContext context) async {
     final householdId = _householdId();
-    final adaptiveDebts =
-        await _strategist.getAdaptiveLiabilities(householdId);
+    final adaptiveDebts = await _strategist.getAdaptiveLiabilities(householdId);
 
     if (adaptiveDebts.isEmpty) {
       return const FfmHarnessResult(
         pluginName: 'debt_snowball_logic',
         category: FfmPluginCategory.logic,
-        text: '🎉 **Alhamdulillah!** Tidak ada catatan hutang/kewajiban aktif di FFM. '
+        text:
+            '🎉 **Alhamdulillah!** Tidak ada catatan hutang/kewajiban aktif di FFM. '
             'Pertahankan kondisi bebas hutang ini dan fokus alokasikan dana ke tabungan & investasi.',
       );
     }
@@ -961,8 +1000,9 @@ class FfmDebtSnowballLogicPlugin extends FfmAgentPlugin {
     }
 
     // Hitung rekomendasi surplus & perbandingan simulasi
-    final suggestedExtra =
-        await _strategist.estimateSuggestedExtraPayment(householdId);
+    final suggestedExtra = await _strategist.estimateSuggestedExtraPayment(
+      householdId,
+    );
     final comparison = _strategist.compareStrategies(
       liabilities: adaptiveDebts,
       extraMonthlyPayment: suggestedExtra,
@@ -983,9 +1023,7 @@ class FfmDebtSnowballLogicPlugin extends FfmAgentPlugin {
     final snowballLines = <String>[];
     for (var i = 0; i < snowballList.length; i++) {
       final d = snowballList[i];
-      final originBadge = d.isExplicitInstallment
-          ? ''
-          : ' *(adaptif)*';
+      final originBadge = d.isExplicitInstallment ? '' : ' *(adaptif)*';
       snowballLines.add(
         '${i + 1}. **${d.name}**: ${_rupiah(d.remainingBalance)} (Cicilan: ${_rupiah(d.monthlyInstallment)}/bln$originBadge)',
       );
@@ -994,7 +1032,9 @@ class FfmDebtSnowballLogicPlugin extends FfmAgentPlugin {
     final avalancheLines = <String>[];
     for (var i = 0; i < avalancheList.length; i++) {
       final d = avalancheList[i];
-      final rateStr = d.interestRate > 0 ? ' (Bunga: ${d.interestRate}%)' : ' (Bunga: 0%)';
+      final rateStr = d.interestRate > 0
+          ? ' (Bunga: ${d.interestRate}%)'
+          : ' (Bunga: 0%)';
       final originBadge = d.isExplicitInstallment
           ? ''
           : ' *(cicilan adaptif ${_rupiah(d.monthlyInstallment)}/bln)*';
@@ -1005,26 +1045,40 @@ class FfmDebtSnowballLogicPlugin extends FfmAgentPlugin {
 
     final buffer = StringBuffer();
     buffer.writeln('🎯 **Strategi & Simulasi Percepatan Bebas Hutang**\n');
-    buffer.writeln('📊 **Total Sisa Pokok:** **${_rupiah(totalDebt)}** (${adaptiveDebts.length} kewajiban)');
-    buffer.writeln('💳 **Total Beban Cicilan:** ${_rupiah(totalMonthlyInstallment)}/bulan');
+    buffer.writeln(
+      '📊 **Total Sisa Pokok:** **${_rupiah(totalDebt)}** (${adaptiveDebts.length} kewajiban)',
+    );
+    buffer.writeln(
+      '💳 **Total Beban Cicilan:** ${_rupiah(totalMonthlyInstallment)}/bulan',
+    );
     if (hasInferredInstallment) {
-      buffer.writeln('ℹ️ *Beberapa cicilan dihitung adaptif dari riwayat transaksi/amortisasi.*');
+      buffer.writeln(
+        'ℹ️ *Beberapa cicilan dihitung adaptif dari riwayat transaksi/amortisasi.*',
+      );
     }
     buffer.writeln('\n━━━━━━━━━━━━━━━━━━━━');
     buffer.writeln('🏔️ **Metode 1: Debt Snowball (Kemenangan Cepat)**');
-    buffer.writeln('*Fokus lunasi nominal saldo TERKECIL dulu untuk motivasi mental:*\n');
+    buffer.writeln(
+      '*Fokus lunasi nominal saldo TERKECIL dulu untuk motivasi mental:*\n',
+    );
     buffer.writeln(snowballLines.join('\n'));
     buffer.writeln('\n━━━━━━━━━━━━━━━━━━━━');
     buffer.writeln('⚡ **Metode 2: Debt Avalanche (Penghematan Maksimal)**');
-    buffer.writeln('*Fokus lunasi bunga TERTINGGI dulu untuk pangkas biaya bunga:*\n');
+    buffer.writeln(
+      '*Fokus lunasi bunga TERTINGGI dulu untuk pangkas biaya bunga:*\n',
+    );
     buffer.writeln(avalancheLines.join('\n'));
     buffer.writeln('\n━━━━━━━━━━━━━━━━━━━━');
     buffer.writeln('💡 **Simulasi Alokasi Surplus Ekstra:**');
     buffer.writeln(comparison.recommendationText);
     if (comparison.baselineResult.totalMonths > 0) {
-      buffer.writeln('\n• Waktu lunas normal: **${comparison.baselineResult.totalMonths} bulan**');
+      buffer.writeln(
+        '\n• Waktu lunas normal: **${comparison.baselineResult.totalMonths} bulan**',
+      );
       if (comparison.monthsSavedAvalanche > 0) {
-        buffer.writeln('• Waktu lunas via Avalanche + Ekstra: **${comparison.avalancheResult.totalMonths} bulan** *(lebih cepat ${comparison.monthsSavedAvalanche} bulan)*');
+        buffer.writeln(
+          '• Waktu lunas via Avalanche + Ekstra: **${comparison.avalancheResult.totalMonths} bulan** *(lebih cepat ${comparison.monthsSavedAvalanche} bulan)*',
+        );
       }
     }
 
@@ -1074,15 +1128,15 @@ class FfmSavingRateLogicPlugin extends FfmAgentPlugin {
     final now = context.now;
     final startOfMonth = DateTime(now.year, now.month, 1);
 
-    final transactions = await (_db.select(_db.transactions)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isArchived.equals(false) &
-                row.isDeleted.equals(false) &
-                row.date.isBiggerOrEqualValue(startOfMonth),
-          ))
-        .get();
+    final transactions =
+        await (_db.select(_db.transactions)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false) &
+                  row.isDeleted.equals(false) &
+                  row.date.isBiggerOrEqualValue(startOfMonth),
+            ))
+            .get();
 
     var income = 0;
     var expense = 0;
@@ -1095,7 +1149,8 @@ class FfmSavingRateLogicPlugin extends FfmAgentPlugin {
       return const FfmHarnessResult(
         pluginName: 'saving_rate_logic',
         category: FfmPluginCategory.logic,
-        text: '📈 **Kalkulator Saving Rate Bulan Ini**\n\n'
+        text:
+            '📈 **Kalkulator Saving Rate Bulan Ini**\n\n'
             'Belum ada pemasukan yang tercatat di bulan ini. '
             'Catat pemasukan bulananmu agar asisten bisa menghitung rasio menabung dengan akurat.',
       );
@@ -1137,7 +1192,8 @@ class FfmSavingRateLogicPlugin extends FfmAgentPlugin {
     return FfmHarnessResult(
       pluginName: name,
       category: category,
-      text: '📈 **Potret Rasio Menabung Bulan Ini (Saving Rate)**\n\n'
+      text:
+          '📈 **Potret Rasio Menabung Bulan Ini (Saving Rate)**\n\n'
           '💰 **Arus Kas Bulan Ini:**\n'
           '- Total Pemasukan: **${_rupiah(income)}**\n'
           '- Total Pengeluaran: ${_rupiah(expense)}\n'
@@ -1153,5 +1209,3 @@ class FfmSavingRateLogicPlugin extends FfmAgentPlugin {
     );
   }
 }
-
-

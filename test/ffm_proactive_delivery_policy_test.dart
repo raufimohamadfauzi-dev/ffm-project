@@ -16,7 +16,8 @@ void main() {
 
     FfmAssistantInsight buildInsight({
       FfmAssistantInsightType type = FfmAssistantInsightType.runwayRisk,
-      FfmAssistantInsightSeverity severity = FfmAssistantInsightSeverity.warning,
+      FfmAssistantInsightSeverity severity =
+          FfmAssistantInsightSeverity.warning,
       int priority = 80,
       FfmAssistantInsightStatus status = FfmAssistantInsightStatus.newInsight,
     }) {
@@ -40,45 +41,74 @@ void main() {
       final daytime = DateTime(2026, 9, 15, 14, 0); // 14:00 siang
       final insight = buildInsight();
 
-      final result = await policy.shouldDeliverNotification(insight, now: daytime);
+      final result = await policy.shouldDeliverNotification(
+        insight,
+        now: daytime,
+      );
       expect(result, isTrue);
     });
 
-    test('shouldDeliverNotification returns false if notifications disabled', () async {
-      final daytime = DateTime(2026, 9, 15, 14, 0);
-      await policy.setEnabled(false);
-      final insight = buildInsight();
+    test(
+      'shouldDeliverNotification returns false if notifications disabled',
+      () async {
+        final daytime = DateTime(2026, 9, 15, 14, 0);
+        await policy.setEnabled(false);
+        final insight = buildInsight();
 
-      final result = await policy.shouldDeliverNotification(insight, now: daytime);
-      expect(result, isFalse);
-    });
+        final result = await policy.shouldDeliverNotification(
+          insight,
+          now: daytime,
+        );
+        expect(result, isFalse);
+      },
+    );
 
-    test('shouldDeliverNotification returns false during quiet hours (e.g. 23:00)', () async {
-      final nightTime = DateTime(2026, 9, 15, 23, 0); // 23:00 malam
-      final insight = buildInsight();
+    test(
+      'shouldDeliverNotification returns false during quiet hours (e.g. 23:00)',
+      () async {
+        final nightTime = DateTime(2026, 9, 15, 23, 0); // 23:00 malam
+        final insight = buildInsight();
 
-      final result = await policy.shouldDeliverNotification(insight, now: nightTime);
-      expect(result, isFalse);
-    });
+        final result = await policy.shouldDeliverNotification(
+          insight,
+          now: nightTime,
+        );
+        expect(result, isFalse);
+      },
+    );
 
     test('shouldDeliverNotification returns false during quiet hours early morning (e.g. 05:00)', () async {
       final earlyMorning = DateTime(2026, 9, 15, 5, 0); // 05:00 pagi
       final insight = buildInsight();
 
-      final result = await policy.shouldDeliverNotification(insight, now: earlyMorning);
+      final result = await policy.shouldDeliverNotification(
+        insight,
+        now: earlyMorning,
+      );
       expect(result, isFalse);
     });
 
     test('shouldDeliverNotification respects disabled detectors', () async {
       final daytime = DateTime(2026, 9, 15, 14, 0);
-      await policy.setDetectorDisabled(FfmAssistantInsightType.runwayRisk.name, true);
+      await policy.setDetectorDisabled(
+        FfmAssistantInsightType.runwayRisk.name,
+        true,
+      );
 
       final insight = buildInsight(type: FfmAssistantInsightType.runwayRisk);
-      final result = await policy.shouldDeliverNotification(insight, now: daytime);
+      final result = await policy.shouldDeliverNotification(
+        insight,
+        now: daytime,
+      );
       expect(result, isFalse);
 
-      final otherInsight = buildInsight(type: FfmAssistantInsightType.anomalySpike);
-      final otherResult = await policy.shouldDeliverNotification(otherInsight, now: daytime);
+      final otherInsight = buildInsight(
+        type: FfmAssistantInsightType.anomalySpike,
+      );
+      final otherResult = await policy.shouldDeliverNotification(
+        otherInsight,
+        now: daytime,
+      );
       expect(otherResult, isTrue);
     });
 
@@ -89,34 +119,50 @@ void main() {
       final insight = buildInsight();
 
       // Kirim 2 notifikasi pertama
-      expect(await policy.shouldDeliverNotification(insight, now: daytime), isTrue);
+      expect(
+        await policy.shouldDeliverNotification(insight, now: daytime),
+        isTrue,
+      );
       await policy.recordNotificationDelivered(now: daytime);
 
-      expect(await policy.shouldDeliverNotification(insight, now: daytime), isTrue);
+      expect(
+        await policy.shouldDeliverNotification(insight, now: daytime),
+        isTrue,
+      );
       await policy.recordNotificationDelivered(now: daytime);
 
       // Notifikasi ke-3 ditolak karena sudah mencapai limit harian
-      expect(await policy.shouldDeliverNotification(insight, now: daytime), isFalse);
-    });
-
-    test('shouldDeliverNotification rejects low-priority non-critical insights', () async {
-      final daytime = DateTime(2026, 9, 15, 14, 0);
-      final lowPriorityInsight = buildInsight(
-        priority: 40,
-        severity: FfmAssistantInsightSeverity.info,
+      expect(
+        await policy.shouldDeliverNotification(insight, now: daytime),
+        isFalse,
       );
-
-      final result = await policy.shouldDeliverNotification(lowPriorityInsight, now: daytime);
-      expect(result, isFalse);
     });
+
+    test(
+      'shouldDeliverNotification rejects low-priority non-critical insights',
+      () async {
+        final daytime = DateTime(2026, 9, 15, 14, 0);
+        final lowPriorityInsight = buildInsight(
+          priority: 40,
+          severity: FfmAssistantInsightSeverity.info,
+        );
+
+        final result = await policy.shouldDeliverNotification(
+          lowPriorityInsight,
+          now: daytime,
+        );
+        expect(result, isFalse);
+      },
+    );
 
     test('shouldDeliverNotification rejects non-new insights', () async {
       final daytime = DateTime(2026, 9, 15, 14, 0);
-      final seenInsight = buildInsight(
-        status: FfmAssistantInsightStatus.seen,
-      );
+      final seenInsight = buildInsight(status: FfmAssistantInsightStatus.seen);
 
-      final result = await policy.shouldDeliverNotification(seenInsight, now: daytime);
+      final result = await policy.shouldDeliverNotification(
+        seenInsight,
+        now: daytime,
+      );
       expect(result, isFalse);
     });
   });

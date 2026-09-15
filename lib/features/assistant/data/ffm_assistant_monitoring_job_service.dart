@@ -61,10 +61,7 @@ class FfmAssistantMonitoringJobService {
       nextRunAt: firstRun,
       status: FfmAssistantAgentTaskStatus.pending,
       capabilityId: 'read.monitoring_evaluation',
-      parameters: <String, Object?>{
-        'jobId': job.id,
-        'preset': job.preset.name,
-      },
+      parameters: <String, Object?>{'jobId': job.id, 'preset': job.preset.name},
     );
     await autonomyRepository.createTask(task);
 
@@ -111,9 +108,9 @@ class FfmAssistantMonitoringJobService {
       FfmAssistantAgentGoalStatus.active,
     );
     if (success) {
-      await (database.update(database.assistantAgentGoals)
-            ..where((row) => row.id.equals(jobId)))
-          .write(
+      await (database.update(
+        database.assistantAgentGoals,
+      )..where((row) => row.id.equals(jobId))).write(
         AssistantAgentGoalsCompanion(
           nextRunAt: Value(nextRun),
           updatedAt: Value(now),
@@ -149,19 +146,25 @@ class FfmAssistantMonitoringJobService {
     final effectiveNow = now ?? _clock();
 
     final report = switch (job.preset) {
-      FfmAssistantMonitoringPreset.weeklyEvaluation =>
-        await _evaluateWeekly(job, effectiveNow),
-      FfmAssistantMonitoringPreset.budgetMonitor =>
-        await _evaluateBudget(job, effectiveNow),
-      FfmAssistantMonitoringPreset.dueCheck =>
-        await _evaluateDueCheck(job, effectiveNow),
+      FfmAssistantMonitoringPreset.weeklyEvaluation => await _evaluateWeekly(
+        job,
+        effectiveNow,
+      ),
+      FfmAssistantMonitoringPreset.budgetMonitor => await _evaluateBudget(
+        job,
+        effectiveNow,
+      ),
+      FfmAssistantMonitoringPreset.dueCheck => await _evaluateDueCheck(
+        job,
+        effectiveNow,
+      ),
     };
 
     // Update checkpoint waktu lastRun dan nextRun
     final nextRun = job.calculateNextRun(effectiveNow);
-    await (database.update(database.assistantAgentGoals)
-          ..where((row) => row.id.equals(job.id)))
-        .write(
+    await (database.update(
+      database.assistantAgentGoals,
+    )..where((row) => row.id.equals(job.id))).write(
       AssistantAgentGoalsCompanion(
         lastRunAt: Value(effectiveNow),
         nextRunAt: Value(nextRun),
@@ -229,7 +232,9 @@ class FfmAssistantMonitoringJobService {
       return 'JADWAL PEMANTAUAN OTOMATIS (MONITORING JOBS):\nBelum ada jadwal pemantauan aktif.';
     }
 
-    final buffer = StringBuffer('JADWAL PEMANTAUAN OTOMATIS (MONITORING JOBS):\n');
+    final buffer = StringBuffer(
+      'JADWAL PEMANTAUAN OTOMATIS (MONITORING JOBS):\n',
+    );
     for (final job in jobs) {
       final statusLabel = switch (job.status) {
         FfmAssistantJobStatus.active => 'Aktif',
@@ -237,8 +242,9 @@ class FfmAssistantMonitoringJobService {
         FfmAssistantJobStatus.cancelled => 'Dibatalkan',
         FfmAssistantJobStatus.completed => 'Selesai',
       };
-      final nextRunStr =
-          job.nextRunAt != null ? _formatDate(job.nextRunAt!) : 'Belum dijadwalkan';
+      final nextRunStr = job.nextRunAt != null
+          ? _formatDate(job.nextRunAt!)
+          : 'Belum dijadwalkan';
       buffer.writeln(
         '• [Job ID: ${job.id}] ${job.title} (${job.preset.name}): Status $statusLabel, Waktu run berikutnya: $nextRunStr',
       );
@@ -261,14 +267,14 @@ class FfmAssistantMonitoringJobService {
     DateTime now,
   ) async {
     final sevenDaysAgo = now.subtract(const Duration(days: 7));
-    final txs = await (database.select(database.transactions)
-          ..where(
-            (row) =>
-                row.householdId.equals(job.householdId) &
-                row.isArchived.equals(false) &
-                row.isDeleted.equals(false),
-          ))
-        .get();
+    final txs =
+        await (database.select(database.transactions)..where(
+              (row) =>
+                  row.householdId.equals(job.householdId) &
+                  row.isArchived.equals(false) &
+                  row.isDeleted.equals(false),
+            ))
+            .get();
 
     final recentTxs = txs.where((t) => !t.date.isBefore(sevenDaysAgo)).toList();
 
@@ -305,8 +311,9 @@ class FfmAssistantMonitoringJobService {
     if (topExpenses.isNotEmpty) {
       buffer.writeln('\n🔍 **3 Pengeluaran Terbesar Mingguan**:');
       for (final t in topExpenses) {
-        final note =
-            t.note?.trim().isNotEmpty == true ? t.note : 'Tanpa catatan';
+        final note = t.note?.trim().isNotEmpty == true
+            ? t.note
+            : 'Tanpa catatan';
         buffer.writeln(
           '• ${_rupiah(t.amount.abs())} - $note (${_formatDate(t.date)})',
         );
@@ -364,22 +371,22 @@ class FfmAssistantMonitoringJobService {
     FfmAssistantMonitoringJob job,
     DateTime now,
   ) async {
-    final budgets = await (database.select(database.envelopeBudgets)
-          ..where(
-            (row) =>
-                row.householdId.equals(job.householdId) &
-                row.isActive.equals(true),
-          ))
-        .get();
+    final budgets =
+        await (database.select(database.envelopeBudgets)..where(
+              (row) =>
+                  row.householdId.equals(job.householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
 
-    final currentMonthTxs = await (database.select(database.transactions)
-          ..where(
-            (row) =>
-                row.householdId.equals(job.householdId) &
-                row.isArchived.equals(false) &
-                row.isDeleted.equals(false),
-          ))
-        .get();
+    final currentMonthTxs =
+        await (database.select(database.transactions)..where(
+              (row) =>
+                  row.householdId.equals(job.householdId) &
+                  row.isArchived.equals(false) &
+                  row.isDeleted.equals(false),
+            ))
+            .get();
 
     final thisMonthExpenses = currentMonthTxs
         .where(
@@ -439,17 +446,17 @@ class FfmAssistantMonitoringJobService {
     FfmAssistantMonitoringJob job,
     DateTime now,
   ) async {
-    final liabilities = await (database.select(database.liabilities)
-          ..where((row) => row.householdId.equals(job.householdId)))
-        .get();
+    final liabilities = await (database.select(
+      database.liabilities,
+    )..where((row) => row.householdId.equals(job.householdId))).get();
 
-    final goals = await (database.select(database.goals)
-          ..where(
-            (row) =>
-                row.householdId.equals(job.householdId) &
-                row.isActive.equals(true),
-          ))
-        .get();
+    final goals =
+        await (database.select(database.goals)..where(
+              (row) =>
+                  row.householdId.equals(job.householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
 
     final buffer = StringBuffer()
       ..writeln('🗓️ **Pemeriksaan Tagihan & Target Finansial**')
@@ -458,8 +465,9 @@ class FfmAssistantMonitoringJobService {
     var isActionRequired = false;
 
     // Cek cicilan/kewajiban
-    final activeLiabilities =
-        liabilities.where((l) => l.remainingBalance > 0).toList();
+    final activeLiabilities = liabilities
+        .where((l) => l.remainingBalance > 0)
+        .toList();
     buffer.writeln(
       '\n💳 **Kewajiban & Cicilan Aktif (${activeLiabilities.length})**:',
     );
@@ -468,9 +476,11 @@ class FfmAssistantMonitoringJobService {
     } else {
       for (final l in activeLiabilities) {
         final installment = l.monthlyInstallment;
-        final due =
-            l.dueDate != null ? _formatDate(l.dueDate!) : 'Belum ditentukan';
-        final isNear = l.dueDate != null &&
+        final due = l.dueDate != null
+            ? _formatDate(l.dueDate!)
+            : 'Belum ditentukan';
+        final isNear =
+            l.dueDate != null &&
             l.dueDate!.difference(now).inDays <= 7 &&
             !l.dueDate!.isBefore(now);
         if (isNear) isActionRequired = true;
@@ -487,8 +497,10 @@ class FfmAssistantMonitoringJobService {
       buffer.writeln('• Belum ada target keuangan aktif.');
     } else {
       for (final g in goals) {
-        final remaining =
-            (g.targetAmount - g.currentAmount).clamp(0, g.targetAmount);
+        final remaining = (g.targetAmount - g.currentAmount).clamp(
+          0,
+          g.targetAmount,
+        );
         final percent = g.targetAmount > 0
             ? ((g.currentAmount / g.targetAmount) * 100).round()
             : 0;

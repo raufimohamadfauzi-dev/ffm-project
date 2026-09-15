@@ -1,11 +1,12 @@
 import '../../../core/database/app_database.dart';
+
 import 'package:drift/drift.dart';
 
 /// Analysis Engine untuk FFM Assistant
-/// 
+///
 /// Engine ini menyediakan kemampuan analisis deterministik di atas data
 /// yang sudah ada, bukan meminta LLM menghitung sendiri.
-/// 
+///
 /// Prinsip:
 /// - Semua perhitungan berasal dari data database lokal
 /// - Tidak ada tebakan atau hallusinasi dari LLM
@@ -24,39 +25,45 @@ class FfmAssistantAnalysisEngine {
     String? account,
   }) async {
     var query = database.select(database.transactions)
-      ..where((row) =>
-          row.householdId.equals(householdId) &
-          row.isArchived.equals(false) &
-          row.isDeleted.equals(false));
+      ..where(
+        (row) =>
+            row.householdId.equals(householdId) &
+            row.isArchived.equals(false) &
+            row.isDeleted.equals(false),
+      );
 
     if (category != null) {
       // Find category by name and get its ID
-      final categoryRow = await (database.select(database.categories)
-            ..where((row) =>
-                row.householdId.equals(householdId) &
-                row.name.equals(category) &
-                row.isActive.equals(true)))
-          .getSingleOrNull();
+      final categoryRow =
+          await (database.select(database.categories)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.name.equals(category) &
+                    row.isActive.equals(true),
+              ))
+              .getSingleOrNull();
       if (categoryRow != null) {
         query.where((row) => row.categoryId.equals(categoryRow.id));
       }
     }
     if (account != null) {
       // Find account by name and get its ID
-      final accountRow = await (database.select(database.accounts)
-            ..where((row) =>
-                row.householdId.equals(householdId) &
-                row.name.equals(account) &
-                row.isActive.equals(true) &
-                row.isArchived.equals(false)))
-          .getSingleOrNull();
+      final accountRow =
+          await (database.select(database.accounts)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.name.equals(account) &
+                    row.isActive.equals(true) &
+                    row.isArchived.equals(false),
+              ))
+              .getSingleOrNull();
       if (accountRow != null) {
         query.where((row) => row.accountId.equals(accountRow.id));
       }
     }
 
     final transactions = await query.get();
-    
+
     // Filter by date range in memory (following existing pattern)
     final filteredTransactions = transactions.where((tx) {
       return !tx.date.isBefore(start) && tx.date.isBefore(end);
@@ -73,28 +80,34 @@ class FfmAssistantAnalysisEngine {
       // Get category name from categoryId
       String categoryName = 'Uncategorized';
       if (tx.categoryId != null) {
-        final category = await (database.select(database.categories)
-              ..where((row) =>
-                  row.id.equals(tx.categoryId!) &
-                  row.householdId.equals(householdId)))
-            .getSingleOrNull();
+        final category =
+            await (database.select(database.categories)..where(
+                  (row) =>
+                      row.id.equals(tx.categoryId!) &
+                      row.householdId.equals(householdId),
+                ))
+                .getSingleOrNull();
         if (category != null) {
           categoryName = category.name;
         }
       }
 
       // Frekuensi kategori
-      categoryFrequency[categoryName] = (categoryFrequency[categoryName] ?? 0) + 1;
+      categoryFrequency[categoryName] =
+          (categoryFrequency[categoryName] ?? 0) + 1;
 
       // Frekuensi merchant
       if (tx.merchantId != null) {
-        final merchant = await (database.select(database.merchants)
-              ..where((row) =>
-                  row.id.equals(tx.merchantId!) &
-                  row.householdId.equals(householdId)))
-            .getSingleOrNull();
+        final merchant =
+            await (database.select(database.merchants)..where(
+                  (row) =>
+                      row.id.equals(tx.merchantId!) &
+                      row.householdId.equals(householdId),
+                ))
+                .getSingleOrNull();
         if (merchant != null && merchant.name.isNotEmpty) {
-          merchantFrequency[merchant.name] = (merchantFrequency[merchant.name] ?? 0) + 1;
+          merchantFrequency[merchant.name] =
+              (merchantFrequency[merchant.name] ?? 0) + 1;
         }
       }
 
@@ -104,7 +117,8 @@ class FfmAssistantAnalysisEngine {
     }
 
     return FfmFrequencyAnalysis(
-      period: '${start.day}/${start.month}/${start.year} - ${end.day}/${end.month}/${end.year}',
+      period:
+          '${start.day}/${start.month}/${start.year} - ${end.day}/${end.month}/${end.year}',
       totalTransactions: filteredTransactions.length,
       categoryFrequency: categoryFrequency,
       merchantFrequency: merchantFrequency,
@@ -120,13 +134,15 @@ class FfmAssistantAnalysisEngine {
     required FfmTrendType type,
   }) async {
     final query = database.select(database.transactions)
-      ..where((row) =>
-          row.householdId.equals(householdId) &
-          row.isArchived.equals(false) &
-          row.isDeleted.equals(false));
+      ..where(
+        (row) =>
+            row.householdId.equals(householdId) &
+            row.isArchived.equals(false) &
+            row.isDeleted.equals(false),
+      );
 
     final allTransactions = await query.get();
-    
+
     // Filter by date range in memory (following existing pattern)
     final filteredTransactions = allTransactions.where((tx) {
       return !tx.date.isBefore(start) && tx.date.isBefore(end);
@@ -136,8 +152,9 @@ class FfmAssistantAnalysisEngine {
     final monthlyData = <String, FfmMonthlyData>{};
 
     for (final tx in filteredTransactions) {
-      final monthKey = '${tx.date.year}-${tx.date.month.toString().padLeft(2, '0')}';
-      
+      final monthKey =
+          '${tx.date.year}-${tx.date.month.toString().padLeft(2, '0')}';
+
       if (!monthlyData.containsKey(monthKey)) {
         monthlyData[monthKey] = FfmMonthlyData(
           month: monthKey,
@@ -167,7 +184,7 @@ class FfmAssistantAnalysisEngine {
     if (monthlyTrend.length >= 2) {
       final first = monthlyTrend.first;
       final last = monthlyTrend.last;
-      
+
       if (type == FfmTrendType.income) {
         if (last.income > first.income * 1.1) {
           trendDirection = 'naik';
@@ -184,7 +201,8 @@ class FfmAssistantAnalysisEngine {
     }
 
     return FfmTrendAnalysis(
-      period: '${start.day}/${start.month}/${start.year} - ${end.day}/${end.month}/${end.year}',
+      period:
+          '${start.day}/${start.month}/${start.year} - ${end.day}/${end.month}/${end.year}',
       type: type,
       trendDirection: trendDirection,
       monthlyData: monthlyTrend,
@@ -213,18 +231,25 @@ class FfmAssistantAnalysisEngine {
 
     // Hitung perubahan persentase
     final incomeChange = period1Data.income > 0
-        ? ((period2Data.income - period1Data.income) / period1Data.income * 100).round()
+        ? ((period2Data.income - period1Data.income) / period1Data.income * 100)
+              .round()
         : 0;
     final expenseChange = period1Data.expense > 0
-        ? ((period2Data.expense - period1Data.expense) / period1Data.expense * 100).round()
+        ? ((period2Data.expense - period1Data.expense) /
+                  period1Data.expense *
+                  100)
+              .round()
         : 0;
     final countChange = period1Data.count > 0
-        ? ((period2Data.count - period1Data.count) / period1Data.count * 100).round()
+        ? ((period2Data.count - period1Data.count) / period1Data.count * 100)
+              .round()
         : 0;
 
     return FfmComparisonAnalysis(
-      period1Label: '${period1Start.day}/${period1Start.month}/${period1Start.year} - ${period1End.day}/${period1End.month}/${period1End.year}',
-      period2Label: '${period2Start.day}/${period2Start.month}/${period2Start.year} - ${period2End.day}/${period2End.month}/${period2End.year}',
+      period1Label:
+          '${period1Start.day}/${period1Start.month}/${period1Start.year} - ${period1End.day}/${period1End.month}/${period1End.year}',
+      period2Label:
+          '${period2Start.day}/${period2Start.month}/${period2Start.year} - ${period2End.day}/${period2End.month}/${period2End.year}',
       period1Data: period1Data,
       period2Data: period2Data,
       incomeChangePercent: incomeChange,
@@ -240,13 +265,15 @@ class FfmAssistantAnalysisEngine {
     required DateTime end,
   }) async {
     final query = database.select(database.transactions)
-      ..where((row) =>
-          row.householdId.equals(householdId) &
-          row.isArchived.equals(false) &
-          row.isDeleted.equals(false));
+      ..where(
+        (row) =>
+            row.householdId.equals(householdId) &
+            row.isArchived.equals(false) &
+            row.isDeleted.equals(false),
+      );
 
     final allTransactions = await query.get();
-    
+
     // Filter by date range in memory (following existing pattern)
     final filteredTransactions = allTransactions.where((tx) {
       return !tx.date.isBefore(start) && tx.date.isBefore(end);
@@ -260,11 +287,13 @@ class FfmAssistantAnalysisEngine {
       // Get category name from categoryId
       String categoryName = 'Uncategorized';
       if (tx.categoryId != null) {
-        final category = await (database.select(database.categories)
-              ..where((row) =>
-                  row.id.equals(tx.categoryId!) &
-                  row.householdId.equals(householdId)))
-            .getSingleOrNull();
+        final category =
+            await (database.select(database.categories)..where(
+                  (row) =>
+                      row.id.equals(tx.categoryId!) &
+                      row.householdId.equals(householdId),
+                ))
+                .getSingleOrNull();
         if (category != null) {
           categoryName = category.name;
         }
@@ -280,11 +309,12 @@ class FfmAssistantAnalysisEngine {
     for (final entry in categoryAmounts.entries) {
       final amounts = entry.value;
       amounts.sort();
-      
+
       final total = amounts.reduce((a, b) => a + b);
       final average = total / amounts.length;
       final median = amounts.length % 2 == 0
-          ? (amounts[amounts.length ~/ 2 - 1] + amounts[amounts.length ~/ 2]) / 2
+          ? (amounts[amounts.length ~/ 2 - 1] + amounts[amounts.length ~/ 2]) /
+                2
           : amounts[amounts.length ~/ 2].toDouble();
       final min = amounts.first;
       final max = amounts.last;
@@ -301,7 +331,8 @@ class FfmAssistantAnalysisEngine {
     }
 
     return FfmPatternAnalysis(
-      period: '${start.day}/${start.month}/${start.year} - ${end.day}/${end.month}/${end.year}',
+      period:
+          '${start.day}/${start.month}/${start.year} - ${end.day}/${end.month}/${end.year}',
       categoryPatterns: categoryPatterns,
     );
   }
@@ -315,12 +346,14 @@ class FfmAssistantAnalysisEngine {
     final now = referenceDate ?? DateTime.now();
     final (start, end) = _getPeriodRange(period, now);
 
-    final transactions = await (database.select(database.transactions)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.isArchived.equals(false) &
-              row.isDeleted.equals(false)))
-        .get();
+    final transactions =
+        await (database.select(database.transactions)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false) &
+                  row.isDeleted.equals(false),
+            ))
+            .get();
 
     // Filter by date range in memory (following existing pattern)
     final filteredTransactions = transactions.where((tx) {
@@ -336,16 +369,18 @@ class FfmAssistantAnalysisEngine {
         income += tx.amount.abs();
       } else if (tx.type == 'expense') {
         expense += tx.amount.abs();
-        
+
         // Get category name from categoryId
         if (tx.categoryId != null) {
-          final category = await (database.select(database.categories)
-                ..where((row) =>
-                    row.id.equals(tx.categoryId!) &
-                    row.householdId.equals(householdId)))
-              .getSingleOrNull();
+          final category =
+              await (database.select(database.categories)..where(
+                    (row) =>
+                        row.id.equals(tx.categoryId!) &
+                        row.householdId.equals(householdId),
+                  ))
+                  .getSingleOrNull();
           if (category != null) {
-            categoryBreakdown[category.name] = 
+            categoryBreakdown[category.name] =
                 (categoryBreakdown[category.name] ?? 0) + tx.amount.abs();
           }
         }
@@ -369,12 +404,14 @@ class FfmAssistantAnalysisEngine {
     required DateTime start,
     required DateTime end,
   }) async {
-    final transactions = await (database.select(database.transactions)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.isArchived.equals(false) &
-              row.isDeleted.equals(false)))
-        .get();
+    final transactions =
+        await (database.select(database.transactions)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false) &
+                  row.isDeleted.equals(false),
+            ))
+            .get();
 
     // Filter by date range in memory (following existing pattern)
     final filteredTransactions = transactions.where((tx) {
@@ -394,11 +431,7 @@ class FfmAssistantAnalysisEngine {
       count++;
     }
 
-    return FfmPeriodData(
-      income: income,
-      expense: expense,
-      count: count,
-    );
+    return FfmPeriodData(income: income, expense: expense, count: count);
   }
 
   (DateTime, DateTime) _getPeriodRange(FfmAnalysisPeriod period, DateTime now) {
@@ -618,9 +651,9 @@ class FfmPeriodAnalysis {
   final Map<String, int> categoryBreakdown;
 
   int get netCashflow => income - expense;
-  
+
   double? get expenseRatio => income > 0 ? expense / income : null;
-  
+
   String get topCategory {
     if (categoryBreakdown.isEmpty) return 'tidak ada data';
     return categoryBreakdown.entries

@@ -30,9 +30,8 @@ class StringSanitizer {
           final nextCodeUnit = text.codeUnitAt(i + 1);
           if (nextCodeUnit >= 0xDC00 && nextCodeUnit <= 0xDFFF) {
             // Valid surrogate pair — decode and validate the full code point
-            final rune = 0x10000 +
-                ((codeUnit - 0xD800) << 10) +
-                (nextCodeUnit - 0xDC00);
+            final rune =
+                0x10000 + ((codeUnit - 0xD800) << 10) + (nextCodeUnit - 0xDC00);
             if (_isValidRune(rune)) {
               buffer.writeCharCode(rune);
             }
@@ -88,7 +87,10 @@ class StringSanitizer {
 
     // Hapus karakter kontrol yang bisa menyebabkan rendering issues
     // (kecuali tab \t = 0x09, newline \n = 0x0A, carriage return \r = 0x0D)
-    sanitized = sanitized.replaceAll(RegExp(r'[\x00-\x08\x0B-\x0C\x0E-\x1F]'), '');
+    sanitized = sanitized.replaceAll(
+      RegExp(r'[\x00-\x08\x0B-\x0C\x0E-\x1F]'),
+      '',
+    );
 
     // Ganti line/paragraph separator yang sering menyebabkan crash
     sanitized = sanitized.replaceAll(RegExp(r'[\u2028\u2029]'), ' ');

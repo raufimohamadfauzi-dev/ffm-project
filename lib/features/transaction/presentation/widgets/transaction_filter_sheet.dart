@@ -332,9 +332,7 @@ class _TransactionFilterSheetState extends State<TransactionFilterSheet> {
               const SizedBox(height: 8),
               DropdownButtonFormField<String?>(
                 initialValue: _tag,
-                decoration: const InputDecoration(
-                  labelText: 'Tag penanda',
-                ),
+                decoration: const InputDecoration(labelText: 'Tag penanda'),
                 items: [
                   const DropdownMenuItem<String?>(
                     value: null,

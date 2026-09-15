@@ -29,8 +29,7 @@ class FlexibleCashFlowCalculator {
         effectiveLiquidCash: effectiveLiquidCash,
         deficitDays: 0,
         message: 'Tidak ada beban pengeluaran harian yang terdaftar.',
-        recommendation:
-            'Tentukan anggaran harian dapur dan operasional untuk analisa yang lebih akurat.',
+        recommendation: 'Tentukan anggaran harian dapur dan operasional untuk analisa yang lebih akurat.',
       );
     }
 
@@ -44,18 +43,19 @@ class FlexibleCashFlowCalculator {
         effectiveLiquidCash: effectiveLiquidCash,
         deficitDays: daysRemainingToHarvest > 0 ? daysRemainingToHarvest : 0,
         message: 'Kas likuid saat ini kosong atau mengalami defisit.',
-        recommendation:
-            'Dibutuhkan suntikan modal kerja darurat untuk menjaga kelangsungan siklus.',
+        recommendation: 'Dibutuhkan suntikan modal kerja darurat untuk menjaga kelangsungan siklus.',
       );
     }
 
     final runwayDays = (effectiveLiquidCash / totalDailyBurnRate).floor();
-    final deficitDays =
-        daysRemainingToHarvest > runwayDays ? (daysRemainingToHarvest - runwayDays) : 0;
+    final deficitDays = daysRemainingToHarvest > runwayDays
+        ? (daysRemainingToHarvest - runwayDays)
+        : 0;
 
     // Hitung safe-to-spend: Kas likuid setelah diproteksi untuk modal operasional sisa hari
     final remainingOperationalNeeded =
-        dailyOperationalBudget * (daysRemainingToHarvest > 0 ? daysRemainingToHarvest : 0);
+        dailyOperationalBudget *
+        (daysRemainingToHarvest > 0 ? daysRemainingToHarvest : 0);
     final remainingForLiving = effectiveLiquidCash - remainingOperationalNeeded;
 
     final safeToSpend = daysRemainingToHarvest > 0
@@ -73,8 +73,7 @@ class FlexibleCashFlowCalculator {
         effectiveLiquidCash: effectiveLiquidCash,
         deficitDays: 0,
         message: 'Siklus telah mencapai tanggal target panen / pencairan.',
-        recommendation:
-            'Segera catat realisasi hasil panen atau pencairan untuk menutup siklus ini.',
+        recommendation: 'Segera catat realisasi hasil panen atau pencairan untuk menutup siklus ini.',
       );
     }
 
@@ -117,8 +116,7 @@ class FlexibleCashFlowCalculator {
       deficitDays: deficitDays,
       message:
           'Kritis: Kas diproyeksikan defisit $deficitDays hari sebelum hasil panen cair.',
-      recommendation:
-          'Segera lakukan efisiensi pengeluaran atau persiapkan pencairan piutang/cadangan modal darurat.',
+      recommendation: 'Segera lakukan efisiensi pengeluaran atau persiapkan pencairan piutang/cadangan modal darurat.',
     );
   }
 
@@ -131,8 +129,8 @@ class FlexibleCashFlowCalculator {
     double nextCycleCapitalPercent = 0.45,
     double emergencyFundPercent = 0.15,
   }) {
-    final nextCapital =
-        (actualHarvestRevenue * nextCycleCapitalPercent).round();
+    final nextCapital = (actualHarvestRevenue * nextCycleCapitalPercent)
+        .round();
     final emergency = (actualHarvestRevenue * emergencyFundPercent).round();
     final familyNetSavings = actualHarvestRevenue - nextCapital - emergency;
 
@@ -145,8 +143,8 @@ class FlexibleCashFlowCalculator {
 
   static String _formatNumber(int val) {
     return val.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (m) => '${m[1]}.',
-        );
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]}.',
+    );
   }
 }

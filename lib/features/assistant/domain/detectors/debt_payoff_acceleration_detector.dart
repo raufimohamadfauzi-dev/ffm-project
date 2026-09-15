@@ -9,7 +9,7 @@ import '../ffm_assistant_models.dart';
 /// (Debt Snowball vs Avalanche) saat terdapat potensi surplus anggaran belanja.
 class DebtPayoffAccelerationDetector {
   DebtPayoffAccelerationDetector(AppDatabase db)
-      : _strategist = DebtPayoffStrategistService(db);
+    : _strategist = DebtPayoffStrategistService(db);
 
   final DebtPayoffStrategistService _strategist;
 
@@ -27,8 +27,9 @@ class DebtPayoffAccelerationDetector {
       return null;
     }
 
-    final suggestedExtra =
-        await _strategist.estimateSuggestedExtraPayment(householdId);
+    final suggestedExtra = await _strategist.estimateSuggestedExtraPayment(
+      householdId,
+    );
     if (suggestedExtra <= 0) return null;
 
     final comparison = _strategist.compareStrategies(

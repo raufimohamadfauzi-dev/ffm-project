@@ -24,7 +24,7 @@ void main() {
             entry: entry,
             isSpeaking: false,
             teachingSaved: false,
-            activityConfirmed: false
+            activityConfirmed: false,
           ),
         ),
       );
@@ -33,7 +33,7 @@ void main() {
       expect(find.textContaining('Terima 09:12:09'), findsNothing);
       expect(find.textContaining('gemini-cloud'), findsNothing);
 
-await tester.tap(find.text('Jawaban asisten.'));
+      await tester.tap(find.text('Jawaban asisten.'));
       await tester.pump();
 
       expect(find.textContaining('Kirim 09:12:05'), findsOneWidget);
@@ -58,7 +58,7 @@ await tester.tap(find.text('Jawaban asisten.'));
             entry: entry,
             isSpeaking: false,
             teachingSaved: false,
-            activityConfirmed: false
+            activityConfirmed: false,
           ),
         ),
       );
@@ -98,7 +98,9 @@ await tester.tap(find.text('Jawaban asisten.'));
       expect(find.text('kenapa gk biaa pindah halaman?'), findsOneWidget);
 
       final copyBox = tester.getRect(find.byIcon(Icons.copy_outlined));
-      final textBox = tester.getRect(find.text('kenapa gk biaa pindah halaman?'));
+      final textBox = tester.getRect(
+        find.text('kenapa gk biaa pindah halaman?'),
+      );
 
       // Tombol copy berada di sebelah KIRI luar bubble teks (copyBox.left < textBox.left)
       expect(copyBox.left, lessThan(textBox.left));
@@ -127,10 +129,15 @@ await tester.tap(find.text('Jawaban asisten.'));
       );
 
       expect(find.byIcon(Icons.copy_outlined), findsOneWidget);
-      expect(find.textContaining('kenapa gk biaa pindah halaman?'), findsOneWidget);
+      expect(
+        find.textContaining('kenapa gk biaa pindah halaman?'),
+        findsOneWidget,
+      );
 
       final copyBox = tester.getRect(find.byIcon(Icons.copy_outlined));
-      final textBox = tester.getRect(find.textContaining('kenapa gk biaa pindah halaman?'));
+      final textBox = tester.getRect(
+        find.textContaining('kenapa gk biaa pindah halaman?'),
+      );
 
       // Tombol copy tetap di sebelah KIRI luar bubble teks (copyBox.left < textBox.left)
       expect(copyBox.left, lessThan(textBox.left));

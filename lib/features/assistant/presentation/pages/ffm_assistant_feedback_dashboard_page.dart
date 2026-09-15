@@ -27,10 +27,10 @@ class _FfmAssistantFeedbackDashboardPageState
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    
+
     final stats = await _feedbackRepository.getFeedbackStats();
     final feedback = await _feedbackRepository.getAllFeedback();
-    
+
     setState(() {
       _stats = stats;
       _allFeedback = feedback;
@@ -47,10 +47,7 @@ class _FfmAssistantFeedbackDashboardPageState
       appBar: AppBar(
         title: const Text('Dashboard Feedback Assistant'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
         ],
       ),
       body: _isLoading
@@ -92,19 +89,31 @@ class _FfmAssistantFeedbackDashboardPageState
               children: [
                 _buildStatItem('Total', _stats!['total']?.toString() ?? '0'),
                 const SizedBox(width: 16),
-                _buildStatItem('Berguna', _stats!['thumbsUp']?.toString() ?? '0'),
+                _buildStatItem(
+                  'Berguna',
+                  _stats!['thumbsUp']?.toString() ?? '0',
+                ),
                 const SizedBox(width: 16),
-                _buildStatItem('Tidak Berguna', _stats!['thumbsDown']?.toString() ?? '0'),
+                _buildStatItem(
+                  'Tidak Berguna',
+                  _stats!['thumbsDown']?.toString() ?? '0',
+                ),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                _buildStatItem('Salah', _stats!['incorrect']?.toString() ?? '0'),
+                _buildStatItem(
+                  'Salah',
+                  _stats!['incorrect']?.toString() ?? '0',
+                ),
                 const SizedBox(width: 16),
                 _buildStatItem('Lapor', _stats!['issue']?.toString() ?? '0'),
                 const SizedBox(width: 16),
-                _buildStatItem('Koreksi', _stats!['correction']?.toString() ?? '0'),
+                _buildStatItem(
+                  'Koreksi',
+                  _stats!['correction']?.toString() ?? '0',
+                ),
               ],
             ),
           ],
@@ -119,16 +128,10 @@ class _FfmAssistantFeedbackDashboardPageState
         children: [
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 12),
-          ),
+          Text(label, style: const TextStyle(fontSize: 12)),
         ],
       ),
     );
@@ -160,15 +163,35 @@ class _FfmAssistantFeedbackDashboardPageState
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            _buildProgressBar('Berguna', _stats!['thumbsUp']!, total, Colors.green),
+            _buildProgressBar(
+              'Berguna',
+              _stats!['thumbsUp']!,
+              total,
+              Colors.green,
+            ),
             const SizedBox(height: 8),
-            _buildProgressBar('Tidak Berguna', _stats!['thumbsDown']!, total, Colors.red),
+            _buildProgressBar(
+              'Tidak Berguna',
+              _stats!['thumbsDown']!,
+              total,
+              Colors.red,
+            ),
             const SizedBox(height: 8),
-            _buildProgressBar('Salah', _stats!['incorrect']!, total, Colors.orange),
+            _buildProgressBar(
+              'Salah',
+              _stats!['incorrect']!,
+              total,
+              Colors.orange,
+            ),
             const SizedBox(height: 8),
             _buildProgressBar('Lapor', _stats!['issue']!, total, Colors.blue),
             const SizedBox(height: 8),
-            _buildProgressBar('Koreksi', _stats!['correction']!, total, Colors.purple),
+            _buildProgressBar(
+              'Koreksi',
+              _stats!['correction']!,
+              total,
+              Colors.purple,
+            ),
           ],
         ),
       ),
@@ -193,15 +216,40 @@ class _FfmAssistantFeedbackDashboardPageState
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            _buildProgressBar('Fakta Salah', _stats!['factual']!, total, Colors.red),
+            _buildProgressBar(
+              'Fakta Salah',
+              _stats!['factual']!,
+              total,
+              Colors.red,
+            ),
             const SizedBox(height: 8),
-            _buildProgressBar('Membingungkan', _stats!['confusing']!, total, Colors.orange),
+            _buildProgressBar(
+              'Membingungkan',
+              _stats!['confusing']!,
+              total,
+              Colors.orange,
+            ),
             const SizedBox(height: 8),
-            _buildProgressBar('Berguna', _stats!['helpful']!, total, Colors.green),
+            _buildProgressBar(
+              'Berguna',
+              _stats!['helpful']!,
+              total,
+              Colors.green,
+            ),
             const SizedBox(height: 8),
-            _buildProgressBar('Hallusinasi', _stats!['hallucination']!, total, Colors.purple),
+            _buildProgressBar(
+              'Hallusinasi',
+              _stats!['hallucination']!,
+              total,
+              Colors.purple,
+            ),
             const SizedBox(height: 8),
-            _buildProgressBar('Kurang Konteks', _stats!['missingContext']!, total, Colors.blue),
+            _buildProgressBar(
+              'Kurang Konteks',
+              _stats!['missingContext']!,
+              total,
+              Colors.blue,
+            ),
             const SizedBox(height: 8),
             _buildProgressBar('Lainnya', _stats!['other']!, total, Colors.grey),
           ],
@@ -211,17 +259,16 @@ class _FfmAssistantFeedbackDashboardPageState
   }
 
   Widget _buildProgressBar(String label, int value, int total, Color color) {
-    final percentage = total > 0 ? (value / total * 100).toStringAsFixed(1) : '0.0';
-    
+    final percentage = total > 0
+        ? (value / total * 100).toStringAsFixed(1)
+        : '0.0';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label),
-            Text('$value ($percentage%)'),
-          ],
+          children: [Text(label), Text('$value ($percentage%)')],
         ),
         const SizedBox(height: 4),
         LinearProgressIndicator(
@@ -256,7 +303,9 @@ class _FfmAssistantFeedbackDashboardPageState
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            ..._allFeedback!.take(10).map((feedback) => _buildFeedbackItem(feedback, isDark)),
+            ..._allFeedback!
+                .take(10)
+                .map((feedback) => _buildFeedbackItem(feedback, isDark)),
           ],
         ),
       ),
@@ -300,9 +349,7 @@ class _FfmAssistantFeedbackDashboardPageState
               'Assistant: ${feedback.assistantResponse}',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: isDark ? Colors.white70 : Colors.black87,
-              ),
+              style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
             ),
             if (feedback.note != null && feedback.note!.isNotEmpty) ...[
               const SizedBox(height: 4),
@@ -315,7 +362,8 @@ class _FfmAssistantFeedbackDashboardPageState
                 ),
               ),
             ],
-            if (feedback.correction != null && feedback.correction!.isNotEmpty) ...[
+            if (feedback.correction != null &&
+                feedback.correction!.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
                 'Koreksi: ${feedback.correction}',
@@ -336,7 +384,7 @@ class _FfmAssistantFeedbackDashboardPageState
     final isDark = Theme.of(context).brightness == Brightness.dark;
     Color color;
     String label;
-    
+
     switch (type) {
       case FfmAssistantFeedbackType.thumbsUp:
         color = isDark ? Colors.green.shade200 : Colors.green;
@@ -359,7 +407,7 @@ class _FfmAssistantFeedbackDashboardPageState
         label = 'Koreksi';
         break;
     }
-    
+
     return Chip(
       label: Text(label),
       backgroundColor: color.withValues(alpha: 0.2),
@@ -370,7 +418,7 @@ class _FfmAssistantFeedbackDashboardPageState
   Widget _buildCategoryChip(FfmAssistantFeedbackCategory category) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     Color color;
-    
+
     switch (category) {
       case FfmAssistantFeedbackCategory.factual:
         color = isDark ? Colors.red.shade200 : Colors.red;
@@ -391,7 +439,7 @@ class _FfmAssistantFeedbackDashboardPageState
         color = isDark ? Colors.grey.shade300 : Colors.grey;
         break;
     }
-    
+
     return Chip(
       label: Text(category.name),
       backgroundColor: color.withValues(alpha: 0.2),
@@ -402,7 +450,7 @@ class _FfmAssistantFeedbackDashboardPageState
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
-    
+
     if (difference.inDays == 0) {
       return 'Hari ini';
     } else if (difference.inDays == 1) {

@@ -1116,6 +1116,13 @@ class _AppShellState extends State<AppShell> {
               initialSoundName: draft?.kind == FfmAssistantDraftKind.reminder
                   ? draft?.formValues['soundName']?.toString()
                   : null,
+              initialMode: draft?.kind == FfmAssistantDraftKind.reminder
+                  ? (draft?.reminderMode ??
+                        ReminderModeX.fromStorage(
+                          draft?.formValues['reminderMode']?.toString() ??
+                              draft?.formValues['mode']?.toString(),
+                        ))
+                  : null,
             ),
           ),
         );

@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../domain/entities/vehicle_models.dart';
@@ -47,9 +48,7 @@ class VehicleRepository {
     final clean = normalizePlate(rawPlate);
     if (clean.isEmpty) return null;
     final all = await getAllVehicles(householdId);
-    return all
-        .where((v) => normalizePlate(v.plateNumber) == clean)
-        .firstOrNull;
+    return all.where((v) => normalizePlate(v.plateNumber) == clean).firstOrNull;
   }
 
   /// Mencari kendaraan berdasarkan kata kunci (nama, merek/model, atau plat nomor).
@@ -136,10 +135,7 @@ class VehicleRepository {
       }
     }
 
-    list[idx] = target.copyWith(
-      fuelLogs: updatedLogs,
-      lastOdometer: newOdo,
-    );
+    list[idx] = target.copyWith(fuelLogs: updatedLogs, lastOdometer: newOdo);
 
     final prefs = await _prefs();
     await prefs.setString(
@@ -159,7 +155,9 @@ class VehicleRepository {
     if (idx < 0) return;
 
     final target = list[idx];
-    final updatedLogs = target.fuelLogs.where((l) => l.id != fuelLogId).toList();
+    final updatedLogs = target.fuelLogs
+        .where((l) => l.id != fuelLogId)
+        .toList();
 
     list[idx] = target.copyWith(fuelLogs: updatedLogs);
 
@@ -208,7 +206,9 @@ class VehicleRepository {
         existingIdx = plateMap[cleanPlate];
       }
 
-      if (existingIdx != null && existingIdx >= 0 && existingIdx < merged.length) {
+      if (existingIdx != null &&
+          existingIdx >= 0 &&
+          existingIdx < merged.length) {
         // Kendaraan sudah ada di perangkat: gabungkan riwayat log BBM tanpa menghapus data lokal
         final cur = merged[existingIdx];
         final existingLogIds = cur.fuelLogs.map((l) => l.id).toSet();
@@ -232,8 +232,12 @@ class VehicleRepository {
         merged[existingIdx] = cur.copyWith(
           fuelLogs: combinedLogs,
           lastOdometer: mergedOdo,
-          brandModel: cur.brandModel.isNotEmpty ? cur.brandModel : inc.brandModel,
-          tankCapacity: cur.tankCapacity > 0 ? cur.tankCapacity : inc.tankCapacity,
+          brandModel: cur.brandModel.isNotEmpty
+              ? cur.brandModel
+              : inc.brandModel,
+          tankCapacity: cur.tankCapacity > 0
+              ? cur.tankCapacity
+              : inc.tankCapacity,
         );
       } else {
         // Kendaraan baru: tambahkan (append) ke daftar

@@ -79,26 +79,26 @@ class FfmAssistantAutonomyWorker {
   }
 
   /// Mengonsolidasi memori di background secara otonom berdasarkan observasi transaksi terbaru.
-  Future<void> consolidateMemory({
-    required String householdId,
-  }) async {
+  Future<void> consolidateMemory({required String householdId}) async {
     final db = database;
     final service = candidateService;
     if (db == null || service == null) return;
 
     try {
       final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
-      final allTxs = await (db.select(db.transactions)
-            ..where((row) => row.householdId.equals(householdId)))
-          .get();
+      final allTxs = await (db.select(
+        db.transactions,
+      )..where((row) => row.householdId.equals(householdId))).get();
 
       final recent = allTxs
-          .where((t) =>
-              !t.isArchived &&
-              !t.isDeleted &&
-              t.date.isAfter(sevenDaysAgo) &&
-              t.merchantId != null &&
-              t.categoryId != null)
+          .where(
+            (t) =>
+                !t.isArchived &&
+                !t.isDeleted &&
+                t.date.isAfter(sevenDaysAgo) &&
+                t.merchantId != null &&
+                t.categoryId != null,
+          )
           .toList();
 
       final merchantCategoryCount = <String, Map<String, int>>{};
@@ -116,12 +116,12 @@ class FfmAssistantAutonomyWorker {
         final catMap = entry.value;
         for (final catEntry in catMap.entries) {
           if (catEntry.value >= 3) {
-            final merchant = await (db.select(db.merchants)
-                  ..where((m) => m.id.equals(mId)))
-                .getSingleOrNull();
-            final category = await (db.select(db.categories)
-                  ..where((c) => c.id.equals(catEntry.key)))
-                .getSingleOrNull();
+            final merchant = await (db.select(
+              db.merchants,
+            )..where((m) => m.id.equals(mId))).getSingleOrNull();
+            final category = await (db.select(
+              db.categories,
+            )..where((c) => c.id.equals(catEntry.key))).getSingleOrNull();
             if (merchant != null && category != null) {
               final trigger = 'otonom.kategori.${merchant.name.toLowerCase()}';
               final pending = await service.readPending();
@@ -133,7 +133,7 @@ class FfmAssistantAutonomyWorker {
                       'capabilityId': 'system.set_merchant_category',
                       'merchantName': merchant.name,
                       'categoryName': category.name,
-                    }
+                    },
                   ],
                   source: 'background-autonomy-memory',
                 );

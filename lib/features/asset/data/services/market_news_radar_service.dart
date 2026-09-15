@@ -83,8 +83,11 @@ class MarketNewsRadarService {
     // melengkapi data dari semua provider yang tersedia.
     try {
       final res = await httpClient
-          .get(Uri.parse(
-              'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json'))
+          .get(
+            Uri.parse(
+              'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json',
+            ),
+          )
           .timeout(_requestTimeout);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -133,26 +136,25 @@ class MarketNewsRadarService {
     try {
       final res = await httpClient
           .get(
-              Uri.parse(
-                  'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether&vs_currencies=idr'),
-              headers: {'Accept': 'application/json'})
+            Uri.parse(
+              'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether&vs_currencies=idr',
+            ),
+            headers: {'Accept': 'application/json'},
+          )
           .timeout(_requestTimeout);
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         if (data.containsKey('bitcoin')) {
-          btcPrice =
-              (data['bitcoin']['idr'] as num?)?.toDouble() ?? btcPrice;
+          btcPrice = (data['bitcoin']['idr'] as num?)?.toDouble() ?? btcPrice;
           verifiedInstruments.add(MarketInstrument.btc);
         }
         if (data.containsKey('ethereum')) {
-          ethPrice =
-              (data['ethereum']['idr'] as num?)?.toDouble() ?? ethPrice;
+          ethPrice = (data['ethereum']['idr'] as num?)?.toDouble() ?? ethPrice;
           verifiedInstruments.add(MarketInstrument.eth);
         }
         if (data.containsKey('tether')) {
-          usdtPrice =
-              (data['tether']['idr'] as num?)?.toDouble() ?? usdtPrice;
+          usdtPrice = (data['tether']['idr'] as num?)?.toDouble() ?? usdtPrice;
           verifiedInstruments.add(MarketInstrument.usdt);
         }
       }
@@ -185,15 +187,15 @@ class MarketNewsRadarService {
       ethPrice: ethPrice,
       usdtPrice: usdtPrice,
       lastUpdated: now,
-       isOfflineCache: !verifiedInstruments.any(
-         (instrument) => const {
-           MarketInstrument.usd,
-           MarketInstrument.sgd,
-           MarketInstrument.eur,
-           MarketInstrument.sar,
-           MarketInstrument.chf,
-         }.contains(instrument),
-       ),
+      isOfflineCache: !verifiedInstruments.any(
+        (instrument) => const {
+          MarketInstrument.usd,
+          MarketInstrument.sgd,
+          MarketInstrument.eur,
+          MarketInstrument.sar,
+          MarketInstrument.chf,
+        }.contains(instrument),
+      ),
       verifiedInstruments: verifiedInstruments,
     );
   }
@@ -205,23 +207,28 @@ class MarketNewsRadarService {
   Future<List<NewsAlertItem>> fetchCuratedNews({http.Client? client}) async {
     final httpClient = client ?? http.Client();
     const feeds = <({String url, String source})>[
-      (url: 'https://www.antaranews.com/rss/terkini.xml', source: 'Antara News'),
+      (
+        url: 'https://www.antaranews.com/rss/terkini.xml',
+        source: 'Antara News',
+      ),
       (url: 'https://www.cnbcindonesia.com/rss', source: 'CNBC Indonesia'),
     ];
     final feedResults = await Future.wait<List<NewsAlertItem>>(
-      feeds.map((feed) async {
-        try {
-          final res = await httpClient
-              .get(Uri.parse(feed.url))
-              .timeout(_requestTimeout);
-          if (res.statusCode == 200 && res.body.trim().isNotEmpty) {
-            return parseRssFeed(res.body, defaultSource: feed.source);
-          }
-        } catch (_) {
-          // Sumber gagal tidak boleh menggagalkan feed lainnya.
-        }
-        return const <NewsAlertItem>[];
-      }).followedBy([_fetchLatestBmkgNews(httpClient)]),
+      feeds
+          .map((feed) async {
+            try {
+              final res = await httpClient
+                  .get(Uri.parse(feed.url))
+                  .timeout(_requestTimeout);
+              if (res.statusCode == 200 && res.body.trim().isNotEmpty) {
+                return parseRssFeed(res.body, defaultSource: feed.source);
+              }
+            } catch (_) {
+              // Sumber gagal tidak boleh menggagalkan feed lainnya.
+            }
+            return const <NewsAlertItem>[];
+          })
+          .followedBy([_fetchLatestBmkgNews(httpClient)]),
     );
     final collected = feedResults.expand((items) => items).toList();
 
@@ -339,7 +346,8 @@ class MarketNewsRadarService {
       final earthquake = info?['gempa'] as Map<String, dynamic>?;
       if (earthquake == null) return const [];
 
-      final title = 'Gempa M${earthquake['Magnitude'] ?? '-'}'
+      final title =
+          'Gempa M${earthquake['Magnitude'] ?? '-'}'
           ' - ${earthquake['Wilayah'] ?? 'wilayah Indonesia'}';
       final details = [
         if (earthquake['Kedalaman'] != null)
@@ -358,7 +366,9 @@ class MarketNewsRadarService {
         NewsAlertItem(
           id: 'bmkg_${earthquake['DateTime'] ?? fetchedAt.millisecondsSinceEpoch}',
           title: title,
-          snippet: details.isEmpty ? 'Informasi gempa terbaru dari BMKG.' : details,
+          snippet: details.isEmpty
+              ? 'Informasi gempa terbaru dari BMKG.'
+              : details,
           sourceName: 'BMKG Indonesia',
           publishedAt: publishedAt ?? fetchedAt,
           category: NewsCategory.weatherDisaster,

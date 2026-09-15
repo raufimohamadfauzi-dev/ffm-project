@@ -109,7 +109,8 @@ class AutonomousActivityRecord {
         (e) => e.name == json['status'],
         orElse: () => AutonomousActivityStatus.active,
       ),
-      payload: (json['payload'] as Map<String, dynamic>?) ?? <String, dynamic>{},
+      payload:
+          (json['payload'] as Map<String, dynamic>?) ?? <String, dynamic>{},
     );
   }
 }

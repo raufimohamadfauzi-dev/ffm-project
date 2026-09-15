@@ -99,8 +99,7 @@ class FfmAssistantUnansweredQuestionRepository {
         .into(_database.assistantUnansweredQuestions)
         .insert(
           AssistantUnansweredQuestionsCompanion.insert(
-            id:
-                'assistant-unanswered-${now.microsecondsSinceEpoch}-${const Uuid().v4().substring(0, 8)}',
+            id: 'assistant-unanswered-${now.microsecondsSinceEpoch}-${const Uuid().v4().substring(0, 8)}',
             householdId: householdId,
             questionText: sanitized,
             pageContext: Value(pageContext),

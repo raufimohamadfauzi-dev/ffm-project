@@ -264,7 +264,7 @@ void main() {
     expect(auditRows.single.read<String>('action'), 'create');
     expect(reconciliationRows, hasLength(1));
     expect(reconciliationRows.single.read<int>('difference'), -1000);
-expect(reminderRows, hasLength(1));
+    expect(reminderRows, hasLength(1));
     expect(
       reminderRows.single.read<int>('scheduled_at'),
       now.millisecondsSinceEpoch ~/ 1000,
@@ -295,20 +295,29 @@ expect(reminderRows, hasLength(1));
 
     tearDown(() async => db.close());
 
-    test('verifyBackupGateRequirement mengembalikan true saat belum ada backup', () {
-      final requireBackup = service.verifyBackupGateRequirement(lastBackupTime: null);
-      expect(requireBackup, isTrue);
-    });
+    test(
+      'verifyBackupGateRequirement mengembalikan true saat belum ada backup',
+      () {
+        final requireBackup = service.verifyBackupGateRequirement(
+          lastBackupTime: null,
+        );
+        expect(requireBackup, isTrue);
+      },
+    );
 
     test('verifyBackupGateRequirement mengembalikan false jika backup baru dibuat 1 jam lalu', () {
       final lastBackup = DateTime.now().subtract(const Duration(hours: 1));
-      final requireBackup = service.verifyBackupGateRequirement(lastBackupTime: lastBackup);
+      final requireBackup = service.verifyBackupGateRequirement(
+        lastBackupTime: lastBackup,
+      );
       expect(requireBackup, isFalse);
     });
 
     test('verifyBackupGateRequirement mengembalikan true jika backup lebih lama dari threshold 24 jam', () {
       final lastBackup = DateTime.now().subtract(const Duration(hours: 25));
-      final requireBackup = service.verifyBackupGateRequirement(lastBackupTime: lastBackup);
+      final requireBackup = service.verifyBackupGateRequirement(
+        lastBackupTime: lastBackup,
+      );
       expect(requireBackup, isTrue);
     });
   });

@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/backup/data/json_backup_service.dart';
 import 'package:ffm_manager/features/settings/data/vehicle_repository.dart';
@@ -46,9 +47,7 @@ void main() {
     final rawVehicles = <Map<String, Object?>>[vehicle.toJson()];
 
     // 1. Ekspor ke JSON
-    final jsonString = await backupService.exportJson(
-      vehicles: rawVehicles,
-    );
+    final jsonString = await backupService.exportJson(vehicles: rawVehicles);
 
     expect(jsonString, contains('Vario 160 Touring'));
     expect(jsonString, contains('B 1234 ABC'));
@@ -64,12 +63,17 @@ void main() {
     final exportedList = modules['vehicles'] as List;
     expect(exportedList, hasLength(1));
 
-    final restoredVehicle = Vehicle.fromJson(exportedList.first as Map<String, dynamic>);
+    final restoredVehicle = Vehicle.fromJson(
+      exportedList.first as Map<String, dynamic>,
+    );
     expect(restoredVehicle.id, 'v-test-1');
     expect(restoredVehicle.name, 'Vario 160 Touring');
     expect(restoredVehicle.fuelLogs.length, 1);
     expect(restoredVehicle.fuelLogs.first.liters, 4.5);
-    expect(restoredVehicle.fuelLogs.first.spbuLocation, 'SPBU Pertamina Pasteur');
+    expect(
+      restoredVehicle.fuelLogs.first.spbuLocation,
+      'SPBU Pertamina Pasteur',
+    );
   });
 
   test('Pemulihan cadangan menggabungkan kendaraan ke HP yang sudah punya data tanpa menghapus data yang ada', () async {

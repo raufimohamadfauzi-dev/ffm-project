@@ -22,14 +22,13 @@ class ReceiptOcrItem {
     double? quantity,
     String? unit,
     int? lineTotal,
-  }) =>
-      ReceiptOcrItem(
-        name: name ?? this.name,
-        price: price ?? this.price,
-        quantity: quantity ?? this.quantity,
-        unit: unit ?? this.unit,
-        lineTotal: lineTotal ?? this.lineTotal,
-      );
+  }) => ReceiptOcrItem(
+    name: name ?? this.name,
+    price: price ?? this.price,
+    quantity: quantity ?? this.quantity,
+    unit: unit ?? this.unit,
+    lineTotal: lineTotal ?? this.lineTotal,
+  );
 }
 
 /// Hasil impor yang masih berupa rancangan dan wajib diperiksa di form transaksi.

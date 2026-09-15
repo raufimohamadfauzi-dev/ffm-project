@@ -176,9 +176,11 @@ class _FfmAssistantDraftEditDialogState
         ? TimeOfDay.fromDateTime(widget.draft.date!)
         : null;
     _soundUri =
-        widget.draft.soundUri ?? widget.draft.formValues['soundUri']?.toString();
+        widget.draft.soundUri ??
+        widget.draft.formValues['soundUri']?.toString();
     _soundName =
-        widget.draft.soundName ?? widget.draft.formValues['soundName']?.toString();
+        widget.draft.soundName ??
+        widget.draft.formValues['soundName']?.toString();
     _activityMode =
         ActivityMode.tryParse(
           widget.draft.formValues['activityMode'] ??
@@ -1043,19 +1045,16 @@ class _FfmAssistantDraftEditDialogState
             const SizedBox(height: 8),
             Text(
               'Tipe Pengingat',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
+              style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
             SizedBox(
               width: double.infinity,
               child: DropdownButtonFormField<String>(
-                initialValue: widget.draft.formValues['reminderMode'] ?? 'notification',
-                decoration: const InputDecoration(
-                  labelText: 'Tipe Pengingat',
-                ),
+                initialValue:
+                    widget.draft.formValues['reminderMode'] ?? 'notification',
+                decoration: const InputDecoration(labelText: 'Tipe Pengingat'),
                 items: const [
                   DropdownMenuItem(
                     value: 'notification',

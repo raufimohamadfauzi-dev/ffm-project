@@ -211,9 +211,7 @@ class _FamilyProfilePageState extends State<FamilyProfilePage> {
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.familyProfile,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Profil Keluarga'),
-        ),
+        appBar: AppBar(title: const Text('Profil Keluarga')),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : ListView(
@@ -227,8 +225,7 @@ class _FamilyProfilePageState extends State<FamilyProfilePage> {
                   const SizedBox(height: 16),
                   _SectionCard(
                     title: 'Profil keluarga',
-                    subtitle:
-                        'Nama rumah tangga dan pasangan dipakai di ringkasan dan transaksi.',
+                    subtitle: 'Nama rumah tangga dan pasangan dipakai di ringkasan dan transaksi.',
                     icon: Icons.family_restroom_outlined,
                     color: theme.colorScheme.primary,
                     children: [
@@ -266,8 +263,7 @@ class _FamilyProfilePageState extends State<FamilyProfilePage> {
                   const SizedBox(height: 16),
                   _SectionCard(
                     title: 'Data pribadi untuk Asisten',
-                    subtitle:
-                        'Kenalkan diri agar jawaban Asisten lebih sesuai konteks keluargamu.',
+                    subtitle: 'Kenalkan diri agar jawaban Asisten lebih sesuai konteks keluargamu.',
                     icon: Icons.psychology_outlined,
                     color: theme.colorScheme.tertiary,
                     children: [

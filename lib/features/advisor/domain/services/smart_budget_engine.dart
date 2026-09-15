@@ -67,7 +67,8 @@ class BurnRateAnalysis {
   final String statusLabel;
 
   /// Sisa anggaran bulanan yang belum terpakai.
-  double get remainingBudget => (monthlyBudgetLimit - totalExpenseSoFar).clamp(0.0, double.infinity);
+  double get remainingBudget =>
+      (monthlyBudgetLimit - totalExpenseSoFar).clamp(0.0, double.infinity);
 }
 
 /// Engine perhitungan anggaran pintar deterministik.
@@ -83,14 +84,18 @@ class SmartBudgetEngine {
     required List<TransactionEntity> transactions,
     required DateTime now,
   }) {
-    final expenses = transactions.where((t) => t.isExpense && !t.isInternalTransfer).toList();
+    final expenses = transactions
+        .where((t) => t.isExpense && !t.isInternalTransfer)
+        .toList();
     if (expenses.isEmpty) return const [];
 
     // Tentukan rentang 3 bulan kalender terakhir sebelum bulan berjalan
     final monthKeys = <String>[];
     for (int i = 1; i <= 3; i++) {
       final prevMonth = DateTime(now.year, now.month - i, 1);
-      monthKeys.add('${prevMonth.year}-${prevMonth.month.toString().padLeft(2, '0')}');
+      monthKeys.add(
+        '${prevMonth.year}-${prevMonth.month.toString().padLeft(2, '0')}',
+      );
     }
 
     // Kelompokkan pengeluaran per kategori & per bulan
@@ -104,7 +109,8 @@ class SmartBudgetEngine {
       final rawCat = tx.category.trim();
       final cat = rawCat.isEmpty ? 'Lain-lain' : rawCat;
       categoryMonthTotals.putIfAbsent(cat, () => {});
-      categoryMonthTotals[cat]![key] = (categoryMonthTotals[cat]![key] ?? 0.0) + tx.amount.toDouble();
+      categoryMonthTotals[cat]![key] =
+          (categoryMonthTotals[cat]![key] ?? 0.0) + tx.amount.toDouble();
     }
 
     // Hitung rata-rata bulanan per kategori
@@ -116,14 +122,18 @@ class SmartBudgetEngine {
       final totalAmount = monthMap.values.fold(0.0, (sum, val) => sum + val);
       final average = totalAmount / (monthsWithData > 0 ? monthsWithData : 1);
 
-      result.add(DynamicCategoryBaseline(
-        categoryName: catName,
-        averageMonthlyAmount: average,
-        dataPointMonths: monthsWithData,
-      ));
+      result.add(
+        DynamicCategoryBaseline(
+          categoryName: catName,
+          averageMonthlyAmount: average,
+          dataPointMonths: monthsWithData,
+        ),
+      );
     });
 
-    result.sort((a, b) => b.averageMonthlyAmount.compareTo(a.averageMonthlyAmount));
+    result.sort(
+      (a, b) => b.averageMonthlyAmount.compareTo(a.averageMonthlyAmount),
+    );
     return result;
   }
 
@@ -139,15 +149,22 @@ class SmartBudgetEngine {
 
     final totalDaysInMonth = DateTime(now.year, now.month + 1, 0).day;
     final daysElapsed = now.day.clamp(1, totalDaysInMonth);
-    final remainingDays = (totalDaysInMonth - daysElapsed).clamp(1, totalDaysInMonth);
+    final remainingDays = (totalDaysInMonth - daysElapsed).clamp(
+      1,
+      totalDaysInMonth,
+    );
 
     final dailyAvg = totalSpent / daysElapsed;
     final projectedExpense = dailyAvg * totalDaysInMonth;
 
-    final remainingBudget = (monthlyBudgetLimit - totalSpent).clamp(0.0, double.infinity);
+    final remainingBudget = (monthlyBudgetLimit - totalSpent).clamp(
+      0.0,
+      double.infinity,
+    );
     final safeDailyLimit = remainingBudget / remainingDays;
 
-    final isOnTrack = projectedExpense <= monthlyBudgetLimit || monthlyBudgetLimit <= 0;
+    final isOnTrack =
+        projectedExpense <= monthlyBudgetLimit || monthlyBudgetLimit <= 0;
 
     DateTime? depletionDate;
     String statusLabel;
@@ -161,7 +178,8 @@ class SmartBudgetEngine {
       statusLabel = 'Aman / On-Track';
     } else {
       // Hitung proyeksi hari ke berapa anggaran akan habis
-      final daysUntilDepleted = (remainingBudget / (dailyAvg > 0 ? dailyAvg : 1.0)).floor();
+      final daysUntilDepleted =
+          (remainingBudget / (dailyAvg > 0 ? dailyAvg : 1.0)).floor();
       depletionDate = now.add(Duration(days: daysUntilDepleted));
       statusLabel = 'Peringatan Dini: Laju Belanja Tinggi';
     }

@@ -5,8 +5,9 @@ import 'package:ffm_manager/features/assistant/data/ffm_assistant_goal_evidence_
 
 void main() {
   group('AssistantGoalMilestoneCard Widget Tests', () {
-    testWidgets('renders milestone card when goal is ahead of schedule',
-        (tester) async {
+    testWidgets('renders milestone card when goal is ahead of schedule', (
+      tester,
+    ) async {
       var tapped = false;
       final report = FfmAssistantGoalEvidenceReport(
         goalId: 'goal-1',
@@ -17,8 +18,7 @@ void main() {
         progressPercent: 85.0,
         status: FfmAssistantGoalProgressStatus.aheadOfSchedule,
         isAchievableWithCurrentCashflow: true,
-        recommendation:
-            'Target diproyeksikan tercapai 2 bulan lebih cepat berdasarkan surplus Anda.',
+        recommendation: 'Target diproyeksikan tercapai 2 bulan lebih cepat berdasarkan surplus Anda.',
       );
 
       await tester.pumpWidget(
@@ -44,8 +44,9 @@ void main() {
       expect(tapped, isTrue);
     });
 
-    testWidgets('renders target tercapai when status is targetReached',
-        (tester) async {
+    testWidgets('renders target tercapai when status is targetReached', (
+      tester,
+    ) async {
       final report = FfmAssistantGoalEvidenceReport(
         goalId: 'goal-2',
         goalName: 'Laptop Baru',

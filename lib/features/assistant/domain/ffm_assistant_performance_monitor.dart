@@ -1,5 +1,5 @@
 /// Performance Monitor untuk Assistant
-/// 
+///
 /// Monitor berbagai metrik performa untuk assistant operations
 library;
 
@@ -65,8 +65,12 @@ class FfmAssistantPerformanceSnapshot {
 
   static FfmAssistantPerformanceSnapshot fromJson(Map<String, dynamic> json) {
     return FfmAssistantPerformanceSnapshot(
-      intentInterpretation: Duration(milliseconds: json['intentInterpretationMs'] as int),
-      verifiedFactsGeneration: Duration(milliseconds: json['verifiedFactsGenerationMs'] as int),
+      intentInterpretation: Duration(
+        milliseconds: json['intentInterpretationMs'] as int,
+      ),
+      verifiedFactsGeneration: Duration(
+        milliseconds: json['verifiedFactsGenerationMs'] as int,
+      ),
       analysisEngine: Duration(milliseconds: json['analysisEngineMs'] as int),
       geminiCall: Duration(milliseconds: json['geminiCallMs'] as int),
       totalResponse: Duration(milliseconds: json['totalResponseMs'] as int),
@@ -121,15 +125,19 @@ class FfmAssistantPerformanceMonitor {
   }
 
   /// Ambil semua metrik
-  List<FfmAssistantPerformanceMetric> get metrics => List.unmodifiable(_metrics);
+  List<FfmAssistantPerformanceMetric> get metrics =>
+      List.unmodifiable(_metrics);
 
   /// Ambil semua snapshot
-  List<FfmAssistantPerformanceSnapshot> get snapshots => List.unmodifiable(_snapshots);
+  List<FfmAssistantPerformanceSnapshot> get snapshots =>
+      List.unmodifiable(_snapshots);
 
   /// Hitung statistik untuk operasi tertentu
   Map<String, double> getStatisticsForOperation(String operation) {
-    final operationMetrics = _metrics.where((m) => m.operation == operation).toList();
-    
+    final operationMetrics = _metrics
+        .where((m) => m.operation == operation)
+        .toList();
+
     if (operationMetrics.isEmpty) {
       return {
         'count': 0,
@@ -143,7 +151,9 @@ class FfmAssistantPerformanceMonitor {
       };
     }
 
-    final durations = operationMetrics.map((m) => m.duration.inMilliseconds).toList();
+    final durations = operationMetrics
+        .map((m) => m.duration.inMilliseconds)
+        .toList();
     durations.sort();
 
     return {
@@ -173,7 +183,9 @@ class FfmAssistantPerformanceMonitor {
       };
     }
 
-    final durations = _snapshots.map((s) => s.totalResponse.inMilliseconds).toList();
+    final durations = _snapshots
+        .map((s) => s.totalResponse.inMilliseconds)
+        .toList();
     durations.sort();
 
     return {
@@ -200,31 +212,40 @@ class FfmAssistantPerformanceMonitor {
     }
 
     return {
-      'intentInterpretation': _snapshots
-          .map((s) => s.intentInterpretation.inMilliseconds)
-          .reduce((a, b) => a + b) / _snapshots.length,
-      'verifiedFactsGeneration': _snapshots
-          .map((s) => s.verifiedFactsGeneration.inMilliseconds)
-          .reduce((a, b) => a + b) / _snapshots.length,
-      'analysisEngine': _snapshots
-          .map((s) => s.analysisEngine.inMilliseconds)
-          .reduce((a, b) => a + b) / _snapshots.length,
-      'geminiCall': _snapshots
-          .map((s) => s.geminiCall.inMilliseconds)
-          .reduce((a, b) => a + b) / _snapshots.length,
+      'intentInterpretation':
+          _snapshots
+              .map((s) => s.intentInterpretation.inMilliseconds)
+              .reduce((a, b) => a + b) /
+          _snapshots.length,
+      'verifiedFactsGeneration':
+          _snapshots
+              .map((s) => s.verifiedFactsGeneration.inMilliseconds)
+              .reduce((a, b) => a + b) /
+          _snapshots.length,
+      'analysisEngine':
+          _snapshots
+              .map((s) => s.analysisEngine.inMilliseconds)
+              .reduce((a, b) => a + b) /
+          _snapshots.length,
+      'geminiCall':
+          _snapshots
+              .map((s) => s.geminiCall.inMilliseconds)
+              .reduce((a, b) => a + b) /
+          _snapshots.length,
     };
   }
 
   /// Identifikasi bottleneck berdasarkan rata-rata komponen
   String identifyBottleneck() {
     final averages = getComponentAverages();
-    final maxComponent = averages.entries
-        .reduce((a, b) => a.value > b.value ? a : b);
-    
+    final maxComponent = averages.entries.reduce(
+      (a, b) => a.value > b.value ? a : b,
+    );
+
     final percentage = averages.values.isNotEmpty
         ? (maxComponent.value / averages.values.reduce((a, b) => a + b) * 100)
         : 0;
-    
+
     return '${maxComponent.key} (${percentage.toStringAsFixed(1)}% of total)';
   }
 

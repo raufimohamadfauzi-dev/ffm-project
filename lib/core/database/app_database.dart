@@ -73,7 +73,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 62;
+  int get schemaVersion => 64;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -358,7 +358,13 @@ class AppDatabase extends _$AppDatabase {
       if (from < 58) {
         // Index pagination riwayat dengan stable ordering date+id.
         if (await _hasTable('transactions') &&
-            await _hasColumns('transactions', const ['household_id', 'is_archived', 'is_deleted', 'date', 'id'])) {
+            await _hasColumns('transactions', const [
+              'household_id',
+              'is_archived',
+              'is_deleted',
+              'date',
+              'id',
+            ])) {
           await m.createIndex(idxTransactionsHouseholdVisibilityDateId);
         }
         if (await _hasTable('transactions') &&
@@ -366,19 +372,39 @@ class AppDatabase extends _$AppDatabase {
           await m.createIndex(idxTransactionItemsTransaction);
         }
         if (await _hasTable('transfers') &&
-            await _hasColumns('transfers', const ['household_id', 'is_deleted', 'date', 'id'])) {
+            await _hasColumns('transfers', const [
+              'household_id',
+              'is_deleted',
+              'date',
+              'id',
+            ])) {
           await m.createIndex(idxTransfersHouseholdDeletedDateId);
         }
         if (await _hasTable('activity_sessions') &&
-            await _hasColumns('activity_sessions', const ['household_id', 'is_archived', 'started_at', 'id'])) {
+            await _hasColumns('activity_sessions', const [
+              'household_id',
+              'is_archived',
+              'started_at',
+              'id',
+            ])) {
           await m.createIndex(idxActivitySessionsHouseholdArchivedStartedId);
         }
         if (await _hasTable('activity_entries') &&
-            await _hasColumns('activity_entries', const ['household_id', 'is_archived', 'started_at', 'id'])) {
+            await _hasColumns('activity_entries', const [
+              'household_id',
+              'is_archived',
+              'started_at',
+              'id',
+            ])) {
           await m.createIndex(idxActivityEntriesHouseholdArchivedStartedId);
         }
         if (await _hasTable('daily_notes') &&
-            await _hasColumns('daily_notes', const ['household_id', 'is_archived', 'date', 'id'])) {
+            await _hasColumns('daily_notes', const [
+              'household_id',
+              'is_archived',
+              'date',
+              'id',
+            ])) {
           await m.createIndex(idxDailyNotesHouseholdArchivedDateId);
         }
       }
@@ -435,6 +461,16 @@ class AppDatabase extends _$AppDatabase {
         }
         if (!await _hasColumns('transactions', const ['discount'])) {
           await m.addColumn(transactions, transactions.discount);
+        }
+      }
+      if (from < 63 && await _hasTable('reminders')) {
+        if (!await _hasColumns('reminders', const ['mode'])) {
+          await m.addColumn(reminders, reminders.mode);
+        }
+      }
+      if (from < 64 && await _hasTable('daily_notes')) {
+        if (!await _hasColumns('daily_notes', const ['priority'])) {
+          await m.addColumn(dailyNotes, dailyNotes.priority);
         }
       }
     },
@@ -835,10 +871,7 @@ QueryExecutor _openConnection() {
   return LazyDatabase(() async {
     final directory = await getApplicationDocumentsDirectory();
     final file = File(p.join(directory.path, 'ffm.sqlite'));
-    return NativeDatabase.createInBackground(
-      file,
-      setup: _setupDatabase,
-    );
+    return NativeDatabase.createInBackground(file, setup: _setupDatabase);
   });
 }
 

@@ -159,6 +159,7 @@ void _validateCalculation(
     }
   }
 }
+
 class ArchiveRecurringTransaction {
   const ArchiveRecurringTransaction(this.database);
   final AppDatabase database;
@@ -167,11 +168,7 @@ class ArchiveRecurringTransaction {
     await (database.update(database.recurringTransactions)..where(
           (row) => row.id.equals(id) & row.householdId.equals(householdId),
         ))
-        .write(
-          const RecurringTransactionsCompanion(
-            isActive: Value(false),
-          ),
-        );
+        .write(const RecurringTransactionsCompanion(isActive: Value(false)));
     await AuditLogger(database).record(
       action: 'arsip aturan berkala',
       entity: 'recurring_transaction',
@@ -536,5 +533,4 @@ DateTime _nextOccurrence(DateTime current, String periodType) {
   }
 }
 
-String _newId(String prefix) =>
-    '$prefix-${const Uuid().v4()}';
+String _newId(String prefix) => '$prefix-${const Uuid().v4()}';

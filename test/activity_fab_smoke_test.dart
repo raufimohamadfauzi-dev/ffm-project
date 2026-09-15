@@ -24,11 +24,7 @@ void main() {
   });
 
   testWidgets('tap Timer FAB opens session form without error', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: ActivityPage(),
-      ),
-    );
+    await tester.pumpWidget(const MaterialApp(home: ActivityPage()));
     await tester.pumpAndSettle();
 
     final timerFab = find.widgetWithText(FloatingActionButton, 'Timer');
@@ -41,11 +37,7 @@ void main() {
   });
 
   testWidgets('tap Catat FAB opens session form without error', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: ActivityPage(),
-      ),
-    );
+    await tester.pumpWidget(const MaterialApp(home: ActivityPage()));
     await tester.pumpAndSettle();
 
     final noteFab = find.widgetWithText(FloatingActionButton, 'Catat');
@@ -55,5 +47,36 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
+    expect(find.text('Catat Kejadian'), findsOneWidget);
+    expect(find.text('Judul catatan'), findsOneWidget);
+    expect(find.text('Isi catatan'), findsOneWidget);
+    expect(find.byIcon(Icons.edit_note_rounded), findsWidgets);
+    expect(find.byIcon(Icons.directions_run_outlined), findsNothing);
+    expect(find.text('⏱️ Pakai Timer'), findsNothing);
+    expect(find.text('Tambah tag baru'), findsOneWidget);
+  });
+
+  testWidgets('tag baru dibuat inline dan langsung tersedia di form catatan', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: ActivityPage()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FloatingActionButton, 'Catat'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tambah tag baru'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tambah tag baru'), findsWidgets);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Nama tag'),
+      'Kendaraan',
+    );
+    await tester.tap(find.text('Simpan tag'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Kendaraan'), findsOneWidget);
+    final tags = await database.select(database.tags).get();
+    expect(tags.single.name, 'Kendaraan');
   });
 }

@@ -28,7 +28,8 @@ class NfcSmartTagWriterDialog extends StatefulWidget {
   }
 
   @override
-  State<NfcSmartTagWriterDialog> createState() => _NfcSmartTagWriterDialogState();
+  State<NfcSmartTagWriterDialog> createState() =>
+      _NfcSmartTagWriterDialogState();
 }
 
 class _NfcSmartTagWriterDialogState extends State<NfcSmartTagWriterDialog>
@@ -36,7 +37,9 @@ class _NfcSmartTagWriterDialogState extends State<NfcSmartTagWriterDialog>
   final _nfcBridge = NfcBridge();
   NfcSmartTagPreset _selectedPreset = NfcSmartTagPreset.fuel;
   final _customTitleController = TextEditingController(text: 'Uang Jajan Anak');
-  final _customCategoryController = TextEditingController(text: 'Pendidikan & Anak');
+  final _customCategoryController = TextEditingController(
+    text: 'Pendidikan & Anak',
+  );
 
   bool _isWriting = false;
   bool _writeSuccess = false;
@@ -81,7 +84,9 @@ class _NfcSmartTagWriterDialogState extends State<NfcSmartTagWriterDialog>
         return 'ffm://action?type=timer_activity&title=Sesi+Kerja+Tani';
       case NfcSmartTagPreset.custom:
         final title = Uri.encodeComponent(_customTitleController.text.trim());
-        final category = Uri.encodeComponent(_customCategoryController.text.trim());
+        final category = Uri.encodeComponent(
+          _customCategoryController.text.trim(),
+        );
         return 'ffm://action?type=custom&title=$title&category=$category';
     }
   }
@@ -118,7 +123,8 @@ class _NfcSmartTagWriterDialogState extends State<NfcSmartTagWriterDialog>
     } else {
       setState(() {
         _isWriting = false;
-        _errorMessage = result['error']?.toString() ?? 'Gagal memprogram stiker NFC.';
+        _errorMessage =
+            result['error']?.toString() ?? 'Gagal memprogram stiker NFC.';
       });
     }
   }
@@ -147,7 +153,11 @@ class _NfcSmartTagWriterDialogState extends State<NfcSmartTagWriterDialog>
                     color: colors.primaryContainer,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(Icons.nfc_rounded, color: colors.primary, size: 24),
+                  child: Icon(
+                    Icons.nfc_rounded,
+                    color: colors.primary,
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -214,7 +224,9 @@ class _NfcSmartTagWriterDialogState extends State<NfcSmartTagWriterDialog>
 
         Text(
           'Pilih Aksi Cepat yang Didaftarkan:',
-          style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+          style: theme.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const SizedBox(height: 10),
 
@@ -232,7 +244,8 @@ class _NfcSmartTagWriterDialogState extends State<NfcSmartTagWriterDialog>
           subtitle: 'Kategori otomatis Kebutuhan Rumah Tangga',
           isSelected: _selectedPreset == NfcSmartTagPreset.groceries,
           color: Colors.green.shade700,
-          onTap: () => setState(() => _selectedPreset = NfcSmartTagPreset.groceries),
+          onTap: () =>
+              setState(() => _selectedPreset = NfcSmartTagPreset.groceries),
         ),
         _PresetCard(
           icon: Icons.mic_rounded,
@@ -240,7 +253,9 @@ class _NfcSmartTagWriterDialogState extends State<NfcSmartTagWriterDialog>
           subtitle: 'Langsung mengaktifkan mikrofon Asisten AI FFM',
           isSelected: _selectedPreset == NfcSmartTagPreset.voiceAssistant,
           color: Colors.purple.shade700,
-          onTap: () => setState(() => _selectedPreset = NfcSmartTagPreset.voiceAssistant),
+          onTap: () => setState(
+            () => _selectedPreset = NfcSmartTagPreset.voiceAssistant,
+          ),
         ),
         _PresetCard(
           icon: Icons.timer_rounded,
@@ -248,7 +263,8 @@ class _NfcSmartTagWriterDialogState extends State<NfcSmartTagWriterDialog>
           subtitle: 'Mulai stopwatch sesi aktivitas kebun/proyek',
           isSelected: _selectedPreset == NfcSmartTagPreset.timerActivity,
           color: Colors.teal.shade700,
-          onTap: () => setState(() => _selectedPreset = NfcSmartTagPreset.timerActivity),
+          onTap: () =>
+              setState(() => _selectedPreset = NfcSmartTagPreset.timerActivity),
         ),
         _PresetCard(
           icon: Icons.tune_rounded,
@@ -256,7 +272,8 @@ class _NfcSmartTagWriterDialogState extends State<NfcSmartTagWriterDialog>
           subtitle: 'Tentukan judul dan pos pengeluaran keluarga',
           isSelected: _selectedPreset == NfcSmartTagPreset.custom,
           color: Colors.blue.shade700,
-          onTap: () => setState(() => _selectedPreset = NfcSmartTagPreset.custom),
+          onTap: () =>
+              setState(() => _selectedPreset = NfcSmartTagPreset.custom),
         ),
 
         if (_selectedPreset == NfcSmartTagPreset.custom) ...[
@@ -350,7 +367,11 @@ class _NfcSmartTagWriterDialogState extends State<NfcSmartTagWriterDialog>
                 shape: BoxShape.circle,
                 color: Colors.green.shade100,
               ),
-              child: Icon(Icons.check_circle, color: Colors.green.shade700, size: 56),
+              child: Icon(
+                Icons.check_circle,
+                color: Colors.green.shade700,
+                size: 56,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -406,7 +427,9 @@ class _PresetCard extends StatelessWidget {
             : colors.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isSelected ? color : colors.outlineVariant.withValues(alpha: 0.5),
+          color: isSelected
+              ? color
+              : colors.outlineVariant.withValues(alpha: 0.5),
           width: isSelected ? 1.8 : 1,
         ),
       ),
@@ -433,7 +456,9 @@ class _PresetCard extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.w600,
                         fontSize: 14,
                       ),
                     ),
@@ -447,8 +472,7 @@ class _PresetCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (isSelected)
-                Icon(Icons.check_circle, color: color, size: 20),
+              if (isSelected) Icon(Icons.check_circle, color: color, size: 20),
             ],
           ),
         ),

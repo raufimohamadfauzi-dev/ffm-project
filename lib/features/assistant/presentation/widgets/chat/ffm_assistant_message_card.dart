@@ -148,7 +148,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
       Color assistantBorderColor,
       Color assistantBgColor,
       IconData assistantOriginIcon,
-      String assistantOriginLabel
+      String assistantOriginLabel,
     ) = groundingBlocked
         ? (
             isDark ? const Color(0xFFFB7185) : const Color(0xFFE11D48),
@@ -158,38 +158,43 @@ class FfmAssistantMessageCard extends StatelessWidget {
           )
         : switch (origin) {
             FfmAssistantResponseOrigin.agentOrchestrator => (
-                isDark ? const Color(0xFFA5B4FC) : const Color(0xFF6366F1),
-                isDark ? const Color(0xFF1E1B2E) : const Color(0xFFF5F3FF),
-                Icons.psychology_rounded,
-                '🧠 Orkestrator Lokal',
-              ),
+              isDark ? const Color(0xFFA5B4FC) : const Color(0xFF6366F1),
+              isDark ? const Color(0xFF1E1B2E) : const Color(0xFFF5F3FF),
+              Icons.psychology_rounded,
+              '🧠 Orkestrator Lokal',
+            ),
             FfmAssistantResponseOrigin.localFallback => (
-                isDark ? const Color(0xFFFCD34D) : const Color(0xFFD97706),
-                isDark ? const Color(0xFF261D12) : const Color(0xFFFFFBEB),
-                Icons.bolt_rounded,
-                '⚡ Aturan Lokal / Offline',
-              ),
+              isDark ? const Color(0xFFFCD34D) : const Color(0xFFD97706),
+              isDark ? const Color(0xFF261D12) : const Color(0xFFFFFBEB),
+              Icons.bolt_rounded,
+              '⚡ Aturan Lokal / Offline',
+            ),
             FfmAssistantResponseOrigin.cloudError => (
-                isDark ? const Color(0xFFFB7185) : const Color(0xFFE11D48),
-                isDark ? const Color(0xFF2E151A) : const Color(0xFFFFF1F2),
-                Icons.error_outline_rounded,
-                '⚠️ Anomali / Error Cloud',
-              ),
+              isDark ? const Color(0xFFFB7185) : const Color(0xFFE11D48),
+              isDark ? const Color(0xFF2E151A) : const Color(0xFFFFF1F2),
+              Icons.error_outline_rounded,
+              '⚠️ Anomali / Error Cloud',
+            ),
             FfmAssistantResponseOrigin.geminiCloud || null => (
-                isDark ? const Color(0xFF6EE7B7) : const Color(0xFF059669),
-                isDark ? const Color(0xFF12241C) : const Color(0xFFECFDF5),
-                Icons.auto_awesome,
-                '✨ Gemini Cloud',
-              ),
+              isDark ? const Color(0xFF6EE7B7) : const Color(0xFF059669),
+              isDark ? const Color(0xFF12241C) : const Color(0xFFECFDF5),
+              Icons.auto_awesome,
+              '✨ Gemini Cloud',
+            ),
           };
     final textColor = isUser
         ? (isDark ? Colors.white : Colors.black)
         : (isDark ? Colors.white : Colors.black);
 
     final tokenUsage = _extractTokenUsage(entry, intent);
-    final totalTokens = (tokenUsage?['totalTokenCount'] ?? tokenUsage?['totalTokens']) as int?;
-    final promptTokens = (tokenUsage?['promptTokenCount'] ?? tokenUsage?['promptTokens']) as int?;
-    final candidateTokens = (tokenUsage?['candidatesTokenCount'] ?? tokenUsage?['candidateTokens']) as int?;
+    final totalTokens =
+        (tokenUsage?['totalTokenCount'] ?? tokenUsage?['totalTokens']) as int?;
+    final promptTokens =
+        (tokenUsage?['promptTokenCount'] ?? tokenUsage?['promptTokens'])
+            as int?;
+    final candidateTokens =
+        (tokenUsage?['candidatesTokenCount'] ?? tokenUsage?['candidateTokens'])
+            as int?;
 
     final content = Column(
       mainAxisSize: MainAxisSize.min,
@@ -240,7 +245,10 @@ class FfmAssistantMessageCard extends StatelessWidget {
                       ? 'Konsumsi Token: Kirim ${_formatTokens(promptTokens)} · Terima ${_formatTokens(candidateTokens)}'
                       : 'Total Konsumsi Token: ${_formatTokens(totalTokens)}',
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: isDark
                           ? const Color(0xFF2A2215)
@@ -288,7 +296,9 @@ class FfmAssistantMessageCard extends StatelessWidget {
               color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                color: isDark
+                    ? const Color(0xFF334155)
+                    : const Color(0xFFCBD5E1),
               ),
             ),
             child: Row(
@@ -398,13 +408,16 @@ class FfmAssistantMessageCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(
-                    entry.correctionText != null && entry.correctionText!.isNotEmpty
+                    entry.correctionText != null &&
+                            entry.correctionText!.isNotEmpty
                         ? '✏️ Dikoreksi: "${entry.correctionText}"'
                         : '✏️ Jawaban telah dikoreksi pengguna',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
+                      color: isDark
+                          ? const Color(0xFFFDE68A)
+                          : const Color(0xFF92400E),
                     ),
                   ),
                 ),
@@ -489,16 +502,17 @@ class FfmAssistantMessageCard extends StatelessWidget {
                       color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   backgroundColor: Theme.of(context)
                       .colorScheme
                       .primaryContainer
                       .withValues(alpha: 0.35),
                   side: BorderSide(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary
+                    color: Theme.of(context).colorScheme.primary
                         .withValues(alpha: 0.25),
                   ),
                   onPressed: () => onSelectSuggestion!(suggestion),
@@ -589,11 +603,13 @@ class FfmAssistantMessageCard extends StatelessWidget {
             followUpCount: entry.suggestedQuestions.length,
           ),
         ],
-        if (showTechnicalDetails && (intent != null || entry.processTrace != null)) ...[
+        if (showTechnicalDetails &&
+            (intent != null || entry.processTrace != null)) ...[
           const SizedBox(height: 8),
           _AssistantExecutionMethodologyCard(
             entry: entry,
-            intent: intent ??
+            intent:
+                intent ??
                 FfmAssistantIntent(
                   rawText: entry.text,
                   normalizedText: entry.text,
@@ -642,10 +658,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
     );
 
     final userTextWidget = Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 10,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: FfmAssistantMarkdownText(
         text: visibleText ?? entry.text,
         color: textColor,
@@ -670,24 +683,24 @@ class FfmAssistantMessageCard extends StatelessWidget {
             textColor: textColor,
             child: isUser
                 ? (hasUserActions
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          userToolbar!,
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: DecoratedBox(
-                              decoration: userBubbleDecoration,
-                              child: userTextWidget,
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            userToolbar!,
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: DecoratedBox(
+                                decoration: userBubbleDecoration,
+                                child: userTextWidget,
+                              ),
                             ),
-                          ),
-                        ],
-                      )
-                    : DecoratedBox(
-                        decoration: userBubbleDecoration,
-                        child: userTextWidget,
-                      ))
+                          ],
+                        )
+                      : DecoratedBox(
+                          decoration: userBubbleDecoration,
+                          child: userTextWidget,
+                        ))
                 : DecoratedBox(
                     decoration: BoxDecoration(
                       color: assistantBgColor,
@@ -1090,13 +1103,20 @@ class _BubbleTapRevealState extends State<_BubbleTapReveal> {
     if (model != null && model.isNotEmpty) parts.add(model);
 
     final tokenUsage = _extractTokenUsage(widget.entry, widget.entry.intent);
-    final totalTokens = (tokenUsage?['totalTokenCount'] ?? tokenUsage?['totalTokens']) as int?;
-    final promptTokens = (tokenUsage?['promptTokenCount'] ?? tokenUsage?['promptTokens']) as int?;
-    final candidateTokens = (tokenUsage?['candidatesTokenCount'] ?? tokenUsage?['candidateTokens']) as int?;
+    final totalTokens =
+        (tokenUsage?['totalTokenCount'] ?? tokenUsage?['totalTokens']) as int?;
+    final promptTokens =
+        (tokenUsage?['promptTokenCount'] ?? tokenUsage?['promptTokens'])
+            as int?;
+    final candidateTokens =
+        (tokenUsage?['candidatesTokenCount'] ?? tokenUsage?['candidateTokens'])
+            as int?;
 
     if (totalTokens != null && totalTokens > 0) {
       if (promptTokens != null && candidateTokens != null) {
-        parts.add('🪙 ${_formatTokens(totalTokens)} token (${_formatTokens(promptTokens)} in · ${_formatTokens(candidateTokens)} out)');
+        parts.add(
+          '🪙 ${_formatTokens(totalTokens)} token (${_formatTokens(promptTokens)} in · ${_formatTokens(candidateTokens)} out)',
+        );
       } else {
         parts.add('🪙 ${_formatTokens(totalTokens)} token');
       }
@@ -1137,9 +1157,14 @@ class _AssistantExecutionMethodologyCard extends StatelessWidget {
     final trace = entry.processTrace;
     final events = trace?.events ?? const [];
     final tokenUsage = _extractTokenUsage(entry, intent);
-    final totalTokens = (tokenUsage?['totalTokenCount'] ?? tokenUsage?['totalTokens']) as int?;
-    final promptTokens = (tokenUsage?['promptTokenCount'] ?? tokenUsage?['promptTokens']) as int?;
-    final candidateTokens = (tokenUsage?['candidatesTokenCount'] ?? tokenUsage?['candidateTokens']) as int?;
+    final totalTokens =
+        (tokenUsage?['totalTokenCount'] ?? tokenUsage?['totalTokens']) as int?;
+    final promptTokens =
+        (tokenUsage?['promptTokenCount'] ?? tokenUsage?['promptTokens'])
+            as int?;
+    final candidateTokens =
+        (tokenUsage?['candidatesTokenCount'] ?? tokenUsage?['candidateTokens'])
+            as int?;
 
     return Container(
       margin: const EdgeInsets.only(top: 8),
@@ -1165,15 +1190,15 @@ class _AssistantExecutionMethodologyCard extends StatelessWidget {
               const Expanded(
                 child: Text(
                   '🔍 Langkah Eksekusi & Sumber Data AI',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
                 ),
               ),
               if (trace != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF0284C7).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
@@ -1211,7 +1236,9 @@ class _AssistantExecutionMethodologyCard extends StatelessWidget {
                         e.label,
                         style: TextStyle(
                           fontSize: 11.5,
-                          color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                          color: isDark
+                              ? const Color(0xFFCBD5E1)
+                              : const Color(0xFF334155),
                         ),
                       ),
                     ),
@@ -1220,7 +1247,9 @@ class _AssistantExecutionMethodologyCard extends StatelessWidget {
                       '+${e.elapsed.inMilliseconds}ms',
                       style: TextStyle(
                         fontSize: 10,
-                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                        color: isDark
+                            ? const Color(0xFF64748B)
+                            : const Color(0xFF94A3B8),
                         fontFamily: 'monospace',
                       ),
                     ),
@@ -1234,7 +1263,9 @@ class _AssistantExecutionMethodologyCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF2A2215) : const Color(0xFFFEF3C7),
+                color: isDark
+                    ? const Color(0xFF2A2215)
+                    : const Color(0xFFFEF3C7),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: const Color(0xFFD97706).withValues(alpha: 0.3),
@@ -1254,7 +1285,9 @@ class _AssistantExecutionMethodologyCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: isDark ? const Color(0xFFFBBF24) : const Color(0xFF92400E),
+                        color: isDark
+                            ? const Color(0xFFFBBF24)
+                            : const Color(0xFF92400E),
                       ),
                     ),
                   ),
@@ -1292,7 +1325,9 @@ class _AssistantExecutionMethodologyCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         height: 1.35,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        color: isDark
+                            ? const Color(0xFF94A3B8)
+                            : const Color(0xFF64748B),
                       ),
                     ),
                   ],
@@ -1307,21 +1342,24 @@ class _AssistantExecutionMethodologyCard extends StatelessWidget {
 
   String _getReproductionGuide(FfmAssistantIntent intent) {
     final destination = intent.destination;
-    final usedReadCapability = intent.pluginMetadata?['usedReadCapability'] as String?;
+    final usedReadCapability =
+        intent.pluginMetadata?['usedReadCapability'] as String?;
 
-    if (usedReadCapability == 'read.transactions' || destination == FfmAssistantDestination.transactions) {
+    if (usedReadCapability == 'read.transactions' ||
+        destination == FfmAssistantDestination.transactions) {
       return '1. Buka menu Transaksi di beranda.\n2. Buka filter transaksi lalu sesuaikan rentang tanggal atau kategori terkait.\n3. Jumlahkan total transaksi yang muncul untuk mencocokkan hasil perhitungan deterministik.';
     }
     if (usedReadCapability == 'read.summary') {
       return '1. Buka Ringkasan Kas di beranda utama.\n2. Cek akumulasi Pemasukan dan Pengeluaran bulan berjalan.\n3. Transfer antar rekening tidak dihitung sebagai arus kas pengeluaran.';
     }
-    if (usedReadCapability == 'read.budget' || destination == FfmAssistantDestination.budget) {
+    if (usedReadCapability == 'read.budget' ||
+        destination == FfmAssistantDestination.budget) {
       return '1. Buka menu Anggaran.\n2. Periksa sisa alokasi pos anggaran per kategori untuk mengevaluasi batas belanja bulanan.';
     }
-    if (usedReadCapability == 'read.reminders' || destination == FfmAssistantDestination.reminders) {
+    if (usedReadCapability == 'read.reminders' ||
+        destination == FfmAssistantDestination.reminders) {
       return '1. Buka menu Pengingat / Jadwal.\n2. Periksa daftar alarm aktif dan waktu jatuh tempo pengingat yang terdaftar.';
     }
     return '1. Buka menu data terkait di aplikasi FFM.\n2. Bandingkan data yang dibaca dengan ringkasan di atas untuk memverifikasi kebenaran finansial secara independen.';
   }
 }
-

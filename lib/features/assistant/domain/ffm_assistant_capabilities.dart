@@ -176,8 +176,7 @@ class FfmAssistantCapabilityRegistry {
     const FfmAssistantCapability(
       id: 'read.goal_evidence_evaluation',
       label: 'Evaluasi bukti progres target',
-      description:
-          'Mengevaluasi pencapaian target keuangan terhadap data saldo dan arus kas riil secara deterministik.',
+      description: 'Mengevaluasi pencapaian target keuangan terhadap data saldo dan arus kas riil secara deterministik.',
       risk: FfmAssistantCapabilityRisk.readOnly,
       destination: FfmAssistantDestination.goals,
       readOnly: true,
@@ -186,8 +185,7 @@ class FfmAssistantCapabilityRegistry {
     const FfmAssistantCapability(
       id: 'read.history_search',
       label: 'Cari riwayat percakapan',
-      description:
-          'Mencari cuplikan dan intisari riwayat obrolan masa lalu secara aman.',
+      description: 'Mencari cuplikan dan intisari riwayat obrolan masa lalu secara aman.',
       risk: FfmAssistantCapabilityRisk.readOnly,
       readOnly: true,
       parameterNames: ['query'],
@@ -1053,8 +1051,7 @@ class FfmAssistantCapabilityRegistry {
     const FfmAssistantCapability(
       id: 'system.set_hijri_adjustment',
       label: 'Ubah offset kalender Hijriah',
-      description:
-          'Menggeser tanggal Hijriah mundur/maju -2 s/d +2 hari sesuai koreksi Hilal lokal.',
+      description: 'Menggeser tanggal Hijriah mundur/maju -2 s/d +2 hari sesuai koreksi Hilal lokal.',
       risk: FfmAssistantCapabilityRisk.readOnly,
       parameterNames: ['adjustment'],
       readOnly: true,

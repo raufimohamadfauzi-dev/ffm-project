@@ -13,7 +13,9 @@ void main() {
   setUp(() async {
     database = createInMemoryDatabaseForTests();
     interpreter = FfmAssistantInterpreter(database);
-    await database.into(database.accounts).insert(
+    await database
+        .into(database.accounts)
+        .insert(
           AccountsCompanion.insert(
             id: 'gopay',
             householdId: AppContext.householdId,
@@ -22,7 +24,9 @@ void main() {
             createdAt: DateTime(2026, 8, 1),
           ),
         );
-    await database.into(database.accounts).insert(
+    await database
+        .into(database.accounts)
+        .insert(
           AccountsCompanion.insert(
             id: 'bca',
             householdId: AppContext.householdId,

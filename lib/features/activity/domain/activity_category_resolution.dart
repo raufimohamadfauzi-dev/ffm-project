@@ -58,10 +58,7 @@ ActivityCategoryResolution resolveActivityCategoryName(
   final categories = activeCategories.toList();
 
   final exact = categories
-      .where(
-        (category) =>
-            (category.name).toLowerCase() == name.toLowerCase(),
-      )
+      .where((category) => (category.name).toLowerCase() == name.toLowerCase())
       .toList();
   if (exact.length == 1) {
     return ActivityCategoryResolution.resolved(exact.single);
@@ -81,16 +78,17 @@ ActivityCategoryResolution resolveActivityCategoryName(
     return ActivityCategoryResolution.resolved(top.value);
   }
 
-  final fuzzyCandidates = categories
-      .map(
-        (category) => (
-          category,
-          FfmAssistantFuzzyMatcher.similarity(name, category.name),
-        ),
-      )
-      .where((entry) => entry.$2 >= .40)
-      .toList()
-    ..sort((left, right) => right.$2.compareTo(left.$2));
+  final fuzzyCandidates =
+      categories
+          .map(
+            (category) => (
+              category,
+              FfmAssistantFuzzyMatcher.similarity(name, category.name),
+            ),
+          )
+          .where((entry) => entry.$2 >= .40)
+          .toList()
+        ..sort((left, right) => right.$2.compareTo(left.$2));
   if (fuzzyCandidates.length == 1) {
     return ActivityCategoryResolution.resolved(fuzzyCandidates.single.$1);
   }

@@ -80,7 +80,8 @@ class SupabaseConfig {
   static const _geminiUsageHttpKey = 'gemini_last_usage_http';
   static const _geminiUsageLatencyKey = 'gemini_last_usage_latency_ms';
   static const _geminiUsagePromptTokensKey = 'gemini_last_usage_prompt_tokens';
-  static const _geminiUsageCandidateTokensKey = 'gemini_last_usage_candidate_tokens';
+  static const _geminiUsageCandidateTokensKey =
+      'gemini_last_usage_candidate_tokens';
   static const _geminiUsageTotalTokensKey = 'gemini_last_usage_total_tokens';
   static const _geminiQuotaCycleResetKey = 'gemini_quota_cycle_reset_at';
   static const _geminiDailyRequestsKey = 'gemini_daily_requests_count';
@@ -223,10 +224,12 @@ class SupabaseConfig {
     final timeUntil = nextReset.difference(currentTime);
 
     final storedResetIso = await _storage.read(key: _geminiQuotaCycleResetKey);
-    final storedReset =
-        storedResetIso != null ? DateTime.tryParse(storedResetIso) : null;
+    final storedReset = storedResetIso != null
+        ? DateTime.tryParse(storedResetIso)
+        : null;
 
-    final isNewCycle = storedReset == null ||
+    final isNewCycle =
+        storedReset == null ||
         currentTime.isAfter(storedReset) ||
         storedReset.difference(nextReset).abs() > const Duration(minutes: 1);
 
@@ -253,23 +256,29 @@ class SupabaseConfig {
     }
 
     final reqUsed =
-        int.tryParse(await _storage.read(key: _geminiDailyRequestsKey) ?? '0') ??
-            0;
-    final promptTok = int.tryParse(
+        int.tryParse(
+          await _storage.read(key: _geminiDailyRequestsKey) ?? '0',
+        ) ??
+        0;
+    final promptTok =
+        int.tryParse(
           await _storage.read(key: _geminiDailyPromptTokensKey) ?? '0',
         ) ??
         0;
-    final candTok = int.tryParse(
+    final candTok =
+        int.tryParse(
           await _storage.read(key: _geminiDailyCandidateTokensKey) ?? '0',
         ) ??
         0;
-    final totalTok = int.tryParse(
+    final totalTok =
+        int.tryParse(
           await _storage.read(key: _geminiDailyTotalTokensKey) ?? '0',
         ) ??
         0;
     final lastReqStr = await _storage.read(key: _geminiUsageAtKey);
-    final lastReq =
-        lastReqStr != null ? DateTime.tryParse(lastReqStr)?.toLocal() : null;
+    final lastReq = lastReqStr != null
+        ? DateTime.tryParse(lastReqStr)?.toLocal()
+        : null;
 
     return GeminiDailyQuotaSnapshot(
       requestsUsed: reqUsed,
@@ -294,10 +303,12 @@ class SupabaseConfig {
     final nextReset = computeNextPacificMidnight(currentTime);
 
     final storedResetIso = await _storage.read(key: _geminiQuotaCycleResetKey);
-    final storedReset =
-        storedResetIso != null ? DateTime.tryParse(storedResetIso) : null;
+    final storedReset = storedResetIso != null
+        ? DateTime.tryParse(storedResetIso)
+        : null;
 
-    final isNewCycle = storedReset == null ||
+    final isNewCycle =
+        storedReset == null ||
         currentTime.isAfter(storedReset) ||
         storedReset.difference(nextReset).abs() > const Duration(minutes: 1);
 
@@ -307,19 +318,23 @@ class SupabaseConfig {
     var prevTotal = 0;
 
     if (!isNewCycle) {
-      prevReq = int.tryParse(
+      prevReq =
+          int.tryParse(
             await _storage.read(key: _geminiDailyRequestsKey) ?? '0',
           ) ??
           0;
-      prevPrompt = int.tryParse(
+      prevPrompt =
+          int.tryParse(
             await _storage.read(key: _geminiDailyPromptTokensKey) ?? '0',
           ) ??
           0;
-      prevCand = int.tryParse(
+      prevCand =
+          int.tryParse(
             await _storage.read(key: _geminiDailyCandidateTokensKey) ?? '0',
           ) ??
           0;
-      prevTotal = int.tryParse(
+      prevTotal =
+          int.tryParse(
             await _storage.read(key: _geminiDailyTotalTokensKey) ?? '0',
           ) ??
           0;
@@ -329,10 +344,7 @@ class SupabaseConfig {
       key: _geminiQuotaCycleResetKey,
       value: nextReset.toIso8601String(),
     );
-    await _storage.write(
-      key: _geminiDailyRequestsKey,
-      value: '${prevReq + 1}',
-    );
+    await _storage.write(key: _geminiDailyRequestsKey, value: '${prevReq + 1}');
     await _storage.write(
       key: _geminiDailyPromptTokensKey,
       value: '${prevPrompt + (promptTokens ?? 0)}',

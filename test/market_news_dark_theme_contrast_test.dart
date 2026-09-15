@@ -23,9 +23,15 @@ void main() {
 
     db = createInMemoryDatabaseForTests();
     getIt.registerSingleton<AppDatabase>(db);
-    getIt.registerLazySingleton<MarketNewsRadarService>(MarketNewsRadarService.new);
-    getIt.registerLazySingleton<MarketNewsCacheRepository>(MarketNewsCacheRepository.new);
-    getIt.registerLazySingleton<AssetAutoValuationService>(() => AssetAutoValuationService(db));
+    getIt.registerLazySingleton<MarketNewsRadarService>(
+      MarketNewsRadarService.new,
+    );
+    getIt.registerLazySingleton<MarketNewsCacheRepository>(
+      MarketNewsCacheRepository.new,
+    );
+    getIt.registerLazySingleton<AssetAutoValuationService>(
+      () => AssetAutoValuationService(db),
+    );
   });
 
   tearDown(() async {
@@ -45,85 +51,93 @@ void main() {
     );
   }
 
-  testWidgets('Dark Mode: MarketNewsRadarDrawer renders with sharp contrast and no overflow', (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(() => tester.view.resetPhysicalSize());
+  testWidgets(
+    'Dark Mode: MarketNewsRadarDrawer renders with sharp contrast and no overflow',
+    (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
 
-    final scaffoldKey = GlobalKey<ScaffoldState>();
+      final scaffoldKey = GlobalKey<ScaffoldState>();
 
-    await tester.pumpWidget(
-      wrapInDarkTheme(
-        Scaffold(
-          key: scaffoldKey,
-          drawer: const MarketNewsRadarDrawer(),
-          body: const Center(child: Text('Content')),
-        ),
-      ),
-    );
-
-    scaffoldKey.currentState?.openDrawer();
-    await tester.pumpAndSettle();
-
-    // Verify all header and mini price chips are visible and readable
-    expect(find.text('Radar Warta & Pasar'), findsOneWidget);
-    expect(find.text('Pantauan Cepat Terkini'), findsOneWidget);
-    expect(find.text('Emas 24K: '), findsOneWidget);
-    expect(find.text('USD: '), findsOneWidget);
-
-    // Verify category chips
-    expect(find.text('Semua'), findsOneWidget);
-    expect(find.text('🌾 Tani'), findsOneWidget);
-  });
-
-  testWidgets('Dark Mode: MarketPriceTickerCard renders cleanly in dark theme', (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(() => tester.view.resetPhysicalSize());
-
-    await tester.pumpWidget(
-      wrapInDarkTheme(
-        const Scaffold(
-          body: SingleChildScrollView(
-            child: MarketPriceTickerCard(),
+      await tester.pumpWidget(
+        wrapInDarkTheme(
+          Scaffold(
+            key: scaffoldKey,
+            drawer: const MarketNewsRadarDrawer(),
+            body: const Center(child: Text('Content')),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      scaffoldKey.currentState?.openDrawer();
+      await tester.pumpAndSettle();
 
-    expect(find.text('Radar Pasar & Valuasi Terkini'), findsOneWidget);
-    expect(find.text('Warta & Radar'), findsOneWidget);
-    expect(find.text('Emas 24K'), findsOneWidget);
-    expect(find.text('USD / IDR'), findsOneWidget);
-  });
+      // Verify all header and mini price chips are visible and readable
+      expect(find.text('Radar Warta & Pasar'), findsOneWidget);
+      expect(find.text('Pantauan Cepat Terkini'), findsOneWidget);
+      expect(find.text('Emas 24K: '), findsOneWidget);
+      expect(find.text('USD: '), findsOneWidget);
 
-  testWidgets('Dark Mode: MarketNewsRadarPage Tab 1 & Tab 2 render with high contrast', (tester) async {
-    tester.view.physicalSize = const Size(1080, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(() => tester.view.resetPhysicalSize());
+      // Verify category chips
+      expect(find.text('Semua'), findsOneWidget);
+      expect(find.text('🌾 Tani'), findsOneWidget);
+    },
+  );
 
-    await tester.pumpWidget(
-      wrapInDarkTheme(const MarketNewsRadarPage()),
-    );
+  testWidgets(
+    'Dark Mode: MarketPriceTickerCard renders cleanly in dark theme',
+    (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
 
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpWidget(
+        wrapInDarkTheme(
+          const Scaffold(
+            body: SingleChildScrollView(child: MarketPriceTickerCard()),
+          ),
+        ),
+      );
 
-    // Tab 1 Title & Calculators
-    expect(find.text('Radar Pasar & Berita'), findsOneWidget);
-    expect(find.text('Logam Mulia (Emas Batangan & Perhiasan)'), findsOneWidget);
-    expect(find.text('Kalkulator Valuasi Karat Emas'), findsOneWidget);
-    expect(find.text('Mata Uang Asing (Valas ke IDR)'), findsOneWidget);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    // Switch to Tab 2
-    await tester.tap(find.text('Berita & Peringatan'));
-    await tester.pumpAndSettle();
+      expect(find.text('Radar Pasar & Valuasi Terkini'), findsOneWidget);
+      expect(find.text('Warta & Radar'), findsOneWidget);
+      expect(find.text('Emas 24K'), findsOneWidget);
+      expect(find.text('USD / IDR'), findsOneWidget);
+    },
+  );
 
-    expect(find.text('🌾 Pertanian'), findsOneWidget);
-    expect(find.text('🌧️ Cuaca BMKG'), findsOneWidget);
-    expect(find.text('📈 Finansial'), findsOneWidget);
-  });
+  testWidgets(
+    'Dark Mode: MarketNewsRadarPage Tab 1 & Tab 2 render with high contrast',
+    (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(wrapInDarkTheme(const MarketNewsRadarPage()));
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Tab 1 Title & Calculators
+      expect(find.text('Radar Pasar & Berita'), findsOneWidget);
+      expect(
+        find.text('Logam Mulia (Emas Batangan & Perhiasan)'),
+        findsOneWidget,
+      );
+      expect(find.text('Kalkulator Valuasi Karat Emas'), findsOneWidget);
+      expect(find.text('Mata Uang Asing (Valas ke IDR)'), findsOneWidget);
+
+      // Switch to Tab 2
+      await tester.tap(find.text('Berita & Peringatan'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('🌾 Pertanian'), findsOneWidget);
+      expect(find.text('🌧️ Cuaca BMKG'), findsOneWidget);
+      expect(find.text('📈 Finansial'), findsOneWidget);
+    },
+  );
 }
