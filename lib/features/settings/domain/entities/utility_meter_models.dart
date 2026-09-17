@@ -28,7 +28,7 @@ class UtilityMeter {
   /// Nama pengenal ramah pengguna (contoh: "Rumah Utama", "Pompa Sawah Ladang", "Ruko Blok A").
   final String name;
 
-  /// Nomor meteran PLN atau ID Pelanggan (11–12 digit angka).
+  /// Nomor meteran PLN atau ID Pelanggan (9–13 digit angka).
   final String meterNumber;
 
   /// Nama pelanggan terdaftar di PLN (contoh: "Bpk Raufi", "H. Ahmad").
@@ -140,4 +140,22 @@ class UtilityMeter {
       lastAmount: (json['lastAmount'] as num?)?.toDouble(),
     );
   }
+}
+
+class PeriodUsage {
+  const PeriodUsage({
+    required this.label,
+    required this.dateFrom,
+    required this.dateTo,
+    required this.totalCost,
+    required this.totalKwh,
+    required this.purchaseCount,
+  });
+
+  final String label;
+  final DateTime dateFrom;
+  final DateTime dateTo;
+  final int totalCost;
+  final double totalKwh;
+  final int purchaseCount;
 }

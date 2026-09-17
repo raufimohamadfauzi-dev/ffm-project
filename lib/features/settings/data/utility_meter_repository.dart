@@ -656,6 +656,121 @@ class UtilityMeterRepository {
     );
   }
 
+  Future<List<PeriodUsage>> summarizeUsageByPeriod(
+    String householdId, {
+    required String meterId,
+    String period = 'monthly',
+    int limit = 6,
+  }) async {
+    final database = _database;
+    if (database == null) return const [];
+    if (period != 'monthly' && period != 'weekly') {
+      throw ArgumentError.value(period, 'period', 'Use monthly or weekly');
+    }
+
+    final safeLimit = limit.clamp(1, 24);
+    final periodExpression = period == 'monthly'
+      ? "CASE WHEN typeof(purchased_at) IN ('integer', 'real') "
+              "THEN strftime('%Y-%m', purchased_at, 'unixepoch') "
+          "ELSE strftime('%Y-%m', purchased_at) END"
+      : "CASE WHEN typeof(purchased_at) IN ('integer', 'real') "
+              "THEN strftime('%Y-%W', purchased_at, 'unixepoch') "
+          "ELSE strftime('%Y-%W', purchased_at) END";
+    final rows = await database.customSelect(
+      'SELECT $periodExpression AS period, '
+      "CASE WHEN typeof(MIN(purchased_at)) IN ('integer', 'real') "
+      "THEN datetime(MIN(purchased_at), 'unixepoch') "
+      "ELSE MIN(purchased_at) END AS first_purchase, "
+      'SUM(amount) AS total_cost, '
+      'COALESCE(SUM(credited_kwh), 0) AS total_kwh, '
+      'COUNT(*) AS purchase_count '
+      'FROM utility_token_purchases '
+      'WHERE household_id = ? AND meter_id = ? '
+      'GROUP BY period ORDER BY period DESC LIMIT ?',
+      variables: [
+        Variable.withString(householdId),
+        Variable.withString(meterId),
+        Variable.withInt(safeLimit),
+      ],
+    ).get();
+
+    return rows.map((row) {
+      final firstPurchase = _periodDate(row.data['first_purchase']);
+      final dateFrom = period == 'monthly'
+          ? DateTime(firstPurchase.year, firstPurchase.month)
+          : _startOfWeek(firstPurchase);
+      final dateTo = period == 'monthly'
+          ? DateTime(firstPurchase.year, firstPurchase.month + 1)
+          : dateFrom.add(const Duration(days: 7));
+      return PeriodUsage(
+        label: period == 'monthly'
+            ? _formatPeriodMonth(firstPurchase)
+            : _formatPeriodWeek(firstPurchase),
+        dateFrom: dateFrom,
+        dateTo: dateTo,
+        totalCost: _asInt(row.data['total_cost']),
+        totalKwh: _asDouble(row.data['total_kwh']),
+        purchaseCount: _asInt(row.data['purchase_count']),
+      );
+    }).toList(growable: false);
+  }
+
+  DateTime _periodDate(Object? value) {
+    if (value is DateTime) return value;
+    return DateTime.tryParse(value?.toString() ?? '') ?? DateTime.now();
+  }
+
+  DateTime _startOfWeek(DateTime date) {
+    final dayOffset = date.weekday - DateTime.monday;
+    final start = DateTime(date.year, date.month, date.day);
+    return start.subtract(Duration(days: dayOffset));
+  }
+
+  String _formatPeriodMonth(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return '${months[date.month - 1]} ${date.year}';
+  }
+
+  String _formatPeriodWeek(DateTime date) {
+    final weekOfMonth = ((date.day - 1) ~/ 7) + 1;
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return 'Minggu $weekOfMonth ${months[date.month - 1]}';
+  }
+
+  int _asInt(Object? value) => value is int
+      ? value
+      : int.tryParse(value?.toString() ?? '') ?? 0;
+
+  double _asDouble(Object? value) => value is num
+      ? value.toDouble()
+      : double.tryParse(value?.toString() ?? '') ?? 0;
+
   UtilityPurchaseHistory _purchaseFromRow(UtilityTokenPurchase row) =>
       UtilityPurchaseHistory(
         id: row.id,

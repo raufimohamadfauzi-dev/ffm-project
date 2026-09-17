@@ -24,6 +24,9 @@ class UtilityMeterPage extends StatefulWidget {
 class _UtilityMeterPageState extends State<UtilityMeterPage> {
   late final UtilityMeterRepository _repository;
   List<UtilityMeter> _meters = [];
+  Map<String, List<UtilityPurchaseHistory>> _historyByMeter = const {};
+  Map<String, ElectricityUsageSummary> _summaryByMeter = const {};
+  Map<String, List<PeriodUsage>> _periodDataByMeter = const {};
   bool _isLoading = true;
 
   @override
@@ -37,9 +40,32 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
     setState(() => _isLoading = true);
     final householdId = AppContext.householdId;
     final list = await _repository.getAllMeters(householdId);
+    final history = <String, List<UtilityPurchaseHistory>>{};
+    final summaries = <String, ElectricityUsageSummary>{};
+    final periodData = <String, List<PeriodUsage>>{};
+    for (final meter in list) {
+      history[meter.id] = await _repository.getPurchaseHistory(
+        householdId,
+        meterId: meter.id,
+        limit: 5,
+      );
+      summaries[meter.id] = await _repository.summarizeUsage(
+        householdId,
+        meterId: meter.id,
+      );
+      periodData[meter.id] = await _repository.summarizeUsageByPeriod(
+        householdId,
+        meterId: meter.id,
+        period: 'monthly',
+        limit: 6,
+      );
+    }
     if (!mounted) return;
     setState(() {
       _meters = list;
+      _historyByMeter = history;
+      _summaryByMeter = summaries;
+      _periodDataByMeter = periodData;
       _isLoading = false;
     });
   }
@@ -183,12 +209,34 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                   );
                   return;
                 }
+                final duplicate = await _repository.findMeterByNumber(
+                  AppContext.householdId,
+                  number,
+                );
+                if (duplicate != null && duplicate.id != meter?.id) {
+                  if (!ctx.mounted) return;
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Nomor meter/IDPEL ini sudah terdaftar.'),
+                    ),
+                  );
+                  return;
+                }
 
                 final householdId = AppContext.householdId;
                 final cleanToken = tokenCtrl.text.trim().replaceAll(
                   RegExp(r'\D'),
                   '',
                 );
+                if (cleanToken.isNotEmpty && cleanToken.length != 20) {
+                  if (!ctx.mounted) return;
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Kode token harus persis 20 digit angka.'),
+                    ),
+                  );
+                  return;
+                }
 
                 final newMeter = UtilityMeter(
                   id: meter?.id ?? const Uuid().v4(),
@@ -255,7 +303,6 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
 
   Future<void> _quickUpdateToken(UtilityMeter meter) async {
     final tokenCtrl = TextEditingController();
-    final amountCtrl = TextEditingController();
 
     await showDialog<void>(
       context: context,
@@ -276,14 +323,9 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                 autofocus: true,
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: amountCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Nominal Pembelian (Rp, Opsional)',
-                  hintText: 'Contoh: 50000 atau 100000',
-                  prefixIcon: Icon(Icons.monetization_on_outlined),
-                ),
+              const Text(
+                'Ini hanya menyimpan kode token. Untuk mencatat pembelian dan pengeluaran sekaligus, pindai struk lewat Asisten FFM.',
+                style: TextStyle(fontSize: 12),
               ),
             ],
           ),
@@ -307,15 +349,10 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                   );
                   return;
                 }
-                final amount = double.tryParse(
-                  amountCtrl.text.trim().replaceAll(RegExp(r'\D'), ''),
-                );
-
                 await _repository.updateLastToken(
                   householdId: meter.householdId,
                   meterNumber: meter.meterNumber,
                   tokenCode: cleanToken,
-                  amount: amount,
                   timestamp: DateTime.now(),
                 );
 
@@ -330,7 +367,7 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                   );
                 }
               },
-              child: const Text('Simpan & Salin'),
+              child: const Text('Simpan Token & Salin'),
             ),
           ],
         );
@@ -489,6 +526,9 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
     bool isDark,
   ) {
     final theme = Theme.of(context);
+    final history = _historyByMeter[meter.id] ?? const [];
+    final summary = _summaryByMeter[meter.id];
+    final periodData = _periodDataByMeter[meter.id] ?? const [];
 
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
@@ -743,6 +783,71 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
               const SizedBox(height: 8),
             ],
 
+            if (summary != null && summary.purchaseCount > 0) ...[
+              const Divider(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildMetric(
+                      'TOTAL PEMBELIAN',
+                      'Rp ${_formatNumber(summary.totalCost)}',
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildMetric(
+                      'KWH TERCATAT',
+                      summary.totalCreditedKwh > 0
+                          ? '${summary.totalCreditedKwh.toStringAsFixed(2)} kWh'
+                          : 'Belum tersedia',
+                    ),
+                  ),
+                ],
+              ),
+              if (summary.averageCostPerKwh != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Rata-rata Rp ${_formatNumber(summary.averageCostPerKwh!.round())}/kWh. '
+                    'Ini biaya per kWh token, bukan pembacaan pemakaian aktual.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: theme.colorScheme.onSurface.withValues(
+                        alpha: 0.65,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+              MiniMonthlyBarChart(data: periodData),
+            if (history.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              const Text(
+                'Riwayat token terbaru',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+              ...history
+                  .take(3)
+                  .map(
+                    (purchase) => ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        Icons.receipt_long_outlined,
+                        size: 19,
+                      ),
+                      title: Text('Rp ${_formatNumber(purchase.amount)}'),
+                      subtitle: Text(
+                        '${_formatDate(purchase.purchasedAt)}'
+                        '${purchase.creditedKwh == null ? '' : ' • ${purchase.creditedKwh!.toStringAsFixed(2)} kWh'}',
+                      ),
+                      trailing: const Tooltip(
+                        message: 'Tertaut 1:1 dengan transaksi',
+                        child: Icon(Icons.link_rounded, size: 18),
+                      ),
+                    ),
+                  ),
+            ],
+
             // Row Action Buttons
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -791,5 +896,144 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
       'Des',
     ];
     return '${dt.day} ${months[dt.month]} ${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildMetric(String label, String value) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700),
+      ),
+      const SizedBox(height: 3),
+      Text(
+        value,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+      ),
+    ],
+  );
+
+  String _formatNumber(num value) => value.round().toString().replaceAllMapped(
+    RegExp(r'\B(?=(\d{3})+(?!\d))'),
+    (_) => '.',
+  );
+}
+
+class MiniMonthlyBarChart extends StatelessWidget {
+  const MiniMonthlyBarChart({super.key, required this.data});
+
+  final List<PeriodUsage> data;
+
+  @override
+  Widget build(BuildContext context) {
+    if (data.length < 2) return const SizedBox.shrink();
+
+    final scheme = Theme.of(context).colorScheme;
+    final points = data.toList()..sort((a, b) => a.dateFrom.compareTo(b.dateFrom));
+    final maxCost = points.fold<int>(
+      0,
+      (max, point) => point.totalCost > max ? point.totalCost : max,
+    );
+    if (maxCost <= 0) return const SizedBox.shrink();
+
+    final now = DateTime.now();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.bar_chart_rounded, size: 17, color: scheme.primary),
+              const SizedBox(width: 6),
+              Text(
+                'Tren pembelian 6 bulan',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 116,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: points.map((point) {
+                final ratio = point.totalCost / maxCost;
+                final isCurrentMonth =
+                    point.dateFrom.year == now.year &&
+                    point.dateFrom.month == now.month;
+                final monthLabel = point.label.split(' ').first;
+                return Expanded(
+                  child: Semantics(
+                    label:
+                        '$monthLabel, Rp ${_formatCompact(point.totalCost)}, ${point.purchaseCount} pembelian',
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          SizedBox(
+                            height: 20,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                _formatCompact(point.totalCost),
+                                maxLines: 1,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: scheme.onSurface,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.bottomCenter,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 220),
+                                height: 8 + (66 * ratio),
+                                decoration: BoxDecoration(
+                                  color: isCurrentMonth
+                                      ? scheme.primary
+                                      : scheme.primaryContainer,
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(7),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            monthLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(growable: false),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatCompact(int amount) {
+    if (amount >= 1000000) return 'Rp${(amount / 1000000).toStringAsFixed(1)}jt';
+    if (amount >= 1000) return 'Rp${(amount / 1000).toStringAsFixed(0)}rb';
+    return 'Rp$amount';
   }
 }
