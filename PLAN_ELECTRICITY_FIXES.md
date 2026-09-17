@@ -372,7 +372,7 @@ test/
 
 ### 5.4 Integration: gabungkan Level 1 + Level 2 di grafik
 
-- [ ] **File**: `lib/features/settings/presentation/pages/utility_meter_page.dart` + `lib/features/settings/data/utility_meter_repository.dart`
+- [x] **File**: `lib/features/settings/presentation/pages/utility_meter_page.dart` + `lib/features/settings/data/utility_meter_repository.dart`
 - **Masalah**: Grafik saat ini hanya menampilkan estimasi dari pola beli. Jika ada data pembacaan aktual, harus ditampilkan juga.
 - **Perubahan**:
   1. Di `summarizeUsageByPeriod`, tambahkan parameter `includeReadings: false`. Jika `true`, gabungkan data pembelian dengan data pembacaan aktual.
