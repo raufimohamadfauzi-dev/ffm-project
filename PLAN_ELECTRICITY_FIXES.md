@@ -402,7 +402,7 @@ test/
 
 ### 5.5 Test: coverage pembacaan meter
 
-- [ ] **File**: `test/electricity_sqlite_integration_test.dart`
+- [x] **File**: `test/electricity_sqlite_integration_test.dart`
 - **Test baru**:
   1. Simpan 2 reading untuk meter yang sama → `calculateActualUsage` return selisih benar.
   2. Simpan reading yang lebih rendah dari sebelumnya → warning / error.
