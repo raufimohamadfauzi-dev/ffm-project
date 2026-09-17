@@ -763,6 +763,41 @@ class _FfmAssistantDraftEditDialogState
       }
     }
 
+    final existingDraftTags = (widget.draft.tags ?? '')
+        .split(',')
+        .map((s) => s.trim().replaceAll('#', '').toLowerCase())
+        .where((s) => s.isNotEmpty)
+        .toSet();
+    final initialNewTags = (widget.draft.newTags ?? '')
+        .split(',')
+        .map((s) => s.trim().replaceAll('#', '').toLowerCase())
+        .where((s) => s.isNotEmpty)
+        .toSet();
+    final masterTagSet = _masterTags
+        .map((m) => m.trim().replaceAll('#', '').toLowerCase())
+        .where((m) => m.isNotEmpty)
+        .toSet();
+
+    final customNewTags = _tags.where((t) {
+      final tagLower = t.trim().replaceAll('#', '').toLowerCase();
+      if (initialNewTags.contains(tagLower)) return true;
+      if (existingDraftTags.contains(tagLower)) return false;
+      if (masterTagSet.contains(tagLower)) return false;
+      return true;
+    }).toList();
+
+    final effectiveNewTags = customNewTags.isNotEmpty
+        ? customNewTags.join(', ')
+        : (widget.draft.newTags != null &&
+                _tags.any((t) => initialNewTags.contains(t.toLowerCase()))
+            ? widget.draft.newTags
+            : null);
+    if (effectiveNewTags != null && effectiveNewTags.trim().isNotEmpty) {
+      newFormValues['newTags'] = effectiveNewTags;
+    } else {
+      newFormValues.remove('newTags');
+    }
+
     final editedDraft = FfmAssistantDraft(
       kind: _selectedKind,
       createdAt: widget.draft.createdAt,
@@ -785,7 +820,7 @@ class _FfmAssistantDraftEditDialogState
       sourceId: widget.draft.sourceId,
       source: widget.draft.source,
       recurringTransactionId: widget.draft.recurringTransactionId,
-      newTags: widget.draft.newTags,
+      newTags: effectiveNewTags,
       newMerchant: widget.draft.newMerchant,
       items: List<ReceiptOcrItem>.unmodifiable(_items),
       receiptNumber: receiptNumber,
@@ -1469,7 +1504,7 @@ class _FfmAssistantDraftEditDialogState
                 decoration: const InputDecoration(
                   labelText: 'Nama / Label Rumah Meteran PLN (opsional)',
                   hintText: 'Contoh: Rumah Utama, Kontrakan A, Ruko',
-                  helperText: 'Label lokasi meteran listrik PLN di Buku Saku',
+                  helperText: 'Label lokasi meteran PLN di Token Listrik',
                 ),
               ),
               TextField(

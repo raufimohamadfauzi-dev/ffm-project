@@ -1,4 +1,4 @@
-/// Model entitas untuk Buku Saku Meteran Listrik & Token (Pillar 3).
+/// Model entitas untuk Token Listrik & Meteran PLN (Pillar 3).
 ///
 /// Menyimpan nomor meteran PLN / ID Pelanggan untuk berbagai properti
 /// (misal: Rumah Utama, Ladang/Pompa Air Sawah, Ruko Usaha, Kontrakan),
@@ -180,4 +180,21 @@ class MeterReading {
   final DateTime recordedAt;
   final String source;
   final String? note;
+}
+
+/// Estimasi kecepatan pemakaian listrik harian (burn-rate) dan sisa hari.
+class ElectricityBurnRate {
+  const ElectricityBurnRate({
+    required this.dailyKwh,
+    this.daysRemaining,
+    this.estimatedDepletedAt,
+    this.sampleDays = 0,
+    this.source = 'meter_reading',
+  });
+
+  final double dailyKwh;
+  final int? daysRemaining;
+  final DateTime? estimatedDepletedAt;
+  final int sampleDays;
+  final String source;
 }

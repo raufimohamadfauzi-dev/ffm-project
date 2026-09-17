@@ -118,7 +118,7 @@ class UtilityMeterTargetResolution {
     : this(
         status: UtilityMeterTargetStatus.noMeters,
         message:
-            'Belum ada meteran listrik yang terdaftar di Profil Keluarga. Kirim nomor meter/IDPEL atau foto struk token agar pembelian bisa dicatat ke rumah yang tepat.',
+          'Belum ada meteran listrik yang terdaftar di Token Listrik. Kirim nomor meter/IDPEL atau foto struk token agar pembelian bisa dicatat ke rumah yang tepat.',
       );
 
   UtilityMeterTargetResolution.ambiguous(
@@ -193,6 +193,19 @@ class UtilityMeterRepository {
   /// Format ramah untuk daftar meteran pada pesan klarifikasi asisten.
   static String friendlyMeterOptions(List<UtilityMeter> meters) =>
       meters.map(friendlyMeterOption).join('\n');
+
+  static List<String> friendlyMeterChips(
+    List<UtilityMeter> meters,
+    int amount,
+  ) {
+    final normalizedAmount = amount > 0 ? amount : 100000;
+    return meters
+        .map(
+          (meter) =>
+              'beli token listrik $normalizedAmount untuk ${meter.name}',
+        )
+        .toList(growable: false);
+  }
 
   Future<List<UtilityMeter>> getAllMeters(String householdId) async {
     final database = _database;
@@ -811,18 +824,22 @@ class UtilityMeterRepository {
   }) async {
     final database = _database;
     if (database == null) return const [];
-    if (period != 'monthly' && period != 'weekly') {
-      throw ArgumentError.value(period, 'period', 'Use monthly or weekly');
+    if (period != 'monthly' && period != 'weekly' && period != 'daily') {
+      throw ArgumentError.value(period, 'period', 'Use monthly, weekly, or daily');
     }
 
-    final safeLimit = limit.clamp(1, 24);
+    final safeLimit = limit.clamp(1, 31);
     final periodExpression = period == 'monthly'
       ? "CASE WHEN typeof(purchased_at) IN ('integer', 'real') "
               "THEN strftime('%Y-%m', purchased_at, 'unixepoch') "
           "ELSE strftime('%Y-%m', purchased_at) END"
-      : "CASE WHEN typeof(purchased_at) IN ('integer', 'real') "
-              "THEN strftime('%Y-%W', purchased_at, 'unixepoch') "
-          "ELSE strftime('%Y-%W', purchased_at) END";
+      : period == 'weekly'
+          ? "CASE WHEN typeof(purchased_at) IN ('integer', 'real') "
+                  "THEN strftime('%Y-%W', purchased_at, 'unixepoch') "
+              "ELSE strftime('%Y-%W', purchased_at) END"
+          : "CASE WHEN typeof(purchased_at) IN ('integer', 'real') "
+                  "THEN strftime('%Y-%m-%d', purchased_at, 'unixepoch') "
+              "ELSE strftime('%Y-%m-%d', purchased_at) END";
     final rows = await database.customSelect(
       'SELECT $periodExpression AS period, '
       "CASE WHEN typeof(MIN(purchased_at)) IN ('integer', 'real') "
@@ -845,14 +862,20 @@ class UtilityMeterRepository {
       final firstPurchase = _periodDate(row.data['first_purchase']);
       final dateFrom = period == 'monthly'
           ? DateTime(firstPurchase.year, firstPurchase.month)
-          : _startOfWeek(firstPurchase);
+          : period == 'weekly'
+              ? _startOfWeek(firstPurchase)
+              : DateTime(firstPurchase.year, firstPurchase.month, firstPurchase.day);
       final dateTo = period == 'monthly'
           ? DateTime(firstPurchase.year, firstPurchase.month + 1)
-          : dateFrom.add(const Duration(days: 7));
+          : period == 'weekly'
+              ? dateFrom.add(const Duration(days: 7))
+              : dateFrom.add(const Duration(days: 1));
       return PeriodUsage(
         label: period == 'monthly'
             ? _formatPeriodMonth(firstPurchase)
-            : _formatPeriodWeek(firstPurchase),
+            : period == 'weekly'
+                ? _formatPeriodWeek(firstPurchase)
+                : _formatPeriodDay(firstPurchase),
         dateFrom: dateFrom,
         dateTo: dateTo,
         totalCost: _asInt(row.data['total_cost']),
@@ -883,6 +906,160 @@ class UtilityMeterRepository {
     );
   }
 
+  /// Menghitung burn-rate (kecepatan konsumsi kWh harian) dan estimasi sisa hari.
+  Future<ElectricityBurnRate?> calculateBurnRate(
+    String householdId,
+    String meterId,
+  ) async {
+    final database = _database;
+    if (database == null) return null;
+
+    // 1. Coba dari pembacaan meter fisik (paling akurat)
+    final readings = await getMeterReadings(
+      householdId,
+      meterId: meterId,
+      limit: 10,
+    );
+    if (readings.length >= 2) {
+      final newest = readings.first;
+      final oldest = readings.last;
+      final kwhDiff = newest.readingKwh - oldest.readingKwh;
+      final hours = newest.recordedAt.difference(oldest.recordedAt).inHours;
+      if (kwhDiff > 0 && hours >= 12) {
+        final days = hours / 24.0;
+        final dailyKwh = kwhDiff / days;
+
+        // Estimasi sisa hari dari token pembelian terakhir jika ada
+        final purchases = await getPurchaseHistory(
+          householdId,
+          meterId: meterId,
+          limit: 1,
+        );
+        int? daysRemaining;
+        DateTime? estimatedDepletedAt;
+        if (purchases.isNotEmpty && purchases.first.creditedKwh != null && purchases.first.creditedKwh! > 0) {
+          final credited = purchases.first.creditedKwh!;
+          final elapsedDays = DateTime.now().difference(purchases.first.purchasedAt).inHours / 24.0;
+          final remainingKwh = credited - (dailyKwh * elapsedDays);
+          if (remainingKwh > 0 && dailyKwh > 0) {
+            daysRemaining = (remainingKwh / dailyKwh).round();
+            estimatedDepletedAt = DateTime.now().add(Duration(days: daysRemaining));
+          } else {
+            daysRemaining = 0;
+            estimatedDepletedAt = DateTime.now();
+          }
+        }
+        return ElectricityBurnRate(
+          dailyKwh: dailyKwh,
+          daysRemaining: daysRemaining,
+          estimatedDepletedAt: estimatedDepletedAt,
+          sampleDays: days.round(),
+          source: 'meter_reading',
+        );
+      }
+    }
+
+    // 2. Fallback: dari jeda pembelian token (purchase frequency)
+    final purchases = await getPurchaseHistory(
+      householdId,
+      meterId: meterId,
+      limit: 5,
+    );
+    if (purchases.length >= 2) {
+      final newest = purchases.first;
+      final oldest = purchases.last;
+      final days = newest.purchasedAt.difference(oldest.purchasedAt).inDays;
+      if (days >= 4) {
+        final totalKwh = purchases.take(purchases.length - 1).fold<double>(
+          0.0,
+          (sum, p) => sum + (p.creditedKwh ?? (p.amount / 1500.0)),
+        );
+        final dailyKwh = totalKwh / days;
+        if (dailyKwh > 0) {
+          final lastKwh = newest.creditedKwh ?? (newest.amount / 1500.0);
+          final elapsedDays = DateTime.now().difference(newest.purchasedAt).inDays;
+          final remainingKwh = lastKwh - (dailyKwh * elapsedDays);
+          int? daysRemaining;
+          DateTime? estimatedDepletedAt;
+          if (remainingKwh > 0) {
+            daysRemaining = (remainingKwh / dailyKwh).round();
+            estimatedDepletedAt = DateTime.now().add(Duration(days: daysRemaining));
+          } else {
+            daysRemaining = 0;
+            estimatedDepletedAt = DateTime.now();
+          }
+          return ElectricityBurnRate(
+            dailyKwh: dailyKwh,
+            daysRemaining: daysRemaining,
+            estimatedDepletedAt: estimatedDepletedAt,
+            sampleDays: days,
+            source: 'purchase_frequency',
+          );
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /// Ekspor ringkasan laporan penggunaan dan transaksi token listrik dalam format teks rapi.
+  Future<String> exportMeterReport(
+    String householdId, {
+    required String meterId,
+  }) async {
+    final meter = (await getAllMeters(householdId)).firstWhere(
+      (m) => m.id == meterId,
+      orElse: () => throw StateError('Meter not found'),
+    );
+    final history = await getPurchaseHistory(householdId, meterId: meterId, limit: 15);
+    final readings = await getMeterReadings(householdId, meterId: meterId, limit: 15);
+    final summary = await summarizeUsage(householdId, meterId: meterId);
+    final burnRate = await calculateBurnRate(householdId, meterId);
+
+    final buffer = StringBuffer()
+      ..writeln('=== LAPORAN TOKEN LISTRIK PLN ===')
+      ..writeln('Properti / Rumah: ${meter.name}')
+      ..writeln('No. Meter / IDPEL: ${meter.formattedMeterNumber}')
+      ..writeln('Golongan Daya: ${meter.tariffPower.isNotEmpty ? meter.tariffPower : "-"}')
+      ..writeln('Nama Pelanggan: ${meter.customerName.isNotEmpty ? meter.customerName : "-"}')
+      ..writeln('Lokasi: ${meter.location.isNotEmpty ? meter.location : "-"}')
+      ..writeln('-----------------------------------')
+      ..writeln('RINGKASAN:')
+      ..writeln('• Total Transaksi Beli: ${summary.purchaseCount}x')
+      ..writeln('• Total Pembelian: Rp${summary.totalCost}')
+      ..writeln('• Total kWh Tercatat: ${summary.totalCreditedKwh.toStringAsFixed(2)} kWh');
+
+    if (burnRate != null) {
+      buffer.writeln('• Rata-rata Pemakaian: ~${burnRate.dailyKwh.toStringAsFixed(2)} kWh/hari');
+      if (burnRate.daysRemaining != null) {
+        buffer.writeln('• Estimasi Sisa Pulsa: ~${burnRate.daysRemaining} hari');
+      }
+    }
+
+    if (history.isNotEmpty) {
+      buffer
+        ..writeln('-----------------------------------')
+        ..writeln('RIWAYAT TOKEN TERAKHIR:');
+      for (final h in history) {
+        final token = h.tokenCode != null && h.tokenCode!.isNotEmpty ? ' | Token: ${h.tokenCode}' : '';
+        final kwh = h.creditedKwh != null ? ' (${h.creditedKwh!.toStringAsFixed(2)} kWh)' : '';
+        buffer.writeln('• ${h.purchasedAt.toIso8601String().substring(0, 10)}: Rp${h.amount}$kwh$token');
+      }
+    }
+
+    if (readings.isNotEmpty) {
+      buffer
+        ..writeln('-----------------------------------')
+        ..writeln('RIWAYAT PEMBACAAN METERAN FISIK:');
+      for (final r in readings) {
+        buffer.writeln('• ${r.recordedAt.toIso8601String().substring(0, 10)}: ${r.readingKwh.toStringAsFixed(2)} kWh');
+      }
+    }
+
+    buffer.writeln('===================================');
+    return buffer.toString();
+  }
+
   DateTime _periodDate(Object? value) {
     if (value is DateTime) return value;
     return DateTime.tryParse(value?.toString() ?? '') ?? DateTime.now();
@@ -892,6 +1069,24 @@ class UtilityMeterRepository {
     final dayOffset = date.weekday - DateTime.monday;
     final start = DateTime(date.year, date.month, date.day);
     return start.subtract(Duration(days: dayOffset));
+  }
+
+  String _formatPeriodDay(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return '${date.day} ${months[date.month - 1]}';
   }
 
   String _formatPeriodMonth(DateTime date) {

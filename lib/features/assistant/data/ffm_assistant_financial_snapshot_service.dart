@@ -122,17 +122,38 @@ class FfmAssistantFinancialSnapshotService {
       ..limit(maxItems.clamp(1, 8));
     final rows = await query.get();
     if (rows.isEmpty) return 'Electricity evidence bounded: data kosong.';
+
+    final meters = await (_database.select(_database.electricityMeters)
+          ..where((row) => row.householdId.equals(householdId) & row.isArchived.equals(false)))
+        .get();
+    final meterNameByNumber = <String, String>{
+      for (final m in meters)
+        m.meterNumber.replaceAll(RegExp(r'\D'), ''): m.name,
+    };
+
     final total = rows.fold<int>(0, (sum, row) => sum + row.amount);
     final totalKwh = rows.fold<double>(
       0,
       (sum, row) => sum + (row.creditedKwh ?? 0),
     );
+
+    final spendingByHouse = <String, int>{};
+    for (final row in rows) {
+      final digits = row.meterNumber.replaceAll(RegExp(r'\D'), '');
+      final name = meterNameByNumber[digits] ?? 'Listrik';
+      spendingByHouse[name] = (spendingByHouse[name] ?? 0) + row.amount;
+    }
+    final perHouseSummary = spendingByHouse.entries
+        .map((e) => '${e.key}=Rp${e.value}')
+        .join(', ');
+
     final facts = rows
         .map((row) {
           final digits = row.meterNumber.replaceAll(RegExp(r'\D'), '');
+          final houseName = meterNameByNumber[digits] ?? 'Listrik';
           final masked = digits.length > 4
-              ? 'meter-***${digits.substring(digits.length - 4)}'
-              : 'meter-terlindungi';
+              ? '$houseName(***${digits.substring(digits.length - 4)})'
+              : '$houseName(meter-terlindungi)';
           final kwh = row.creditedKwh == null
               ? 'kwh=unknown'
               : 'kwh=${row.creditedKwh!.toStringAsFixed(2)}';
@@ -140,8 +161,12 @@ class FfmAssistantFinancialSnapshotService {
           return '$date,$masked,amount=${row.amount},$kwh';
         })
         .join('|');
+    final perHouseText = perHouseSummary.isNotEmpty
+        ? 'per_house=[$perHouseSummary]; '
+        : '';
     return 'Electricity evidence bounded: count=${rows.length}; '
         'total_cost=$total; total_credited_kwh=${totalKwh.toStringAsFixed(2)}; '
+        '$perHouseText'
         'facts=$facts. Kode token dan nomor meter lengkap disembunyikan. '
         'Gunakan hanya angka evidence ini; credited kWh bukan pemakaian aktual.';
   }
@@ -998,6 +1023,9 @@ class FfmAssistantFinancialSnapshotService {
           final recurrenceLabel = switch (recurrence) {
             'daily' => 'harian',
             'weekly' => 'mingguan',
+            'monthly' => 'bulanan',
+            'yearly' => 'tahunan',
+            'hijri_monthly' => 'bulanan hijriah',
             _ => 'sekali',
           };
           var info = '$title|waktu=$dateStr $timeStr|ulang=$recurrenceLabel';

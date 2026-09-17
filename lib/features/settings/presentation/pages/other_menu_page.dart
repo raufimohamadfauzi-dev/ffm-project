@@ -6,6 +6,7 @@ import '../../../data_retention/presentation/pages/data_retention_manager_page.d
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/pages/agent_inbox_page.dart';
 import '../../../assistant/presentation/pages/ffm_assistant_autonomy_monitor_page.dart';
+import '../../../assistant/presentation/pages/ffm_assistant_budget_delegations_page.dart';
 import '../../../assistant/presentation/pages/telegram_setup_page.dart';
 import '../../../assistant/presentation/pages/payment_detector_settings_page.dart';
 import '../../../assistant/presentation/pages/ffm_assistant_issue_log_page.dart';
@@ -88,8 +89,8 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
       ['Pusat privasi', 'data enkripsi izin'],
       ['Struktur database', 'tabel database'],
       [
-        'Buku Saku Meteran & Token',
-        'meteran listrik pln idpel token sawah ladang pompa rumah',
+        'Token Listrik',
+        'meteran listrik pln idpel token pulsa sawah ladang pompa rumah ruko',
       ],
     ];
     final query = _searchQuery.trim().toLowerCase();
@@ -371,6 +372,20 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
             _MenuCard(
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'Delegasi Anggaran Asisten',
+              subtitle: 'Tinjau batas per pos, jeda atau cabut delegasi, serta batalkan eksekusi dengan aman.',
+              iconColor: const Color(0xFF0F766E),
+              iconBackgroundColor: const Color(0xFFCCFBF1),
+              badgeText: 'ANGGARAN',
+              onTap: () =>
+                  _open(context, const FfmAssistantBudgetDelegationsPage()),
+              visible: _matches(
+                'Delegasi Anggaran Asisten jeda cabut pembatalan riwayat eksekusi otonom',
+                'Tinjau batas per pos, jeda atau cabut delegasi, serta batalkan eksekusi dengan aman.',
+              ),
+            ),
+            _MenuCard(
               icon: Icons.send_rounded,
               title: 'Telegram Bot Keluarga',
               subtitle: 'Kirim laporan mingguan otomatis & alarm radar boncos ke chat/grup keluarga.',
@@ -398,14 +413,14 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
             ),
             _MenuCard(
               icon: Icons.electric_bolt_rounded,
-              title: 'Buku Saku Meteran & Token',
+              title: 'Token Listrik',
               subtitle: 'Simpan nomor IDPEL/meteran PLN, salin nomor meter dan 20-digit token dengan 1-ketukan.',
               iconColor: const Color(0xFFD97706),
               iconBackgroundColor: const Color(0xFFFEF3C7),
               badgeText: 'UTILITAS',
               onTap: () => _open(context, const UtilityMeterPage()),
               visible: _matches(
-                'Buku Saku Meteran Token listrik pln idpel pulsa rumah ladang sawah ruko',
+                'Token Listrik meteran token listrik pln idpel pulsa rumah ladang sawah ruko',
                 'Simpan nomor IDPEL/meteran PLN, salin nomor meter dan 20-digit token dengan 1-ketukan.',
               ),
             ),

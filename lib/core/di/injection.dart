@@ -430,7 +430,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<FlexibleCashFlowCalculator>(
     FlexibleCashFlowCalculator.new,
   );
-  // Buku Saku Meteran & Token Listrik PLN
+  // Token Listrik PLN
   getIt.registerLazySingleton<UtilityMeterRepository>(
     () => UtilityMeterRepository(getIt<AppDatabase>()),
   );

@@ -2639,6 +2639,16 @@ class _TransactionListPageState extends State<TransactionListPage> {
                                     ),
                               ),
                             ),
+                            if (_extractUtilityMeterBadge(item.note)
+                                case final meterBadge?)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 4),
+                                child: AppStatusChip(
+                                  label: '⚡ $meterBadge',
+                                  color: const Color(0xFFD97706),
+                                  backgroundColor: const Color(0xFFFEF3C7),
+                                ),
+                              ),
                             if (isDataSusulan(item.date, now: item.recordedAt))
                               const Padding(
                                 padding: EdgeInsets.only(left: 4),
@@ -2663,6 +2673,20 @@ class _TransactionListPageState extends State<TransactionListPage> {
                                   color: AppColors.inkMuted,
                                   fontSize: 11,
                                 ),
+                          ),
+                        if (item.note != null && item.note!.trim().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              item.note!.trim(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.inkMuted,
+                                    fontSize: 11,
+                                  ),
+                            ),
                           ),
                       ],
                     ),
@@ -2785,4 +2809,25 @@ class _TransactionListPageState extends State<TransactionListPage> {
   }
 
   String _dateLabel(DateTime date) => formatTanggalLengkap(date);
+
+  static String? _extractUtilityMeterBadge(String? note) {
+    if (note == null || note.isEmpty) return null;
+    final match = RegExp(
+      r'token\s+listrik\s+([^(:\n-]+)',
+      caseSensitive: false,
+    ).firstMatch(note);
+    if (match != null) {
+      final name = match.group(1)?.trim();
+      if (name != null &&
+          name.isNotEmpty &&
+          name.toLowerCase() != 'pln' &&
+          name.length <= 25) {
+        return name;
+      }
+    }
+    if (RegExp(r'\b(?:token\s*listrik|pln)\b', caseSensitive: false).hasMatch(note)) {
+      return 'PLN';
+    }
+    return null;
+  }
 }

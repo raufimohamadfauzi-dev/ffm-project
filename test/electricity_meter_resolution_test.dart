@@ -199,6 +199,20 @@ void main() {
     expect(resolution.message, contains('nomor meter'));
   });
 
+  test('pesan noMeters menyebut Token Listrik', () async {
+    final database = createInMemoryDatabaseForTests();
+    addTearDown(database.close);
+    final repository = UtilityMeterRepository(database);
+
+    final resolution = await repository.resolveMeterTarget(
+      householdId: householdId,
+      proposal: const {'amount': 100000},
+    );
+
+    expect(resolution.message, contains('Token Listrik'));
+    expect(resolution.message, isNot(contains('Profil Keluarga')));
+  });
+
   test('nomor meter baru ditandai sebagai meteran baru (didaftarkan saat konfirmasi)', () async {
     final database = createInMemoryDatabaseForTests();
     addTearDown(database.close);
@@ -396,6 +410,21 @@ void main() {
       expect(await repository.getPurchaseHistory(householdId), isEmpty);
     });
 
+    test('3 rumah tanpa target -> suggestedQuestions per rumah', () async {
+      await repository.saveMeter(meter('m-utama', 'Rumah Utama', '14123456789'));
+      await repository.saveMeter(meter('m-ruko', 'Ruko Usaha', '15123456789'));
+      await repository.saveMeter(meter('m-sawah', 'Sawah', '16123456789'));
+
+      final intent = await interpreter.interpret(
+        'beli token listrik 100 ribu',
+      );
+
+      expect(intent.clarification, isNotNull);
+      expect(intent.suggestedQuestions, hasLength(3));
+      expect(intent.suggestedQuestions, contains('beli token listrik 100000 untuk Rumah Utama'));
+      expect(intent.suggestedQuestions, contains('beli token listrik 100000 untuk Sawah'));
+    });
+
     test('1 rumah tanpa target -> draft tertaut ke meteran itu', () async {
       await repository.saveMeter(meter('m-utama', 'Rumah Utama', '14123456789'));
 
@@ -425,6 +454,25 @@ void main() {
       final proposal = intent.draft!.metadata?['utilityProposal'] as Map?;
       expect(proposal!['meterId'], 'm-utama');
       expect(proposal['isNewMeter'], isFalse);
+    });
+
+    test('koreksi draft listrik memperbarui token dan meter', () async {
+      await repository.saveMeter(meter('m-utama', 'Rumah Utama', '14123456789'));
+      await repository.saveMeter(meter('m-ruko', 'Ruko Usaha', '15123456789'));
+
+      final initial = await interpreter.interpret('beli token listrik 100 ribu untuk rumah utama');
+      final revised = await interpreter.interpret(
+        'kodenya 98765432109876543210 untuk ruko usaha',
+        activeDraft: initial.draft,
+      );
+
+      final revisedDraft = revised.draft;
+      if (revisedDraft == null) {
+        fail('Koreksi draft listrik tidak menghasilkan draft revisi.');
+      }
+      final proposal = revisedDraft.metadata!['utilityProposal'] as Map;
+      expect(proposal['tokenCode'], '98765432109876543210');
+      expect(proposal['meterId'], 'm-ruko');
     });
 
     test('IDPEL baru via teks -> draft isNewMeter=true', () async {
@@ -521,6 +569,45 @@ void main() {
 
       expect(intent.draft?.kind.name, 'meterReading');
       expect(intent.draft?.metadata?['utilityProposal'], isNull);
+    });
+
+    test('kalimat natural catat meteran rumah utama 10250 kwh membuat draft meterReading', () async {
+      await repository.saveMeter(meter('m-utama', 'Rumah Utama', '14123456789'));
+
+      final intent = await interpreter.interpret(
+        'catat meteran rumah utama 10250 kwh',
+      );
+
+      expect(intent.draft, isNotNull);
+      expect(intent.draft!.kind.name, 'meterReading');
+      expect(intent.draft!.metadata?['meterReadingProposal']['readingKwh'], 10250);
+      expect(intent.draft!.metadata?['meterReadingProposal']['meterId'], 'm-utama');
+    });
+
+    test('burn-rate dan ekspor laporan berfungsi deterministis', () async {
+      await repository.saveMeter(meter('m-utama', 'Rumah Utama', '14123456789'));
+      await repository.recordMeterReading(
+        householdId: householdId,
+        meterId: 'm-utama',
+        readingKwh: 10000,
+        recordedAt: DateTime.now().subtract(const Duration(days: 4)),
+      );
+      await repository.recordMeterReading(
+        householdId: householdId,
+        meterId: 'm-utama',
+        readingKwh: 10020,
+        recordedAt: DateTime.now(),
+      );
+
+      final burnRate = await repository.calculateBurnRate(householdId, 'm-utama');
+      expect(burnRate, isNotNull);
+      expect(burnRate!.dailyKwh, closeTo(5.0, 0.5));
+
+      final report = await repository.exportMeterReport(householdId, meterId: 'm-utama');
+      expect(report, contains('LAPORAN TOKEN LISTRIK PLN'));
+      expect(report, contains('Rumah Utama'));
+      expect(report, contains('1412 3456 789'));
+      expect(report, contains('RINGKASAN'));
     });
   });
 }

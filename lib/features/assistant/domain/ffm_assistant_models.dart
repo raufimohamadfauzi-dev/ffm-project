@@ -72,6 +72,7 @@ enum FfmAssistantIntentType {
   weeklyAnalysis,
   financialWarnings,
   queryData,
+  budgetHabitAnalysis,
   createIncome,
   createExpense,
   createTransfer,
@@ -115,6 +116,7 @@ enum FfmAssistantIntentType {
   createReminder,
   updateReminder,
   archiveReminder,
+  completeReminder,
   createActivity,
   createDailyNote,
   archiveDailyNote,
@@ -244,9 +246,13 @@ enum FfmAssistantDraftKind {
   reminder,
   reminderUpdate,
   reminderArchive,
+  reminderComplete,
   activity,
   dailyNote,
   dailyNoteArchive,
+  dailyNoteUpdate,
+  dailyNoteRestore,
+  dailyNoteDelete,
   task,
   taskUpdate,
   taskComplete,
@@ -353,6 +359,7 @@ class FfmAssistantIntent {
     this.analysisResults,
     this.periodStart,
     this.periodEnd,
+    this.suggestedQuestions = const [],
   });
 
   final String rawText;
@@ -388,6 +395,7 @@ class FfmAssistantIntent {
 
   /// Analysis results dari analysis engine
   final String? analysisResults;
+  final List<String> suggestedQuestions;
 
   bool get needsClarification => clarification != null;
   bool get needsConfirmation => draft != null && !needsClarification;
@@ -408,6 +416,7 @@ class FfmAssistantIntent {
     String? analysisResults,
     DateTime? periodStart,
     DateTime? periodEnd,
+    List<String>? suggestedQuestions,
   }) => FfmAssistantIntent(
     rawText: rawText,
     normalizedText: normalizedText,
@@ -428,6 +437,7 @@ class FfmAssistantIntent {
     analysisResults: analysisResults ?? this.analysisResults,
     periodStart: periodStart ?? this.periodStart,
     periodEnd: periodEnd ?? this.periodEnd,
+    suggestedQuestions: suggestedQuestions ?? this.suggestedQuestions,
   );
 }
 
@@ -1369,7 +1379,7 @@ abstract final class FfmAssistantCatalog {
     ),
     FfmAssistantPage(
       destination: FfmAssistantDestination.utilityMeter,
-      name: 'Buku Saku Meteran & Token',
+      name: 'Token Listrik',
       description:
           'Menyimpan daftar nomor meteran PLN dan token listrik 20-digit.',
       aliases: [
@@ -1601,6 +1611,6 @@ abstract final class FfmAssistantCatalog {
     FfmAssistantDestination.hijriSettings => 'Kalender Hijriah & Hilal mengatur penetapan tanggal dan koreksi Hilal untuk penanggalan Islam.',
     FfmAssistantDestination.calendarSettings => 'Kalender & Smartwatch mengatur sinkronisasi tagihan ke Google Calendar dan jam tangan pintar.',
     FfmAssistantDestination.marketNewsRadar => 'Radar Berita Pasar menampilkan berita dan perkembangan isu finansial terkini.',
-    FfmAssistantDestination.utilityMeter => 'Buku Saku Meteran & Token menyimpan daftar IDPEL atau nomor meteran PLN properti rumah, ladang/sawah, dan toko, lengkap dengan 20 digit token listrik terakhir untuk disalin instan.',
+    FfmAssistantDestination.utilityMeter => 'Token Listrik menyimpan daftar IDPEL atau nomor meteran PLN properti rumah, ladang/sawah, dan toko, lengkap dengan 20 digit token listrik terakhir untuk disalin instan.',
   };
 }

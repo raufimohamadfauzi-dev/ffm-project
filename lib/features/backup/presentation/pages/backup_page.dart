@@ -514,7 +514,7 @@ class _BackupPageState extends State<BackupPage> {
         '• Pengingat Lokal: $pengingat\n'
         '• Rekonsiliasi Saldo: $rekonsiliasi\n'
         '• Log Aktivitas: $aktivitas'
-        '${meteran > 0 ? '\n• Buku Saku Meteran & Token: $meteran' : ''}'
+        '${meteran > 0 ? '\n• Token Listrik: $meteran' : ''}'
         '${kendaraan > 0 ? '\n• Kendaraan & Log BBM: $kendaraan' : ''}';
   }
 

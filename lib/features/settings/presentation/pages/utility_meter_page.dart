@@ -1,15 +1,19 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_context.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/network/gemini_service.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../data/utility_meter_repository.dart';
 import '../../domain/entities/utility_meter_models.dart';
 
-/// Halaman Buku Saku Meteran & Token Listrik PLN (Pillar 3).
+/// Halaman Token Listrik PLN (Pillar 3).
 ///
 /// Menyimpan daftar nomor meteran PLN untuk berbagai lokasi/keperluan
 /// (Rumah, Sawah/Ladang Pompa Air, Ruko Usaha, Kontrakan),
@@ -28,6 +32,8 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
   Map<String, ElectricityUsageSummary> _summaryByMeter = const {};
   Map<String, List<PeriodUsage>> _periodDataByMeter = const {};
   Map<String, MeterReading?> _latestReadingByMeter = const {};
+  Map<String, ElectricityBurnRate?> _burnRateByMeter = const {};
+  String _chartPeriod = 'monthly';
   bool _isLoading = true;
 
   @override
@@ -45,6 +51,7 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
     final summaries = <String, ElectricityUsageSummary>{};
     final periodData = <String, List<PeriodUsage>>{};
     final latestReadings = <String, MeterReading?>{};
+    final burnRates = <String, ElectricityBurnRate?>{};
     for (final meter in list) {
       history[meter.id] = await _repository.getPurchaseHistory(
         householdId,
@@ -58,11 +65,15 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
       periodData[meter.id] = await _repository.summarizeUsageByPeriod(
         householdId,
         meterId: meter.id,
-        period: 'monthly',
-        limit: 6,
+        period: _chartPeriod,
+        limit: _chartPeriod == 'daily' ? 14 : (_chartPeriod == 'weekly' ? 8 : 6),
         includeReadings: true,
       );
       latestReadings[meter.id] = await _repository.getLatestReading(
+        householdId,
+        meter.id,
+      );
+      burnRates[meter.id] = await _repository.calculateBurnRate(
         householdId,
         meter.id,
       );
@@ -74,8 +85,71 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
       _summaryByMeter = summaries;
       _periodDataByMeter = periodData;
       _latestReadingByMeter = latestReadings;
+      _burnRateByMeter = burnRates;
       _isLoading = false;
     });
+  }
+
+  Future<void> _changeChartPeriod(String period) async {
+    if (_chartPeriod == period) return;
+    setState(() => _chartPeriod = period);
+    final householdId = AppContext.householdId;
+    final periodData = <String, List<PeriodUsage>>{};
+    for (final meter in _meters) {
+      periodData[meter.id] = await _repository.summarizeUsageByPeriod(
+        householdId,
+        meterId: meter.id,
+        period: period,
+        limit: period == 'daily' ? 14 : (period == 'weekly' ? 8 : 6),
+        includeReadings: true,
+      );
+    }
+    if (!mounted) return;
+    setState(() => _periodDataByMeter = periodData);
+  }
+
+  Future<void> _exportReport(UtilityMeter meter) async {
+    final report = await _repository.exportMeterReport(
+      meter.householdId,
+      meterId: meter.id,
+    );
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.receipt_long_rounded),
+            const SizedBox(width: 8),
+            Expanded(child: Text('Laporan ${meter.name}')),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: SelectableText(
+            report,
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Tutup'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: report));
+              Navigator.pop(ctx);
+              _copyToClipboard(
+                report,
+                'Laporan ${meter.name} berhasil disalin ke clipboard!',
+              );
+            },
+            icon: const Icon(Icons.copy_rounded, size: 16),
+            label: const Text('Salin Semua'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _copyToClipboard(String text, String successMessage) {
@@ -443,10 +517,52 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                       decimal: true,
                     ),
                     onChanged: (_) => setDialogState(() {}),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Angka kWh *',
                       hintText: 'Contoh: 10112 atau 10112.3',
-                      prefixIcon: Icon(Icons.electric_bolt_rounded),
+                      prefixIcon: const Icon(Icons.electric_bolt_rounded),
+                      suffixIcon: IconButton(
+                        tooltip: 'Foto Layar Meteran PLN',
+                        icon: const Icon(Icons.camera_alt_outlined),
+                        onPressed: () async {
+                          final picker = ImagePicker();
+                          final file = await picker.pickImage(
+                            source: ImageSource.camera,
+                            maxWidth: 1600,
+                            maxHeight: 1600,
+                            imageQuality: 85,
+                          );
+                          if (file == null) return;
+                          try {
+                            final gemini = GeminiService();
+                            final bytes = await file.readAsBytes();
+                            final mimeType = file.path.toLowerCase().endsWith('.png')
+                                ? 'image/png'
+                                : 'image/jpeg';
+                            final result = await gemini.chat(
+                              prompt:
+                                  'Lihat gambar layar LCD meteran listrik PLN ini. '
+                                  'Tolong baca angka pembacaan kWh yang tertera pada layar. '
+                                  'Balas HANYA angka numerik saja (contoh: 12345.6 atau 9821), '
+                                  'tanpa tulisan kWh atau kata lain.',
+                              image: GeminiImageInput(
+                                base64Data: base64Encode(bytes),
+                                mimeType: mimeType,
+                              ),
+                              maxOutputTokens: 30,
+                            );
+                            if (result.ok && result.text != null) {
+                              final match = RegExp(r'[\d.,]+').firstMatch(result.text!);
+                              if (match != null) {
+                                final digits = match.group(0)!.replaceAll(',', '.');
+                                setDialogState(() {
+                                  readingCtrl.text = digits;
+                                });
+                              }
+                            }
+                          } catch (_) {}
+                        },
+                      ),
                     ),
                   ),
                   if (isLower) ...[
@@ -575,7 +691,7 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text(
-            'Buku Saku Meteran & Token',
+            'Token Listrik',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           actions: [
@@ -619,7 +735,7 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Buku Saku Meteran Listrik Mandiri',
+                                  'Kelola Token & Meteran Listrik',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 13.5,
@@ -717,6 +833,7 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
     final summary = _summaryByMeter[meter.id];
     final periodData = _periodDataByMeter[meter.id] ?? const [];
     final latestReading = _latestReadingByMeter[meter.id];
+    final burnRate = _burnRateByMeter[meter.id];
 
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
@@ -1006,7 +1123,67 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                   ),
                 ),
             ],
-              MiniMonthlyBarChart(data: periodData),
+              if (burnRate != null) ...[
+              Container(
+                margin: const EdgeInsets.only(top: 10, bottom: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF132A1C)
+                      : const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFF22C55E).withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.bolt_rounded,
+                      size: 20,
+                      color: Color(0xFF16A34A),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'LAJU KONSUMSI: ~${burnRate.dailyKwh.toStringAsFixed(2)} kWh/hari',
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.3,
+                              color: Color(0xFF15803D),
+                            ),
+                          ),
+                          if (burnRate.daysRemaining != null)
+                            Text(
+                              burnRate.daysRemaining! > 0
+                                  ? 'Estimasi sisa pulsa: ~${burnRate.daysRemaining} hari (${_formatShortDate(burnRate.estimatedDepletedAt)})'
+                                  : 'Estimasi pulsa token listrik sudah menipis!',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: burnRate.daysRemaining! > 2
+                                    ? (isDark
+                                        ? Colors.white70
+                                        : const Color(0xFF166534))
+                                    : Colors.red[700],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            MiniMonthlyBarChart(
+              data: periodData,
+              period: _chartPeriod,
+              onPeriodChanged: _changeChartPeriod,
+            ),
               if (latestReading != null) ...[
                 const SizedBox(height: 10),
                 Text(
@@ -1095,6 +1272,11 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                   label: const Text('Input Token Baru'),
                 ),
                 IconButton(
+                  tooltip: 'Ekspor & Bagikan Laporan',
+                  icon: const Icon(Icons.share_outlined, size: 18),
+                  onPressed: () => _exportReport(meter),
+                ),
+                IconButton(
                   tooltip: 'Ubah',
                   icon: const Icon(Icons.edit_outlined, size: 18),
                   onPressed: () => _showAddEditDialog(meter),
@@ -1114,6 +1296,26 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
         ),
       ),
     );
+  }
+
+  String _formatShortDate(DateTime? dt) {
+    if (dt == null) return '';
+    const months = [
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return '${dt.day} ${months[dt.month]}';
   }
 
   String _formatDate(DateTime dt) {
@@ -1157,9 +1359,16 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
 }
 
 class MiniMonthlyBarChart extends StatelessWidget {
-  const MiniMonthlyBarChart({super.key, required this.data});
+  const MiniMonthlyBarChart({
+    super.key,
+    required this.data,
+    this.period = 'monthly',
+    this.onPeriodChanged,
+  });
 
   final List<PeriodUsage> data;
+  final String period;
+  final ValueChanged<String>? onPeriodChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1189,14 +1398,43 @@ class MiniMonthlyBarChart extends StatelessWidget {
             children: [
               Icon(Icons.bar_chart_rounded, size: 17, color: scheme.primary),
               const SizedBox(width: 6),
-              Text(
-                'Tren listrik 6 bulan',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onSurfaceVariant,
+              Expanded(
+                child: Text(
+                  period == 'daily'
+                      ? 'Tren listrik harian'
+                      : period == 'weekly'
+                          ? 'Tren listrik mingguan'
+                          : 'Tren listrik bulanan',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
+              if (onPeriodChanged != null)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _PeriodChoiceChip(
+                      label: 'Bln',
+                      selected: period == 'monthly',
+                      onSelected: () => onPeriodChanged!('monthly'),
+                    ),
+                    const SizedBox(width: 4),
+                    _PeriodChoiceChip(
+                      label: 'Mgg',
+                      selected: period == 'weekly',
+                      onSelected: () => onPeriodChanged!('weekly'),
+                    ),
+                    const SizedBox(width: 4),
+                    _PeriodChoiceChip(
+                      label: 'Hr',
+                      selected: period == 'daily',
+                      onSelected: () => onPeriodChanged!('daily'),
+                    ),
+                  ],
+                ),
             ],
           ),
           const SizedBox(height: 6),
@@ -1221,9 +1459,11 @@ class MiniMonthlyBarChart extends StatelessWidget {
                 final actualRatio = maxActual <= 0
                     ? 0.0
                     : (point.actualKwh ?? 0) / maxActual;
-                final isCurrentMonth =
-                    point.dateFrom.year == now.year &&
-                    point.dateFrom.month == now.month;
+                final isCurrentMonth = period == 'monthly'
+                    ? (point.dateFrom.year == now.year && point.dateFrom.month == now.month)
+                    : period == 'weekly'
+                        ? (now.difference(point.dateFrom).inDays >= 0 && now.difference(point.dateFrom).inDays < 7)
+                        : (point.dateFrom.year == now.year && point.dateFrom.month == now.month && point.dateFrom.day == now.day);
                 final monthLabel = point.label.split(' ').first;
                 return Expanded(
                   child: Semantics(
@@ -1337,3 +1577,44 @@ class _LegendItem extends StatelessWidget {
     ],
   );
 }
+
+class _PeriodChoiceChip extends StatelessWidget {
+  const _PeriodChoiceChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onSelected,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: selected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: selected
+                ? theme.colorScheme.onPrimary
+                : theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
