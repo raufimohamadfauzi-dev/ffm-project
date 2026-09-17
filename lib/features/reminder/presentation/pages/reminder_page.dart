@@ -11,6 +11,8 @@ import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart'
 import '../../data/services/reminder_notification_service.dart';
 import '../../data/services/reminder_sound_picker.dart';
 import '../../domain/entities/reminder_entity.dart';
+import '../../../transaction/domain/entities/transaction_entity.dart';
+import '../../../transaction/presentation/pages/transaction_form_page.dart';
 import '../bloc/reminder_bloc.dart';
 
 class ReminderPage extends StatelessWidget {
@@ -681,9 +683,29 @@ class _ReminderViewState extends State<_ReminderView> {
                                         context.read<ReminderBloc>().add(
                                           ReminderHistoryDeleted(historyItem),
                                         );
+                                      } else if (value == 'catat_transaksi') {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute<void>(
+                                            builder: (_) => TransactionFormPage(
+                                              initialType: TransactionType.expense,
+                                              initialNote: historyItem.title,
+                                              initialDate: historyItem.scheduledAt,
+                                            ),
+                                          ),
+                                        );
                                       }
                                     },
                                     itemBuilder: (_) => const [
+                                      PopupMenuItem(
+                                        value: 'catat_transaksi',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.receipt_long_rounded, size: 18),
+                                            SizedBox(width: 8),
+                                            Text('Catat Pengeluaran'),
+                                          ],
+                                        ),
+                                      ),
                                       PopupMenuItem(
                                         value: 'hapus',
                                         child: Text('Hapus dari riwayat'),
@@ -1197,9 +1219,29 @@ class ReminderScheduleCard extends StatelessWidget {
                     onEdit();
                   } else if (value == 'hapus') {
                     onDelete();
+                  } else if (value == 'catat_transaksi') {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => TransactionFormPage(
+                          initialType: TransactionType.expense,
+                          initialNote: reminder.title,
+                          initialDate: reminder.scheduledAt,
+                        ),
+                      ),
+                    );
                   }
                 },
                 itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'catat_transaksi',
+                    child: Row(
+                      children: [
+                        Icon(Icons.receipt_long_rounded, size: 18),
+                        SizedBox(width: 8),
+                        Text('Catat Pengeluaran'),
+                      ],
+                    ),
+                  ),
                   PopupMenuItem(value: 'edit', child: Text('Edit')),
                   PopupMenuItem(value: 'hapus', child: Text('Hapus')),
                 ],

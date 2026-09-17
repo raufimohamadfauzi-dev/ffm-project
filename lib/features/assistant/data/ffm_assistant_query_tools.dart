@@ -1,8 +1,11 @@
+import 'dart:convert';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/ffm_database_structure_service.dart';
 import '../../advisor/domain/services/smart_budget_engine.dart';
 import '../../asset/data/repositories/market_news_cache_repository.dart';
 import '../../hijri/domain/hijri_calendar_service.dart';
+import '../../reminder/domain/entities/reminder_entity.dart';
+import '../../reminder/domain/usecases/reminder_usecases.dart';
 import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../../settings/data/utility_meter_repository.dart';
 import '../../../shared/ffm_date_period.dart';
@@ -22,12 +25,14 @@ class FfmAssistantQueryRequest {
     required this.normalizedText,
     required this.parameters,
     required this.now,
+    this.conversationHistory = '',
   });
 
   final String householdId;
   final String normalizedText;
   final Map<String, Object?> parameters;
   final DateTime now;
+  final String conversationHistory;
 }
 
 class FfmAssistantQueryAnswer {
@@ -75,6 +80,7 @@ class FfmAssistantQueryRegistry {
          _DataCompletenessQueryTool(database),
          _PersonalProfileQueryTool(database),
          _SmartBudgetQueryTool(database),
+         _UpcomingRemindersQueryTool(database),
          if (marketCache != null) _MarketPriceQueryTool(marketCache),
          if (marketCache != null) _AssetCalculationQueryTool(marketCache),
        ] {
@@ -93,6 +99,7 @@ class FfmAssistantQueryRegistry {
   Future<FfmAssistantQueryAnswer?> tryAnswer(
     String normalizedText, {
     required String householdId,
+    String conversationHistory = '',
   }) async {
     // Kalimat aksi harus selalu diteruskan ke parser draft. Tanpa pagar ini,
     // kata seperti "senilai" pada "tambah aset ... senilai ..." dapat keliru
@@ -108,7 +115,14 @@ class FfmAssistantQueryRegistry {
       normalizedText: normalizedText,
       parameters: const <String, Object?>{},
       now: _clock(),
+      conversationHistory: conversationHistory,
     );
+    if (RegExp(r'\b(?:yang\s+terkait|yang\s+tadi|yang\s+itu|lebih\s+detail)\b')
+            .hasMatch(normalizedText) &&
+        conversationHistory.toLowerCase().contains('catatan kejadian')) {
+      final noteTool = _tools.whereType<_LatestDailyNoteQueryTool>().first;
+      return noteTool.answer(request);
+    }
     for (final tool in _tools) {
       if (!tool.canHandle(normalizedText)) continue;
       final answer = await tool.answer(request);
@@ -116,6 +130,16 @@ class FfmAssistantQueryRegistry {
     }
     return null;
   }
+
+  Future<FfmAssistantQueryAnswer?> answer(
+    String normalizedText, {
+    required String householdId,
+    String conversationHistory = '',
+  }) => tryAnswer(
+    normalizedText,
+    householdId: householdId,
+    conversationHistory: conversationHistory,
+  );
 }
 
 class UtilityMeterRepositoryQueryTool implements FfmAssistantQueryTool {
@@ -733,6 +757,8 @@ class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
 
   @override
   bool canHandle(String normalizedText) =>
+      (RegExp(r'\b(?:catatan|jurnal)\b', caseSensitive: false).hasMatch(normalizedText) &&
+        RegExp(r'\b(?:tag|label)\b', caseSensitive: false).hasMatch(normalizedText)) ||
       RegExp(
         r'\b(?:catatan\s+(?:terbaru|terakhir|hari\s+ini|kemarin)|jurnal\s+(?:terbaru|terakhir)|apa\s+yang\s+aku\s+catat)\b',
         caseSensitive: false,
@@ -748,13 +774,29 @@ class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
     FfmAssistantQueryRequest request,
   ) async {
     final period = _activityPeriodBounds(request.normalizedText, request.now);
-    final limit = period == null ? 5 : 20;
+    final rawTagName = _requestedTag(request.normalizedText) ??
+      _tagFromConversation(request.conversationHistory);
+    final tagName = rawTagName == null ? null : _cleanTagName(rawTagName);
+    final limit = tagName == null ? (period == null ? 5 : 20) : 50;
+    final taggedNoteIds = tagName == null
+        ? null
+        : await _noteIdsForTag(request.householdId, tagName);
+    if (tagName != null && taggedNoteIds == null) {
+      return FfmAssistantQueryAnswer(
+        title: 'Catatan Kejadian berdasarkan tag',
+        message: 'Tag "$tagName" belum ditemukan pada Catatan Kejadian.',
+        capabilityId: 'read.dailyNotes',
+      );
+    }
     final notes =
         await (_database.select(_database.dailyNotes)
               ..where((row) {
                 final filter =
                     row.householdId.equals(request.householdId) &
-                    row.isArchived.equals(false);
+                  row.isArchived.equals(false) &
+                  (taggedNoteIds == null
+                    ? const Constant(true)
+                    : row.id.isIn(taggedNoteIds));
                 if (period == null || period.isAllTime) return filter;
                 return filter &
                     row.noteDate.isBiggerOrEqualValue(period.startOrEpoch) &
@@ -766,8 +808,10 @@ class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
     if (notes.isEmpty) {
       final periodSuffix = period == null ? '' : ' (${period.label})';
       return FfmAssistantQueryAnswer(
-        title: 'Catatan terbaru',
-        message: 'Belum ada catatan harian yang tersimpan di FFM$periodSuffix.',
+        title: tagName == null ? 'Catatan terbaru' : 'Catatan Kejadian berdasarkan tag',
+        message: tagName == null
+          ? 'Belum ada catatan harian yang tersimpan di FFM$periodSuffix.'
+          : 'Belum ada Catatan Kejadian dengan tag "$tagName"$periodSuffix.',
         capabilityId: 'read.dailyNotes',
       );
     }
@@ -779,12 +823,53 @@ class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
       return '- $date: $title${note.body.trim()}';
     });
     return FfmAssistantQueryAnswer(
-      title: 'Catatan terbaru',
+      title: tagName == null ? 'Catatan terbaru' : 'Catatan Kejadian berdasarkan tag',
       message:
-          'Ini catatan harian ${period?.label ?? 'terbaru'} yang tersimpan:\n${lines.join('\n')}',
+          '${tagName == null ? 'Ini catatan harian' : 'Sumber: Catatan Kejadian; Tag: $tagName'} ${period?.label ?? 'terbaru'} yang tersimpan:\n${lines.join('\n')}',
       capabilityId: 'read.dailyNotes',
     );
   }
+
+  Future<Set<String>?> _noteIdsForTag(String householdId, String tagName) async {
+    final tags = await (_database.select(_database.tags)..where(
+          (row) =>
+              row.householdId.equals(householdId) &
+              row.isArchived.equals(false) &
+              row.name.lower().equals(tagName.toLowerCase()),
+        ))
+        .get();
+    if (tags.isEmpty) return null;
+    final relations = await (_database.select(_database.dailyNoteTags)..where(
+          (row) => row.tagId.isIn(tags.map((tag) => tag.id).toList()),
+        ))
+        .get();
+    return relations.map((row) => row.dailyNoteId).toSet();
+  }
+
+  String? _requestedTag(String text) {
+    final match = RegExp(r'\b(?:tag|label)\s+(.+)$', caseSensitive: false)
+        .firstMatch(text);
+    final value = match?.group(1)
+        ?.trim()
+        .replaceFirst(RegExp(r'\b(?:terbaru|terakhir)\b.*$'), '')
+        .replaceFirst(RegExp(r'\byang\s+tersimpan\b.*$'), '')
+        .replaceFirst(RegExp(r'[?.!,:#]+$'), '')
+        .trim();
+    if (value == null || value.isEmpty || value == 'apa') return null;
+    return value;
+  }
+
+  String? _tagFromConversation(String history) {
+    final match = RegExp(r'\btag:\s*([^\n;]+)', caseSensitive: false)
+        .firstMatch(history);
+    return match?.group(1)?.trim();
+  }
+
+  String _cleanTagName(String value) => value
+      .replaceFirst(RegExp(r'\b(?:terbaru|terakhir)\b.*$', caseSensitive: false), '')
+      .replaceFirst(RegExp(r'\byang\s+tersimpan\b.*$', caseSensitive: false), '')
+      .replaceFirst(RegExp(r'[?.!,:#]+$'), '')
+      .trim();
 
   static FfmDatePeriod? _activityPeriodBounds(String text, DateTime now) =>
       FfmDatePeriod.fromText(text, now: now);
@@ -2409,5 +2494,228 @@ class _SmartBudgetQueryTool implements FfmAssistantQueryTool {
       count++;
     }
     return buf.toString().split('').reversed.join();
+  }
+}
+
+class _UpcomingRemindersQueryTool implements FfmAssistantQueryTool {
+  const _UpcomingRemindersQueryTool(this._database);
+
+  final AppDatabase _database;
+
+  static bool _hasAny(String text, List<String> targets) =>
+      targets.any(text.contains);
+
+  @override
+  bool canHandle(String normalizedText) {
+    return _hasAny(normalizedText, const [
+      'ada pengingat apa',
+      'jadwal pengingat',
+      'daftar pengingat',
+      'lihat pengingat',
+      'cek pengingat',
+      'pengingat aktif',
+      'pengingat saya',
+      'jadwal alarm',
+      'ada alarm apa',
+      'daftar alarm',
+      'jadwal tagihan',
+      'tagihan jatuh tempo',
+      'tagihan bulan ini',
+      'tagihan minggu ini',
+      'tagihan pekan ini',
+      'jadwal bayar',
+      'pengingat hari ini',
+      'pengingat besok',
+      'pengingat lusa',
+      'pengingat minggu ini',
+      'pengingat pekan ini',
+      'pengingat bulan ini',
+      'jadwal hari ini',
+      'jadwal besok',
+      'jadwal minggu ini',
+      'jadwal pekan ini',
+      'jadwal bulan ini',
+    ]);
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final rows = await (_database.select(_database.reminders)
+          ..where(
+            (tbl) =>
+                tbl.householdId.equals(request.householdId) &
+                tbl.isActive.equals(true),
+          ))
+        .get();
+
+    if (rows.isEmpty) {
+      return const FfmAssistantQueryAnswer(
+        title: 'Jadwal Pengingat',
+        message: 'Belum ada pengingat atau alarm aktif yang tersimpan.',
+        capabilityId: 'read.reminders',
+      );
+    }
+
+    final reminders = rows.map((r) {
+      final weekdays = r.weekdaysJson.isNotEmpty && r.weekdaysJson != '[]'
+          ? (jsonDecode(r.weekdaysJson) as List)
+              .map((e) => (e as num).toInt())
+              .toList()
+          : <int>[];
+      return ReminderEntity(
+        id: r.id,
+        householdId: r.householdId,
+        title: r.title,
+        scheduledAt: r.scheduledAt,
+        recurrenceType: ReminderRecurrenceTypeX.fromStorage(r.recurrenceType),
+        weekdays: weekdays,
+        notificationId: r.notificationId,
+        note: r.note,
+        isActive: r.isActive,
+        soundUri: r.soundUri,
+        soundName: r.soundName,
+        defaultSnoozeMinutes: r.defaultSnoozeMinutes,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+        sourceType: ReminderSourceTypeX.fromStorage(r.sourceType),
+        sourceId: r.sourceId,
+        origin: ReminderOriginX.fromStorage(r.origin),
+        mode: ReminderModeX.fromStorage(r.mode),
+      );
+    }).toList();
+
+    const calculator = ReminderOccurrenceCalculator();
+    final now = request.now;
+    final normalized = request.normalizedText;
+
+    final isTodayOnly = _hasAny(normalized, const ['hari ini']);
+    final isTomorrowOnly = _hasAny(normalized, const ['besok']);
+    final isThisWeek = _hasAny(normalized, const ['minggu ini', 'pekan ini']);
+    final isThisMonth = _hasAny(normalized, const ['bulan ini']);
+
+    final horizon = isTodayOnly
+        ? const Duration(days: 1)
+        : isTomorrowOnly
+            ? const Duration(days: 2)
+            : isThisWeek
+                ? const Duration(days: 7)
+                : isThisMonth
+                    ? const Duration(days: 31)
+                    : const Duration(days: 14);
+
+    final startBoundary = isTomorrowOnly
+        ? DateTime(now.year, now.month, now.day + 1)
+        : now;
+    final endBoundary = isTodayOnly
+        ? DateTime(now.year, now.month, now.day, 23, 59, 59)
+        : isTomorrowOnly
+            ? DateTime(now.year, now.month, now.day + 1, 23, 59, 59)
+            : now.add(horizon);
+
+    final upcomingItems =
+        <({ReminderEntity reminder, ReminderOccurrence occurrence})>[];
+
+    for (final reminder in reminders) {
+      final occurrences = calculator.upcomingOccurrences(
+        reminder,
+        now: now,
+        horizon: horizon,
+      );
+      for (final occ in occurrences) {
+        if (!occ.scheduledAt.isBefore(startBoundary) &&
+            !occ.scheduledAt.isAfter(endBoundary)) {
+          upcomingItems.add((reminder: reminder, occurrence: occ));
+        }
+      }
+    }
+
+    upcomingItems.sort(
+      (a, b) => a.occurrence.scheduledAt.compareTo(b.occurrence.scheduledAt),
+    );
+
+    final timeLabel = isTodayOnly
+        ? 'hari ini'
+        : isTomorrowOnly
+            ? 'besok'
+            : isThisWeek
+                ? 'pekan ini'
+                : isThisMonth
+                    ? 'bulan ini'
+                    : 'waktu dekat';
+
+    if (upcomingItems.isEmpty) {
+      return FfmAssistantQueryAnswer(
+        title: 'Jadwal Pengingat',
+        message: 'Tidak ada pengingat atau jadwal alarm untuk $timeLabel.',
+        capabilityId: 'read.reminders',
+      );
+    }
+
+    final buf = StringBuffer();
+    buf.writeln('⏰ **Jadwal Pengingat & Tagihan ($timeLabel)**:');
+
+    final dayNames = [
+      '',
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+      'Minggu',
+    ];
+    final monthNames = [
+      '',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+
+    for (final item in upcomingItems.take(8)) {
+      final dt = item.occurrence.scheduledAt.toLocal();
+      final dayName = dayNames[dt.weekday];
+      final dateStr = '$dayName, ${dt.day} ${monthNames[dt.month]} ${dt.year}';
+      final timeStr =
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      final modeIcon = item.reminder.mode == ReminderMode.alarm
+          ? '🚨 Alarm'
+          : '🔔 Notifikasi';
+      final recurrenceStr =
+          item.reminder.recurrenceType == ReminderRecurrenceType.once
+              ? ''
+              : ' (${item.reminder.recurrenceType.label})';
+
+      buf.writeln('• **${item.reminder.title}**$recurrenceStr');
+      buf.writeln('  └ 📅 $dateStr jam $timeStr • $modeIcon');
+      if (item.reminder.note != null &&
+          item.reminder.note!.trim().isNotEmpty) {
+        final shortNote = item.reminder.note!.trim().replaceAll('\n', ' ');
+        final clippedNote = shortNote.length > 50
+            ? '${shortNote.substring(0, 47)}…'
+            : shortNote;
+        buf.writeln('  └ 📝 $clippedNote');
+      }
+    }
+
+    if (upcomingItems.length > 8) {
+      buf.writeln('\n*(+${upcomingItems.length - 8} pengingat lainnya)*');
+    }
+
+    return FfmAssistantQueryAnswer(
+      title: 'Jadwal Pengingat',
+      message: buf.toString().trim(),
+      capabilityId: 'read.reminders',
+    );
   }
 }

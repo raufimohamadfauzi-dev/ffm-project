@@ -92,10 +92,11 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final includesNavigation =
-        actionPlan?.steps.any(
-          (step) => step.capabilityId.startsWith('navigate.'),
-        ) ??
-        false;
+        (actionPlan?.hasMutation != true) &&
+        (actionPlan?.steps.any(
+              (step) => step.capabilityId.startsWith('navigate.'),
+            ) ??
+            false);
     final hasMoreActions =
         onCorrectMessage != null ||
         onCopyFeedback != null ||

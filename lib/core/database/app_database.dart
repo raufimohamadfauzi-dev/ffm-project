@@ -30,6 +30,8 @@ part 'app_database.g.dart';
     ElectricityMeterReadings,
     Transfers,
     EnvelopeBudgets,
+    BudgetAutonomyDelegations,
+    BudgetAutonomyExecutionLedgers,
     EnvelopeTransfers,
     Assets,
     Goals,
@@ -75,7 +77,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 66;
+  int get schemaVersion => 67;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -96,6 +98,7 @@ class AppDatabase extends _$AppDatabase {
       await _createAssistantApprovalIndexes();
       await _createPersonalizationIndexes();
       await _createElectricityIndexes();
+      await _createBudgetAutonomyProtection();
       await _seedInitialData();
       await _seedActivityCategories();
     },
@@ -157,13 +160,24 @@ class AppDatabase extends _$AppDatabase {
         await _createElectricityIndexes();
       }
       if (from < 66) {
-        await customStatement('DROP INDEX IF EXISTS idx_electricity_meters_number');
+        await customStatement(
+          'DROP INDEX IF EXISTS idx_electricity_meters_number',
+        );
         await customStatement(
           'CREATE UNIQUE INDEX IF NOT EXISTS idx_electricity_meters_number '
           'ON electricity_meters (household_id, normalized_meter_number) '
           'WHERE is_archived = 0',
         );
         await _createElectricityIndexes();
+      }
+      if (from < 67) {
+        if (await _hasTable('envelope_budgets') &&
+            !await _hasColumns('envelope_budgets', const ['revision'])) {
+          await m.addColumn(envelopeBudgets, envelopeBudgets.revision);
+        }
+        await m.createTable(budgetAutonomyDelegations);
+        await m.createTable(budgetAutonomyExecutionLedgers);
+        await _createBudgetAutonomyProtection();
       }
       if (from < 56 && await _hasTable('reminders')) {
         if (!await _hasColumns('reminders', const ['source_type'])) {
@@ -535,6 +549,28 @@ class AppDatabase extends _$AppDatabase {
     final rows = await customSelect('PRAGMA table_info("$table")').get();
     final available = rows.map((row) => row.read<String>('name')).toSet();
     return columns.every(available.contains);
+  }
+
+  Future<void> _createBudgetAutonomyProtection() async {
+    await customStatement(
+      'CREATE UNIQUE INDEX IF NOT EXISTS '
+      'idx_budget_autonomy_delegations_household_budget '
+      'ON budget_autonomy_delegations (household_id, budget_id)',
+    );
+    await customStatement(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_autonomy_ledger_idempotency '
+      'ON budget_autonomy_execution_ledgers (household_id, idempotency_key)',
+    );
+    await customStatement(
+      'CREATE TRIGGER IF NOT EXISTS prevent_budget_autonomy_ledger_update '
+      'BEFORE UPDATE ON budget_autonomy_execution_ledgers '
+      "BEGIN SELECT RAISE(ABORT, 'budget autonomy ledger is immutable'); END",
+    );
+    await customStatement(
+      'CREATE TRIGGER IF NOT EXISTS prevent_budget_autonomy_ledger_delete '
+      'BEFORE DELETE ON budget_autonomy_execution_ledgers '
+      "BEGIN SELECT RAISE(ABORT, 'budget autonomy ledger is immutable'); END",
+    );
   }
 
   Future<void> _createHarvestIndexes() async {

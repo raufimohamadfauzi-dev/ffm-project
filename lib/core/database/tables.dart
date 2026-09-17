@@ -297,6 +297,9 @@ class EnvelopeBudgets extends Table {
   TextColumn get note => text().nullable()();
   TextColumn get month => text().nullable()();
   IntColumn get allocated => integer().withDefault(const Constant(0))();
+
+  /// Monotonic concurrency token for guarded allocation changes.
+  IntColumn get revision => integer().withDefault(const Constant(0))();
   TextColumn get periodType => text().withDefault(const Constant('monthly'))();
   DateTimeColumn get startDate => dateTime()();
   DateTimeColumn get endDate => dateTime()();
@@ -305,6 +308,50 @@ class EnvelopeBudgets extends Table {
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Explicit opt-in for autonomous adjustments to one selected budget only.
+@TableIndex.sql('''
+CREATE UNIQUE INDEX idx_budget_autonomy_delegations_household_budget
+ON budget_autonomy_delegations (household_id, budget_id)
+''')
+class BudgetAutonomyDelegations extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get budgetId => text()();
+  TextColumn get status => text().withDefault(const Constant('active'))();
+  IntColumn get maxAdjustmentAmount => integer()();
+  IntColumn get maxAllocatedAmount => integer()();
+  IntColumn get maxExecutions => integer()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Append-only record of delegated allocation changes and their safe undos.
+@TableIndex.sql('''
+CREATE UNIQUE INDEX idx_budget_autonomy_ledger_idempotency
+ON budget_autonomy_execution_ledgers (household_id, idempotency_key)
+''')
+class BudgetAutonomyExecutionLedgers extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get delegationId => text()();
+  TextColumn get budgetId => text()();
+  TextColumn get idempotencyKey => text()();
+  TextColumn get operation => text()();
+  TextColumn get reversesLedgerId => text().nullable()();
+  IntColumn get previousAllocated => integer()();
+  IntColumn get appliedAllocated => integer()();
+  IntColumn get previousRevision => integer()();
+  IntColumn get appliedRevision => integer()();
+  IntColumn get delta => integer()();
+  DateTimeColumn get executedAt => dateTime()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};

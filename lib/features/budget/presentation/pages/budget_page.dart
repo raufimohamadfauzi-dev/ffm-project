@@ -18,6 +18,8 @@ import '../../../settings/presentation/pages/master_data_page.dart';
 import '../../../../shared/widgets/date_time_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../../assistant/domain/ffm_assistant_form_prefill.dart';
+import '../../data/budget_habit_analyzer.dart';
+import '../widgets/budget_habit_recommendations_sheet.dart';
 
 enum _BudgetSort {
   nominalTerbesar,
@@ -26,7 +28,7 @@ enum _BudgetSort {
   tanggalTerlama,
 }
 
-enum _BudgetMenuAction { transferFunds, weekStart }
+enum _BudgetMenuAction { habitRecommendations, transferFunds, weekStart }
 
 /// Progres pemakaian anggaran dari **dana tersedia** (batas − transfer
 /// keluar), konsisten dengan sisa dana (`allocated + rollover + masuk −
@@ -760,6 +762,22 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
     );
   }
 
+  Future<void> _showHabitRecommendations() {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxWidth: 560,
+        maxHeight: MediaQuery.sizeOf(context).height * .85,
+      ),
+      builder: (_) => BudgetHabitRecommendationsSheet(
+        loadAnalysis: () =>
+            BudgetHabitAnalyzer(_database)
+                .analyze(householdId: AppContext.householdId),
+      ),
+    );
+  }
+
   Future<void> _showWeekStartPicker() async {
     final selected = await showDialog<int>(
       context: context,
@@ -807,6 +825,8 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
 
   Future<void> _handleMenuAction(_BudgetMenuAction action) async {
     switch (action) {
+      case _BudgetMenuAction.habitRecommendations:
+        await _showHabitRecommendations();
       case _BudgetMenuAction.transferFunds:
         await _transferFunds();
       case _BudgetMenuAction.weekStart:
@@ -918,6 +938,10 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
               tooltip: 'Aksi anggaran lainnya',
               onSelected: _handleMenuAction,
               itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: _BudgetMenuAction.habitRecommendations,
+                  child: Text('Lihat rekomendasi kebiasaan'),
+                ),
                 if (_periodTypeFilter != 'nonrecurring')
                   const PopupMenuItem(
                     value: _BudgetMenuAction.transferFunds,

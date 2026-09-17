@@ -380,6 +380,135 @@ void main() {
     expect(activity, isNull);
   });
 
+  test('arsip Catatan Harian memakai tabel daily_notes dan verifier khusus', () async {
+    await database.into(database.dailyNotes).insert(
+      DailyNotesCompanion.insert(
+        id: 'note-archive',
+        householdId: householdId,
+        noteDate: now,
+        body: 'Catatan untuk diarsipkan.',
+        createdAt: now,
+      ),
+    );
+    final intent = FfmAssistantIntent(
+      rawText: 'arsipkan catatan',
+      normalizedText: 'arsipkan catatan',
+      type: FfmAssistantIntentType.archiveDailyNote,
+      destination: FfmAssistantDestination.activity,
+      draft: FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.dailyNoteArchive,
+        createdAt: now,
+        formValues: const {
+          'entity': 'daily_note',
+          'targetId': 'note-archive',
+          'operation': 'archive',
+        },
+      ),
+    );
+    final plan = FfmAssistantActionPlanner(now: () => now).planFor(intent)!;
+    final completed = await executeConfirmed(plan);
+
+    expect(completed?.status, FfmAssistantActionPlanStatus.completed);
+    final note = await (database.select(database.dailyNotes)
+          ..where((row) => row.id.equals('note-archive')))
+        .getSingle();
+    expect(note.isArchived, isTrue);
+  });
+
+  test('reopen aktivitas arsip mengembalikan sesi menjadi aktif', () async {
+    await seedActivity(id: 'archived-trip', title: 'Perjalanan lama');
+    await ActivityRepository(
+      database,
+      AuditLogger(database),
+    ).archiveSession(householdId, 'archived-trip');
+    final intent = FfmAssistantIntent(
+      rawText: 'buka kembali aktivitas perjalanan lama',
+      normalizedText: 'buka kembali aktivitas perjalanan lama',
+      type: FfmAssistantIntentType.updateActivity,
+      destination: FfmAssistantDestination.activity,
+      draft: FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.activityUpdate,
+        createdAt: now,
+        formValues: const {
+          'entity': 'activity_session',
+          'targetId': 'archived-trip',
+          'operation': 'reopen',
+        },
+      ),
+    );
+    final plan = FfmAssistantActionPlanner(now: () => now).planFor(intent)!;
+    final completed = await executeConfirmed(plan);
+
+    expect(completed?.status, FfmAssistantActionPlanStatus.completed);
+    final session = await ActivityRepository(
+      database,
+      AuditLogger(database),
+    ).getSession(householdId, 'archived-trip');
+    expect(session?.isArchived, isFalse);
+    expect(session?.status, ActivitySessionStatus.active);
+  });
+
+  test('edit dan hapus checkpoint aktivitas berjalan melewati verifier', () async {
+    await seedActivity(
+      id: 'active-trip',
+      title: 'Perjalanan aktif',
+      status: ActivitySessionStatus.active,
+    );
+    await ActivityRepository(database, AuditLogger(database)).saveCheckpoint(
+      ActivityCheckpointEntity(
+        id: 'checkpoint-1',
+        sessionId: 'active-trip',
+        label: 'Berangkat',
+        occurredAt: now,
+        sequence: 1,
+        createdAt: now,
+      ),
+    );
+
+    Future<FfmAssistantActionPlan?> runCheckpoint(
+      String operation, {
+      String? label,
+    }) async {
+      final intent = FfmAssistantIntent(
+        rawText: operation,
+        normalizedText: operation,
+        type: FfmAssistantIntentType.updateActivity,
+        destination: FfmAssistantDestination.activity,
+        draft: FfmAssistantDraft(
+          kind: FfmAssistantDraftKind.activityUpdate,
+          createdAt: now,
+          formValues: {
+            'entity': 'activity_session',
+            'targetId': 'active-trip',
+            'operation': operation,
+            'checkpointId': 'checkpoint-1',
+            'label': ?label,
+          },
+        ),
+      );
+      final plan = FfmAssistantActionPlanner(now: () => now).planFor(intent)!;
+      return executeConfirmed(plan);
+    }
+
+    final edited = await runCheckpoint('checkpoint_edit', label: 'Sampai lokasi');
+    expect(edited?.status, FfmAssistantActionPlanStatus.completed);
+    expect(
+      (await ActivityRepository(database, AuditLogger(database)).getCheckpoints(
+        'active-trip',
+      )).single.label,
+      'Sampai lokasi',
+    );
+
+    final deleted = await runCheckpoint('checkpoint_delete');
+    expect(deleted?.status, FfmAssistantActionPlanStatus.completed);
+    expect(
+      await ActivityRepository(database, AuditLogger(database)).getCheckpoints(
+        'active-trip',
+      ),
+      isEmpty,
+    );
+  });
+
   test(
     'edit aktivitas mengganti kategori sesuai draft dan memverifikasinya',
     () async {

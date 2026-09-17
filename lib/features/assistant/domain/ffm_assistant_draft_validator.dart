@@ -205,6 +205,7 @@ abstract final class FfmAssistantDraftValidator {
           );
         }
       case FfmAssistantDraftKind.reminderArchive:
+      case FfmAssistantDraftKind.reminderComplete:
         if (_isBlank(draft.formValues['targetId'])) {
           issues.add(
             const FfmAssistantDraftIssue(
@@ -568,6 +569,9 @@ abstract final class FfmAssistantDraftValidator {
           );
         }
       case FfmAssistantDraftKind.dailyNoteArchive:
+      case FfmAssistantDraftKind.dailyNoteUpdate:
+      case FfmAssistantDraftKind.dailyNoteRestore:
+      case FfmAssistantDraftKind.dailyNoteDelete:
         if (_isBlank(draft.formValues['targetId'])) {
           issues.add(
             const FfmAssistantDraftIssue(
@@ -861,6 +865,7 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.profile ||
     FfmAssistantDraftKind.goalArchive ||
     FfmAssistantDraftKind.reminderArchive ||
+    FfmAssistantDraftKind.reminderComplete ||
     FfmAssistantDraftKind.transactionArchive ||
     FfmAssistantDraftKind.transactionDelete ||
     FfmAssistantDraftKind.activityArchive ||

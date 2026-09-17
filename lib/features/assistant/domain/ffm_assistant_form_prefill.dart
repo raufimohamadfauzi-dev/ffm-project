@@ -160,7 +160,8 @@ abstract final class FfmAssistantFormPrefillMapper {
           FfmAssistantDestination.liabilities,
         FfmAssistantDraftKind.reminder ||
         FfmAssistantDraftKind.reminderUpdate ||
-        FfmAssistantDraftKind.reminderArchive =>
+        FfmAssistantDraftKind.reminderArchive ||
+        FfmAssistantDraftKind.reminderComplete =>
           FfmAssistantDestination.reminders,
         FfmAssistantDraftKind.activity ||
         FfmAssistantDraftKind.activityArchive ||

@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
 import 'calendar_bridge.dart';
@@ -288,17 +289,7 @@ class BillReminderRepository {
   }
 
   String _generateId() {
-    return 'bill-${DateTime.now().millisecondsSinceEpoch}-${_randomId()}';
-  }
-
-  String _randomId() {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    final random = DateTime.now().millisecondsSinceEpoch;
-    final buffer = StringBuffer();
-    for (int i = 0; i < 8; i++) {
-      buffer.write(chars[(random + i) % chars.length]);
-    }
-    return buffer.toString();
+    return 'bill-${const Uuid().v4()}';
   }
 }
 

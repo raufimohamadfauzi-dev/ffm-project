@@ -7,10 +7,12 @@ abstract interface class AuditLogRepository {
   Future<List<AuditLogEntity>> getLogs({
     required String householdId,
     String? action,
+    String? entity,
     DateTime? from,
     DateTime? to,
     String? search,
     int limit = 200,
+    int offset = 0,
   });
 }
 
@@ -31,10 +33,12 @@ class SqliteAuditLogRepository implements AuditLogRepository {
   Future<List<AuditLogEntity>> getLogs({
     required String householdId,
     String? action,
+    String? entity,
     DateTime? from,
     DateTime? to,
     String? search,
     int limit = 200,
+    int offset = 0,
   }) async {
     await _ensureTable();
     final clauses = <String>['household_id = ?'];
@@ -43,6 +47,10 @@ class SqliteAuditLogRepository implements AuditLogRepository {
     if (action != null && action.isNotEmpty) {
       clauses.add('action = ?');
       variables.add(Variable.withString(action));
+    }
+    if (entity != null && entity.isNotEmpty) {
+      clauses.add('entity = ?');
+      variables.add(Variable.withString(entity));
     }
     if (from != null) {
       clauses.add('timestamp >= ?');
@@ -64,11 +72,12 @@ class SqliteAuditLogRepository implements AuditLogRepository {
     }
 
     final safeLimit = limit.clamp(1, 500);
+    final safeOffset = offset.clamp(0, 100000);
     final rows = await database
         .customSelect(
           'SELECT id, household_id, action, entity, old_value, new_value, timestamp '
           'FROM audit_logs WHERE ${clauses.join(' AND ')} '
-          'ORDER BY timestamp DESC LIMIT $safeLimit',
+          'ORDER BY timestamp DESC LIMIT $safeLimit OFFSET $safeOffset',
           variables: variables,
         )
         .get();

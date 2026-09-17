@@ -30,8 +30,15 @@ yang diizinkan, dan menjelaskan fakta yang dikembalikan aplikasi.
 - [ ] Model tidak menerima SQL bebas, data rekening mentah, token, atau rahasia.
 - [ ] Pembuatan, perubahan, pengarsipan, dan transfer alokasi selalu melalui
   draft -> validator -> preview -> konfirmasi -> executor -> verifier.
-- [ ] Insight otonom hanya membuat notifikasi, recommendation, atau draft siap
-  tinjau; tidak pernah mengubah plafon atau memindahkan alokasi sendiri.
+- [ ] Secara default, insight otonom hanya membuat notifikasi, recommendation,
+  atau draft siap tinjau. Mutasi plafon tanpa konfirmasi per tindakan hanya
+  boleh berjalan setelah pengguna memberi delegasi Anggaran yang eksplisit,
+  terbatas, dan dapat dicabut.
+- [ ] Delegasi otonom wajib menyimpan snapshot sebelum/sesudah, evidence aturan,
+  ID job/idempotency, waktu, dan alasan yang dapat ditinjau pengguna.
+- [ ] Pengguna dapat membatalkan delegasi serta meminta undo dari riwayat;
+  undo hanya boleh mengembalikan state bila pos belum diubah lagi sejak aksi
+  otonom, selain itu harus menjadi draft resolusi konflik.
 - [ ] Eksekusi batch menggunakan idempotency key collision-safe dan memiliki
   hasil per-pos untuk recovery kegagalan parsial.
 - [ ] Koreksi active draft pada mode `geminiCloud` tetap melalui `draftReview`;
@@ -111,6 +118,8 @@ Kriteria selesai:
 
 ### Fase 2 - Analisis Kebiasaan dan Prediksi Deterministik
 
+- [x] Buat `BudgetHabitAnalyzer` read-only untuk median pengeluaran kategori,
+  tren, pembulatan rekomendasi, dan kecukupan minimal dua bulan aktif.
 - [ ] Buat `BudgetHabitAnalysisService` di domain/repository yang memakai 4-12
   periode historis sesuai preferensi pengguna atau default yang terdokumentasi.
 - [ ] Hitung median dan rata-rata pengeluaran kategori, frekuensi transaksi,
@@ -225,8 +234,16 @@ Kriteria selesai:
   menyimpan detail transaksi sensitif yang tidak diperlukan.
 - [ ] Kirim insight ke Kotak Masuk Agen dan tampilkan ringkasan relevan pada
   halaman Anggaran.
-- [ ] Insight menyediakan tindakan "lihat bukti", "buat draft", "tunda", atau
-  "matikan jenis pemantauan", bukan tombol mutasi otonom.
+- [ ] Tambahkan pengaturan delegasi per jenis aksi: rekomendasi saja, buat draft,
+  atau sesuaikan plafon otomatis. Default adalah rekomendasi saja.
+- [ ] Delegasi penyesuaian otomatis membatasi periode, kategori/pos, nilai
+  minimum/maksimum, perubahan maksimum per periode, buffer, dan cooldown.
+- [ ] Mutasi otonom hanya boleh mengubah plafon pada pos yang telah diizinkan;
+  arsip, kategori/periode/tanggal, dan transfer alokasi tetap memerlukan
+  konfirmasi eksplisit sampai ada kebijakan terpisah yang tervalidasi.
+- [ ] Insight menyediakan tindakan "lihat bukti", "buat draft", "tunda",
+  "undo", atau "matikan delegasi". Setiap mutasi otomatis juga tercatat pada
+  riwayat Anggaran dan Kotak Masuk Agen.
 - [ ] Evaluasi ulang setelah transaksi baru, perubahan anggaran, pergantian
   periode, dan perubahan household secara idempotent.
 
@@ -291,10 +308,10 @@ Kriteria selesai:
 
 | Tanggal | Keputusan | Alasan |
 | --- | --- | --- |
-| 2026-09-17 | Insight otonom tidak boleh melakukan mutasi anggaran mandiri. | Mematuhi boundary validasi, konfirmasi, executor, dan verifikasi untuk state finansial. |
+| 2026-09-17 | Mutasi Anggaran otonom memerlukan delegasi eksplisit, bukan konfirmasi per tindakan. | Pengguna meminta akses seperti pengingat, tetapi plafon finansial tetap memerlukan scope, batas nilai, audit, idempotensi, dan undo aman. |
 | 2026-09-17 | Nominal rekomendasi berasal dari service deterministic, bukan Gemini. | Menjaga angka finansial tetap otoritatif, repeatable, dan dapat diuji. |
 | 2026-09-17 | Paket anggaran memakai draft/action-plan yang ada. | Menghindari orchestrator, planner, atau executor paralel. |
-| 2026-09-17 | `BudgetRepository.readSnapshots` menjadi sumber snapshot asisten. | Formula rollover/transfer/pemakaian yang sama dipakai oleh capability lokal dan digest Gemini. |
+| 2026-09-17 | `BudgetRepository.readSnapshots` menjadi sumber snapshot asisten. | Formula rollover/transfer/pemakaian yang sama dipakai oleh capability lokal dan digest Gemini. Integrasi halaman Anggaran tetap pekerjaan Fase 7. |
 
 ## Log Pekerjaan
 
@@ -302,6 +319,9 @@ Kriteria selesai:
 | --- | --- | --- | --- |
 | 2026-09-17 | Dokumen rencana dibuat | PLANNED | Baseline berasal dari inspeksi capability, adapter, interpreter, dan detector rebalance. |
 | 2026-09-17 | Fase 1, increment snapshot | IN_PROGRESS | `read.budget` dan digest Gemini memakai snapshot deterministic; targeted test 22 lulus. |
+| 2026-09-17 | Validasi increment snapshot | IN_PROGRESS | `flutter analyze lib test` lulus. `flutter test` berjalan sampai 1.339 test tanpa failure yang terlihat, tetapi runner menghentikannya pada batas waktu sebelum hasil akhir. |
+| 2026-09-17 | Fase 2, increment analyzer | IN_PROGRESS | Analyzer kebiasaan deterministik dan perintah analisis read-only tersedia; test analyzer dan budget mutation targeted lulus. Proposal batch dan delegasi belum dibuat. |
+| 2026-09-17 | Fase 3, integrasi Agent lokal proposal kebiasaan | IN_PROGRESS | Interpreter Agent mengenali perintah `atur` bulanan/mingguan sesuai kebiasaan, membangun `FfmAssistantBudgetHabitProposal` maksimal dua item dari `BudgetHabitAnalyzer`, lalu menyertakan `FfmAssistantActionPlanner.planBudgetHabitProposal` yang confirmation-gated pada metadata. Analisis eksplisit/read-only tidak membuat proposal atau plan. Tidak ada mutasi/persistensi. Konsumen UI/executor batch belum diubah pada increment ini karena draft global hanya satu item. |
 
 ## Definition of Done
 

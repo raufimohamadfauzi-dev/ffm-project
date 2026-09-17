@@ -65,6 +65,7 @@ class _FfmAssistantProcessDisclosureState
     'read.budget' => 'Memeriksa anggaran',
     'read.activity' => 'Membaca aktivitas',
     'read.dailyNotes' => 'Membaca Catatan Harian terbaru',
+    'read.activityLog' => 'Membaca Log Aktivitas dan sumber perubahan',
     'read.accounts' => 'Memeriksa rekening dan saldo',
     'read.categories' => 'Memeriksa daftar kategori',
     'read.goals' => 'Memeriksa target keuangan',

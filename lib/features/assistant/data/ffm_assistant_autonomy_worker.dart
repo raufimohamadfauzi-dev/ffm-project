@@ -1,8 +1,13 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../core/database/audit_logger.dart';
+import '../../budget/data/budget_repository.dart';
 import 'ffm_assistant_autonomy_repository.dart';
+import 'ffm_assistant_budget_autonomy_event_service.dart';
+import 'ffm_assistant_budget_autonomy_repository.dart';
 import 'ffm_assistant_learning_candidate_service.dart';
+import '../domain/ffm_assistant_budget_autonomy_service.dart';
 
 typedef FfmAssistantAutonomyWorkerHandler = Future<void> Function(
   FfmAssistantAutonomyEvent event,
@@ -33,22 +38,36 @@ class FfmAssistantAutonomyWorker {
     this.maxAttempts = 3,
     this.candidateService,
     this.database,
-  });
+    FfmAssistantBudgetAutonomyEventService? budgetAutonomyEventService,
+  }) : budgetAutonomyEventService =
+           budgetAutonomyEventService ??
+           (database == null
+               ? null
+               : _createBudgetAutonomyEventService(database));
 
   final FfmAssistantAutonomyRepository repository;
   final int maxEventsPerRun;
   final int maxAttempts;
   final FfmAssistantLearningCandidateService? candidateService;
   final AppDatabase? database;
+  final FfmAssistantBudgetAutonomyEventService? budgetAutonomyEventService;
 
   Future<FfmAssistantAutonomyWorkerRunResult> runOnce(
     FfmAssistantAutonomyWorkerHandler handler, {
     String householdId = FfmAssistantAutonomyRepository.householdId,
   }) async {
-    final enqueued = await repository.enqueueDueTaskEvents(
+    var enqueued = await repository.enqueueDueTaskEvents(
+      householdId: householdId,
       limit: maxEventsPerRun,
     );
+    final budgetEvents = budgetAutonomyEventService;
+    if (budgetEvents != null) {
+      enqueued += await budgetEvents.enqueueCandidates(
+        householdId: householdId,
+      );
+    }
     final events = await repository.pendingEvents(
+      householdId: householdId,
       limit: maxEventsPerRun,
       maxAttempts: maxAttempts,
     );
@@ -56,7 +75,14 @@ class FfmAssistantAutonomyWorker {
     var duplicates = 0;
     var failed = 0;
     for (final event in events) {
-      final result = await repository.processEvent(event, handler);
+      final result = await repository.processEvent(event, (event) async {
+        if (event.type == FfmAssistantBudgetAutonomyEventService.eventType &&
+            budgetEvents != null) {
+          await budgetEvents.handle(event);
+          return;
+        }
+        await handler(event);
+      });
       switch (result) {
         case FfmAssistantAutonomyEventProcessResult.processed:
           processed++;
@@ -75,6 +101,22 @@ class FfmAssistantAutonomyWorker {
       processed: processed,
       duplicates: duplicates,
       failed: failed,
+    );
+  }
+
+  static FfmAssistantBudgetAutonomyEventService
+  _createBudgetAutonomyEventService(AppDatabase database) {
+    final budgetRepository = BudgetRepository(database, AuditLogger(database));
+    final delegationRepository = FfmAssistantBudgetAutonomyRepository(database);
+    return FfmAssistantBudgetAutonomyEventService(
+      eventRepository: FfmAssistantAutonomyRepository(database),
+      delegationRepository: delegationRepository,
+      budgetRepository: budgetRepository,
+      budgetAutonomyService: FfmAssistantBudgetAutonomyService(
+        database,
+        budgetRepository,
+        delegationRepository,
+      ),
     );
   }
 

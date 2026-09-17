@@ -148,6 +148,45 @@ class FfmAssistantReminderMutationService {
     }
   }
 
+  Future<void> complete(ReminderEntity reminder) async {
+    await _cancelScheduled(reminder);
+    final now = _clock();
+    final occurrences = _occurrenceCalculator.upcomingOccurrences(
+      reminder,
+      now: now.subtract(const Duration(days: 1)),
+      limit: 1,
+    );
+    if (occurrences.isNotEmpty) {
+      final occurrence = occurrences.first;
+      final history = await _repository.ensureHistory(
+        reminder: reminder,
+        occurrence: occurrence,
+      );
+      await _repository.updateHistoryStatus(
+        householdId: reminder.householdId,
+        historyId: history.id,
+        status: ReminderHistoryStatus.completed,
+      );
+    }
+
+    if (reminder.recurrenceType == ReminderRecurrenceType.once) {
+      try {
+        await _repository.setActive(
+          householdId: reminder.householdId,
+          reminderId: reminder.id,
+          isActive: false,
+        );
+      } on Object {
+        if (reminder.isActive) await _scheduleUpcoming(reminder);
+        rethrow;
+      }
+    } else {
+      if (reminder.isActive) {
+        await _scheduleUpcoming(reminder);
+      }
+    }
+  }
+
   Future<void> _cancelScheduled(ReminderEntity reminder) async {
     final gateway = _notificationGateway;
     if (gateway is ReminderNotificationLifecycleGateway) {

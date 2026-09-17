@@ -114,8 +114,8 @@ class FfmAssistantRuntimeKnowledgeRegistry {
     FfmAssistantKnowledgeEntry(
       id: 'domain.activity',
       title: 'Aktivitas dan jurnal',
-      content: 'Aktivitas menyimpan session, checkpoint, durasi, dan entry jurnal. Flow suara memiliki preview serta konfirmasi tersendiri.',
-      tags: ['activity', 'jurnal', 'kegiatan'],
+      content: 'Aktivitas menyimpan session, checkpoint, durasi, entry jurnal, dan Catatan Kejadian/Daily Note. Asisten dapat membaca histori, memfilter Catatan Kejadian berdasarkan tag, serta menjawab follow-up dengan konteks tag dan sumber data yang disebut. Semua perubahan tetap melalui preview, konfirmasi, eksekusi, dan verifikasi.',
+      tags: ['activity', 'jurnal', 'kegiatan', 'catatan kejadian', 'tag', 'follow-up'],
     ),
     FfmAssistantKnowledgeEntry(
       id: 'domain.reminders',

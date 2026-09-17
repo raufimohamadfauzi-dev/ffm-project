@@ -4,10 +4,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../../../domain/ffm_assistant_action_plan.dart';
+import '../../../domain/ffm_assistant_budget_habit_proposal.dart';
 import '../../../domain/ffm_assistant_models.dart';
 import '../ffm_assistant_markdown_text.dart';
 import 'activity_session_chat_card.dart';
 import 'ffm_assistant_draft_preview.dart';
+import 'ffm_budget_habit_proposal_preview.dart';
 import 'ffm_assistant_message_toolbar.dart';
 import 'ffm_assistant_feedback_toolbar.dart';
 import 'ffm_json_expandable.dart';
@@ -76,6 +78,10 @@ class FfmAssistantMessageCard extends StatelessWidget {
     this.onShowFollowUpQuestions,
     this.onSelectSuggestion,
     this.statusMessage,
+    this.budgetHabitActionPlan,
+    this.onConfirmBudgetHabitProposal,
+    this.onCancelBudgetHabitProposal,
+    this.budgetHabitProposalCancelled = false,
   });
 
   final FfmAssistantChatEntry entry;
@@ -105,6 +111,11 @@ class FfmAssistantMessageCard extends StatelessWidget {
   final FfmAssistantActionPlan? actionPlan;
   final void Function(List<String> questions)? onShowFollowUpQuestions;
   final void Function(String suggestion)? onSelectSuggestion;
+  final FfmAssistantActionPlan? budgetHabitActionPlan;
+  final void Function(List<FfmAssistantBudgetHabitProposalItem>)?
+  onConfirmBudgetHabitProposal;
+  final VoidCallback? onCancelBudgetHabitProposal;
+  final bool budgetHabitProposalCancelled;
 
   /// Teks yang ditampilkan (progressive reveal saat streaming).
   /// Null berarti gunakan entry.text biasa.
@@ -142,6 +153,12 @@ class FfmAssistantMessageCard extends StatelessWidget {
     final origin = intent?.responseOrigin;
     final groundingBlocked =
         intent?.pluginMetadata?['groundingBlocked'] == true;
+    final budgetHabitProposalValue =
+        intent?.pluginMetadata?['budgetHabitProposal'];
+    final budgetHabitProposal =
+        budgetHabitProposalValue is FfmAssistantBudgetHabitProposal
+        ? budgetHabitProposalValue
+        : null;
 
     final userBubbleColor = isDark
         ? const Color(0xFF1E1E1E)
@@ -539,6 +556,16 @@ class FfmAssistantMessageCard extends StatelessWidget {
             draft: intent!.draft!,
             review: review,
             onEdit: onEditDraft,
+          ),
+        ],
+        if (budgetHabitProposal != null) ...[
+          const SizedBox(height: 7),
+          FfmBudgetHabitProposalPreview(
+            proposal: budgetHabitProposal,
+            actionPlan: budgetHabitActionPlan,
+            onConfirm: onConfirmBudgetHabitProposal,
+            onCancel: onCancelBudgetHabitProposal,
+            cancelled: budgetHabitProposalCancelled,
           ),
         ],
         if (!isUser && entry.feedbackType != null) ...[

@@ -157,6 +157,16 @@ class FfmDatabaseStructureService {
       'Anggaran',
       'Batas anggaran mingguan, bulanan, atau tidak rutin.',
     ),
+    'budget_autonomy_delegations': _TableDefinition(
+      'Delegasi anggaran',
+      'Anggaran',
+      'Persetujuan dan batas delegasi otomatis untuk pengelolaan anggaran.',
+    ),
+    'budget_autonomy_execution_ledgers': _TableDefinition(
+      'Ledger eksekusi anggaran',
+      'Anggaran',
+      'Jejak idempotensi dan hasil eksekusi otomatis terkait anggaran.',
+    ),
     'envelope_transfers': _TableDefinition(
       'Perpindahan anggaran',
       'Anggaran',

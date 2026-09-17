@@ -119,6 +119,7 @@ void main() {
             endDate: now.add(const Duration(days: 30)),
             alertPercent: 80,
             isActive: true,
+            revision: 0,
             createdAt: now,
             categoryIdsJson: '[]',
           ),

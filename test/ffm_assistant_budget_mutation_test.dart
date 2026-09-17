@@ -230,6 +230,100 @@ void main() {
     expect(result.message, contains('23%, Aman'));
   });
 
+  test('perintah Agent anggaran sesuai kebiasaan memberi proposal batch tanpa mutasi', () async {
+    for (final entry in <(String, DateTime, int)>[
+      ('habit-june', DateTime(2026, 6, 5), -420000),
+      ('habit-july', DateTime(2026, 7, 5), -510000),
+    ]) {
+      await database
+          .into(database.transactions)
+          .insert(
+            TransactionsCompanion.insert(
+              id: entry.$1,
+              householdId: AppContext.householdId,
+              type: 'expense',
+              amount: entry.$3,
+              date: entry.$2,
+              recordedAt: entry.$2,
+              categoryId: const Value('category-food'),
+              createdAt: entry.$2,
+            ),
+          );
+    }
+    final before = (await (database.select(
+      database.envelopeBudgets,
+    )..where((row) => row.id.equals('budget-food'))).getSingle()).allocated;
+
+    final intent = await interpreter.interpret(
+      'tolong atur anggaran bulanan dan mingguan sesuai kebiasaan saya',
+    );
+
+    expect(intent.type, FfmAssistantIntentType.budgetHabitAnalysis);
+    expect(intent.destination, FfmAssistantDestination.budget);
+    expect(intent.draft, isNull);
+    expect(intent.response, contains('proposal 2 pos'));
+    expect(intent.response, contains('belum ada anggaran yang dibuat'));
+    final plan =
+        intent.pluginMetadata?['budgetHabitActionPlan']
+            as FfmAssistantActionPlan;
+    expect(plan.isComposite, isTrue);
+    expect(plan.requiresConfirmation, isTrue);
+    expect(
+      plan.steps.map((step) => step.capabilityId),
+      containsAllInOrder(<String>[
+        'read.budget',
+        'draft.budget',
+        'mutate.save_draft',
+        'verify.saved_draft',
+        'draft.budget',
+        'mutate.save_draft',
+        'verify.saved_draft',
+      ]),
+    );
+    expect(plan.steps[1].parameters['periodType'], 'monthly');
+    expect(plan.steps[4].parameters['periodType'], 'weekly');
+    expect(
+      (await (database.select(
+        database.envelopeBudgets,
+      )..where((row) => row.id.equals('budget-food'))).getSingle()).allocated,
+      before,
+    );
+  });
+
+  test(
+    'analisis kebiasaan anggaran tidak menyiapkan proposal atau plan',
+    () async {
+      for (final entry in <(String, DateTime, int)>[
+        ('analysis-june', DateTime(2026, 6, 5), -420000),
+        ('analysis-july', DateTime(2026, 7, 5), -510000),
+      ]) {
+        await database
+            .into(database.transactions)
+            .insert(
+              TransactionsCompanion.insert(
+                id: entry.$1,
+                householdId: AppContext.householdId,
+                type: 'expense',
+                amount: entry.$3,
+                date: entry.$2,
+                recordedAt: entry.$2,
+                categoryId: const Value('category-food'),
+                createdAt: entry.$2,
+              ),
+            );
+      }
+
+      final intent = await interpreter.interpret(
+        'analisis anggaran sesuai kebiasaan saya, jangan ubah',
+      );
+
+      expect(intent.type, FfmAssistantIntentType.budgetHabitAnalysis);
+      expect(intent.draft, isNull);
+      expect(intent.pluginMetadata, isNull);
+      expect(intent.response, contains('hanya analisis'));
+    },
+  );
+
   test(
     'note Budget mengalir dari JSON ke draft, plan, executor, dan verifier',
     () async {

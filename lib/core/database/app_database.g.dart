@@ -9633,6 +9633,18 @@ class $EnvelopeBudgetsTable extends EnvelopeBudgets
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _revisionMeta = const VerificationMeta(
+    'revision',
+  );
+  @override
+  late final GeneratedColumn<int> revision = GeneratedColumn<int>(
+    'revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _periodTypeMeta = const VerificationMeta(
     'periodType',
   );
@@ -9738,6 +9750,7 @@ class $EnvelopeBudgetsTable extends EnvelopeBudgets
     note,
     month,
     allocated,
+    revision,
     periodType,
     startDate,
     endDate,
@@ -9814,6 +9827,12 @@ class $EnvelopeBudgetsTable extends EnvelopeBudgets
       context.handle(
         _allocatedMeta,
         allocated.isAcceptableOrUnknown(data['allocated']!, _allocatedMeta),
+      );
+    }
+    if (data.containsKey('revision')) {
+      context.handle(
+        _revisionMeta,
+        revision.isAcceptableOrUnknown(data['revision']!, _revisionMeta),
       );
     }
     if (data.containsKey('period_type')) {
@@ -9914,6 +9933,10 @@ class $EnvelopeBudgetsTable extends EnvelopeBudgets
         DriftSqlType.int,
         data['${effectivePrefix}allocated'],
       )!,
+      revision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}revision'],
+      )!,
       periodType: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}period_type'],
@@ -9964,6 +9987,9 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
   final String? note;
   final String? month;
   final int allocated;
+
+  /// Monotonic concurrency token for guarded allocation changes.
+  final int revision;
   final String periodType;
   final DateTime startDate;
   final DateTime endDate;
@@ -9981,6 +10007,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
     this.note,
     this.month,
     required this.allocated,
+    required this.revision,
     required this.periodType,
     required this.startDate,
     required this.endDate,
@@ -10007,6 +10034,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
       map['month'] = Variable<String>(month);
     }
     map['allocated'] = Variable<int>(allocated);
+    map['revision'] = Variable<int>(revision);
     map['period_type'] = Variable<String>(periodType);
     map['start_date'] = Variable<DateTime>(startDate);
     map['end_date'] = Variable<DateTime>(endDate);
@@ -10034,6 +10062,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
           ? const Value.absent()
           : Value(month),
       allocated: Value(allocated),
+      revision: Value(revision),
       periodType: Value(periodType),
       startDate: Value(startDate),
       endDate: Value(endDate),
@@ -10061,6 +10090,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
       note: serializer.fromJson<String?>(json['note']),
       month: serializer.fromJson<String?>(json['month']),
       allocated: serializer.fromJson<int>(json['allocated']),
+      revision: serializer.fromJson<int>(json['revision']),
       periodType: serializer.fromJson<String>(json['periodType']),
       startDate: serializer.fromJson<DateTime>(json['startDate']),
       endDate: serializer.fromJson<DateTime>(json['endDate']),
@@ -10083,6 +10113,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
       'note': serializer.toJson<String?>(note),
       'month': serializer.toJson<String?>(month),
       'allocated': serializer.toJson<int>(allocated),
+      'revision': serializer.toJson<int>(revision),
       'periodType': serializer.toJson<String>(periodType),
       'startDate': serializer.toJson<DateTime>(startDate),
       'endDate': serializer.toJson<DateTime>(endDate),
@@ -10103,6 +10134,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
     Value<String?> note = const Value.absent(),
     Value<String?> month = const Value.absent(),
     int? allocated,
+    int? revision,
     String? periodType,
     DateTime? startDate,
     DateTime? endDate,
@@ -10120,6 +10152,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
     note: note.present ? note.value : this.note,
     month: month.present ? month.value : this.month,
     allocated: allocated ?? this.allocated,
+    revision: revision ?? this.revision,
     periodType: periodType ?? this.periodType,
     startDate: startDate ?? this.startDate,
     endDate: endDate ?? this.endDate,
@@ -10145,6 +10178,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
       note: data.note.present ? data.note.value : this.note,
       month: data.month.present ? data.month.value : this.month,
       allocated: data.allocated.present ? data.allocated.value : this.allocated,
+      revision: data.revision.present ? data.revision.value : this.revision,
       periodType: data.periodType.present
           ? data.periodType.value
           : this.periodType,
@@ -10171,6 +10205,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
           ..write('note: $note, ')
           ..write('month: $month, ')
           ..write('allocated: $allocated, ')
+          ..write('revision: $revision, ')
           ..write('periodType: $periodType, ')
           ..write('startDate: $startDate, ')
           ..write('endDate: $endDate, ')
@@ -10193,6 +10228,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
     note,
     month,
     allocated,
+    revision,
     periodType,
     startDate,
     endDate,
@@ -10214,6 +10250,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
           other.note == this.note &&
           other.month == this.month &&
           other.allocated == this.allocated &&
+          other.revision == this.revision &&
           other.periodType == this.periodType &&
           other.startDate == this.startDate &&
           other.endDate == this.endDate &&
@@ -10233,6 +10270,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
   final Value<String?> note;
   final Value<String?> month;
   final Value<int> allocated;
+  final Value<int> revision;
   final Value<String> periodType;
   final Value<DateTime> startDate;
   final Value<DateTime> endDate;
@@ -10251,6 +10289,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
     this.note = const Value.absent(),
     this.month = const Value.absent(),
     this.allocated = const Value.absent(),
+    this.revision = const Value.absent(),
     this.periodType = const Value.absent(),
     this.startDate = const Value.absent(),
     this.endDate = const Value.absent(),
@@ -10270,6 +10309,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
     this.note = const Value.absent(),
     this.month = const Value.absent(),
     this.allocated = const Value.absent(),
+    this.revision = const Value.absent(),
     this.periodType = const Value.absent(),
     required DateTime startDate,
     required DateTime endDate,
@@ -10294,6 +10334,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
     Expression<String>? note,
     Expression<String>? month,
     Expression<int>? allocated,
+    Expression<int>? revision,
     Expression<String>? periodType,
     Expression<DateTime>? startDate,
     Expression<DateTime>? endDate,
@@ -10313,6 +10354,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
       if (note != null) 'note': note,
       if (month != null) 'month': month,
       if (allocated != null) 'allocated': allocated,
+      if (revision != null) 'revision': revision,
       if (periodType != null) 'period_type': periodType,
       if (startDate != null) 'start_date': startDate,
       if (endDate != null) 'end_date': endDate,
@@ -10334,6 +10376,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
     Value<String?>? note,
     Value<String?>? month,
     Value<int>? allocated,
+    Value<int>? revision,
     Value<String>? periodType,
     Value<DateTime>? startDate,
     Value<DateTime>? endDate,
@@ -10353,6 +10396,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
       note: note ?? this.note,
       month: month ?? this.month,
       allocated: allocated ?? this.allocated,
+      revision: revision ?? this.revision,
       periodType: periodType ?? this.periodType,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
@@ -10391,6 +10435,9 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
     }
     if (allocated.present) {
       map['allocated'] = Variable<int>(allocated.value);
+    }
+    if (revision.present) {
+      map['revision'] = Variable<int>(revision.value);
     }
     if (periodType.present) {
       map['period_type'] = Variable<String>(periodType.value);
@@ -10433,6 +10480,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
           ..write('note: $note, ')
           ..write('month: $month, ')
           ..write('allocated: $allocated, ')
+          ..write('revision: $revision, ')
           ..write('periodType: $periodType, ')
           ..write('startDate: $startDate, ')
           ..write('endDate: $endDate, ')
@@ -10441,6 +10489,1398 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
           ..write('isActive: $isActive, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BudgetAutonomyDelegationsTable extends BudgetAutonomyDelegations
+    with TableInfo<$BudgetAutonomyDelegationsTable, BudgetAutonomyDelegation> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BudgetAutonomyDelegationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _budgetIdMeta = const VerificationMeta(
+    'budgetId',
+  );
+  @override
+  late final GeneratedColumn<String> budgetId = GeneratedColumn<String>(
+    'budget_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('active'),
+  );
+  static const VerificationMeta _maxAdjustmentAmountMeta =
+      const VerificationMeta('maxAdjustmentAmount');
+  @override
+  late final GeneratedColumn<int> maxAdjustmentAmount = GeneratedColumn<int>(
+    'max_adjustment_amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _maxAllocatedAmountMeta =
+      const VerificationMeta('maxAllocatedAmount');
+  @override
+  late final GeneratedColumn<int> maxAllocatedAmount = GeneratedColumn<int>(
+    'max_allocated_amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _maxExecutionsMeta = const VerificationMeta(
+    'maxExecutions',
+  );
+  @override
+  late final GeneratedColumn<int> maxExecutions = GeneratedColumn<int>(
+    'max_executions',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    budgetId,
+    status,
+    maxAdjustmentAmount,
+    maxAllocatedAmount,
+    maxExecutions,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'budget_autonomy_delegations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BudgetAutonomyDelegation> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('budget_id')) {
+      context.handle(
+        _budgetIdMeta,
+        budgetId.isAcceptableOrUnknown(data['budget_id']!, _budgetIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_budgetIdMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('max_adjustment_amount')) {
+      context.handle(
+        _maxAdjustmentAmountMeta,
+        maxAdjustmentAmount.isAcceptableOrUnknown(
+          data['max_adjustment_amount']!,
+          _maxAdjustmentAmountMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_maxAdjustmentAmountMeta);
+    }
+    if (data.containsKey('max_allocated_amount')) {
+      context.handle(
+        _maxAllocatedAmountMeta,
+        maxAllocatedAmount.isAcceptableOrUnknown(
+          data['max_allocated_amount']!,
+          _maxAllocatedAmountMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_maxAllocatedAmountMeta);
+    }
+    if (data.containsKey('max_executions')) {
+      context.handle(
+        _maxExecutionsMeta,
+        maxExecutions.isAcceptableOrUnknown(
+          data['max_executions']!,
+          _maxExecutionsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_maxExecutionsMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BudgetAutonomyDelegation map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BudgetAutonomyDelegation(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      budgetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}budget_id'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      maxAdjustmentAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}max_adjustment_amount'],
+      )!,
+      maxAllocatedAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}max_allocated_amount'],
+      )!,
+      maxExecutions: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}max_executions'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $BudgetAutonomyDelegationsTable createAlias(String alias) {
+    return $BudgetAutonomyDelegationsTable(attachedDatabase, alias);
+  }
+}
+
+class BudgetAutonomyDelegation extends DataClass
+    implements Insertable<BudgetAutonomyDelegation> {
+  final String id;
+  final String householdId;
+  final String budgetId;
+  final String status;
+  final int maxAdjustmentAmount;
+  final int maxAllocatedAmount;
+  final int maxExecutions;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const BudgetAutonomyDelegation({
+    required this.id,
+    required this.householdId,
+    required this.budgetId,
+    required this.status,
+    required this.maxAdjustmentAmount,
+    required this.maxAllocatedAmount,
+    required this.maxExecutions,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['budget_id'] = Variable<String>(budgetId);
+    map['status'] = Variable<String>(status);
+    map['max_adjustment_amount'] = Variable<int>(maxAdjustmentAmount);
+    map['max_allocated_amount'] = Variable<int>(maxAllocatedAmount);
+    map['max_executions'] = Variable<int>(maxExecutions);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  BudgetAutonomyDelegationsCompanion toCompanion(bool nullToAbsent) {
+    return BudgetAutonomyDelegationsCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      budgetId: Value(budgetId),
+      status: Value(status),
+      maxAdjustmentAmount: Value(maxAdjustmentAmount),
+      maxAllocatedAmount: Value(maxAllocatedAmount),
+      maxExecutions: Value(maxExecutions),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory BudgetAutonomyDelegation.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BudgetAutonomyDelegation(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      budgetId: serializer.fromJson<String>(json['budgetId']),
+      status: serializer.fromJson<String>(json['status']),
+      maxAdjustmentAmount: serializer.fromJson<int>(
+        json['maxAdjustmentAmount'],
+      ),
+      maxAllocatedAmount: serializer.fromJson<int>(json['maxAllocatedAmount']),
+      maxExecutions: serializer.fromJson<int>(json['maxExecutions']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'budgetId': serializer.toJson<String>(budgetId),
+      'status': serializer.toJson<String>(status),
+      'maxAdjustmentAmount': serializer.toJson<int>(maxAdjustmentAmount),
+      'maxAllocatedAmount': serializer.toJson<int>(maxAllocatedAmount),
+      'maxExecutions': serializer.toJson<int>(maxExecutions),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  BudgetAutonomyDelegation copyWith({
+    String? id,
+    String? householdId,
+    String? budgetId,
+    String? status,
+    int? maxAdjustmentAmount,
+    int? maxAllocatedAmount,
+    int? maxExecutions,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => BudgetAutonomyDelegation(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    budgetId: budgetId ?? this.budgetId,
+    status: status ?? this.status,
+    maxAdjustmentAmount: maxAdjustmentAmount ?? this.maxAdjustmentAmount,
+    maxAllocatedAmount: maxAllocatedAmount ?? this.maxAllocatedAmount,
+    maxExecutions: maxExecutions ?? this.maxExecutions,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  BudgetAutonomyDelegation copyWithCompanion(
+    BudgetAutonomyDelegationsCompanion data,
+  ) {
+    return BudgetAutonomyDelegation(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      budgetId: data.budgetId.present ? data.budgetId.value : this.budgetId,
+      status: data.status.present ? data.status.value : this.status,
+      maxAdjustmentAmount: data.maxAdjustmentAmount.present
+          ? data.maxAdjustmentAmount.value
+          : this.maxAdjustmentAmount,
+      maxAllocatedAmount: data.maxAllocatedAmount.present
+          ? data.maxAllocatedAmount.value
+          : this.maxAllocatedAmount,
+      maxExecutions: data.maxExecutions.present
+          ? data.maxExecutions.value
+          : this.maxExecutions,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BudgetAutonomyDelegation(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('budgetId: $budgetId, ')
+          ..write('status: $status, ')
+          ..write('maxAdjustmentAmount: $maxAdjustmentAmount, ')
+          ..write('maxAllocatedAmount: $maxAllocatedAmount, ')
+          ..write('maxExecutions: $maxExecutions, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    budgetId,
+    status,
+    maxAdjustmentAmount,
+    maxAllocatedAmount,
+    maxExecutions,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BudgetAutonomyDelegation &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.budgetId == this.budgetId &&
+          other.status == this.status &&
+          other.maxAdjustmentAmount == this.maxAdjustmentAmount &&
+          other.maxAllocatedAmount == this.maxAllocatedAmount &&
+          other.maxExecutions == this.maxExecutions &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class BudgetAutonomyDelegationsCompanion
+    extends UpdateCompanion<BudgetAutonomyDelegation> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> budgetId;
+  final Value<String> status;
+  final Value<int> maxAdjustmentAmount;
+  final Value<int> maxAllocatedAmount;
+  final Value<int> maxExecutions;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const BudgetAutonomyDelegationsCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.budgetId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.maxAdjustmentAmount = const Value.absent(),
+    this.maxAllocatedAmount = const Value.absent(),
+    this.maxExecutions = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BudgetAutonomyDelegationsCompanion.insert({
+    required String id,
+    required String householdId,
+    required String budgetId,
+    this.status = const Value.absent(),
+    required int maxAdjustmentAmount,
+    required int maxAllocatedAmount,
+    required int maxExecutions,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       budgetId = Value(budgetId),
+       maxAdjustmentAmount = Value(maxAdjustmentAmount),
+       maxAllocatedAmount = Value(maxAllocatedAmount),
+       maxExecutions = Value(maxExecutions),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<BudgetAutonomyDelegation> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? budgetId,
+    Expression<String>? status,
+    Expression<int>? maxAdjustmentAmount,
+    Expression<int>? maxAllocatedAmount,
+    Expression<int>? maxExecutions,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (budgetId != null) 'budget_id': budgetId,
+      if (status != null) 'status': status,
+      if (maxAdjustmentAmount != null)
+        'max_adjustment_amount': maxAdjustmentAmount,
+      if (maxAllocatedAmount != null)
+        'max_allocated_amount': maxAllocatedAmount,
+      if (maxExecutions != null) 'max_executions': maxExecutions,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BudgetAutonomyDelegationsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? budgetId,
+    Value<String>? status,
+    Value<int>? maxAdjustmentAmount,
+    Value<int>? maxAllocatedAmount,
+    Value<int>? maxExecutions,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return BudgetAutonomyDelegationsCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      budgetId: budgetId ?? this.budgetId,
+      status: status ?? this.status,
+      maxAdjustmentAmount: maxAdjustmentAmount ?? this.maxAdjustmentAmount,
+      maxAllocatedAmount: maxAllocatedAmount ?? this.maxAllocatedAmount,
+      maxExecutions: maxExecutions ?? this.maxExecutions,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (budgetId.present) {
+      map['budget_id'] = Variable<String>(budgetId.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (maxAdjustmentAmount.present) {
+      map['max_adjustment_amount'] = Variable<int>(maxAdjustmentAmount.value);
+    }
+    if (maxAllocatedAmount.present) {
+      map['max_allocated_amount'] = Variable<int>(maxAllocatedAmount.value);
+    }
+    if (maxExecutions.present) {
+      map['max_executions'] = Variable<int>(maxExecutions.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BudgetAutonomyDelegationsCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('budgetId: $budgetId, ')
+          ..write('status: $status, ')
+          ..write('maxAdjustmentAmount: $maxAdjustmentAmount, ')
+          ..write('maxAllocatedAmount: $maxAllocatedAmount, ')
+          ..write('maxExecutions: $maxExecutions, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BudgetAutonomyExecutionLedgersTable
+    extends BudgetAutonomyExecutionLedgers
+    with
+        TableInfo<
+          $BudgetAutonomyExecutionLedgersTable,
+          BudgetAutonomyExecutionLedger
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BudgetAutonomyExecutionLedgersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _delegationIdMeta = const VerificationMeta(
+    'delegationId',
+  );
+  @override
+  late final GeneratedColumn<String> delegationId = GeneratedColumn<String>(
+    'delegation_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _budgetIdMeta = const VerificationMeta(
+    'budgetId',
+  );
+  @override
+  late final GeneratedColumn<String> budgetId = GeneratedColumn<String>(
+    'budget_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _idempotencyKeyMeta = const VerificationMeta(
+    'idempotencyKey',
+  );
+  @override
+  late final GeneratedColumn<String> idempotencyKey = GeneratedColumn<String>(
+    'idempotency_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _operationMeta = const VerificationMeta(
+    'operation',
+  );
+  @override
+  late final GeneratedColumn<String> operation = GeneratedColumn<String>(
+    'operation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _reversesLedgerIdMeta = const VerificationMeta(
+    'reversesLedgerId',
+  );
+  @override
+  late final GeneratedColumn<String> reversesLedgerId = GeneratedColumn<String>(
+    'reverses_ledger_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _previousAllocatedMeta = const VerificationMeta(
+    'previousAllocated',
+  );
+  @override
+  late final GeneratedColumn<int> previousAllocated = GeneratedColumn<int>(
+    'previous_allocated',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _appliedAllocatedMeta = const VerificationMeta(
+    'appliedAllocated',
+  );
+  @override
+  late final GeneratedColumn<int> appliedAllocated = GeneratedColumn<int>(
+    'applied_allocated',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _previousRevisionMeta = const VerificationMeta(
+    'previousRevision',
+  );
+  @override
+  late final GeneratedColumn<int> previousRevision = GeneratedColumn<int>(
+    'previous_revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _appliedRevisionMeta = const VerificationMeta(
+    'appliedRevision',
+  );
+  @override
+  late final GeneratedColumn<int> appliedRevision = GeneratedColumn<int>(
+    'applied_revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deltaMeta = const VerificationMeta('delta');
+  @override
+  late final GeneratedColumn<int> delta = GeneratedColumn<int>(
+    'delta',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _executedAtMeta = const VerificationMeta(
+    'executedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> executedAt = GeneratedColumn<DateTime>(
+    'executed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    delegationId,
+    budgetId,
+    idempotencyKey,
+    operation,
+    reversesLedgerId,
+    previousAllocated,
+    appliedAllocated,
+    previousRevision,
+    appliedRevision,
+    delta,
+    executedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'budget_autonomy_execution_ledgers';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BudgetAutonomyExecutionLedger> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('delegation_id')) {
+      context.handle(
+        _delegationIdMeta,
+        delegationId.isAcceptableOrUnknown(
+          data['delegation_id']!,
+          _delegationIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_delegationIdMeta);
+    }
+    if (data.containsKey('budget_id')) {
+      context.handle(
+        _budgetIdMeta,
+        budgetId.isAcceptableOrUnknown(data['budget_id']!, _budgetIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_budgetIdMeta);
+    }
+    if (data.containsKey('idempotency_key')) {
+      context.handle(
+        _idempotencyKeyMeta,
+        idempotencyKey.isAcceptableOrUnknown(
+          data['idempotency_key']!,
+          _idempotencyKeyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_idempotencyKeyMeta);
+    }
+    if (data.containsKey('operation')) {
+      context.handle(
+        _operationMeta,
+        operation.isAcceptableOrUnknown(data['operation']!, _operationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_operationMeta);
+    }
+    if (data.containsKey('reverses_ledger_id')) {
+      context.handle(
+        _reversesLedgerIdMeta,
+        reversesLedgerId.isAcceptableOrUnknown(
+          data['reverses_ledger_id']!,
+          _reversesLedgerIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('previous_allocated')) {
+      context.handle(
+        _previousAllocatedMeta,
+        previousAllocated.isAcceptableOrUnknown(
+          data['previous_allocated']!,
+          _previousAllocatedMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_previousAllocatedMeta);
+    }
+    if (data.containsKey('applied_allocated')) {
+      context.handle(
+        _appliedAllocatedMeta,
+        appliedAllocated.isAcceptableOrUnknown(
+          data['applied_allocated']!,
+          _appliedAllocatedMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_appliedAllocatedMeta);
+    }
+    if (data.containsKey('previous_revision')) {
+      context.handle(
+        _previousRevisionMeta,
+        previousRevision.isAcceptableOrUnknown(
+          data['previous_revision']!,
+          _previousRevisionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_previousRevisionMeta);
+    }
+    if (data.containsKey('applied_revision')) {
+      context.handle(
+        _appliedRevisionMeta,
+        appliedRevision.isAcceptableOrUnknown(
+          data['applied_revision']!,
+          _appliedRevisionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_appliedRevisionMeta);
+    }
+    if (data.containsKey('delta')) {
+      context.handle(
+        _deltaMeta,
+        delta.isAcceptableOrUnknown(data['delta']!, _deltaMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_deltaMeta);
+    }
+    if (data.containsKey('executed_at')) {
+      context.handle(
+        _executedAtMeta,
+        executedAt.isAcceptableOrUnknown(data['executed_at']!, _executedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_executedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BudgetAutonomyExecutionLedger map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BudgetAutonomyExecutionLedger(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      delegationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}delegation_id'],
+      )!,
+      budgetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}budget_id'],
+      )!,
+      idempotencyKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}idempotency_key'],
+      )!,
+      operation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}operation'],
+      )!,
+      reversesLedgerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reverses_ledger_id'],
+      ),
+      previousAllocated: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}previous_allocated'],
+      )!,
+      appliedAllocated: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}applied_allocated'],
+      )!,
+      previousRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}previous_revision'],
+      )!,
+      appliedRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}applied_revision'],
+      )!,
+      delta: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}delta'],
+      )!,
+      executedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}executed_at'],
+      )!,
+    );
+  }
+
+  @override
+  $BudgetAutonomyExecutionLedgersTable createAlias(String alias) {
+    return $BudgetAutonomyExecutionLedgersTable(attachedDatabase, alias);
+  }
+}
+
+class BudgetAutonomyExecutionLedger extends DataClass
+    implements Insertable<BudgetAutonomyExecutionLedger> {
+  final String id;
+  final String householdId;
+  final String delegationId;
+  final String budgetId;
+  final String idempotencyKey;
+  final String operation;
+  final String? reversesLedgerId;
+  final int previousAllocated;
+  final int appliedAllocated;
+  final int previousRevision;
+  final int appliedRevision;
+  final int delta;
+  final DateTime executedAt;
+  const BudgetAutonomyExecutionLedger({
+    required this.id,
+    required this.householdId,
+    required this.delegationId,
+    required this.budgetId,
+    required this.idempotencyKey,
+    required this.operation,
+    this.reversesLedgerId,
+    required this.previousAllocated,
+    required this.appliedAllocated,
+    required this.previousRevision,
+    required this.appliedRevision,
+    required this.delta,
+    required this.executedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['delegation_id'] = Variable<String>(delegationId);
+    map['budget_id'] = Variable<String>(budgetId);
+    map['idempotency_key'] = Variable<String>(idempotencyKey);
+    map['operation'] = Variable<String>(operation);
+    if (!nullToAbsent || reversesLedgerId != null) {
+      map['reverses_ledger_id'] = Variable<String>(reversesLedgerId);
+    }
+    map['previous_allocated'] = Variable<int>(previousAllocated);
+    map['applied_allocated'] = Variable<int>(appliedAllocated);
+    map['previous_revision'] = Variable<int>(previousRevision);
+    map['applied_revision'] = Variable<int>(appliedRevision);
+    map['delta'] = Variable<int>(delta);
+    map['executed_at'] = Variable<DateTime>(executedAt);
+    return map;
+  }
+
+  BudgetAutonomyExecutionLedgersCompanion toCompanion(bool nullToAbsent) {
+    return BudgetAutonomyExecutionLedgersCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      delegationId: Value(delegationId),
+      budgetId: Value(budgetId),
+      idempotencyKey: Value(idempotencyKey),
+      operation: Value(operation),
+      reversesLedgerId: reversesLedgerId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reversesLedgerId),
+      previousAllocated: Value(previousAllocated),
+      appliedAllocated: Value(appliedAllocated),
+      previousRevision: Value(previousRevision),
+      appliedRevision: Value(appliedRevision),
+      delta: Value(delta),
+      executedAt: Value(executedAt),
+    );
+  }
+
+  factory BudgetAutonomyExecutionLedger.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BudgetAutonomyExecutionLedger(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      delegationId: serializer.fromJson<String>(json['delegationId']),
+      budgetId: serializer.fromJson<String>(json['budgetId']),
+      idempotencyKey: serializer.fromJson<String>(json['idempotencyKey']),
+      operation: serializer.fromJson<String>(json['operation']),
+      reversesLedgerId: serializer.fromJson<String?>(json['reversesLedgerId']),
+      previousAllocated: serializer.fromJson<int>(json['previousAllocated']),
+      appliedAllocated: serializer.fromJson<int>(json['appliedAllocated']),
+      previousRevision: serializer.fromJson<int>(json['previousRevision']),
+      appliedRevision: serializer.fromJson<int>(json['appliedRevision']),
+      delta: serializer.fromJson<int>(json['delta']),
+      executedAt: serializer.fromJson<DateTime>(json['executedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'delegationId': serializer.toJson<String>(delegationId),
+      'budgetId': serializer.toJson<String>(budgetId),
+      'idempotencyKey': serializer.toJson<String>(idempotencyKey),
+      'operation': serializer.toJson<String>(operation),
+      'reversesLedgerId': serializer.toJson<String?>(reversesLedgerId),
+      'previousAllocated': serializer.toJson<int>(previousAllocated),
+      'appliedAllocated': serializer.toJson<int>(appliedAllocated),
+      'previousRevision': serializer.toJson<int>(previousRevision),
+      'appliedRevision': serializer.toJson<int>(appliedRevision),
+      'delta': serializer.toJson<int>(delta),
+      'executedAt': serializer.toJson<DateTime>(executedAt),
+    };
+  }
+
+  BudgetAutonomyExecutionLedger copyWith({
+    String? id,
+    String? householdId,
+    String? delegationId,
+    String? budgetId,
+    String? idempotencyKey,
+    String? operation,
+    Value<String?> reversesLedgerId = const Value.absent(),
+    int? previousAllocated,
+    int? appliedAllocated,
+    int? previousRevision,
+    int? appliedRevision,
+    int? delta,
+    DateTime? executedAt,
+  }) => BudgetAutonomyExecutionLedger(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    delegationId: delegationId ?? this.delegationId,
+    budgetId: budgetId ?? this.budgetId,
+    idempotencyKey: idempotencyKey ?? this.idempotencyKey,
+    operation: operation ?? this.operation,
+    reversesLedgerId: reversesLedgerId.present
+        ? reversesLedgerId.value
+        : this.reversesLedgerId,
+    previousAllocated: previousAllocated ?? this.previousAllocated,
+    appliedAllocated: appliedAllocated ?? this.appliedAllocated,
+    previousRevision: previousRevision ?? this.previousRevision,
+    appliedRevision: appliedRevision ?? this.appliedRevision,
+    delta: delta ?? this.delta,
+    executedAt: executedAt ?? this.executedAt,
+  );
+  BudgetAutonomyExecutionLedger copyWithCompanion(
+    BudgetAutonomyExecutionLedgersCompanion data,
+  ) {
+    return BudgetAutonomyExecutionLedger(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      delegationId: data.delegationId.present
+          ? data.delegationId.value
+          : this.delegationId,
+      budgetId: data.budgetId.present ? data.budgetId.value : this.budgetId,
+      idempotencyKey: data.idempotencyKey.present
+          ? data.idempotencyKey.value
+          : this.idempotencyKey,
+      operation: data.operation.present ? data.operation.value : this.operation,
+      reversesLedgerId: data.reversesLedgerId.present
+          ? data.reversesLedgerId.value
+          : this.reversesLedgerId,
+      previousAllocated: data.previousAllocated.present
+          ? data.previousAllocated.value
+          : this.previousAllocated,
+      appliedAllocated: data.appliedAllocated.present
+          ? data.appliedAllocated.value
+          : this.appliedAllocated,
+      previousRevision: data.previousRevision.present
+          ? data.previousRevision.value
+          : this.previousRevision,
+      appliedRevision: data.appliedRevision.present
+          ? data.appliedRevision.value
+          : this.appliedRevision,
+      delta: data.delta.present ? data.delta.value : this.delta,
+      executedAt: data.executedAt.present
+          ? data.executedAt.value
+          : this.executedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BudgetAutonomyExecutionLedger(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('delegationId: $delegationId, ')
+          ..write('budgetId: $budgetId, ')
+          ..write('idempotencyKey: $idempotencyKey, ')
+          ..write('operation: $operation, ')
+          ..write('reversesLedgerId: $reversesLedgerId, ')
+          ..write('previousAllocated: $previousAllocated, ')
+          ..write('appliedAllocated: $appliedAllocated, ')
+          ..write('previousRevision: $previousRevision, ')
+          ..write('appliedRevision: $appliedRevision, ')
+          ..write('delta: $delta, ')
+          ..write('executedAt: $executedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    delegationId,
+    budgetId,
+    idempotencyKey,
+    operation,
+    reversesLedgerId,
+    previousAllocated,
+    appliedAllocated,
+    previousRevision,
+    appliedRevision,
+    delta,
+    executedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BudgetAutonomyExecutionLedger &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.delegationId == this.delegationId &&
+          other.budgetId == this.budgetId &&
+          other.idempotencyKey == this.idempotencyKey &&
+          other.operation == this.operation &&
+          other.reversesLedgerId == this.reversesLedgerId &&
+          other.previousAllocated == this.previousAllocated &&
+          other.appliedAllocated == this.appliedAllocated &&
+          other.previousRevision == this.previousRevision &&
+          other.appliedRevision == this.appliedRevision &&
+          other.delta == this.delta &&
+          other.executedAt == this.executedAt);
+}
+
+class BudgetAutonomyExecutionLedgersCompanion
+    extends UpdateCompanion<BudgetAutonomyExecutionLedger> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> delegationId;
+  final Value<String> budgetId;
+  final Value<String> idempotencyKey;
+  final Value<String> operation;
+  final Value<String?> reversesLedgerId;
+  final Value<int> previousAllocated;
+  final Value<int> appliedAllocated;
+  final Value<int> previousRevision;
+  final Value<int> appliedRevision;
+  final Value<int> delta;
+  final Value<DateTime> executedAt;
+  final Value<int> rowid;
+  const BudgetAutonomyExecutionLedgersCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.delegationId = const Value.absent(),
+    this.budgetId = const Value.absent(),
+    this.idempotencyKey = const Value.absent(),
+    this.operation = const Value.absent(),
+    this.reversesLedgerId = const Value.absent(),
+    this.previousAllocated = const Value.absent(),
+    this.appliedAllocated = const Value.absent(),
+    this.previousRevision = const Value.absent(),
+    this.appliedRevision = const Value.absent(),
+    this.delta = const Value.absent(),
+    this.executedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BudgetAutonomyExecutionLedgersCompanion.insert({
+    required String id,
+    required String householdId,
+    required String delegationId,
+    required String budgetId,
+    required String idempotencyKey,
+    required String operation,
+    this.reversesLedgerId = const Value.absent(),
+    required int previousAllocated,
+    required int appliedAllocated,
+    required int previousRevision,
+    required int appliedRevision,
+    required int delta,
+    required DateTime executedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       delegationId = Value(delegationId),
+       budgetId = Value(budgetId),
+       idempotencyKey = Value(idempotencyKey),
+       operation = Value(operation),
+       previousAllocated = Value(previousAllocated),
+       appliedAllocated = Value(appliedAllocated),
+       previousRevision = Value(previousRevision),
+       appliedRevision = Value(appliedRevision),
+       delta = Value(delta),
+       executedAt = Value(executedAt);
+  static Insertable<BudgetAutonomyExecutionLedger> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? delegationId,
+    Expression<String>? budgetId,
+    Expression<String>? idempotencyKey,
+    Expression<String>? operation,
+    Expression<String>? reversesLedgerId,
+    Expression<int>? previousAllocated,
+    Expression<int>? appliedAllocated,
+    Expression<int>? previousRevision,
+    Expression<int>? appliedRevision,
+    Expression<int>? delta,
+    Expression<DateTime>? executedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (delegationId != null) 'delegation_id': delegationId,
+      if (budgetId != null) 'budget_id': budgetId,
+      if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
+      if (operation != null) 'operation': operation,
+      if (reversesLedgerId != null) 'reverses_ledger_id': reversesLedgerId,
+      if (previousAllocated != null) 'previous_allocated': previousAllocated,
+      if (appliedAllocated != null) 'applied_allocated': appliedAllocated,
+      if (previousRevision != null) 'previous_revision': previousRevision,
+      if (appliedRevision != null) 'applied_revision': appliedRevision,
+      if (delta != null) 'delta': delta,
+      if (executedAt != null) 'executed_at': executedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BudgetAutonomyExecutionLedgersCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? delegationId,
+    Value<String>? budgetId,
+    Value<String>? idempotencyKey,
+    Value<String>? operation,
+    Value<String?>? reversesLedgerId,
+    Value<int>? previousAllocated,
+    Value<int>? appliedAllocated,
+    Value<int>? previousRevision,
+    Value<int>? appliedRevision,
+    Value<int>? delta,
+    Value<DateTime>? executedAt,
+    Value<int>? rowid,
+  }) {
+    return BudgetAutonomyExecutionLedgersCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      delegationId: delegationId ?? this.delegationId,
+      budgetId: budgetId ?? this.budgetId,
+      idempotencyKey: idempotencyKey ?? this.idempotencyKey,
+      operation: operation ?? this.operation,
+      reversesLedgerId: reversesLedgerId ?? this.reversesLedgerId,
+      previousAllocated: previousAllocated ?? this.previousAllocated,
+      appliedAllocated: appliedAllocated ?? this.appliedAllocated,
+      previousRevision: previousRevision ?? this.previousRevision,
+      appliedRevision: appliedRevision ?? this.appliedRevision,
+      delta: delta ?? this.delta,
+      executedAt: executedAt ?? this.executedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (delegationId.present) {
+      map['delegation_id'] = Variable<String>(delegationId.value);
+    }
+    if (budgetId.present) {
+      map['budget_id'] = Variable<String>(budgetId.value);
+    }
+    if (idempotencyKey.present) {
+      map['idempotency_key'] = Variable<String>(idempotencyKey.value);
+    }
+    if (operation.present) {
+      map['operation'] = Variable<String>(operation.value);
+    }
+    if (reversesLedgerId.present) {
+      map['reverses_ledger_id'] = Variable<String>(reversesLedgerId.value);
+    }
+    if (previousAllocated.present) {
+      map['previous_allocated'] = Variable<int>(previousAllocated.value);
+    }
+    if (appliedAllocated.present) {
+      map['applied_allocated'] = Variable<int>(appliedAllocated.value);
+    }
+    if (previousRevision.present) {
+      map['previous_revision'] = Variable<int>(previousRevision.value);
+    }
+    if (appliedRevision.present) {
+      map['applied_revision'] = Variable<int>(appliedRevision.value);
+    }
+    if (delta.present) {
+      map['delta'] = Variable<int>(delta.value);
+    }
+    if (executedAt.present) {
+      map['executed_at'] = Variable<DateTime>(executedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BudgetAutonomyExecutionLedgersCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('delegationId: $delegationId, ')
+          ..write('budgetId: $budgetId, ')
+          ..write('idempotencyKey: $idempotencyKey, ')
+          ..write('operation: $operation, ')
+          ..write('reversesLedgerId: $reversesLedgerId, ')
+          ..write('previousAllocated: $previousAllocated, ')
+          ..write('appliedAllocated: $appliedAllocated, ')
+          ..write('previousRevision: $previousRevision, ')
+          ..write('appliedRevision: $appliedRevision, ')
+          ..write('delta: $delta, ')
+          ..write('executedAt: $executedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -35781,6 +37221,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $EnvelopeBudgetsTable envelopeBudgets = $EnvelopeBudgetsTable(
     this,
   );
+  late final $BudgetAutonomyDelegationsTable budgetAutonomyDelegations =
+      $BudgetAutonomyDelegationsTable(this);
+  late final $BudgetAutonomyExecutionLedgersTable
+  budgetAutonomyExecutionLedgers = $BudgetAutonomyExecutionLedgersTable(this);
   late final $EnvelopeTransfersTable envelopeTransfers =
       $EnvelopeTransfersTable(this);
   late final $AssetsTable assets = $AssetsTable(this);
@@ -35870,6 +37314,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'idx_transfers_household_deleted_date_id',
     'CREATE INDEX idx_transfers_household_deleted_date_id ON transfers (household_id, is_deleted, date DESC, id DESC)',
   );
+  late final Index idxBudgetAutonomyDelegationsHouseholdBudget = Index(
+    'idx_budget_autonomy_delegations_household_budget',
+    'CREATE UNIQUE INDEX idx_budget_autonomy_delegations_household_budget ON budget_autonomy_delegations (household_id, budget_id)',
+  );
+  late final Index idxBudgetAutonomyLedgerIdempotency = Index(
+    'idx_budget_autonomy_ledger_idempotency',
+    'CREATE UNIQUE INDEX idx_budget_autonomy_ledger_idempotency ON budget_autonomy_execution_ledgers (household_id, idempotency_key)',
+  );
   late final Index idxRemindersStatusDue = Index(
     'idx_reminders_status_due',
     'CREATE INDEX idx_reminders_status_due ON reminders (household_id, is_active, scheduled_at)',
@@ -35917,6 +37369,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     electricityMeterReadings,
     transfers,
     envelopeBudgets,
+    budgetAutonomyDelegations,
+    budgetAutonomyExecutionLedgers,
     envelopeTransfers,
     assets,
     goals,
@@ -35959,6 +37413,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     idxTransactionsHouseholdVisibilityDateId,
     idxTransactionItemsTransaction,
     idxTransfersHouseholdDeletedDateId,
+    idxBudgetAutonomyDelegationsHouseholdBudget,
+    idxBudgetAutonomyLedgerIdempotency,
     idxRemindersStatusDue,
     idxActivitySessionsHouseholdArchivedStartedId,
     idxActivityEntriesHouseholdArchivedStartedId,
@@ -35968,26 +37424,24 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   ];
 }
 
-typedef $$HouseholdsTableCreateCompanionBuilder =
-    HouseholdsCompanion Function({
-      required String id,
-      required String name,
-      Value<String?> husbandName,
-      Value<String?> wifeName,
-      required DateTime createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$HouseholdsTableUpdateCompanionBuilder =
-    HouseholdsCompanion Function({
-      Value<String> id,
-      Value<String> name,
-      Value<String?> husbandName,
-      Value<String?> wifeName,
-      Value<DateTime> createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$HouseholdsTableCreateCompanionBuilder = HouseholdsCompanion Function({
+  required String id,
+  required String name,
+  Value<String?> husbandName,
+  Value<String?> wifeName,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$HouseholdsTableUpdateCompanionBuilder = HouseholdsCompanion Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String?> husbandName,
+  Value<String?> wifeName,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$HouseholdsTableFilterComposer
     extends Composer<_$AppDatabase, $HouseholdsTable> {
@@ -36186,30 +37640,28 @@ typedef $$HouseholdsTableProcessedTableManager =
       Household,
       PrefetchHooks Function()
     >;
-typedef $$CategoriesTableCreateCompanionBuilder =
-    CategoriesCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      required String type,
-      Value<String?> parentId,
-      Value<String> defaultBudgetPeriod,
-      Value<bool> isActive,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$CategoriesTableUpdateCompanionBuilder =
-    CategoriesCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String> type,
-      Value<String?> parentId,
-      Value<String> defaultBudgetPeriod,
-      Value<bool> isActive,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$CategoriesTableCreateCompanionBuilder = CategoriesCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  required String type,
+  Value<String?> parentId,
+  Value<String> defaultBudgetPeriod,
+  Value<bool> isActive,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$CategoriesTableUpdateCompanionBuilder = CategoriesCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String> type,
+  Value<String?> parentId,
+  Value<String> defaultBudgetPeriod,
+  Value<bool> isActive,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$CategoriesTableFilterComposer
     extends Composer<_$AppDatabase, $CategoriesTable> {
@@ -36441,26 +37893,24 @@ typedef $$CategoriesTableProcessedTableManager =
       Category,
       PrefetchHooks Function()
     >;
-typedef $$MerchantsTableCreateCompanionBuilder =
-    MerchantsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      Value<String?> details,
-      Value<bool> isActive,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$MerchantsTableUpdateCompanionBuilder =
-    MerchantsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String?> details,
-      Value<bool> isActive,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$MerchantsTableCreateCompanionBuilder = MerchantsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  Value<String?> details,
+  Value<bool> isActive,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$MerchantsTableUpdateCompanionBuilder = MerchantsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String?> details,
+  Value<bool> isActive,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$MerchantsTableFilterComposer
     extends Composer<_$AppDatabase, $MerchantsTable> {
@@ -36656,24 +38106,22 @@ typedef $$MerchantsTableProcessedTableManager =
       Merchant,
       PrefetchHooks Function()
     >;
-typedef $$TagsTableCreateCompanionBuilder =
-    TagsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$TagsTableUpdateCompanionBuilder =
-    TagsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$TagsTableCreateCompanionBuilder = TagsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$TagsTableUpdateCompanionBuilder = TagsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$TagsTableFilterComposer extends Composer<_$AppDatabase, $TagsTable> {
   $$TagsTableFilterComposer({
@@ -36852,30 +38300,28 @@ typedef $$TagsTableProcessedTableManager =
       Tag,
       PrefetchHooks Function()
     >;
-typedef $$AccountsTableCreateCompanionBuilder =
-    AccountsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      required String type,
-      Value<int> openingBalance,
-      Value<bool> isActive,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$AccountsTableUpdateCompanionBuilder =
-    AccountsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String> type,
-      Value<int> openingBalance,
-      Value<bool> isActive,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$AccountsTableCreateCompanionBuilder = AccountsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  required String type,
+  Value<int> openingBalance,
+  Value<bool> isActive,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$AccountsTableUpdateCompanionBuilder = AccountsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String> type,
+  Value<int> openingBalance,
+  Value<bool> isActive,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$AccountsTableFilterComposer
     extends Composer<_$AppDatabase, $AccountsTable> {
@@ -40395,40 +41841,38 @@ typedef $$ElectricityMeterReadingsTableProcessedTableManager =
       ElectricityMeterReading,
       PrefetchHooks Function()
     >;
-typedef $$TransfersTableCreateCompanionBuilder =
-    TransfersCompanion Function({
-      required String id,
-      required String householdId,
-      required String fromAccountId,
-      required String toAccountId,
-      required int amount,
-      Value<int> adminFee,
-      Value<String?> feeTransactionId,
-      required DateTime date,
-      required DateTime recordedAt,
-      Value<String?> note,
-      Value<String?> source,
-      Value<bool> isDeleted,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$TransfersTableUpdateCompanionBuilder =
-    TransfersCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> fromAccountId,
-      Value<String> toAccountId,
-      Value<int> amount,
-      Value<int> adminFee,
-      Value<String?> feeTransactionId,
-      Value<DateTime> date,
-      Value<DateTime> recordedAt,
-      Value<String?> note,
-      Value<String?> source,
-      Value<bool> isDeleted,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$TransfersTableCreateCompanionBuilder = TransfersCompanion Function({
+  required String id,
+  required String householdId,
+  required String fromAccountId,
+  required String toAccountId,
+  required int amount,
+  Value<int> adminFee,
+  Value<String?> feeTransactionId,
+  required DateTime date,
+  required DateTime recordedAt,
+  Value<String?> note,
+  Value<String?> source,
+  Value<bool> isDeleted,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$TransfersTableUpdateCompanionBuilder = TransfersCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> fromAccountId,
+  Value<String> toAccountId,
+  Value<int> amount,
+  Value<int> adminFee,
+  Value<String?> feeTransactionId,
+  Value<DateTime> date,
+  Value<DateTime> recordedAt,
+  Value<String?> note,
+  Value<String?> source,
+  Value<bool> isDeleted,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$TransfersTableFilterComposer
     extends Composer<_$AppDatabase, $TransfersTable> {
@@ -40761,6 +42205,7 @@ typedef $$EnvelopeBudgetsTableCreateCompanionBuilder =
       Value<String?> note,
       Value<String?> month,
       Value<int> allocated,
+      Value<int> revision,
       Value<String> periodType,
       required DateTime startDate,
       required DateTime endDate,
@@ -40781,6 +42226,7 @@ typedef $$EnvelopeBudgetsTableUpdateCompanionBuilder =
       Value<String?> note,
       Value<String?> month,
       Value<int> allocated,
+      Value<int> revision,
       Value<String> periodType,
       Value<DateTime> startDate,
       Value<DateTime> endDate,
@@ -40838,6 +42284,11 @@ class $$EnvelopeBudgetsTableFilterComposer
 
   ColumnFilters<int> get allocated => $composableBuilder(
     column: $table.allocated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get revision => $composableBuilder(
+    column: $table.revision,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -40931,6 +42382,11 @@ class $$EnvelopeBudgetsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get periodType => $composableBuilder(
     column: $table.periodType,
     builder: (column) => ColumnOrderings(column),
@@ -41011,6 +42467,9 @@ class $$EnvelopeBudgetsTableAnnotationComposer
   GeneratedColumn<int> get allocated =>
       $composableBuilder(column: $table.allocated, builder: (column) => column);
 
+  GeneratedColumn<int> get revision =>
+      $composableBuilder(column: $table.revision, builder: (column) => column);
+
   GeneratedColumn<String> get periodType => $composableBuilder(
     column: $table.periodType,
     builder: (column) => column,
@@ -41085,6 +42544,7 @@ class $$EnvelopeBudgetsTableTableManager
                 Value<String?> note = const Value.absent(),
                 Value<String?> month = const Value.absent(),
                 Value<int> allocated = const Value.absent(),
+                Value<int> revision = const Value.absent(),
                 Value<String> periodType = const Value.absent(),
                 Value<DateTime> startDate = const Value.absent(),
                 Value<DateTime> endDate = const Value.absent(),
@@ -41103,6 +42563,7 @@ class $$EnvelopeBudgetsTableTableManager
                 note: note,
                 month: month,
                 allocated: allocated,
+                revision: revision,
                 periodType: periodType,
                 startDate: startDate,
                 endDate: endDate,
@@ -41123,6 +42584,7 @@ class $$EnvelopeBudgetsTableTableManager
                 Value<String?> note = const Value.absent(),
                 Value<String?> month = const Value.absent(),
                 Value<int> allocated = const Value.absent(),
+                Value<int> revision = const Value.absent(),
                 Value<String> periodType = const Value.absent(),
                 required DateTime startDate,
                 required DateTime endDate,
@@ -41141,6 +42603,7 @@ class $$EnvelopeBudgetsTableTableManager
                 note: note,
                 month: month,
                 allocated: allocated,
+                revision: revision,
                 periodType: periodType,
                 startDate: startDate,
                 endDate: endDate,
@@ -41174,6 +42637,698 @@ typedef $$EnvelopeBudgetsTableProcessedTableManager =
         BaseReferences<_$AppDatabase, $EnvelopeBudgetsTable, EnvelopeBudget>,
       ),
       EnvelopeBudget,
+      PrefetchHooks Function()
+    >;
+typedef $$BudgetAutonomyDelegationsTableCreateCompanionBuilder =
+    BudgetAutonomyDelegationsCompanion Function({
+      required String id,
+      required String householdId,
+      required String budgetId,
+      Value<String> status,
+      required int maxAdjustmentAmount,
+      required int maxAllocatedAmount,
+      required int maxExecutions,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$BudgetAutonomyDelegationsTableUpdateCompanionBuilder =
+    BudgetAutonomyDelegationsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> budgetId,
+      Value<String> status,
+      Value<int> maxAdjustmentAmount,
+      Value<int> maxAllocatedAmount,
+      Value<int> maxExecutions,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$BudgetAutonomyDelegationsTableFilterComposer
+    extends Composer<_$AppDatabase, $BudgetAutonomyDelegationsTable> {
+  $$BudgetAutonomyDelegationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get budgetId => $composableBuilder(
+    column: $table.budgetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maxAdjustmentAmount => $composableBuilder(
+    column: $table.maxAdjustmentAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maxAllocatedAmount => $composableBuilder(
+    column: $table.maxAllocatedAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maxExecutions => $composableBuilder(
+    column: $table.maxExecutions,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$BudgetAutonomyDelegationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $BudgetAutonomyDelegationsTable> {
+  $$BudgetAutonomyDelegationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get budgetId => $composableBuilder(
+    column: $table.budgetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maxAdjustmentAmount => $composableBuilder(
+    column: $table.maxAdjustmentAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maxAllocatedAmount => $composableBuilder(
+    column: $table.maxAllocatedAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maxExecutions => $composableBuilder(
+    column: $table.maxExecutions,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$BudgetAutonomyDelegationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BudgetAutonomyDelegationsTable> {
+  $$BudgetAutonomyDelegationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get budgetId =>
+      $composableBuilder(column: $table.budgetId, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get maxAdjustmentAmount => $composableBuilder(
+    column: $table.maxAdjustmentAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get maxAllocatedAmount => $composableBuilder(
+    column: $table.maxAllocatedAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get maxExecutions => $composableBuilder(
+    column: $table.maxExecutions,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$BudgetAutonomyDelegationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BudgetAutonomyDelegationsTable,
+          BudgetAutonomyDelegation,
+          $$BudgetAutonomyDelegationsTableFilterComposer,
+          $$BudgetAutonomyDelegationsTableOrderingComposer,
+          $$BudgetAutonomyDelegationsTableAnnotationComposer,
+          $$BudgetAutonomyDelegationsTableCreateCompanionBuilder,
+          $$BudgetAutonomyDelegationsTableUpdateCompanionBuilder,
+          (
+            BudgetAutonomyDelegation,
+            BaseReferences<
+              _$AppDatabase,
+              $BudgetAutonomyDelegationsTable,
+              BudgetAutonomyDelegation
+            >,
+          ),
+          BudgetAutonomyDelegation,
+          PrefetchHooks Function()
+        > {
+  $$BudgetAutonomyDelegationsTableTableManager(
+    _$AppDatabase db,
+    $BudgetAutonomyDelegationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BudgetAutonomyDelegationsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$BudgetAutonomyDelegationsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$BudgetAutonomyDelegationsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> budgetId = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> maxAdjustmentAmount = const Value.absent(),
+                Value<int> maxAllocatedAmount = const Value.absent(),
+                Value<int> maxExecutions = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BudgetAutonomyDelegationsCompanion(
+                id: id,
+                householdId: householdId,
+                budgetId: budgetId,
+                status: status,
+                maxAdjustmentAmount: maxAdjustmentAmount,
+                maxAllocatedAmount: maxAllocatedAmount,
+                maxExecutions: maxExecutions,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String budgetId,
+                Value<String> status = const Value.absent(),
+                required int maxAdjustmentAmount,
+                required int maxAllocatedAmount,
+                required int maxExecutions,
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => BudgetAutonomyDelegationsCompanion.insert(
+                id: id,
+                householdId: householdId,
+                budgetId: budgetId,
+                status: status,
+                maxAdjustmentAmount: maxAdjustmentAmount,
+                maxAllocatedAmount: maxAllocatedAmount,
+                maxExecutions: maxExecutions,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BudgetAutonomyDelegationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BudgetAutonomyDelegationsTable,
+      BudgetAutonomyDelegation,
+      $$BudgetAutonomyDelegationsTableFilterComposer,
+      $$BudgetAutonomyDelegationsTableOrderingComposer,
+      $$BudgetAutonomyDelegationsTableAnnotationComposer,
+      $$BudgetAutonomyDelegationsTableCreateCompanionBuilder,
+      $$BudgetAutonomyDelegationsTableUpdateCompanionBuilder,
+      (
+        BudgetAutonomyDelegation,
+        BaseReferences<
+          _$AppDatabase,
+          $BudgetAutonomyDelegationsTable,
+          BudgetAutonomyDelegation
+        >,
+      ),
+      BudgetAutonomyDelegation,
+      PrefetchHooks Function()
+    >;
+typedef $$BudgetAutonomyExecutionLedgersTableCreateCompanionBuilder =
+    BudgetAutonomyExecutionLedgersCompanion Function({
+      required String id,
+      required String householdId,
+      required String delegationId,
+      required String budgetId,
+      required String idempotencyKey,
+      required String operation,
+      Value<String?> reversesLedgerId,
+      required int previousAllocated,
+      required int appliedAllocated,
+      required int previousRevision,
+      required int appliedRevision,
+      required int delta,
+      required DateTime executedAt,
+      Value<int> rowid,
+    });
+typedef $$BudgetAutonomyExecutionLedgersTableUpdateCompanionBuilder =
+    BudgetAutonomyExecutionLedgersCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> delegationId,
+      Value<String> budgetId,
+      Value<String> idempotencyKey,
+      Value<String> operation,
+      Value<String?> reversesLedgerId,
+      Value<int> previousAllocated,
+      Value<int> appliedAllocated,
+      Value<int> previousRevision,
+      Value<int> appliedRevision,
+      Value<int> delta,
+      Value<DateTime> executedAt,
+      Value<int> rowid,
+    });
+
+class $$BudgetAutonomyExecutionLedgersTableFilterComposer
+    extends Composer<_$AppDatabase, $BudgetAutonomyExecutionLedgersTable> {
+  $$BudgetAutonomyExecutionLedgersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get delegationId => $composableBuilder(
+    column: $table.delegationId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get budgetId => $composableBuilder(
+    column: $table.budgetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get idempotencyKey => $composableBuilder(
+    column: $table.idempotencyKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get operation => $composableBuilder(
+    column: $table.operation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reversesLedgerId => $composableBuilder(
+    column: $table.reversesLedgerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get previousAllocated => $composableBuilder(
+    column: $table.previousAllocated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get appliedAllocated => $composableBuilder(
+    column: $table.appliedAllocated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get previousRevision => $composableBuilder(
+    column: $table.previousRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get appliedRevision => $composableBuilder(
+    column: $table.appliedRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get delta => $composableBuilder(
+    column: $table.delta,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get executedAt => $composableBuilder(
+    column: $table.executedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$BudgetAutonomyExecutionLedgersTableOrderingComposer
+    extends Composer<_$AppDatabase, $BudgetAutonomyExecutionLedgersTable> {
+  $$BudgetAutonomyExecutionLedgersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get delegationId => $composableBuilder(
+    column: $table.delegationId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get budgetId => $composableBuilder(
+    column: $table.budgetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get idempotencyKey => $composableBuilder(
+    column: $table.idempotencyKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get operation => $composableBuilder(
+    column: $table.operation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reversesLedgerId => $composableBuilder(
+    column: $table.reversesLedgerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get previousAllocated => $composableBuilder(
+    column: $table.previousAllocated,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get appliedAllocated => $composableBuilder(
+    column: $table.appliedAllocated,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get previousRevision => $composableBuilder(
+    column: $table.previousRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get appliedRevision => $composableBuilder(
+    column: $table.appliedRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get delta => $composableBuilder(
+    column: $table.delta,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get executedAt => $composableBuilder(
+    column: $table.executedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$BudgetAutonomyExecutionLedgersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BudgetAutonomyExecutionLedgersTable> {
+  $$BudgetAutonomyExecutionLedgersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get delegationId => $composableBuilder(
+    column: $table.delegationId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get budgetId =>
+      $composableBuilder(column: $table.budgetId, builder: (column) => column);
+
+  GeneratedColumn<String> get idempotencyKey => $composableBuilder(
+    column: $table.idempotencyKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get operation =>
+      $composableBuilder(column: $table.operation, builder: (column) => column);
+
+  GeneratedColumn<String> get reversesLedgerId => $composableBuilder(
+    column: $table.reversesLedgerId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get previousAllocated => $composableBuilder(
+    column: $table.previousAllocated,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get appliedAllocated => $composableBuilder(
+    column: $table.appliedAllocated,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get previousRevision => $composableBuilder(
+    column: $table.previousRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get appliedRevision => $composableBuilder(
+    column: $table.appliedRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get delta =>
+      $composableBuilder(column: $table.delta, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get executedAt => $composableBuilder(
+    column: $table.executedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$BudgetAutonomyExecutionLedgersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BudgetAutonomyExecutionLedgersTable,
+          BudgetAutonomyExecutionLedger,
+          $$BudgetAutonomyExecutionLedgersTableFilterComposer,
+          $$BudgetAutonomyExecutionLedgersTableOrderingComposer,
+          $$BudgetAutonomyExecutionLedgersTableAnnotationComposer,
+          $$BudgetAutonomyExecutionLedgersTableCreateCompanionBuilder,
+          $$BudgetAutonomyExecutionLedgersTableUpdateCompanionBuilder,
+          (
+            BudgetAutonomyExecutionLedger,
+            BaseReferences<
+              _$AppDatabase,
+              $BudgetAutonomyExecutionLedgersTable,
+              BudgetAutonomyExecutionLedger
+            >,
+          ),
+          BudgetAutonomyExecutionLedger,
+          PrefetchHooks Function()
+        > {
+  $$BudgetAutonomyExecutionLedgersTableTableManager(
+    _$AppDatabase db,
+    $BudgetAutonomyExecutionLedgersTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BudgetAutonomyExecutionLedgersTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$BudgetAutonomyExecutionLedgersTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$BudgetAutonomyExecutionLedgersTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> delegationId = const Value.absent(),
+                Value<String> budgetId = const Value.absent(),
+                Value<String> idempotencyKey = const Value.absent(),
+                Value<String> operation = const Value.absent(),
+                Value<String?> reversesLedgerId = const Value.absent(),
+                Value<int> previousAllocated = const Value.absent(),
+                Value<int> appliedAllocated = const Value.absent(),
+                Value<int> previousRevision = const Value.absent(),
+                Value<int> appliedRevision = const Value.absent(),
+                Value<int> delta = const Value.absent(),
+                Value<DateTime> executedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BudgetAutonomyExecutionLedgersCompanion(
+                id: id,
+                householdId: householdId,
+                delegationId: delegationId,
+                budgetId: budgetId,
+                idempotencyKey: idempotencyKey,
+                operation: operation,
+                reversesLedgerId: reversesLedgerId,
+                previousAllocated: previousAllocated,
+                appliedAllocated: appliedAllocated,
+                previousRevision: previousRevision,
+                appliedRevision: appliedRevision,
+                delta: delta,
+                executedAt: executedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String delegationId,
+                required String budgetId,
+                required String idempotencyKey,
+                required String operation,
+                Value<String?> reversesLedgerId = const Value.absent(),
+                required int previousAllocated,
+                required int appliedAllocated,
+                required int previousRevision,
+                required int appliedRevision,
+                required int delta,
+                required DateTime executedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => BudgetAutonomyExecutionLedgersCompanion.insert(
+                id: id,
+                householdId: householdId,
+                delegationId: delegationId,
+                budgetId: budgetId,
+                idempotencyKey: idempotencyKey,
+                operation: operation,
+                reversesLedgerId: reversesLedgerId,
+                previousAllocated: previousAllocated,
+                appliedAllocated: appliedAllocated,
+                previousRevision: previousRevision,
+                appliedRevision: appliedRevision,
+                delta: delta,
+                executedAt: executedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BudgetAutonomyExecutionLedgersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BudgetAutonomyExecutionLedgersTable,
+      BudgetAutonomyExecutionLedger,
+      $$BudgetAutonomyExecutionLedgersTableFilterComposer,
+      $$BudgetAutonomyExecutionLedgersTableOrderingComposer,
+      $$BudgetAutonomyExecutionLedgersTableAnnotationComposer,
+      $$BudgetAutonomyExecutionLedgersTableCreateCompanionBuilder,
+      $$BudgetAutonomyExecutionLedgersTableUpdateCompanionBuilder,
+      (
+        BudgetAutonomyExecutionLedger,
+        BaseReferences<
+          _$AppDatabase,
+          $BudgetAutonomyExecutionLedgersTable,
+          BudgetAutonomyExecutionLedger
+        >,
+      ),
+      BudgetAutonomyExecutionLedger,
       PrefetchHooks Function()
     >;
 typedef $$EnvelopeTransfersTableCreateCompanionBuilder =
@@ -41492,34 +43647,32 @@ typedef $$EnvelopeTransfersTableProcessedTableManager =
       EnvelopeTransfer,
       PrefetchHooks Function()
     >;
-typedef $$AssetsTableCreateCompanionBuilder =
-    AssetsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      required String assetType,
-      Value<int> value,
-      Value<String> placement,
-      Value<String?> note,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$AssetsTableUpdateCompanionBuilder =
-    AssetsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String> assetType,
-      Value<int> value,
-      Value<String> placement,
-      Value<String?> note,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$AssetsTableCreateCompanionBuilder = AssetsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  required String assetType,
+  Value<int> value,
+  Value<String> placement,
+  Value<String?> note,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$AssetsTableUpdateCompanionBuilder = AssetsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String> assetType,
+  Value<int> value,
+  Value<String> placement,
+  Value<String?> note,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$AssetsTableFilterComposer
     extends Composer<_$AppDatabase, $AssetsTable> {
@@ -41785,34 +43938,32 @@ typedef $$AssetsTableProcessedTableManager =
       Asset,
       PrefetchHooks Function()
     >;
-typedef $$GoalsTableCreateCompanionBuilder =
-    GoalsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      Value<String?> note,
-      required int targetAmount,
-      Value<int> currentAmount,
-      Value<DateTime?> targetDate,
-      Value<String?> categoryId,
-      Value<bool> isActive,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$GoalsTableUpdateCompanionBuilder =
-    GoalsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String?> note,
-      Value<int> targetAmount,
-      Value<int> currentAmount,
-      Value<DateTime?> targetDate,
-      Value<String?> categoryId,
-      Value<bool> isActive,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$GoalsTableCreateCompanionBuilder = GoalsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  Value<String?> note,
+  required int targetAmount,
+  Value<int> currentAmount,
+  Value<DateTime?> targetDate,
+  Value<String?> categoryId,
+  Value<bool> isActive,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$GoalsTableUpdateCompanionBuilder = GoalsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String?> note,
+  Value<int> targetAmount,
+  Value<int> currentAmount,
+  Value<DateTime?> targetDate,
+  Value<String?> categoryId,
+  Value<bool> isActive,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$GoalsTableFilterComposer extends Composer<_$AppDatabase, $GoalsTable> {
   $$GoalsTableFilterComposer({
@@ -43448,56 +45599,54 @@ typedef $$RecurringTransactionRunsTableProcessedTableManager =
       RecurringTransactionRun,
       PrefetchHooks Function()
     >;
-typedef $$RemindersTableCreateCompanionBuilder =
-    RemindersCompanion Function({
-      required String id,
-      required String householdId,
-      required String title,
-      Value<String?> note,
-      required DateTime scheduledAt,
-      Value<String> recurrenceType,
-      Value<String> weekdaysJson,
-      Value<bool> isActive,
-      Value<String?> soundUri,
-      Value<String?> soundName,
-      Value<int> defaultSnoozeMinutes,
-      required int notificationId,
-      required DateTime createdAt,
-      Value<DateTime?> updatedAt,
-      Value<String?> sourceType,
-      Value<String?> sourceId,
-      Value<String> origin,
-      Value<String> mode,
-      Value<int?> calendarEventId,
-      Value<bool> isSyncedToCalendar,
-      Value<DateTime?> syncedAt,
-      Value<int> rowid,
-    });
-typedef $$RemindersTableUpdateCompanionBuilder =
-    RemindersCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> title,
-      Value<String?> note,
-      Value<DateTime> scheduledAt,
-      Value<String> recurrenceType,
-      Value<String> weekdaysJson,
-      Value<bool> isActive,
-      Value<String?> soundUri,
-      Value<String?> soundName,
-      Value<int> defaultSnoozeMinutes,
-      Value<int> notificationId,
-      Value<DateTime> createdAt,
-      Value<DateTime?> updatedAt,
-      Value<String?> sourceType,
-      Value<String?> sourceId,
-      Value<String> origin,
-      Value<String> mode,
-      Value<int?> calendarEventId,
-      Value<bool> isSyncedToCalendar,
-      Value<DateTime?> syncedAt,
-      Value<int> rowid,
-    });
+typedef $$RemindersTableCreateCompanionBuilder = RemindersCompanion Function({
+  required String id,
+  required String householdId,
+  required String title,
+  Value<String?> note,
+  required DateTime scheduledAt,
+  Value<String> recurrenceType,
+  Value<String> weekdaysJson,
+  Value<bool> isActive,
+  Value<String?> soundUri,
+  Value<String?> soundName,
+  Value<int> defaultSnoozeMinutes,
+  required int notificationId,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<String?> sourceType,
+  Value<String?> sourceId,
+  Value<String> origin,
+  Value<String> mode,
+  Value<int?> calendarEventId,
+  Value<bool> isSyncedToCalendar,
+  Value<DateTime?> syncedAt,
+  Value<int> rowid,
+});
+typedef $$RemindersTableUpdateCompanionBuilder = RemindersCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> title,
+  Value<String?> note,
+  Value<DateTime> scheduledAt,
+  Value<String> recurrenceType,
+  Value<String> weekdaysJson,
+  Value<bool> isActive,
+  Value<String?> soundUri,
+  Value<String?> soundName,
+  Value<int> defaultSnoozeMinutes,
+  Value<int> notificationId,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<String?> sourceType,
+  Value<String?> sourceId,
+  Value<String> origin,
+  Value<String> mode,
+  Value<int?> calendarEventId,
+  Value<bool> isSyncedToCalendar,
+  Value<DateTime?> syncedAt,
+  Value<int> rowid,
+});
 
 class $$RemindersTableFilterComposer
     extends Composer<_$AppDatabase, $RemindersTable> {
@@ -46001,34 +48150,32 @@ typedef $$ActivityEntriesTableProcessedTableManager =
       ActivityEntry,
       PrefetchHooks Function()
     >;
-typedef $$DailyNotesTableCreateCompanionBuilder =
-    DailyNotesCompanion Function({
-      required String id,
-      required String householdId,
-      required DateTime noteDate,
-      Value<String?> title,
-      required String body,
-      Value<String?> treatmentType,
-      Value<int> priority,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$DailyNotesTableUpdateCompanionBuilder =
-    DailyNotesCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<DateTime> noteDate,
-      Value<String?> title,
-      Value<String> body,
-      Value<String?> treatmentType,
-      Value<int> priority,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$DailyNotesTableCreateCompanionBuilder = DailyNotesCompanion Function({
+  required String id,
+  required String householdId,
+  required DateTime noteDate,
+  Value<String?> title,
+  required String body,
+  Value<String?> treatmentType,
+  Value<int> priority,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$DailyNotesTableUpdateCompanionBuilder = DailyNotesCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<DateTime> noteDate,
+  Value<String?> title,
+  Value<String> body,
+  Value<String?> treatmentType,
+  Value<int> priority,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$DailyNotesTableFilterComposer
     extends Composer<_$AppDatabase, $DailyNotesTable> {
@@ -46299,34 +48446,32 @@ typedef $$DailyNotesTableProcessedTableManager =
       DailyNote,
       PrefetchHooks Function()
     >;
-typedef $$TasksTableCreateCompanionBuilder =
-    TasksCompanion Function({
-      required String id,
-      required String householdId,
-      required String title,
-      Value<String?> note,
-      Value<DateTime?> dueDate,
-      Value<String> status,
-      Value<DateTime?> completedAt,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$TasksTableUpdateCompanionBuilder =
-    TasksCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> title,
-      Value<String?> note,
-      Value<DateTime?> dueDate,
-      Value<String> status,
-      Value<DateTime?> completedAt,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
+  required String id,
+  required String householdId,
+  required String title,
+  Value<String?> note,
+  Value<DateTime?> dueDate,
+  Value<String> status,
+  Value<DateTime?> completedAt,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> title,
+  Value<String?> note,
+  Value<DateTime?> dueDate,
+  Value<String> status,
+  Value<DateTime?> completedAt,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
   $$TasksTableFilterComposer({
@@ -53625,6 +55770,17 @@ class $AppDatabaseManager {
       $$TransfersTableTableManager(_db, _db.transfers);
   $$EnvelopeBudgetsTableTableManager get envelopeBudgets =>
       $$EnvelopeBudgetsTableTableManager(_db, _db.envelopeBudgets);
+  $$BudgetAutonomyDelegationsTableTableManager get budgetAutonomyDelegations =>
+      $$BudgetAutonomyDelegationsTableTableManager(
+        _db,
+        _db.budgetAutonomyDelegations,
+      );
+  $$BudgetAutonomyExecutionLedgersTableTableManager
+  get budgetAutonomyExecutionLedgers =>
+      $$BudgetAutonomyExecutionLedgersTableTableManager(
+        _db,
+        _db.budgetAutonomyExecutionLedgers,
+      );
   $$EnvelopeTransfersTableTableManager get envelopeTransfers =>
       $$EnvelopeTransfersTableTableManager(_db, _db.envelopeTransfers);
   $$AssetsTableTableManager get assets =>

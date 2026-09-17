@@ -1,5 +1,6 @@
 import 'dart:math' as math;
-import 'dart:math' show Random;
+
+import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart'
     show AppDatabase, InteractionPattern;
@@ -60,7 +61,6 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
   final FfmPersonalMemoryService _personalMemoryService;
   final FfmAssistantPersonalizationRepository _personalizationRepository;
   FfmWorkingContextManager? _workingContextManager;
-  final _random = Random();
 
   static const householdId = 'local-household';
 
@@ -244,7 +244,7 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
 
       // Convert ke FfmMemoryCandidate
       final memoryCandidate = FfmMemoryCandidate(
-        id: 'memory-${DateTime.now().microsecondsSinceEpoch}-${_random.nextInt(10000)}',
+        id: 'memory-${const Uuid().v4()}',
         type: candidate.type,
         key: candidate.key,
         value: candidate.value,
@@ -796,7 +796,7 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     FfmPersonalMemoryInsight memory,
   ) {
     return FfmMemoryCandidate(
-      id: memory.id ?? 'personal-${DateTime.now().microsecondsSinceEpoch}',
+      id: memory.id ?? 'personal-${const Uuid().v4()}',
       type: _convertInsightKindToMemoryType(memory.kind),
       key: memory.key,
       value: memory.value,

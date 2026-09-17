@@ -38,7 +38,7 @@ class BudgetMutationSnapshot {
       allocated + budget.rollover + transferredIn - transferredOut - spent;
 }
 
-/// Posisi Anggaran read-only yang sama untuk halaman, asisten, dan digest cloud.
+/// Posisi Anggaran read-only untuk capability asisten dan digest cloud.
 class BudgetReadSnapshot {
   const BudgetReadSnapshot({
     required this.mutation,
@@ -267,6 +267,28 @@ class BudgetRepository {
     required String id,
     required int allocated,
   }) async {
+    final before = await snapshot(householdId: householdId, id: id);
+    if (before == null) return null;
+    return updateAllocatedIfCurrent(
+      householdId: householdId,
+      id: id,
+      allocated: allocated,
+      expectedAllocated: before.budget.allocated,
+      expectedRevision: before.budget.revision,
+    );
+  }
+
+  /// Updates allocation only while the exact allocation/revision snapshot holds.
+  ///
+  /// This is used by delegated automation and undo to prevent overwriting a
+  /// concurrent manual or agent change.
+  Future<BudgetMutationSnapshot?> updateAllocatedIfCurrent({
+    required String householdId,
+    required String id,
+    required int allocated,
+    required int expectedAllocated,
+    required int expectedRevision,
+  }) async {
     if (allocated <= 0) {
       throw ArgumentError.value(
         allocated,
@@ -281,21 +303,37 @@ class BudgetRepository {
     if (eligibility != null) throw StateError(eligibility);
     final before = await snapshot(householdId: householdId, id: id);
     if (before == null) return null;
+    if (before.budget.allocated != expectedAllocated ||
+        before.budget.revision != expectedRevision) {
+      throw StateError(
+        'Pos Anggaran telah berubah; perubahan tidak diterapkan.',
+      );
+    }
     if (before.remainingFor(allocated) < 0) {
       throw StateError(
         'Batas baru membuat sisa Anggaran negatif; pengeluaran dan transfer yang sudah tercatat tidak diubah.',
       );
     }
     if (before.budget.allocated == allocated) return before;
-    await (_database.update(_database.envelopeBudgets)..where(
-          (row) => row.householdId.equals(householdId) & row.id.equals(id),
-        ))
-        .write(
-          EnvelopeBudgetsCompanion(
-            allocated: Value(allocated),
-            updatedAt: Value(_clock()),
-          ),
-        );
+    final changed = await _database.customUpdate(
+      'UPDATE envelope_budgets '
+      'SET allocated = ?, revision = revision + 1, updated_at = ? '
+      'WHERE household_id = ? AND id = ? AND allocated = ? AND revision = ?',
+      variables: [
+        Variable.withInt(allocated),
+        Variable.withDateTime(_clock()),
+        Variable.withString(householdId),
+        Variable.withString(id),
+        Variable.withInt(expectedAllocated),
+        Variable.withInt(expectedRevision),
+      ],
+      updates: {_database.envelopeBudgets},
+    );
+    if (changed != 1) {
+      throw StateError(
+        'Pos Anggaran telah berubah; perubahan tidak diterapkan.',
+      );
+    }
     final updated = (await snapshot(householdId: householdId, id: id))!;
     await _auditLogger.record(
       action: 'update',

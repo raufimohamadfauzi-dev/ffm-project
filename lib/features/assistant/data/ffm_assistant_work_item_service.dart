@@ -1,6 +1,8 @@
 /// Service untuk mengubah hasil interpretasi menjadi work item yang terstruktur.
 library;
 
+import 'package:uuid/uuid.dart';
+
 import '../domain/ffm_assistant_models.dart';
 import '../domain/ffm_assistant_work_item.dart';
 import '../domain/ffm_assistant_draft_validator.dart';
@@ -56,7 +58,7 @@ class FfmAssistantWorkItemService {
       return null;
     }
 
-    final id = 'work_${DateTime.now().millisecondsSinceEpoch}_$index';
+    final id = 'work_${const Uuid().v4()}';
     final targetDestination =
         intent.destination ?? FfmAssistantDestination.summary;
 

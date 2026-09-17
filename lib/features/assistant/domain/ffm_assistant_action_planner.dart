@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../reminder/domain/entities/reminder_entity.dart';
 import 'ffm_assistant_action_plan.dart';
+import 'ffm_assistant_budget_habit_proposal.dart';
 import 'ffm_assistant_models.dart';
 import 'ffm_assistant_execution_limits.dart';
 
@@ -269,6 +270,77 @@ class FfmAssistantActionPlanner {
     );
   }
 
+  /// Builds a confirmation-gated plan without letting habit analysis mutate data.
+  FfmAssistantActionPlan? planBudgetHabitProposal(
+    FfmAssistantBudgetHabitProposal proposal,
+  ) {
+    final batches = planBudgetHabitProposalBatches(proposal);
+    return batches != null && batches.plans.length == 1
+        ? batches.plans.single.plan
+        : null;
+  }
+
+  /// Builds all safe, confirmation-gated execution batches for a proposal.
+  /// Callers must present and confirm each returned plan independently.
+  FfmAssistantBudgetHabitProposalPlanBatches? planBudgetHabitProposalBatches(
+    FfmAssistantBudgetHabitProposal proposal,
+  ) {
+    if (!proposal.isValid) return null;
+    // Each batch has one prerequisite read plus draft/save/verify per item.
+    const prerequisiteSteps = 1;
+    const stepsPerItem = 3;
+    final maxItemsPerBatch =
+        (FfmAssistantExecutionLimits.maxStepsPerPlan - prerequisiteSteps) ~/
+        stepsPerItem;
+    if (maxItemsPerBatch <= 0) return null;
+
+    final createdAt = (now ?? DateTime.now)();
+    final proposalBatches = proposal.batches(
+      maxItemsPerBatch: maxItemsPerBatch,
+    );
+    final plans = <FfmAssistantBudgetHabitProposalPlanBatch>[];
+    final proposalId = _stableHash(
+      proposal.items
+          .map(
+            (item) => '${item.categoryId}|${item.cadence!.name}|${item.amount}',
+          )
+          .join(';'),
+    ).toRadixString(16);
+    for (final batch in proposalBatches) {
+      final drafts = batch.items
+          .map(
+            (item) => FfmAssistantDraft(
+              kind: FfmAssistantDraftKind.budget,
+              createdAt: createdAt,
+              title: item.categoryName,
+              categoryName: item.categoryName,
+              amount: item.amount,
+              date: createdAt,
+              formValues: {
+                'categoryId': item.categoryId,
+                'categoryIdsJson': jsonEncode([item.categoryId]),
+                'periodType': item.cadence!.periodType,
+              },
+            ),
+          )
+          .toList(growable: false);
+      final plan = planCompositePlan(
+        summary:
+            'Usulan anggaran berdasarkan kebiasaan belanja (${batch.batchNumber}/${batch.totalBatches}).',
+        drafts: drafts,
+        customPlanId: 'budget-habit-$proposalId-batch-${batch.batchNumber}',
+      );
+      if (plan == null ||
+          plan.steps.length > FfmAssistantExecutionLimits.maxStepsPerPlan) {
+        return null;
+      }
+      plans.add(
+        FfmAssistantBudgetHabitProposalPlanBatch(batch: batch, plan: plan),
+      );
+    }
+    return FfmAssistantBudgetHabitProposalPlanBatches(plans: plans);
+  }
+
   String _planId(FfmAssistantIntent intent) =>
       'plan-${_stableHash('${intent.type.name}|${intent.normalizedText}').toRadixString(16)}';
 
@@ -333,6 +405,9 @@ class FfmAssistantActionPlanner {
     FfmAssistantDraftKind.activity => 'draft.activity',
     FfmAssistantDraftKind.dailyNote => 'draft.daily_note',
     FfmAssistantDraftKind.dailyNoteArchive => 'draft.daily_note_archive',
+    FfmAssistantDraftKind.dailyNoteUpdate => 'draft.daily_note_update',
+    FfmAssistantDraftKind.dailyNoteRestore => 'draft.daily_note_restore',
+    FfmAssistantDraftKind.dailyNoteDelete => 'draft.daily_note_delete',
     FfmAssistantDraftKind.task => 'draft.task',
     FfmAssistantDraftKind.taskUpdate => 'draft.task_update',
     FfmAssistantDraftKind.taskComplete => 'draft.task_complete',
@@ -357,6 +432,7 @@ class FfmAssistantActionPlanner {
     FfmAssistantDraftKind.goalUpdate => 'draft.goal_update',
     FfmAssistantDraftKind.goalArchive => 'draft.goal_archive',
     FfmAssistantDraftKind.reminderArchive => 'draft.reminder_archive',
+    FfmAssistantDraftKind.reminderComplete => 'draft.reminder_complete',
     FfmAssistantDraftKind.transactionUpdate => 'draft.transaction_update',
     FfmAssistantDraftKind.transactionArchive => 'draft.transaction_archive',
     FfmAssistantDraftKind.transactionDelete => 'draft.transaction_delete',
@@ -383,6 +459,7 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.receivableArchive => 'mutate.archive',
         FfmAssistantDraftKind.receivablePayment => 'mutate.debt_payment',
         FfmAssistantDraftKind.reminderArchive => 'mutate.archive',
+        FfmAssistantDraftKind.reminderComplete => 'mutate.complete',
         FfmAssistantDraftKind.reminderUpdate => 'mutate.update',
         FfmAssistantDraftKind.transactionUpdate => 'mutate.update',
         FfmAssistantDraftKind.transactionArchive => 'mutate.archive',
@@ -393,6 +470,9 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.activityUpdate => 'mutate.update',
         FfmAssistantDraftKind.activityEdit => 'mutate.update',
         FfmAssistantDraftKind.dailyNoteArchive => 'mutate.archive',
+        FfmAssistantDraftKind.dailyNoteUpdate => 'mutate.update',
+        FfmAssistantDraftKind.dailyNoteRestore => 'mutate.update',
+        FfmAssistantDraftKind.dailyNoteDelete => 'sensitive.delete',
         FfmAssistantDraftKind.taskUpdate => 'mutate.update',
         FfmAssistantDraftKind.taskComplete => 'mutate.update',
         FfmAssistantDraftKind.taskReopen => 'mutate.update',
@@ -439,7 +519,10 @@ class FfmAssistantActionPlanner {
     FfmAssistantDraftKind.activityUpdate ||
     FfmAssistantDraftKind.activityEdit => 'verify.activity_mutation',
     FfmAssistantDraftKind.dailyNote ||
-    FfmAssistantDraftKind.dailyNoteArchive => 'verify.daily_note_mutation',
+    FfmAssistantDraftKind.dailyNoteArchive ||
+    FfmAssistantDraftKind.dailyNoteUpdate ||
+    FfmAssistantDraftKind.dailyNoteRestore ||
+    FfmAssistantDraftKind.dailyNoteDelete => 'verify.daily_note_mutation',
     FfmAssistantDraftKind.task ||
     FfmAssistantDraftKind.taskUpdate ||
     FfmAssistantDraftKind.taskComplete ||
@@ -488,7 +571,8 @@ class FfmAssistantActionPlanner {
     FfmAssistantDraftKind.receivableUpdate ||
     FfmAssistantDraftKind.receivableArchive => 'verify.receivable_mutation',
     FfmAssistantDraftKind.receivablePayment => 'verify.debt_payment',
-    FfmAssistantDraftKind.reminderArchive => 'verify.reminder_mutation',
+    FfmAssistantDraftKind.reminderArchive ||
+    FfmAssistantDraftKind.reminderComplete => 'verify.reminder_mutation',
     FfmAssistantDraftKind.reminderUpdate => 'verify.reminder_mutation',
     FfmAssistantDraftKind.monitoringJob => 'verify.monitoring_job',
     _ => 'verify.saved_draft',
@@ -528,7 +612,8 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.activityEdit => const ['read.activity'],
         FfmAssistantDraftKind.reminder ||
         FfmAssistantDraftKind.reminderUpdate ||
-        FfmAssistantDraftKind.reminderArchive => const ['read.reminders'],
+        FfmAssistantDraftKind.reminderArchive ||
+        FfmAssistantDraftKind.reminderComplete => const ['read.reminders'],
         _ => const <String>[],
       };
 
@@ -668,4 +753,23 @@ class FfmAssistantActionPlanner {
     if (draft.soundUri != null) 'soundUri': draft.soundUri,
     if (draft.soundName != null) 'soundName': draft.soundName,
   };
+}
+
+/// Immutable plans and source-page metadata for a budget-habit proposal.
+class FfmAssistantBudgetHabitProposalPlanBatches {
+  FfmAssistantBudgetHabitProposalPlanBatches({
+    required List<FfmAssistantBudgetHabitProposalPlanBatch> plans,
+  }) : plans = List.unmodifiable(plans);
+
+  final List<FfmAssistantBudgetHabitProposalPlanBatch> plans;
+}
+
+class FfmAssistantBudgetHabitProposalPlanBatch {
+  const FfmAssistantBudgetHabitProposalPlanBatch({
+    required this.batch,
+    required this.plan,
+  });
+
+  final FfmAssistantBudgetHabitProposalBatch batch;
+  final FfmAssistantActionPlan plan;
 }

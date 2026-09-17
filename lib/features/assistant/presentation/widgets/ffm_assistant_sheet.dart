@@ -60,6 +60,7 @@ import '../../domain/ffm_memory_type.dart';
 import '../../data/ffm_assistant_unanswered_question_repository.dart';
 import '../../domain/assistant_onboarding_orchestrator.dart';
 import '../../domain/ffm_assistant_action_plan.dart';
+import '../../domain/ffm_assistant_budget_habit_proposal.dart';
 import '../../domain/ffm_assistant_action_planner.dart';
 import '../../../../core/theme/app_theme_controller.dart';
 import '../../../hijri/domain/hijri_calendar_service.dart';
@@ -213,6 +214,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final Set<String> _savedTeachingKeys = <String>{};
   final Set<String> _confirmedActivityKeys = <String>{};
   final Set<String> _reportedAssistantIssueSourceIds = <String>{};
+  final Set<String> _cancelledBudgetHabitPlanIds = <String>{};
+  final Map<String, String> _budgetHabitExecutionPlanIds = <String, String>{};
   final Stopwatch _processStopwatch = Stopwatch();
   final List<FfmAssistantProcessEvent> _activeProcessEvents =
       <FfmAssistantProcessEvent>[];
@@ -1507,25 +1510,61 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     return value.replaceAll('_', ' ');
   }
 
-  bool _isDirectMutation(FfmAssistantDraft? draft) => switch (draft?.kind) {
-    FfmAssistantDraftKind.transactionUpdate ||
-    FfmAssistantDraftKind.transactionArchive ||
-    FfmAssistantDraftKind.transactionDelete ||
-    FfmAssistantDraftKind.activityArchive ||
-    FfmAssistantDraftKind.activityDelete ||
-    FfmAssistantDraftKind.reminder => true,
-    _ => false,
-  };
+  bool _isDirectMutation(FfmAssistantDraft? draft) => draft != null;
 
   Future<void> _executeDirectMutationPlan(
     FfmAssistantIntent intent,
     String planId,
   ) async {
-    final isActivity = intent.draft?.formValues['entity'] == 'activity_session';
-    final isReminder = intent.draft?.kind == FfmAssistantDraftKind.reminder;
-    final subject = isActivity
-        ? 'Aktivitas'
-        : (isReminder ? 'Pengingat' : 'Transaksi');
+    final isActivity =
+        intent.draft?.formValues['entity'] == 'activity_session' ||
+        intent.draft?.kind == FfmAssistantDraftKind.activity ||
+        intent.draft?.kind == FfmAssistantDraftKind.activityFinish ||
+        intent.draft?.kind == FfmAssistantDraftKind.activityUpdate ||
+        intent.draft?.kind == FfmAssistantDraftKind.activityEdit ||
+        intent.draft?.kind == FfmAssistantDraftKind.activityArchive ||
+        intent.draft?.kind == FfmAssistantDraftKind.activityDelete;
+    final isReminder = intent.draft?.kind == FfmAssistantDraftKind.reminder ||
+        intent.draft?.kind == FfmAssistantDraftKind.reminderUpdate ||
+        intent.draft?.kind == FfmAssistantDraftKind.reminderArchive ||
+        intent.draft?.kind == FfmAssistantDraftKind.reminderComplete;
+    final isTransaction = intent.draft?.kind == FfmAssistantDraftKind.expense ||
+        intent.draft?.kind == FfmAssistantDraftKind.income ||
+        intent.draft?.kind == FfmAssistantDraftKind.transfer ||
+        intent.draft?.kind == FfmAssistantDraftKind.goalDeposit ||
+        intent.draft?.kind == FfmAssistantDraftKind.goalUsage ||
+        intent.draft?.kind == FfmAssistantDraftKind.transactionUpdate ||
+        intent.draft?.kind == FfmAssistantDraftKind.transactionArchive ||
+        intent.draft?.kind == FfmAssistantDraftKind.transactionDelete;
+    final subject = switch (intent.draft?.kind) {
+      FfmAssistantDraftKind.dailyNote ||
+      FfmAssistantDraftKind.dailyNoteUpdate ||
+      FfmAssistantDraftKind.dailyNoteArchive ||
+      FfmAssistantDraftKind.dailyNoteRestore ||
+      FfmAssistantDraftKind.dailyNoteDelete => 'Catatan Harian',
+      FfmAssistantDraftKind.budget ||
+      FfmAssistantDraftKind.budgetUpdate ||
+      FfmAssistantDraftKind.budgetArchive => 'Anggaran',
+      FfmAssistantDraftKind.goal ||
+      FfmAssistantDraftKind.goalUpdate => 'Target',
+      FfmAssistantDraftKind.liability ||
+      FfmAssistantDraftKind.liabilityUpdate ||
+      FfmAssistantDraftKind.liabilityArchive ||
+      FfmAssistantDraftKind.liabilityPayment => 'Hutang',
+      FfmAssistantDraftKind.receivable ||
+      FfmAssistantDraftKind.receivableUpdate ||
+      FfmAssistantDraftKind.receivableArchive ||
+      FfmAssistantDraftKind.receivablePayment => 'Piutang',
+      FfmAssistantDraftKind.asset ||
+      FfmAssistantDraftKind.assetUpdate ||
+      FfmAssistantDraftKind.assetArchive => 'Aset',
+      FfmAssistantDraftKind.masterData => 'Data Utama',
+      _ => isActivity
+          ? 'Aktivitas'
+          : (isReminder
+              ? 'Pengingat'
+              : (isTransaction ? 'Transaksi' : 'Data')),
+    };
     final plan = await _capabilityExecutor.execute(planId);
     if (!mounted || plan == null) return;
     final failed = plan.steps.where(
@@ -1561,12 +1600,126 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       widget.session.lastAssistantText = message;
       _appendEntry(FfmAssistantChatEntry(isUser: false, text: message));
       _queuedIntents.remove(intent);
+      final queueId = widget.session.activeDraftQueueId;
+      if (queueId != null) {
+        final index = _draftQueue.indexWhere((item) => item.id == queueId);
+        if (index >= 0) {
+          _draftQueue[index] = _draftQueue[index].copyWith(
+            status: FfmAssistantDraftQueueStatus.completed,
+          );
+        }
+      }
       widget.session
         ..activeDraftReview = null
         ..activeDraftIntent = null
         ..activeDraftQueueId = null;
     });
     _scrollToEnd();
+  }
+
+  FfmAssistantActionPlan? _actionPlanForEntry(FfmAssistantChatEntry entry) {
+    final intent = entry.intent;
+    if (intent == null) return null;
+    final budgetHabitPlan = intent.pluginMetadata?['budgetHabitActionPlan'];
+    if (budgetHabitPlan is FfmAssistantActionPlan) {
+      return _actionPlanController.get(
+        _budgetHabitExecutionPlanIds[budgetHabitPlan.id] ?? budgetHabitPlan.id,
+      );
+    }
+    return _actionPlanController.get(_actionPlanner.planFor(intent)?.id ?? '');
+  }
+
+  Future<void> _confirmBudgetHabitProposal(
+    FfmAssistantChatEntry entry,
+    List<FfmAssistantBudgetHabitProposalItem> selectedItems,
+  ) async {
+    final metadata = entry.intent?.pluginMetadata;
+    final proposal = metadata?['budgetHabitProposal'];
+    final planned = metadata?['budgetHabitActionPlan'];
+    if (proposal is! FfmAssistantBudgetHabitProposal ||
+        planned is! FfmAssistantActionPlan ||
+        selectedItems.isEmpty ||
+        _cancelledBudgetHabitPlanIds.contains(planned.id)) {
+      return;
+    }
+    final plannedItemKeys = planned.steps
+        .where((step) => step.capabilityId == 'draft.budget')
+        .map(
+          (step) =>
+              '${step.parameters['categoryId']}|${step.parameters['periodType']}',
+        )
+        .toSet();
+    if (selectedItems.any(
+      (item) => !plannedItemKeys.contains(
+        '${item.categoryId}|${item.cadence?.periodType}',
+      ),
+    )) {
+      return;
+    }
+    final selectedProposal = FfmAssistantBudgetHabitProposal(
+      items: selectedItems,
+    );
+    final selectedPlan = _actionPlanner.planBudgetHabitProposal(
+      selectedProposal,
+    );
+    if (selectedPlan == null) return;
+
+    final registered = _actionPlanController.register(selectedPlan);
+    _budgetHabitExecutionPlanIds[planned.id] = registered.id;
+    if (registered.status == FfmAssistantActionPlanStatus.blockedByBudget) {
+      if (mounted) setState(() {});
+      return;
+    }
+    unawaited(
+      getIt<FfmAssistantAutonomyRepository>().recordApprovalRequest(registered),
+    );
+    final executable = _actionPlanController.confirm(registered.id);
+    if (executable == null) {
+      if (mounted) setState(() {});
+      return;
+    }
+    unawaited(
+      getIt<FfmAssistantAutonomyRepository>().recordApprovalDecision(
+        runId: executable.id,
+        status: FfmAssistantApprovalStatus.approved,
+      ),
+    );
+    if (mounted) setState(() {});
+
+    final completed = await _capabilityExecutor.execute(executable.id);
+    if (!mounted || completed == null) return;
+    final failedStep = completed.steps
+        .where((step) => step.status == FfmAssistantActionStepStatus.failed)
+        .firstOrNull;
+    final message =
+        completed.status == FfmAssistantActionPlanStatus.completed &&
+            failedStep == null
+        ? 'Proposal ${selectedProposal.items.length} pos anggaran berhasil disimpan dan diverifikasi.'
+        : 'Proposal anggaran belum tersimpan sepenuhnya. ${failedStep?.error ?? completed.blockedReason ?? 'Proses tidak dapat diselesaikan.'}';
+    setState(() {
+      widget.session.lastAssistantText = message;
+      _appendEntry(FfmAssistantChatEntry(isUser: false, text: message));
+    });
+    _scrollToEnd();
+  }
+
+  void _cancelBudgetHabitProposal(FfmAssistantChatEntry entry) {
+    final planned = entry.intent?.pluginMetadata?['budgetHabitActionPlan'];
+    if (planned is! FfmAssistantActionPlan) return;
+    final executionPlanId =
+        _budgetHabitExecutionPlanIds[planned.id] ?? planned.id;
+    final registered = _actionPlanController.get(executionPlanId);
+    if (registered != null) {
+      _actionPlanController.cancel(executionPlanId);
+      unawaited(
+        getIt<FfmAssistantAutonomyRepository>().recordApprovalDecision(
+          runId: executionPlanId,
+          status: FfmAssistantApprovalStatus.rejected,
+          reason: 'Proposal anggaran dibatalkan pengguna.',
+        ),
+      );
+    }
+    setState(() => _cancelledBudgetHabitPlanIds.add(planned.id));
   }
 
   Future<bool> _confirmDraftInChat(FfmAssistantDraft draft) async {
@@ -1647,6 +1800,51 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   Future<bool> _confirmDirectMutation(FfmAssistantDraft draft) async {
+    if (draft.kind == FfmAssistantDraftKind.expense ||
+        draft.kind == FfmAssistantDraftKind.income ||
+        draft.kind == FfmAssistantDraftKind.transfer ||
+        draft.kind == FfmAssistantDraftKind.goalDeposit ||
+        draft.kind == FfmAssistantDraftKind.goalUsage) {
+      final typeLabel = switch (draft.kind) {
+        FfmAssistantDraftKind.income => 'pemasukan',
+        FfmAssistantDraftKind.transfer => 'transfer dana',
+        FfmAssistantDraftKind.goalDeposit => 'setor target',
+        FfmAssistantDraftKind.goalUsage => 'pakai target',
+        _ => 'pengeluaran',
+      };
+      final amountStr = draft.amount != null
+          ? 'Rp ${_formatRupiah(draft.amount!)}'
+          : '';
+      final categoryOrTitle = draft.categoryName ?? draft.title ?? '';
+      final account = (draft.kind == FfmAssistantDraftKind.income
+              ? draft.toAccountName
+              : draft.fromAccountName) ??
+          '';
+      return await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: Text(
+                'Konfirmasi Simpan ${typeLabel[0].toUpperCase()}${typeLabel.substring(1)}',
+              ),
+              content: Text(
+                'Simpan $typeLabel sebesar $amountStr'
+                '${categoryOrTitle.isNotEmpty ? ' ($categoryOrTitle)' : ''}'
+                '${account.isNotEmpty ? ' ke rekening $account' : ''} langsung ke riwayat transaksi?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Batal'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text('Konfirmasi'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+    }
     if (draft.kind == FfmAssistantDraftKind.reminder) {
       final isAlarm =
           draft.reminderMode == ReminderMode.alarm ||
@@ -1675,8 +1873,138 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           ) ??
           false;
     }
+    if (draft.kind == FfmAssistantDraftKind.activity ||
+        draft.kind == FfmAssistantDraftKind.activityFinish ||
+        draft.kind == FfmAssistantDraftKind.activityUpdate ||
+        draft.kind == FfmAssistantDraftKind.activityEdit) {
+      final title = draft.title ?? 'Aktivitas';
+      final modeLabel = draft.activityMode?.label ?? 'Pencatat Waktu';
+      final actionText = switch (draft.kind) {
+        FfmAssistantDraftKind.activityFinish => 'Selesaikan',
+        FfmAssistantDraftKind.activityUpdate => 'Update Checkpoint',
+        FfmAssistantDraftKind.activityEdit => 'Ubah Rincian',
+        _ => 'Simpan',
+      };
+      return await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: Text('Konfirmasi $actionText Aktivitas'),
+              content: Text(
+                'Aktivitas: "$title"\nMode: $modeLabel\n\n$actionText aktivitas ini sekarang?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Batal'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text('Konfirmasi'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+    }
+    if (draft.kind == FfmAssistantDraftKind.dailyNote ||
+        draft.kind == FfmAssistantDraftKind.dailyNoteUpdate ||
+        draft.kind == FfmAssistantDraftKind.dailyNoteArchive ||
+        draft.kind == FfmAssistantDraftKind.dailyNoteRestore ||
+        draft.kind == FfmAssistantDraftKind.dailyNoteDelete) {
+      final note = draft.note ?? draft.title ?? 'Catatan Harian';
+      final actionText = switch (draft.kind) {
+        FfmAssistantDraftKind.dailyNoteUpdate => 'Ubah',
+        FfmAssistantDraftKind.dailyNoteArchive => 'Arsipkan',
+        FfmAssistantDraftKind.dailyNoteRestore => 'Pulihkan',
+        FfmAssistantDraftKind.dailyNoteDelete => 'Hapus',
+        _ => 'Simpan',
+      };
+      return await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: Text('Konfirmasi $actionText Catatan Harian'),
+              content: Text(
+                'Catatan: "$note"\n\n$actionText catatan harian ini sekarang?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Batal'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text('Konfirmasi'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+    }
+    if (draft.kind == FfmAssistantDraftKind.goal ||
+        draft.kind == FfmAssistantDraftKind.goalUpdate ||
+        draft.kind == FfmAssistantDraftKind.budget ||
+        draft.kind == FfmAssistantDraftKind.budgetUpdate ||
+        draft.kind == FfmAssistantDraftKind.budgetArchive ||
+        draft.kind == FfmAssistantDraftKind.liability ||
+        draft.kind == FfmAssistantDraftKind.liabilityUpdate ||
+        draft.kind == FfmAssistantDraftKind.liabilityArchive ||
+        draft.kind == FfmAssistantDraftKind.liabilityPayment ||
+        draft.kind == FfmAssistantDraftKind.receivable ||
+        draft.kind == FfmAssistantDraftKind.receivableUpdate ||
+        draft.kind == FfmAssistantDraftKind.receivableArchive ||
+        draft.kind == FfmAssistantDraftKind.receivablePayment ||
+        draft.kind == FfmAssistantDraftKind.asset ||
+        draft.kind == FfmAssistantDraftKind.assetUpdate ||
+        draft.kind == FfmAssistantDraftKind.assetArchive ||
+        draft.kind == FfmAssistantDraftKind.masterData) {
+      final kindLabel = switch (draft.kind) {
+        FfmAssistantDraftKind.goal ||
+        FfmAssistantDraftKind.goalUpdate => 'Target Keuangan',
+        FfmAssistantDraftKind.budget ||
+        FfmAssistantDraftKind.budgetUpdate ||
+        FfmAssistantDraftKind.budgetArchive => 'Anggaran',
+        FfmAssistantDraftKind.liability ||
+        FfmAssistantDraftKind.liabilityUpdate ||
+        FfmAssistantDraftKind.liabilityArchive ||
+        FfmAssistantDraftKind.liabilityPayment => 'Hutang',
+        FfmAssistantDraftKind.receivable ||
+        FfmAssistantDraftKind.receivableUpdate ||
+        FfmAssistantDraftKind.receivableArchive ||
+        FfmAssistantDraftKind.receivablePayment => 'Piutang',
+        FfmAssistantDraftKind.asset ||
+        FfmAssistantDraftKind.assetUpdate ||
+        FfmAssistantDraftKind.assetArchive => 'Aset',
+        FfmAssistantDraftKind.masterData => 'Data Utama',
+        _ => 'Data',
+      };
+      final title = draft.title ?? draft.categoryName ?? draft.goalName ?? '';
+      final amountStr =
+          draft.amount != null ? ' Rp ${_formatRupiah(draft.amount!)}' : '';
+      return await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: Text('Konfirmasi Simpan $kindLabel'),
+              content: Text(
+                'Simpan $kindLabel: "$title"$amountStr langsung ke database?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Batal'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text('Konfirmasi'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+    }
     final operation = draft.formValues['operation'] ?? 'perubahan';
-    final isActivity = draft.formValues['entity'] == 'activity_session';
+    final isActivity = draft.formValues['entity'] == 'activity_session' ||
+        draft.kind == FfmAssistantDraftKind.activityArchive ||
+        draft.kind == FfmAssistantDraftKind.activityDelete;
     final target =
         draft.formValues['targetSummary'] ?? draft.title ?? 'transaksi ini';
     final detail = switch (operation) {
@@ -2300,7 +2628,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               analysisResults: intent.analysisResults,
               suggestedQuestions: isThisTagClarification
                   ? tagSuggestions
-                  : const [],
+                  : intent.suggestedQuestions,
             ),
           );
           traceSnapshots.add((processTrace, traceEventCount));
@@ -2870,6 +3198,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       String? cleanToken;
       String? cleanMeterNumber;
       String? meterLabel;
+      var skipUtilityDraft = false;
+      var utilityTargetSuggestions = const <String>[];
 
       if (isTokenReceipt) {
         // Kesalahan penyimpanan meteran tidak boleh menghilangkan draft
@@ -2881,7 +3211,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           );
           final creditedKwh = ReceiptScannerService.extractPlnKwh(allText);
           if (cleanMeterNumber == null) {
-            final fallbackMeterRegex = RegExp(r'\b(\d{11,12})\b');
+            final fallbackMeterRegex = RegExp(r'\b(\d{9,13})\b');
             for (final m in fallbackMeterRegex.allMatches(allText)) {
               final candidate = m.group(1)!;
               if (cleanToken == null || !cleanToken.contains(candidate)) {
@@ -2921,6 +3251,31 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
             if (cleanMeterNumber != null) {
               utilityMetadata['meterNumber'] = cleanMeterNumber;
+            }
+
+            final targetResolution = await utilityRepo.resolveMeterTarget(
+              householdId: AppContext.householdId,
+              proposal: utilityMetadata,
+            );
+            if (!targetResolution.isResolvable) {
+              skipUtilityDraft = true;
+              utilityTargetSuggestions = switch (targetResolution.status) {
+                UtilityMeterTargetStatus.missingTarget ||
+                UtilityMeterTargetStatus.ambiguous =>
+                  UtilityMeterRepository.friendlyMeterChips(
+                    targetResolution.options,
+                    entry.amount ?? 100000,
+                  ),
+                UtilityMeterTargetStatus.noMeters => const [
+                  'pindai struk token listrik',
+                  'daftarkan meteran listrik baru',
+                ],
+                _ => const [],
+              };
+              response =
+                  '⚡ Struk token listrik terbaca, tetapi meter tujuan belum jelas.\n\n'
+                  '${targetResolution.message}\n\n'
+                  'Belum ada draft atau data yang disimpan.';
             }
 
             if (matchedMeter != null) {
@@ -2981,6 +3336,23 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         } on Object {
           // Draft transaksi tetap menggunakan hasil OCR Gemini.
         }
+      }
+
+      if (skipUtilityDraft) {
+        if (mounted) {
+          setState(() {
+            _appendEntry(
+              FfmAssistantChatEntry(
+                isUser: false,
+                text: response,
+                filePath: outcome.imagePath,
+                fileFormat: 'image',
+                suggestedQuestions: utilityTargetSuggestions,
+              ),
+            );
+          });
+        }
+        continue;
       }
 
       if (meterLabel != null) {
@@ -5574,7 +5946,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                     FfmAssistantResponseOrigin.cloudError
                               ? 'Coba lagi'
                               : entry.intent?.draft != null
-                              ? 'Tinjau & konfirmasi'
+                              ? 'Konfirmasi'
                               : opensCurrentPage
                               ? 'Cek halaman'
                               : entry.intent?.destination != null
@@ -5600,6 +5972,36 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                   entry.review != null
                               ? () => _cancelDraftFromEntry(entry)
                               : null,
+                          budgetHabitActionPlan: _actionPlanForEntry(entry),
+                          onConfirmBudgetHabitProposal:
+                              entry
+                                      .intent
+                                      ?.pluginMetadata?['budgetHabitActionPlan']
+                                  is FfmAssistantActionPlan
+                              ? (selectedItems) => _confirmBudgetHabitProposal(
+                                  entry,
+                                  selectedItems,
+                                )
+                              : null,
+                          onCancelBudgetHabitProposal:
+                              entry
+                                      .intent
+                                      ?.pluginMetadata?['budgetHabitActionPlan']
+                                  is FfmAssistantActionPlan
+                              ? () => _cancelBudgetHabitProposal(entry)
+                              : null,
+                          budgetHabitProposalCancelled:
+                              entry
+                                      .intent
+                                      ?.pluginMetadata?['budgetHabitActionPlan']
+                                  is FfmAssistantActionPlan &&
+                              _cancelledBudgetHabitPlanIds.contains(
+                                (entry
+                                            .intent!
+                                            .pluginMetadata!['budgetHabitActionPlan']
+                                        as FfmAssistantActionPlan)
+                                    .id,
+                              ),
                           onCopyFeedback: entry.isUser
                               ? null
                               : () => _copyDeveloperReport(entry),
@@ -5662,12 +6064,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                               : _confirmedActivityKeys.contains(
                                   _activityKey(entry.activityIntent!),
                                 ),
-                          actionPlan: entry.intent == null
-                              ? null
-                              : _actionPlanController.get(
-                                  _actionPlanner.planFor(entry.intent!)?.id ??
-                                      '',
-                                ),
+                          actionPlan: _actionPlanForEntry(entry),
                           onActivityFinish: (sessionId) =>
                               _submit('selesai aktivitas $sessionId'),
                           onActivityUpdate: (sessionId) =>

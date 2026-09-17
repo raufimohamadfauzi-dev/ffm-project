@@ -81,6 +81,36 @@ void main() {
       },
     );
 
+    test('work item IDs are collision-safe UUIDs and unique across items', () {
+      final intents = [
+        FfmAssistantIntent(
+          rawText: 'catat makan 50rb',
+          normalizedText: 'catat makan 50rb',
+          type: FfmAssistantIntentType.createExpense,
+          destination: FfmAssistantDestination.transactions,
+          responseOrigin: FfmAssistantResponseOrigin.agentOrchestrator,
+        ),
+        FfmAssistantIntent(
+          rawText: 'catat makan 75rb',
+          normalizedText: 'catat makan 75rb',
+          type: FfmAssistantIntentType.createExpense,
+          destination: FfmAssistantDestination.transactions,
+          responseOrigin: FfmAssistantResponseOrigin.agentOrchestrator,
+        ),
+      ];
+
+      final result = service.intentsToWorkItems(
+        intents,
+        'catat makan 50rb; catat makan 75rb',
+        'catat makan 50rb; catat makan 75rb',
+      );
+
+      expect(result.workItems.length, 2);
+      expect(result.workItems[0].id, matches(RegExp(r'^work_[0-9a-fA-F-]{36}$')));
+      expect(result.workItems[1].id, matches(RegExp(r'^work_[0-9a-fA-F-]{36}$')));
+      expect(result.workItems[0].id, isNot(result.workItems[1].id));
+    });
+
     test('two commands across different pages produce separate work items', () {
       final expenseDraft = FfmAssistantDraft(
         kind: FfmAssistantDraftKind.expense,
