@@ -356,7 +356,7 @@ test/
 
 ### 5.3 Asisten: route pembacaan meter via teks/foto
 
-- [ ] **File**: `lib/features/assistant/data/ffm_assistant_interpreter.dart` + `lib/features/assistant/presentation/widgets/ffm_assistant_sheet.dart`
+- [x] **File**: `lib/features/assistant/data/ffm_assistant_interpreter.dart` + `lib/features/assistant/presentation/widgets/ffm_assistant_sheet.dart`
 - **Masalah**: Asisten belum bisa memproses input "pembacaan meter 10.112 kWh untuk rumah A" atau foto display meter → simpan ke `ElectricityMeterReadings`.
 - **Path teks** (interpreter):
   - Deteksi intent: pola `baca(???)?\s*method\s*meter\s*(\d+[\d.,]*)\s*kwh` atau `pembacaan\s*meter\s*(\d+[\d.,]*)\s*kwh` atau `meter\s*show\s*(\d+[\d.,]*)\s*kwh`
