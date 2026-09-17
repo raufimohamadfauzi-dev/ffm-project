@@ -53,4 +53,40 @@ void main() {
       reason: 'sumber yang sudah tertaut tidak boleh dibuat ulang',
     );
   });
+
+  test('membuat pengingat otonom bebas dengan fallback title dan log', () async {
+    final database = createInMemoryDatabaseForTests();
+    addTearDown(database.close);
+    final insight = FfmAssistantInsight(
+      id: 'general-insight-1',
+      householdId: 'local-household',
+      type: FfmAssistantInsightType.reminderSuggestion,
+      severity: FfmAssistantInsightSeverity.info,
+      priority: 70,
+      confidence: 1,
+      title: 'Evaluasi pengeluaran mingguan',
+      summary: 'Pengeluaran melebihi rata-rata minggu lalu.',
+      evidence: const {},
+      suggestedAction: 'Tinjau draft pengingat',
+      destination: FfmAssistantDestination.reminders,
+      actionPayload: {
+        'type': 'reminder_suggestion',
+        'reminderMode': 'alarm',
+      },
+      createdAt: DateTime(2026, 9, 10),
+      dedupeKey: 'reminder-suggestion:general-1',
+    );
+    final service = FfmAssistantAutonomousReminderService(
+      ReminderRepository(database),
+    );
+
+    final reminder = await service.createFrom(insight);
+
+    expect(reminder, isNotNull);
+    expect(reminder!.origin, ReminderOrigin.autonomous);
+    expect(reminder.mode, ReminderMode.alarm);
+    expect(reminder.title, 'Evaluasi pengeluaran mingguan');
+    expect(reminder.sourceType, ReminderSourceType.assistantLog);
+    expect(reminder.sourceId, 'general-insight-1');
+  });
 }

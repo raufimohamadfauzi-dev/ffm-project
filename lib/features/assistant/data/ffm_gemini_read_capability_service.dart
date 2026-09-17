@@ -13,6 +13,7 @@ class FfmGeminiReadCapabilityPolicy {
   static const Set<String> allowedCapabilityIds = <String>{
     'read.summary',
     'read.transactions',
+    'read.electricity',
     'read.hijriDate',
     'read.goals',
     'read.liabilities',
@@ -38,6 +39,7 @@ class FfmGeminiReadCapabilityPolicy {
   static const List<String> canonicalToolChoices = <String>[
     'read.summary',
     'read.transactions',
+    'read.electricity',
     'read.goals',
     'read.liabilities',
     'read.receivables',
@@ -90,6 +92,12 @@ class FfmGeminiReadCapabilityService {
           now: now,
           startDate: startDate,
           endDate: endDate,
+        );
+      case 'read.electricity':
+        return _financialSnapshot.buildElectricityDigest(
+          householdId: householdId,
+          startDate: request.startDate,
+          endDate: request.endDate,
         );
       case 'read.hijriDate':
         return await _financialSnapshot.buildHijriContext(

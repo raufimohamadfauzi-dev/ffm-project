@@ -23,6 +23,7 @@ void main() {
           categoryName: 'Makanan',
           fromAccountName: 'Tunai',
           date: DateTime(2026, 8, 28),
+          tags: 'makan',
         );
 
         final intent = FfmAssistantIntent(

@@ -29,7 +29,7 @@ class ReminderSuggestionDetector {
   final SupabaseConfig? supabaseConfig;
   final bool enableCompleteness;
 
-  Future<FfmAssistantInsight?> detect({
+  Future<List<FfmAssistantInsight>> detectAll({
     required String householdId,
     required DateTime now,
   }) async {
@@ -51,45 +51,66 @@ class ReminderSuggestionDetector {
           final byTime = left.at.compareTo(right.at);
           return byTime == 0 ? right.priority.compareTo(left.priority) : byTime;
         });
-    if (candidates.isEmpty) return null;
 
-    final candidate = candidates.first;
-    final scheduledAt = candidate.at.isAfter(now)
-        ? candidate.at
-        : now.add(const Duration(hours: 1));
-    return FfmAssistantInsight(
-      id: const Uuid().v4(),
-      householdId: householdId,
-      type: FfmAssistantInsightType.reminderSuggestion,
-      severity: FfmAssistantInsightSeverity.info,
-      priority: candidate.priority,
-      confidence: 1,
-      title: 'Buat pengingat untuk ${candidate.sourceType.label}',
-      summary:
-          '${candidate.sourceName} dijadwalkan pada ${_dateLabel(candidate.at)} dan belum memiliki pengingat tertaut.',
-      evidence: {
-        'sourceType': candidate.sourceType.storageValue,
-        'sourceId': candidate.sourceId,
-        'scheduledAt': candidate.at.toIso8601String(),
-      },
-      suggestedAction: 'Tinjau draft pengingat',
-      destination: FfmAssistantDestination.reminders,
-      actionPayload: {
-        'type': 'reminder_suggestion',
-        'title': candidate.title,
-        'note': candidate.note,
-        'scheduledAt': scheduledAt.toIso8601String(),
-        'sourceType': candidate.sourceType.storageValue,
-        'sourceId': candidate.sourceId,
-        'reminderMode': candidate.sourceType == ReminderSourceType.liability
-            ? 'alarm'
-            : 'notification',
-      },
-      createdAt: now,
-      expiresAt: scheduledAt.add(const Duration(days: 7)),
-      dedupeKey:
-          'reminder-suggestion:${candidate.sourceType.storageValue}:${candidate.sourceId}:${scheduledAt.year}-${scheduledAt.month}',
-    );
+    final effectiveCandidates = <_Candidate>[];
+    var hasCompleteness = false;
+    for (final c in candidates) {
+      if (c.isCompleteness) {
+        if (!hasCompleteness && effectiveCandidates.isEmpty) {
+          effectiveCandidates.add(c);
+          hasCompleteness = true;
+        }
+      } else {
+        effectiveCandidates.add(c);
+      }
+    }
+
+    return effectiveCandidates.map((candidate) {
+      final scheduledAt = candidate.at.isAfter(now)
+          ? candidate.at
+          : now.add(const Duration(hours: 1));
+      return FfmAssistantInsight(
+        id: const Uuid().v4(),
+        householdId: householdId,
+        type: FfmAssistantInsightType.reminderSuggestion,
+        severity: FfmAssistantInsightSeverity.info,
+        priority: candidate.priority,
+        confidence: 1,
+        title: 'Buat pengingat untuk ${candidate.sourceType.label}',
+        summary:
+            '${candidate.sourceName} dijadwalkan pada ${_dateLabel(candidate.at)} dan belum memiliki pengingat tertaut.',
+        evidence: {
+          'sourceType': candidate.sourceType.storageValue,
+          'sourceId': candidate.sourceId,
+          'scheduledAt': candidate.at.toIso8601String(),
+        },
+        suggestedAction: 'Tinjau draft pengingat',
+        destination: FfmAssistantDestination.reminders,
+        actionPayload: {
+          'type': 'reminder_suggestion',
+          'title': candidate.title,
+          'note': candidate.note,
+          'scheduledAt': scheduledAt.toIso8601String(),
+          'sourceType': candidate.sourceType.storageValue,
+          'sourceId': candidate.sourceId,
+          'reminderMode': candidate.sourceType == ReminderSourceType.liability
+              ? 'alarm'
+              : 'notification',
+        },
+        createdAt: now,
+        expiresAt: scheduledAt.add(const Duration(days: 7)),
+        dedupeKey:
+            'reminder-suggestion:${candidate.sourceType.storageValue}:${candidate.sourceId}:${scheduledAt.year}-${scheduledAt.month}',
+      );
+    }).toList(growable: false);
+  }
+
+  Future<FfmAssistantInsight?> detect({
+    required String householdId,
+    required DateTime now,
+  }) async {
+    final all = await detectAll(householdId: householdId, now: now);
+    return all.isEmpty ? null : all.first;
   }
 
   Future<Set<String>> _linkedSources(String householdId) async {

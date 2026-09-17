@@ -51,6 +51,10 @@ final class ReminderHistoryDeleted extends ReminderEvent {
   final ReminderHistoryEntity history;
 }
 
+final class ReminderCompletedHistoriesCleared extends ReminderEvent {
+  const ReminderCompletedHistoriesCleared();
+}
+
 final class ReminderNotificationActionReceived extends ReminderEvent {
   const ReminderNotificationActionReceived({
     required this.actionId,
@@ -112,6 +116,7 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
     on<ReminderDeleted>(_delete);
     on<ReminderHistoryStatusChanged>(_changeHistoryStatus);
     on<ReminderHistoryDeleted>(_deleteHistory);
+    on<ReminderCompletedHistoriesCleared>(_clearCompletedHistories);
     on<ReminderNotificationActionReceived>(_handleNotificationAction);
     _notificationService.onAction = (action, payload) async {
       if (!isClosed) {
@@ -307,6 +312,31 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
       add(const ReminderLoadRequested());
     } catch (error) {
       emit(state.copyWith(errorMessage: 'Riwayat belum terhapus: $error'));
+    }
+  }
+
+  Future<void> _clearCompletedHistories(
+    ReminderCompletedHistoriesCleared event,
+    Emitter<ReminderState> emit,
+  ) async {
+    try {
+      final completedIds = state.history
+          .where(
+            (item) =>
+                item.history.status == ReminderHistoryStatus.completed ||
+                item.history.status == ReminderHistoryStatus.cancelled,
+          )
+          .map((item) => item.history.id)
+          .toList(growable: false);
+      if (completedIds.isNotEmpty) {
+        await _repository.deleteHistories(
+          householdId: _householdId,
+          historyIds: completedIds,
+        );
+        add(const ReminderLoadRequested());
+      }
+    } catch (error) {
+      emit(state.copyWith(errorMessage: 'Gagal membersihkan riwayat: $error'));
     }
   }
 

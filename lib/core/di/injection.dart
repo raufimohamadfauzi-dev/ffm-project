@@ -432,7 +432,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   // Buku Saku Meteran & Token Listrik PLN
   getIt.registerLazySingleton<UtilityMeterRepository>(
-    UtilityMeterRepository.new,
+    () => UtilityMeterRepository(getIt<AppDatabase>()),
   );
   // Buku Saku Kendaraan & Log BBM
   getIt.registerLazySingleton<VehicleRepository>(VehicleRepository.new);

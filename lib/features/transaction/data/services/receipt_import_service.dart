@@ -59,6 +59,56 @@ class ReceiptBatchEntry {
   final int? tax;
   final int? discount;
   final List<ReceiptOcrItem> items;
+
+  ReceiptBatchEntry copyWith({
+    String? type,
+    DateTime? date,
+    String? time,
+    int? amount,
+    String? merchant,
+    String? categoryId,
+    String? accountId,
+    String? budgetId,
+    String? budgetName,
+    String? partyName,
+    String? location,
+    List<String>? tags,
+    String? receiptNumber,
+    String? note,
+    String? fromAccountId,
+    String? toAccountId,
+    int? adminFee,
+    int? paidAmount,
+    int? changeAmount,
+    int? tax,
+    int? discount,
+    List<ReceiptOcrItem>? items,
+  }) {
+    return ReceiptBatchEntry(
+      type: type ?? this.type,
+      date: date ?? this.date,
+      amount: amount ?? this.amount,
+      items: items ?? this.items,
+      time: time ?? this.time,
+      merchant: merchant ?? this.merchant,
+      categoryId: categoryId ?? this.categoryId,
+      accountId: accountId ?? this.accountId,
+      budgetId: budgetId ?? this.budgetId,
+      budgetName: budgetName ?? this.budgetName,
+      partyName: partyName ?? this.partyName,
+      location: location ?? this.location,
+      tags: tags ?? this.tags,
+      receiptNumber: receiptNumber ?? this.receiptNumber,
+      note: note ?? this.note,
+      fromAccountId: fromAccountId ?? this.fromAccountId,
+      toAccountId: toAccountId ?? this.toAccountId,
+      adminFee: adminFee ?? this.adminFee,
+      paidAmount: paidAmount ?? this.paidAmount,
+      changeAmount: changeAmount ?? this.changeAmount,
+      tax: tax ?? this.tax,
+      discount: discount ?? this.discount,
+    );
+  }
 }
 
 class ReceiptBatchImport {
@@ -72,6 +122,7 @@ class ReceiptBatchImport {
     this.closingBalance,
     this.periodStart,
     this.periodEnd,
+    this.hadOcrRetry = false,
   });
 
   final List<ReceiptBatchEntry> entries;
@@ -83,6 +134,7 @@ class ReceiptBatchImport {
   final int? closingBalance;
   final DateTime? periodStart;
   final DateTime? periodEnd;
+  final bool hadOcrRetry;
 }
 
 class ReceiptImportService {

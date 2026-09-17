@@ -6775,6 +6775,897 @@ class AttachmentsCompanion extends UpdateCompanion<Attachment> {
   }
 }
 
+class $ElectricityMetersTable extends ElectricityMeters
+    with TableInfo<$ElectricityMetersTable, ElectricityMeter> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ElectricityMetersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _meterNumberMeta = const VerificationMeta(
+    'meterNumber',
+  );
+  @override
+  late final GeneratedColumn<String> meterNumber = GeneratedColumn<String>(
+    'meter_number',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _normalizedMeterNumberMeta =
+      const VerificationMeta('normalizedMeterNumber');
+  @override
+  late final GeneratedColumn<String> normalizedMeterNumber =
+      GeneratedColumn<String>(
+        'normalized_meter_number',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _customerNameMeta = const VerificationMeta(
+    'customerName',
+  );
+  @override
+  late final GeneratedColumn<String> customerName = GeneratedColumn<String>(
+    'customer_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _tariffPowerMeta = const VerificationMeta(
+    'tariffPower',
+  );
+  @override
+  late final GeneratedColumn<String> tariffPower = GeneratedColumn<String>(
+    'tariff_power',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _locationMeta = const VerificationMeta(
+    'location',
+  );
+  @override
+  late final GeneratedColumn<String> location = GeneratedColumn<String>(
+    'location',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _lastTokenNumberMeta = const VerificationMeta(
+    'lastTokenNumber',
+  );
+  @override
+  late final GeneratedColumn<String> lastTokenNumber = GeneratedColumn<String>(
+    'last_token_number',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastPurchasedAtMeta = const VerificationMeta(
+    'lastPurchasedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastPurchasedAt =
+      GeneratedColumn<DateTime>(
+        'last_purchased_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastAmountMeta = const VerificationMeta(
+    'lastAmount',
+  );
+  @override
+  late final GeneratedColumn<double> lastAmount = GeneratedColumn<double>(
+    'last_amount',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isArchivedMeta = const VerificationMeta(
+    'isArchived',
+  );
+  @override
+  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
+    'is_archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_archived" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    name,
+    meterNumber,
+    normalizedMeterNumber,
+    customerName,
+    tariffPower,
+    location,
+    notes,
+    lastTokenNumber,
+    lastPurchasedAt,
+    lastAmount,
+    isArchived,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'electricity_meters';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ElectricityMeter> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('meter_number')) {
+      context.handle(
+        _meterNumberMeta,
+        meterNumber.isAcceptableOrUnknown(
+          data['meter_number']!,
+          _meterNumberMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_meterNumberMeta);
+    }
+    if (data.containsKey('normalized_meter_number')) {
+      context.handle(
+        _normalizedMeterNumberMeta,
+        normalizedMeterNumber.isAcceptableOrUnknown(
+          data['normalized_meter_number']!,
+          _normalizedMeterNumberMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_normalizedMeterNumberMeta);
+    }
+    if (data.containsKey('customer_name')) {
+      context.handle(
+        _customerNameMeta,
+        customerName.isAcceptableOrUnknown(
+          data['customer_name']!,
+          _customerNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('tariff_power')) {
+      context.handle(
+        _tariffPowerMeta,
+        tariffPower.isAcceptableOrUnknown(
+          data['tariff_power']!,
+          _tariffPowerMeta,
+        ),
+      );
+    }
+    if (data.containsKey('location')) {
+      context.handle(
+        _locationMeta,
+        location.isAcceptableOrUnknown(data['location']!, _locationMeta),
+      );
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    if (data.containsKey('last_token_number')) {
+      context.handle(
+        _lastTokenNumberMeta,
+        lastTokenNumber.isAcceptableOrUnknown(
+          data['last_token_number']!,
+          _lastTokenNumberMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_purchased_at')) {
+      context.handle(
+        _lastPurchasedAtMeta,
+        lastPurchasedAt.isAcceptableOrUnknown(
+          data['last_purchased_at']!,
+          _lastPurchasedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_amount')) {
+      context.handle(
+        _lastAmountMeta,
+        lastAmount.isAcceptableOrUnknown(data['last_amount']!, _lastAmountMeta),
+      );
+    }
+    if (data.containsKey('is_archived')) {
+      context.handle(
+        _isArchivedMeta,
+        isArchived.isAcceptableOrUnknown(data['is_archived']!, _isArchivedMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ElectricityMeter map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ElectricityMeter(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      meterNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}meter_number'],
+      )!,
+      normalizedMeterNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}normalized_meter_number'],
+      )!,
+      customerName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}customer_name'],
+      )!,
+      tariffPower: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tariff_power'],
+      )!,
+      location: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}location'],
+      )!,
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      )!,
+      lastTokenNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_token_number'],
+      ),
+      lastPurchasedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_purchased_at'],
+      ),
+      lastAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}last_amount'],
+      ),
+      isArchived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_archived'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ElectricityMetersTable createAlias(String alias) {
+    return $ElectricityMetersTable(attachedDatabase, alias);
+  }
+}
+
+class ElectricityMeter extends DataClass
+    implements Insertable<ElectricityMeter> {
+  final String id;
+  final String householdId;
+  final String name;
+  final String meterNumber;
+  final String normalizedMeterNumber;
+  final String customerName;
+  final String tariffPower;
+  final String location;
+  final String notes;
+  final String? lastTokenNumber;
+  final DateTime? lastPurchasedAt;
+  final double? lastAmount;
+  final bool isArchived;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const ElectricityMeter({
+    required this.id,
+    required this.householdId,
+    required this.name,
+    required this.meterNumber,
+    required this.normalizedMeterNumber,
+    required this.customerName,
+    required this.tariffPower,
+    required this.location,
+    required this.notes,
+    this.lastTokenNumber,
+    this.lastPurchasedAt,
+    this.lastAmount,
+    required this.isArchived,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['name'] = Variable<String>(name);
+    map['meter_number'] = Variable<String>(meterNumber);
+    map['normalized_meter_number'] = Variable<String>(normalizedMeterNumber);
+    map['customer_name'] = Variable<String>(customerName);
+    map['tariff_power'] = Variable<String>(tariffPower);
+    map['location'] = Variable<String>(location);
+    map['notes'] = Variable<String>(notes);
+    if (!nullToAbsent || lastTokenNumber != null) {
+      map['last_token_number'] = Variable<String>(lastTokenNumber);
+    }
+    if (!nullToAbsent || lastPurchasedAt != null) {
+      map['last_purchased_at'] = Variable<DateTime>(lastPurchasedAt);
+    }
+    if (!nullToAbsent || lastAmount != null) {
+      map['last_amount'] = Variable<double>(lastAmount);
+    }
+    map['is_archived'] = Variable<bool>(isArchived);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  ElectricityMetersCompanion toCompanion(bool nullToAbsent) {
+    return ElectricityMetersCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      name: Value(name),
+      meterNumber: Value(meterNumber),
+      normalizedMeterNumber: Value(normalizedMeterNumber),
+      customerName: Value(customerName),
+      tariffPower: Value(tariffPower),
+      location: Value(location),
+      notes: Value(notes),
+      lastTokenNumber: lastTokenNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastTokenNumber),
+      lastPurchasedAt: lastPurchasedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPurchasedAt),
+      lastAmount: lastAmount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastAmount),
+      isArchived: Value(isArchived),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ElectricityMeter.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ElectricityMeter(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      name: serializer.fromJson<String>(json['name']),
+      meterNumber: serializer.fromJson<String>(json['meterNumber']),
+      normalizedMeterNumber: serializer.fromJson<String>(
+        json['normalizedMeterNumber'],
+      ),
+      customerName: serializer.fromJson<String>(json['customerName']),
+      tariffPower: serializer.fromJson<String>(json['tariffPower']),
+      location: serializer.fromJson<String>(json['location']),
+      notes: serializer.fromJson<String>(json['notes']),
+      lastTokenNumber: serializer.fromJson<String?>(json['lastTokenNumber']),
+      lastPurchasedAt: serializer.fromJson<DateTime?>(json['lastPurchasedAt']),
+      lastAmount: serializer.fromJson<double?>(json['lastAmount']),
+      isArchived: serializer.fromJson<bool>(json['isArchived']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'name': serializer.toJson<String>(name),
+      'meterNumber': serializer.toJson<String>(meterNumber),
+      'normalizedMeterNumber': serializer.toJson<String>(normalizedMeterNumber),
+      'customerName': serializer.toJson<String>(customerName),
+      'tariffPower': serializer.toJson<String>(tariffPower),
+      'location': serializer.toJson<String>(location),
+      'notes': serializer.toJson<String>(notes),
+      'lastTokenNumber': serializer.toJson<String?>(lastTokenNumber),
+      'lastPurchasedAt': serializer.toJson<DateTime?>(lastPurchasedAt),
+      'lastAmount': serializer.toJson<double?>(lastAmount),
+      'isArchived': serializer.toJson<bool>(isArchived),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  ElectricityMeter copyWith({
+    String? id,
+    String? householdId,
+    String? name,
+    String? meterNumber,
+    String? normalizedMeterNumber,
+    String? customerName,
+    String? tariffPower,
+    String? location,
+    String? notes,
+    Value<String?> lastTokenNumber = const Value.absent(),
+    Value<DateTime?> lastPurchasedAt = const Value.absent(),
+    Value<double?> lastAmount = const Value.absent(),
+    bool? isArchived,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => ElectricityMeter(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    name: name ?? this.name,
+    meterNumber: meterNumber ?? this.meterNumber,
+    normalizedMeterNumber: normalizedMeterNumber ?? this.normalizedMeterNumber,
+    customerName: customerName ?? this.customerName,
+    tariffPower: tariffPower ?? this.tariffPower,
+    location: location ?? this.location,
+    notes: notes ?? this.notes,
+    lastTokenNumber: lastTokenNumber.present
+        ? lastTokenNumber.value
+        : this.lastTokenNumber,
+    lastPurchasedAt: lastPurchasedAt.present
+        ? lastPurchasedAt.value
+        : this.lastPurchasedAt,
+    lastAmount: lastAmount.present ? lastAmount.value : this.lastAmount,
+    isArchived: isArchived ?? this.isArchived,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  ElectricityMeter copyWithCompanion(ElectricityMetersCompanion data) {
+    return ElectricityMeter(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      name: data.name.present ? data.name.value : this.name,
+      meterNumber: data.meterNumber.present
+          ? data.meterNumber.value
+          : this.meterNumber,
+      normalizedMeterNumber: data.normalizedMeterNumber.present
+          ? data.normalizedMeterNumber.value
+          : this.normalizedMeterNumber,
+      customerName: data.customerName.present
+          ? data.customerName.value
+          : this.customerName,
+      tariffPower: data.tariffPower.present
+          ? data.tariffPower.value
+          : this.tariffPower,
+      location: data.location.present ? data.location.value : this.location,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      lastTokenNumber: data.lastTokenNumber.present
+          ? data.lastTokenNumber.value
+          : this.lastTokenNumber,
+      lastPurchasedAt: data.lastPurchasedAt.present
+          ? data.lastPurchasedAt.value
+          : this.lastPurchasedAt,
+      lastAmount: data.lastAmount.present
+          ? data.lastAmount.value
+          : this.lastAmount,
+      isArchived: data.isArchived.present
+          ? data.isArchived.value
+          : this.isArchived,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ElectricityMeter(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('name: $name, ')
+          ..write('meterNumber: $meterNumber, ')
+          ..write('normalizedMeterNumber: $normalizedMeterNumber, ')
+          ..write('customerName: $customerName, ')
+          ..write('tariffPower: $tariffPower, ')
+          ..write('location: $location, ')
+          ..write('notes: $notes, ')
+          ..write('lastTokenNumber: $lastTokenNumber, ')
+          ..write('lastPurchasedAt: $lastPurchasedAt, ')
+          ..write('lastAmount: $lastAmount, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    name,
+    meterNumber,
+    normalizedMeterNumber,
+    customerName,
+    tariffPower,
+    location,
+    notes,
+    lastTokenNumber,
+    lastPurchasedAt,
+    lastAmount,
+    isArchived,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ElectricityMeter &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.name == this.name &&
+          other.meterNumber == this.meterNumber &&
+          other.normalizedMeterNumber == this.normalizedMeterNumber &&
+          other.customerName == this.customerName &&
+          other.tariffPower == this.tariffPower &&
+          other.location == this.location &&
+          other.notes == this.notes &&
+          other.lastTokenNumber == this.lastTokenNumber &&
+          other.lastPurchasedAt == this.lastPurchasedAt &&
+          other.lastAmount == this.lastAmount &&
+          other.isArchived == this.isArchived &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ElectricityMetersCompanion extends UpdateCompanion<ElectricityMeter> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> name;
+  final Value<String> meterNumber;
+  final Value<String> normalizedMeterNumber;
+  final Value<String> customerName;
+  final Value<String> tariffPower;
+  final Value<String> location;
+  final Value<String> notes;
+  final Value<String?> lastTokenNumber;
+  final Value<DateTime?> lastPurchasedAt;
+  final Value<double?> lastAmount;
+  final Value<bool> isArchived;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const ElectricityMetersCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.meterNumber = const Value.absent(),
+    this.normalizedMeterNumber = const Value.absent(),
+    this.customerName = const Value.absent(),
+    this.tariffPower = const Value.absent(),
+    this.location = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.lastTokenNumber = const Value.absent(),
+    this.lastPurchasedAt = const Value.absent(),
+    this.lastAmount = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ElectricityMetersCompanion.insert({
+    required String id,
+    required String householdId,
+    required String name,
+    required String meterNumber,
+    required String normalizedMeterNumber,
+    this.customerName = const Value.absent(),
+    this.tariffPower = const Value.absent(),
+    this.location = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.lastTokenNumber = const Value.absent(),
+    this.lastPurchasedAt = const Value.absent(),
+    this.lastAmount = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       name = Value(name),
+       meterNumber = Value(meterNumber),
+       normalizedMeterNumber = Value(normalizedMeterNumber),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<ElectricityMeter> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? name,
+    Expression<String>? meterNumber,
+    Expression<String>? normalizedMeterNumber,
+    Expression<String>? customerName,
+    Expression<String>? tariffPower,
+    Expression<String>? location,
+    Expression<String>? notes,
+    Expression<String>? lastTokenNumber,
+    Expression<DateTime>? lastPurchasedAt,
+    Expression<double>? lastAmount,
+    Expression<bool>? isArchived,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (name != null) 'name': name,
+      if (meterNumber != null) 'meter_number': meterNumber,
+      if (normalizedMeterNumber != null)
+        'normalized_meter_number': normalizedMeterNumber,
+      if (customerName != null) 'customer_name': customerName,
+      if (tariffPower != null) 'tariff_power': tariffPower,
+      if (location != null) 'location': location,
+      if (notes != null) 'notes': notes,
+      if (lastTokenNumber != null) 'last_token_number': lastTokenNumber,
+      if (lastPurchasedAt != null) 'last_purchased_at': lastPurchasedAt,
+      if (lastAmount != null) 'last_amount': lastAmount,
+      if (isArchived != null) 'is_archived': isArchived,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ElectricityMetersCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? name,
+    Value<String>? meterNumber,
+    Value<String>? normalizedMeterNumber,
+    Value<String>? customerName,
+    Value<String>? tariffPower,
+    Value<String>? location,
+    Value<String>? notes,
+    Value<String?>? lastTokenNumber,
+    Value<DateTime?>? lastPurchasedAt,
+    Value<double?>? lastAmount,
+    Value<bool>? isArchived,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return ElectricityMetersCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      name: name ?? this.name,
+      meterNumber: meterNumber ?? this.meterNumber,
+      normalizedMeterNumber:
+          normalizedMeterNumber ?? this.normalizedMeterNumber,
+      customerName: customerName ?? this.customerName,
+      tariffPower: tariffPower ?? this.tariffPower,
+      location: location ?? this.location,
+      notes: notes ?? this.notes,
+      lastTokenNumber: lastTokenNumber ?? this.lastTokenNumber,
+      lastPurchasedAt: lastPurchasedAt ?? this.lastPurchasedAt,
+      lastAmount: lastAmount ?? this.lastAmount,
+      isArchived: isArchived ?? this.isArchived,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (meterNumber.present) {
+      map['meter_number'] = Variable<String>(meterNumber.value);
+    }
+    if (normalizedMeterNumber.present) {
+      map['normalized_meter_number'] = Variable<String>(
+        normalizedMeterNumber.value,
+      );
+    }
+    if (customerName.present) {
+      map['customer_name'] = Variable<String>(customerName.value);
+    }
+    if (tariffPower.present) {
+      map['tariff_power'] = Variable<String>(tariffPower.value);
+    }
+    if (location.present) {
+      map['location'] = Variable<String>(location.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (lastTokenNumber.present) {
+      map['last_token_number'] = Variable<String>(lastTokenNumber.value);
+    }
+    if (lastPurchasedAt.present) {
+      map['last_purchased_at'] = Variable<DateTime>(lastPurchasedAt.value);
+    }
+    if (lastAmount.present) {
+      map['last_amount'] = Variable<double>(lastAmount.value);
+    }
+    if (isArchived.present) {
+      map['is_archived'] = Variable<bool>(isArchived.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ElectricityMetersCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('name: $name, ')
+          ..write('meterNumber: $meterNumber, ')
+          ..write('normalizedMeterNumber: $normalizedMeterNumber, ')
+          ..write('customerName: $customerName, ')
+          ..write('tariffPower: $tariffPower, ')
+          ..write('location: $location, ')
+          ..write('notes: $notes, ')
+          ..write('lastTokenNumber: $lastTokenNumber, ')
+          ..write('lastPurchasedAt: $lastPurchasedAt, ')
+          ..write('lastAmount: $lastAmount, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $UtilityTokenPurchasesTable extends UtilityTokenPurchases
     with TableInfo<$UtilityTokenPurchasesTable, UtilityTokenPurchase> {
   @override
@@ -6843,6 +7734,29 @@ class $UtilityTokenPurchasesTable extends UtilityTokenPurchases
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _adminFeeMeta = const VerificationMeta(
+    'adminFee',
+  );
+  @override
+  late final GeneratedColumn<int> adminFee = GeneratedColumn<int>(
+    'admin_fee',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _creditedKwhMeta = const VerificationMeta(
+    'creditedKwh',
+  );
+  @override
+  late final GeneratedColumn<double> creditedKwh = GeneratedColumn<double>(
+    'credited_kwh',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _purchasedAtMeta = const VerificationMeta(
     'purchasedAt',
   );
@@ -6873,6 +7787,8 @@ class $UtilityTokenPurchasesTable extends UtilityTokenPurchases
     meterNumber,
     tokenCode,
     amount,
+    adminFee,
+    creditedKwh,
     purchasedAt,
     transactionId,
   ];
@@ -6935,6 +7851,21 @@ class $UtilityTokenPurchasesTable extends UtilityTokenPurchases
     } else if (isInserting) {
       context.missing(_amountMeta);
     }
+    if (data.containsKey('admin_fee')) {
+      context.handle(
+        _adminFeeMeta,
+        adminFee.isAcceptableOrUnknown(data['admin_fee']!, _adminFeeMeta),
+      );
+    }
+    if (data.containsKey('credited_kwh')) {
+      context.handle(
+        _creditedKwhMeta,
+        creditedKwh.isAcceptableOrUnknown(
+          data['credited_kwh']!,
+          _creditedKwhMeta,
+        ),
+      );
+    }
     if (data.containsKey('purchased_at')) {
       context.handle(
         _purchasedAtMeta,
@@ -6988,6 +7919,14 @@ class $UtilityTokenPurchasesTable extends UtilityTokenPurchases
         DriftSqlType.int,
         data['${effectivePrefix}amount'],
       )!,
+      adminFee: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}admin_fee'],
+      )!,
+      creditedKwh: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}credited_kwh'],
+      ),
       purchasedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}purchased_at'],
@@ -7013,6 +7952,8 @@ class UtilityTokenPurchase extends DataClass
   final String meterNumber;
   final String? tokenCode;
   final int amount;
+  final int adminFee;
+  final double? creditedKwh;
   final DateTime purchasedAt;
   final String? transactionId;
   const UtilityTokenPurchase({
@@ -7022,6 +7963,8 @@ class UtilityTokenPurchase extends DataClass
     required this.meterNumber,
     this.tokenCode,
     required this.amount,
+    required this.adminFee,
+    this.creditedKwh,
     required this.purchasedAt,
     this.transactionId,
   });
@@ -7038,6 +7981,10 @@ class UtilityTokenPurchase extends DataClass
       map['token_code'] = Variable<String>(tokenCode);
     }
     map['amount'] = Variable<int>(amount);
+    map['admin_fee'] = Variable<int>(adminFee);
+    if (!nullToAbsent || creditedKwh != null) {
+      map['credited_kwh'] = Variable<double>(creditedKwh);
+    }
     map['purchased_at'] = Variable<DateTime>(purchasedAt);
     if (!nullToAbsent || transactionId != null) {
       map['transaction_id'] = Variable<String>(transactionId);
@@ -7057,6 +8004,10 @@ class UtilityTokenPurchase extends DataClass
           ? const Value.absent()
           : Value(tokenCode),
       amount: Value(amount),
+      adminFee: Value(adminFee),
+      creditedKwh: creditedKwh == null && nullToAbsent
+          ? const Value.absent()
+          : Value(creditedKwh),
       purchasedAt: Value(purchasedAt),
       transactionId: transactionId == null && nullToAbsent
           ? const Value.absent()
@@ -7076,6 +8027,8 @@ class UtilityTokenPurchase extends DataClass
       meterNumber: serializer.fromJson<String>(json['meterNumber']),
       tokenCode: serializer.fromJson<String?>(json['tokenCode']),
       amount: serializer.fromJson<int>(json['amount']),
+      adminFee: serializer.fromJson<int>(json['adminFee']),
+      creditedKwh: serializer.fromJson<double?>(json['creditedKwh']),
       purchasedAt: serializer.fromJson<DateTime>(json['purchasedAt']),
       transactionId: serializer.fromJson<String?>(json['transactionId']),
     );
@@ -7090,6 +8043,8 @@ class UtilityTokenPurchase extends DataClass
       'meterNumber': serializer.toJson<String>(meterNumber),
       'tokenCode': serializer.toJson<String?>(tokenCode),
       'amount': serializer.toJson<int>(amount),
+      'adminFee': serializer.toJson<int>(adminFee),
+      'creditedKwh': serializer.toJson<double?>(creditedKwh),
       'purchasedAt': serializer.toJson<DateTime>(purchasedAt),
       'transactionId': serializer.toJson<String?>(transactionId),
     };
@@ -7102,6 +8057,8 @@ class UtilityTokenPurchase extends DataClass
     String? meterNumber,
     Value<String?> tokenCode = const Value.absent(),
     int? amount,
+    int? adminFee,
+    Value<double?> creditedKwh = const Value.absent(),
     DateTime? purchasedAt,
     Value<String?> transactionId = const Value.absent(),
   }) => UtilityTokenPurchase(
@@ -7111,6 +8068,8 @@ class UtilityTokenPurchase extends DataClass
     meterNumber: meterNumber ?? this.meterNumber,
     tokenCode: tokenCode.present ? tokenCode.value : this.tokenCode,
     amount: amount ?? this.amount,
+    adminFee: adminFee ?? this.adminFee,
+    creditedKwh: creditedKwh.present ? creditedKwh.value : this.creditedKwh,
     purchasedAt: purchasedAt ?? this.purchasedAt,
     transactionId: transactionId.present
         ? transactionId.value
@@ -7128,6 +8087,10 @@ class UtilityTokenPurchase extends DataClass
           : this.meterNumber,
       tokenCode: data.tokenCode.present ? data.tokenCode.value : this.tokenCode,
       amount: data.amount.present ? data.amount.value : this.amount,
+      adminFee: data.adminFee.present ? data.adminFee.value : this.adminFee,
+      creditedKwh: data.creditedKwh.present
+          ? data.creditedKwh.value
+          : this.creditedKwh,
       purchasedAt: data.purchasedAt.present
           ? data.purchasedAt.value
           : this.purchasedAt,
@@ -7146,6 +8109,8 @@ class UtilityTokenPurchase extends DataClass
           ..write('meterNumber: $meterNumber, ')
           ..write('tokenCode: $tokenCode, ')
           ..write('amount: $amount, ')
+          ..write('adminFee: $adminFee, ')
+          ..write('creditedKwh: $creditedKwh, ')
           ..write('purchasedAt: $purchasedAt, ')
           ..write('transactionId: $transactionId')
           ..write(')'))
@@ -7160,6 +8125,8 @@ class UtilityTokenPurchase extends DataClass
     meterNumber,
     tokenCode,
     amount,
+    adminFee,
+    creditedKwh,
     purchasedAt,
     transactionId,
   );
@@ -7173,6 +8140,8 @@ class UtilityTokenPurchase extends DataClass
           other.meterNumber == this.meterNumber &&
           other.tokenCode == this.tokenCode &&
           other.amount == this.amount &&
+          other.adminFee == this.adminFee &&
+          other.creditedKwh == this.creditedKwh &&
           other.purchasedAt == this.purchasedAt &&
           other.transactionId == this.transactionId);
 }
@@ -7185,6 +8154,8 @@ class UtilityTokenPurchasesCompanion
   final Value<String> meterNumber;
   final Value<String?> tokenCode;
   final Value<int> amount;
+  final Value<int> adminFee;
+  final Value<double?> creditedKwh;
   final Value<DateTime> purchasedAt;
   final Value<String?> transactionId;
   final Value<int> rowid;
@@ -7195,6 +8166,8 @@ class UtilityTokenPurchasesCompanion
     this.meterNumber = const Value.absent(),
     this.tokenCode = const Value.absent(),
     this.amount = const Value.absent(),
+    this.adminFee = const Value.absent(),
+    this.creditedKwh = const Value.absent(),
     this.purchasedAt = const Value.absent(),
     this.transactionId = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -7206,6 +8179,8 @@ class UtilityTokenPurchasesCompanion
     required String meterNumber,
     this.tokenCode = const Value.absent(),
     required int amount,
+    this.adminFee = const Value.absent(),
+    this.creditedKwh = const Value.absent(),
     required DateTime purchasedAt,
     this.transactionId = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -7221,6 +8196,8 @@ class UtilityTokenPurchasesCompanion
     Expression<String>? meterNumber,
     Expression<String>? tokenCode,
     Expression<int>? amount,
+    Expression<int>? adminFee,
+    Expression<double>? creditedKwh,
     Expression<DateTime>? purchasedAt,
     Expression<String>? transactionId,
     Expression<int>? rowid,
@@ -7232,6 +8209,8 @@ class UtilityTokenPurchasesCompanion
       if (meterNumber != null) 'meter_number': meterNumber,
       if (tokenCode != null) 'token_code': tokenCode,
       if (amount != null) 'amount': amount,
+      if (adminFee != null) 'admin_fee': adminFee,
+      if (creditedKwh != null) 'credited_kwh': creditedKwh,
       if (purchasedAt != null) 'purchased_at': purchasedAt,
       if (transactionId != null) 'transaction_id': transactionId,
       if (rowid != null) 'rowid': rowid,
@@ -7245,6 +8224,8 @@ class UtilityTokenPurchasesCompanion
     Value<String>? meterNumber,
     Value<String?>? tokenCode,
     Value<int>? amount,
+    Value<int>? adminFee,
+    Value<double?>? creditedKwh,
     Value<DateTime>? purchasedAt,
     Value<String?>? transactionId,
     Value<int>? rowid,
@@ -7256,6 +8237,8 @@ class UtilityTokenPurchasesCompanion
       meterNumber: meterNumber ?? this.meterNumber,
       tokenCode: tokenCode ?? this.tokenCode,
       amount: amount ?? this.amount,
+      adminFee: adminFee ?? this.adminFee,
+      creditedKwh: creditedKwh ?? this.creditedKwh,
       purchasedAt: purchasedAt ?? this.purchasedAt,
       transactionId: transactionId ?? this.transactionId,
       rowid: rowid ?? this.rowid,
@@ -7283,6 +8266,12 @@ class UtilityTokenPurchasesCompanion
     if (amount.present) {
       map['amount'] = Variable<int>(amount.value);
     }
+    if (adminFee.present) {
+      map['admin_fee'] = Variable<int>(adminFee.value);
+    }
+    if (creditedKwh.present) {
+      map['credited_kwh'] = Variable<double>(creditedKwh.value);
+    }
     if (purchasedAt.present) {
       map['purchased_at'] = Variable<DateTime>(purchasedAt.value);
     }
@@ -7304,8 +8293,483 @@ class UtilityTokenPurchasesCompanion
           ..write('meterNumber: $meterNumber, ')
           ..write('tokenCode: $tokenCode, ')
           ..write('amount: $amount, ')
+          ..write('adminFee: $adminFee, ')
+          ..write('creditedKwh: $creditedKwh, ')
           ..write('purchasedAt: $purchasedAt, ')
           ..write('transactionId: $transactionId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ElectricityMeterReadingsTable extends ElectricityMeterReadings
+    with TableInfo<$ElectricityMeterReadingsTable, ElectricityMeterReading> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ElectricityMeterReadingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _meterIdMeta = const VerificationMeta(
+    'meterId',
+  );
+  @override
+  late final GeneratedColumn<String> meterId = GeneratedColumn<String>(
+    'meter_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _readingKwhMeta = const VerificationMeta(
+    'readingKwh',
+  );
+  @override
+  late final GeneratedColumn<double> readingKwh = GeneratedColumn<double>(
+    'reading_kwh',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _recordedAtMeta = const VerificationMeta(
+    'recordedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> recordedAt = GeneratedColumn<DateTime>(
+    'recorded_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('manual'),
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    meterId,
+    readingKwh,
+    recordedAt,
+    source,
+    note,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'electricity_meter_readings';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ElectricityMeterReading> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('meter_id')) {
+      context.handle(
+        _meterIdMeta,
+        meterId.isAcceptableOrUnknown(data['meter_id']!, _meterIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_meterIdMeta);
+    }
+    if (data.containsKey('reading_kwh')) {
+      context.handle(
+        _readingKwhMeta,
+        readingKwh.isAcceptableOrUnknown(data['reading_kwh']!, _readingKwhMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_readingKwhMeta);
+    }
+    if (data.containsKey('recorded_at')) {
+      context.handle(
+        _recordedAtMeta,
+        recordedAt.isAcceptableOrUnknown(data['recorded_at']!, _recordedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_recordedAtMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ElectricityMeterReading map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ElectricityMeterReading(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      meterId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}meter_id'],
+      )!,
+      readingKwh: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}reading_kwh'],
+      )!,
+      recordedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}recorded_at'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+    );
+  }
+
+  @override
+  $ElectricityMeterReadingsTable createAlias(String alias) {
+    return $ElectricityMeterReadingsTable(attachedDatabase, alias);
+  }
+}
+
+class ElectricityMeterReading extends DataClass
+    implements Insertable<ElectricityMeterReading> {
+  final String id;
+  final String householdId;
+  final String meterId;
+  final double readingKwh;
+  final DateTime recordedAt;
+  final String source;
+  final String? note;
+  const ElectricityMeterReading({
+    required this.id,
+    required this.householdId,
+    required this.meterId,
+    required this.readingKwh,
+    required this.recordedAt,
+    required this.source,
+    this.note,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['meter_id'] = Variable<String>(meterId);
+    map['reading_kwh'] = Variable<double>(readingKwh);
+    map['recorded_at'] = Variable<DateTime>(recordedAt);
+    map['source'] = Variable<String>(source);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    return map;
+  }
+
+  ElectricityMeterReadingsCompanion toCompanion(bool nullToAbsent) {
+    return ElectricityMeterReadingsCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      meterId: Value(meterId),
+      readingKwh: Value(readingKwh),
+      recordedAt: Value(recordedAt),
+      source: Value(source),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+    );
+  }
+
+  factory ElectricityMeterReading.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ElectricityMeterReading(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      meterId: serializer.fromJson<String>(json['meterId']),
+      readingKwh: serializer.fromJson<double>(json['readingKwh']),
+      recordedAt: serializer.fromJson<DateTime>(json['recordedAt']),
+      source: serializer.fromJson<String>(json['source']),
+      note: serializer.fromJson<String?>(json['note']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'meterId': serializer.toJson<String>(meterId),
+      'readingKwh': serializer.toJson<double>(readingKwh),
+      'recordedAt': serializer.toJson<DateTime>(recordedAt),
+      'source': serializer.toJson<String>(source),
+      'note': serializer.toJson<String?>(note),
+    };
+  }
+
+  ElectricityMeterReading copyWith({
+    String? id,
+    String? householdId,
+    String? meterId,
+    double? readingKwh,
+    DateTime? recordedAt,
+    String? source,
+    Value<String?> note = const Value.absent(),
+  }) => ElectricityMeterReading(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    meterId: meterId ?? this.meterId,
+    readingKwh: readingKwh ?? this.readingKwh,
+    recordedAt: recordedAt ?? this.recordedAt,
+    source: source ?? this.source,
+    note: note.present ? note.value : this.note,
+  );
+  ElectricityMeterReading copyWithCompanion(
+    ElectricityMeterReadingsCompanion data,
+  ) {
+    return ElectricityMeterReading(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      meterId: data.meterId.present ? data.meterId.value : this.meterId,
+      readingKwh: data.readingKwh.present
+          ? data.readingKwh.value
+          : this.readingKwh,
+      recordedAt: data.recordedAt.present
+          ? data.recordedAt.value
+          : this.recordedAt,
+      source: data.source.present ? data.source.value : this.source,
+      note: data.note.present ? data.note.value : this.note,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ElectricityMeterReading(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('meterId: $meterId, ')
+          ..write('readingKwh: $readingKwh, ')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('source: $source, ')
+          ..write('note: $note')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    meterId,
+    readingKwh,
+    recordedAt,
+    source,
+    note,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ElectricityMeterReading &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.meterId == this.meterId &&
+          other.readingKwh == this.readingKwh &&
+          other.recordedAt == this.recordedAt &&
+          other.source == this.source &&
+          other.note == this.note);
+}
+
+class ElectricityMeterReadingsCompanion
+    extends UpdateCompanion<ElectricityMeterReading> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> meterId;
+  final Value<double> readingKwh;
+  final Value<DateTime> recordedAt;
+  final Value<String> source;
+  final Value<String?> note;
+  final Value<int> rowid;
+  const ElectricityMeterReadingsCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.meterId = const Value.absent(),
+    this.readingKwh = const Value.absent(),
+    this.recordedAt = const Value.absent(),
+    this.source = const Value.absent(),
+    this.note = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ElectricityMeterReadingsCompanion.insert({
+    required String id,
+    required String householdId,
+    required String meterId,
+    required double readingKwh,
+    required DateTime recordedAt,
+    this.source = const Value.absent(),
+    this.note = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       meterId = Value(meterId),
+       readingKwh = Value(readingKwh),
+       recordedAt = Value(recordedAt);
+  static Insertable<ElectricityMeterReading> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? meterId,
+    Expression<double>? readingKwh,
+    Expression<DateTime>? recordedAt,
+    Expression<String>? source,
+    Expression<String>? note,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (meterId != null) 'meter_id': meterId,
+      if (readingKwh != null) 'reading_kwh': readingKwh,
+      if (recordedAt != null) 'recorded_at': recordedAt,
+      if (source != null) 'source': source,
+      if (note != null) 'note': note,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ElectricityMeterReadingsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? meterId,
+    Value<double>? readingKwh,
+    Value<DateTime>? recordedAt,
+    Value<String>? source,
+    Value<String?>? note,
+    Value<int>? rowid,
+  }) {
+    return ElectricityMeterReadingsCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      meterId: meterId ?? this.meterId,
+      readingKwh: readingKwh ?? this.readingKwh,
+      recordedAt: recordedAt ?? this.recordedAt,
+      source: source ?? this.source,
+      note: note ?? this.note,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (meterId.present) {
+      map['meter_id'] = Variable<String>(meterId.value);
+    }
+    if (readingKwh.present) {
+      map['reading_kwh'] = Variable<double>(readingKwh.value);
+    }
+    if (recordedAt.present) {
+      map['recorded_at'] = Variable<DateTime>(recordedAt.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ElectricityMeterReadingsCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('meterId: $meterId, ')
+          ..write('readingKwh: $readingKwh, ')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('source: $source, ')
+          ..write('note: $note, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -34307,8 +35771,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $DailyNoteTagsTable dailyNoteTags = $DailyNoteTagsTable(this);
   late final $AttachmentsTable attachments = $AttachmentsTable(this);
+  late final $ElectricityMetersTable electricityMeters =
+      $ElectricityMetersTable(this);
   late final $UtilityTokenPurchasesTable utilityTokenPurchases =
       $UtilityTokenPurchasesTable(this);
+  late final $ElectricityMeterReadingsTable electricityMeterReadings =
+      $ElectricityMeterReadingsTable(this);
   late final $TransfersTable transfers = $TransfersTable(this);
   late final $EnvelopeBudgetsTable envelopeBudgets = $EnvelopeBudgetsTable(
     this,
@@ -34444,7 +35912,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     transactionTags,
     dailyNoteTags,
     attachments,
+    electricityMeters,
     utilityTokenPurchases,
+    electricityMeterReadings,
     transfers,
     envelopeBudgets,
     envelopeTransfers,
@@ -34498,24 +35968,26 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   ];
 }
 
-typedef $$HouseholdsTableCreateCompanionBuilder = HouseholdsCompanion Function({
-  required String id,
-  required String name,
-  Value<String?> husbandName,
-  Value<String?> wifeName,
-  required DateTime createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$HouseholdsTableUpdateCompanionBuilder = HouseholdsCompanion Function({
-  Value<String> id,
-  Value<String> name,
-  Value<String?> husbandName,
-  Value<String?> wifeName,
-  Value<DateTime> createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$HouseholdsTableCreateCompanionBuilder =
+    HouseholdsCompanion Function({
+      required String id,
+      required String name,
+      Value<String?> husbandName,
+      Value<String?> wifeName,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$HouseholdsTableUpdateCompanionBuilder =
+    HouseholdsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String?> husbandName,
+      Value<String?> wifeName,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$HouseholdsTableFilterComposer
     extends Composer<_$AppDatabase, $HouseholdsTable> {
@@ -34714,28 +36186,30 @@ typedef $$HouseholdsTableProcessedTableManager =
       Household,
       PrefetchHooks Function()
     >;
-typedef $$CategoriesTableCreateCompanionBuilder = CategoriesCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  required String type,
-  Value<String?> parentId,
-  Value<String> defaultBudgetPeriod,
-  Value<bool> isActive,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$CategoriesTableUpdateCompanionBuilder = CategoriesCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String> type,
-  Value<String?> parentId,
-  Value<String> defaultBudgetPeriod,
-  Value<bool> isActive,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$CategoriesTableCreateCompanionBuilder =
+    CategoriesCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      required String type,
+      Value<String?> parentId,
+      Value<String> defaultBudgetPeriod,
+      Value<bool> isActive,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$CategoriesTableUpdateCompanionBuilder =
+    CategoriesCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String> type,
+      Value<String?> parentId,
+      Value<String> defaultBudgetPeriod,
+      Value<bool> isActive,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$CategoriesTableFilterComposer
     extends Composer<_$AppDatabase, $CategoriesTable> {
@@ -34967,24 +36441,26 @@ typedef $$CategoriesTableProcessedTableManager =
       Category,
       PrefetchHooks Function()
     >;
-typedef $$MerchantsTableCreateCompanionBuilder = MerchantsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  Value<String?> details,
-  Value<bool> isActive,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$MerchantsTableUpdateCompanionBuilder = MerchantsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String?> details,
-  Value<bool> isActive,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$MerchantsTableCreateCompanionBuilder =
+    MerchantsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      Value<String?> details,
+      Value<bool> isActive,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$MerchantsTableUpdateCompanionBuilder =
+    MerchantsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String?> details,
+      Value<bool> isActive,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$MerchantsTableFilterComposer
     extends Composer<_$AppDatabase, $MerchantsTable> {
@@ -35180,22 +36656,24 @@ typedef $$MerchantsTableProcessedTableManager =
       Merchant,
       PrefetchHooks Function()
     >;
-typedef $$TagsTableCreateCompanionBuilder = TagsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  Value<bool> isArchived,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$TagsTableUpdateCompanionBuilder = TagsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<bool> isArchived,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$TagsTableCreateCompanionBuilder =
+    TagsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$TagsTableUpdateCompanionBuilder =
+    TagsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$TagsTableFilterComposer extends Composer<_$AppDatabase, $TagsTable> {
   $$TagsTableFilterComposer({
@@ -35374,28 +36852,30 @@ typedef $$TagsTableProcessedTableManager =
       Tag,
       PrefetchHooks Function()
     >;
-typedef $$AccountsTableCreateCompanionBuilder = AccountsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  required String type,
-  Value<int> openingBalance,
-  Value<bool> isActive,
-  Value<bool> isArchived,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$AccountsTableUpdateCompanionBuilder = AccountsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String> type,
-  Value<int> openingBalance,
-  Value<bool> isActive,
-  Value<bool> isArchived,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$AccountsTableCreateCompanionBuilder =
+    AccountsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      required String type,
+      Value<int> openingBalance,
+      Value<bool> isActive,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$AccountsTableUpdateCompanionBuilder =
+    AccountsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String> type,
+      Value<int> openingBalance,
+      Value<bool> isActive,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$AccountsTableFilterComposer
     extends Composer<_$AppDatabase, $AccountsTable> {
@@ -37907,6 +39387,427 @@ typedef $$AttachmentsTableProcessedTableManager =
       Attachment,
       PrefetchHooks Function()
     >;
+typedef $$ElectricityMetersTableCreateCompanionBuilder =
+    ElectricityMetersCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      required String meterNumber,
+      required String normalizedMeterNumber,
+      Value<String> customerName,
+      Value<String> tariffPower,
+      Value<String> location,
+      Value<String> notes,
+      Value<String?> lastTokenNumber,
+      Value<DateTime?> lastPurchasedAt,
+      Value<double?> lastAmount,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$ElectricityMetersTableUpdateCompanionBuilder =
+    ElectricityMetersCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String> meterNumber,
+      Value<String> normalizedMeterNumber,
+      Value<String> customerName,
+      Value<String> tariffPower,
+      Value<String> location,
+      Value<String> notes,
+      Value<String?> lastTokenNumber,
+      Value<DateTime?> lastPurchasedAt,
+      Value<double?> lastAmount,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$ElectricityMetersTableFilterComposer
+    extends Composer<_$AppDatabase, $ElectricityMetersTable> {
+  $$ElectricityMetersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get meterNumber => $composableBuilder(
+    column: $table.meterNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get normalizedMeterNumber => $composableBuilder(
+    column: $table.normalizedMeterNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get customerName => $composableBuilder(
+    column: $table.customerName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tariffPower => $composableBuilder(
+    column: $table.tariffPower,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get location => $composableBuilder(
+    column: $table.location,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastTokenNumber => $composableBuilder(
+    column: $table.lastTokenNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastPurchasedAt => $composableBuilder(
+    column: $table.lastPurchasedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get lastAmount => $composableBuilder(
+    column: $table.lastAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ElectricityMetersTableOrderingComposer
+    extends Composer<_$AppDatabase, $ElectricityMetersTable> {
+  $$ElectricityMetersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get meterNumber => $composableBuilder(
+    column: $table.meterNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get normalizedMeterNumber => $composableBuilder(
+    column: $table.normalizedMeterNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get customerName => $composableBuilder(
+    column: $table.customerName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tariffPower => $composableBuilder(
+    column: $table.tariffPower,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get location => $composableBuilder(
+    column: $table.location,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastTokenNumber => $composableBuilder(
+    column: $table.lastTokenNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastPurchasedAt => $composableBuilder(
+    column: $table.lastPurchasedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get lastAmount => $composableBuilder(
+    column: $table.lastAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ElectricityMetersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ElectricityMetersTable> {
+  $$ElectricityMetersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get meterNumber => $composableBuilder(
+    column: $table.meterNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get normalizedMeterNumber => $composableBuilder(
+    column: $table.normalizedMeterNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get customerName => $composableBuilder(
+    column: $table.customerName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get tariffPower => $composableBuilder(
+    column: $table.tariffPower,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get location =>
+      $composableBuilder(column: $table.location, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<String> get lastTokenNumber => $composableBuilder(
+    column: $table.lastTokenNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastPurchasedAt => $composableBuilder(
+    column: $table.lastPurchasedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get lastAmount => $composableBuilder(
+    column: $table.lastAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ElectricityMetersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ElectricityMetersTable,
+          ElectricityMeter,
+          $$ElectricityMetersTableFilterComposer,
+          $$ElectricityMetersTableOrderingComposer,
+          $$ElectricityMetersTableAnnotationComposer,
+          $$ElectricityMetersTableCreateCompanionBuilder,
+          $$ElectricityMetersTableUpdateCompanionBuilder,
+          (
+            ElectricityMeter,
+            BaseReferences<
+              _$AppDatabase,
+              $ElectricityMetersTable,
+              ElectricityMeter
+            >,
+          ),
+          ElectricityMeter,
+          PrefetchHooks Function()
+        > {
+  $$ElectricityMetersTableTableManager(
+    _$AppDatabase db,
+    $ElectricityMetersTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ElectricityMetersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ElectricityMetersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ElectricityMetersTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> meterNumber = const Value.absent(),
+                Value<String> normalizedMeterNumber = const Value.absent(),
+                Value<String> customerName = const Value.absent(),
+                Value<String> tariffPower = const Value.absent(),
+                Value<String> location = const Value.absent(),
+                Value<String> notes = const Value.absent(),
+                Value<String?> lastTokenNumber = const Value.absent(),
+                Value<DateTime?> lastPurchasedAt = const Value.absent(),
+                Value<double?> lastAmount = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ElectricityMetersCompanion(
+                id: id,
+                householdId: householdId,
+                name: name,
+                meterNumber: meterNumber,
+                normalizedMeterNumber: normalizedMeterNumber,
+                customerName: customerName,
+                tariffPower: tariffPower,
+                location: location,
+                notes: notes,
+                lastTokenNumber: lastTokenNumber,
+                lastPurchasedAt: lastPurchasedAt,
+                lastAmount: lastAmount,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String name,
+                required String meterNumber,
+                required String normalizedMeterNumber,
+                Value<String> customerName = const Value.absent(),
+                Value<String> tariffPower = const Value.absent(),
+                Value<String> location = const Value.absent(),
+                Value<String> notes = const Value.absent(),
+                Value<String?> lastTokenNumber = const Value.absent(),
+                Value<DateTime?> lastPurchasedAt = const Value.absent(),
+                Value<double?> lastAmount = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ElectricityMetersCompanion.insert(
+                id: id,
+                householdId: householdId,
+                name: name,
+                meterNumber: meterNumber,
+                normalizedMeterNumber: normalizedMeterNumber,
+                customerName: customerName,
+                tariffPower: tariffPower,
+                location: location,
+                notes: notes,
+                lastTokenNumber: lastTokenNumber,
+                lastPurchasedAt: lastPurchasedAt,
+                lastAmount: lastAmount,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ElectricityMetersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ElectricityMetersTable,
+      ElectricityMeter,
+      $$ElectricityMetersTableFilterComposer,
+      $$ElectricityMetersTableOrderingComposer,
+      $$ElectricityMetersTableAnnotationComposer,
+      $$ElectricityMetersTableCreateCompanionBuilder,
+      $$ElectricityMetersTableUpdateCompanionBuilder,
+      (
+        ElectricityMeter,
+        BaseReferences<
+          _$AppDatabase,
+          $ElectricityMetersTable,
+          ElectricityMeter
+        >,
+      ),
+      ElectricityMeter,
+      PrefetchHooks Function()
+    >;
 typedef $$UtilityTokenPurchasesTableCreateCompanionBuilder =
     UtilityTokenPurchasesCompanion Function({
       required String id,
@@ -37915,6 +39816,8 @@ typedef $$UtilityTokenPurchasesTableCreateCompanionBuilder =
       required String meterNumber,
       Value<String?> tokenCode,
       required int amount,
+      Value<int> adminFee,
+      Value<double?> creditedKwh,
       required DateTime purchasedAt,
       Value<String?> transactionId,
       Value<int> rowid,
@@ -37927,6 +39830,8 @@ typedef $$UtilityTokenPurchasesTableUpdateCompanionBuilder =
       Value<String> meterNumber,
       Value<String?> tokenCode,
       Value<int> amount,
+      Value<int> adminFee,
+      Value<double?> creditedKwh,
       Value<DateTime> purchasedAt,
       Value<String?> transactionId,
       Value<int> rowid,
@@ -37968,6 +39873,16 @@ class $$UtilityTokenPurchasesTableFilterComposer
 
   ColumnFilters<int> get amount => $composableBuilder(
     column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get adminFee => $composableBuilder(
+    column: $table.adminFee,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get creditedKwh => $composableBuilder(
+    column: $table.creditedKwh,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -38021,6 +39936,16 @@ class $$UtilityTokenPurchasesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get adminFee => $composableBuilder(
+    column: $table.adminFee,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get creditedKwh => $composableBuilder(
+    column: $table.creditedKwh,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get purchasedAt => $composableBuilder(
     column: $table.purchasedAt,
     builder: (column) => ColumnOrderings(column),
@@ -38062,6 +39987,14 @@ class $$UtilityTokenPurchasesTableAnnotationComposer
 
   GeneratedColumn<int> get amount =>
       $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<int> get adminFee =>
+      $composableBuilder(column: $table.adminFee, builder: (column) => column);
+
+  GeneratedColumn<double> get creditedKwh => $composableBuilder(
+    column: $table.creditedKwh,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get purchasedAt => $composableBuilder(
     column: $table.purchasedAt,
@@ -38126,6 +40059,8 @@ class $$UtilityTokenPurchasesTableTableManager
                 Value<String> meterNumber = const Value.absent(),
                 Value<String?> tokenCode = const Value.absent(),
                 Value<int> amount = const Value.absent(),
+                Value<int> adminFee = const Value.absent(),
+                Value<double?> creditedKwh = const Value.absent(),
                 Value<DateTime> purchasedAt = const Value.absent(),
                 Value<String?> transactionId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -38136,6 +40071,8 @@ class $$UtilityTokenPurchasesTableTableManager
                 meterNumber: meterNumber,
                 tokenCode: tokenCode,
                 amount: amount,
+                adminFee: adminFee,
+                creditedKwh: creditedKwh,
                 purchasedAt: purchasedAt,
                 transactionId: transactionId,
                 rowid: rowid,
@@ -38148,6 +40085,8 @@ class $$UtilityTokenPurchasesTableTableManager
                 required String meterNumber,
                 Value<String?> tokenCode = const Value.absent(),
                 required int amount,
+                Value<int> adminFee = const Value.absent(),
+                Value<double?> creditedKwh = const Value.absent(),
                 required DateTime purchasedAt,
                 Value<String?> transactionId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -38158,6 +40097,8 @@ class $$UtilityTokenPurchasesTableTableManager
                 meterNumber: meterNumber,
                 tokenCode: tokenCode,
                 amount: amount,
+                adminFee: adminFee,
+                creditedKwh: creditedKwh,
                 purchasedAt: purchasedAt,
                 transactionId: transactionId,
                 rowid: rowid,
@@ -38191,38 +40132,303 @@ typedef $$UtilityTokenPurchasesTableProcessedTableManager =
       UtilityTokenPurchase,
       PrefetchHooks Function()
     >;
-typedef $$TransfersTableCreateCompanionBuilder = TransfersCompanion Function({
-  required String id,
-  required String householdId,
-  required String fromAccountId,
-  required String toAccountId,
-  required int amount,
-  Value<int> adminFee,
-  Value<String?> feeTransactionId,
-  required DateTime date,
-  required DateTime recordedAt,
-  Value<String?> note,
-  Value<String?> source,
-  Value<bool> isDeleted,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$TransfersTableUpdateCompanionBuilder = TransfersCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> fromAccountId,
-  Value<String> toAccountId,
-  Value<int> amount,
-  Value<int> adminFee,
-  Value<String?> feeTransactionId,
-  Value<DateTime> date,
-  Value<DateTime> recordedAt,
-  Value<String?> note,
-  Value<String?> source,
-  Value<bool> isDeleted,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$ElectricityMeterReadingsTableCreateCompanionBuilder =
+    ElectricityMeterReadingsCompanion Function({
+      required String id,
+      required String householdId,
+      required String meterId,
+      required double readingKwh,
+      required DateTime recordedAt,
+      Value<String> source,
+      Value<String?> note,
+      Value<int> rowid,
+    });
+typedef $$ElectricityMeterReadingsTableUpdateCompanionBuilder =
+    ElectricityMeterReadingsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> meterId,
+      Value<double> readingKwh,
+      Value<DateTime> recordedAt,
+      Value<String> source,
+      Value<String?> note,
+      Value<int> rowid,
+    });
+
+class $$ElectricityMeterReadingsTableFilterComposer
+    extends Composer<_$AppDatabase, $ElectricityMeterReadingsTable> {
+  $$ElectricityMeterReadingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get meterId => $composableBuilder(
+    column: $table.meterId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get readingKwh => $composableBuilder(
+    column: $table.readingKwh,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ElectricityMeterReadingsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ElectricityMeterReadingsTable> {
+  $$ElectricityMeterReadingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get meterId => $composableBuilder(
+    column: $table.meterId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get readingKwh => $composableBuilder(
+    column: $table.readingKwh,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ElectricityMeterReadingsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ElectricityMeterReadingsTable> {
+  $$ElectricityMeterReadingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get meterId =>
+      $composableBuilder(column: $table.meterId, builder: (column) => column);
+
+  GeneratedColumn<double> get readingKwh => $composableBuilder(
+    column: $table.readingKwh,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+}
+
+class $$ElectricityMeterReadingsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ElectricityMeterReadingsTable,
+          ElectricityMeterReading,
+          $$ElectricityMeterReadingsTableFilterComposer,
+          $$ElectricityMeterReadingsTableOrderingComposer,
+          $$ElectricityMeterReadingsTableAnnotationComposer,
+          $$ElectricityMeterReadingsTableCreateCompanionBuilder,
+          $$ElectricityMeterReadingsTableUpdateCompanionBuilder,
+          (
+            ElectricityMeterReading,
+            BaseReferences<
+              _$AppDatabase,
+              $ElectricityMeterReadingsTable,
+              ElectricityMeterReading
+            >,
+          ),
+          ElectricityMeterReading,
+          PrefetchHooks Function()
+        > {
+  $$ElectricityMeterReadingsTableTableManager(
+    _$AppDatabase db,
+    $ElectricityMeterReadingsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ElectricityMeterReadingsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ElectricityMeterReadingsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ElectricityMeterReadingsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> meterId = const Value.absent(),
+                Value<double> readingKwh = const Value.absent(),
+                Value<DateTime> recordedAt = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ElectricityMeterReadingsCompanion(
+                id: id,
+                householdId: householdId,
+                meterId: meterId,
+                readingKwh: readingKwh,
+                recordedAt: recordedAt,
+                source: source,
+                note: note,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String meterId,
+                required double readingKwh,
+                required DateTime recordedAt,
+                Value<String> source = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ElectricityMeterReadingsCompanion.insert(
+                id: id,
+                householdId: householdId,
+                meterId: meterId,
+                readingKwh: readingKwh,
+                recordedAt: recordedAt,
+                source: source,
+                note: note,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ElectricityMeterReadingsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ElectricityMeterReadingsTable,
+      ElectricityMeterReading,
+      $$ElectricityMeterReadingsTableFilterComposer,
+      $$ElectricityMeterReadingsTableOrderingComposer,
+      $$ElectricityMeterReadingsTableAnnotationComposer,
+      $$ElectricityMeterReadingsTableCreateCompanionBuilder,
+      $$ElectricityMeterReadingsTableUpdateCompanionBuilder,
+      (
+        ElectricityMeterReading,
+        BaseReferences<
+          _$AppDatabase,
+          $ElectricityMeterReadingsTable,
+          ElectricityMeterReading
+        >,
+      ),
+      ElectricityMeterReading,
+      PrefetchHooks Function()
+    >;
+typedef $$TransfersTableCreateCompanionBuilder =
+    TransfersCompanion Function({
+      required String id,
+      required String householdId,
+      required String fromAccountId,
+      required String toAccountId,
+      required int amount,
+      Value<int> adminFee,
+      Value<String?> feeTransactionId,
+      required DateTime date,
+      required DateTime recordedAt,
+      Value<String?> note,
+      Value<String?> source,
+      Value<bool> isDeleted,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$TransfersTableUpdateCompanionBuilder =
+    TransfersCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> fromAccountId,
+      Value<String> toAccountId,
+      Value<int> amount,
+      Value<int> adminFee,
+      Value<String?> feeTransactionId,
+      Value<DateTime> date,
+      Value<DateTime> recordedAt,
+      Value<String?> note,
+      Value<String?> source,
+      Value<bool> isDeleted,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$TransfersTableFilterComposer
     extends Composer<_$AppDatabase, $TransfersTable> {
@@ -39286,32 +41492,34 @@ typedef $$EnvelopeTransfersTableProcessedTableManager =
       EnvelopeTransfer,
       PrefetchHooks Function()
     >;
-typedef $$AssetsTableCreateCompanionBuilder = AssetsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  required String assetType,
-  Value<int> value,
-  Value<String> placement,
-  Value<String?> note,
-  Value<bool> isArchived,
-  required DateTime createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$AssetsTableUpdateCompanionBuilder = AssetsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String> assetType,
-  Value<int> value,
-  Value<String> placement,
-  Value<String?> note,
-  Value<bool> isArchived,
-  Value<DateTime> createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$AssetsTableCreateCompanionBuilder =
+    AssetsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      required String assetType,
+      Value<int> value,
+      Value<String> placement,
+      Value<String?> note,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AssetsTableUpdateCompanionBuilder =
+    AssetsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String> assetType,
+      Value<int> value,
+      Value<String> placement,
+      Value<String?> note,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$AssetsTableFilterComposer
     extends Composer<_$AppDatabase, $AssetsTable> {
@@ -39577,32 +41785,34 @@ typedef $$AssetsTableProcessedTableManager =
       Asset,
       PrefetchHooks Function()
     >;
-typedef $$GoalsTableCreateCompanionBuilder = GoalsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  Value<String?> note,
-  required int targetAmount,
-  Value<int> currentAmount,
-  Value<DateTime?> targetDate,
-  Value<String?> categoryId,
-  Value<bool> isActive,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$GoalsTableUpdateCompanionBuilder = GoalsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String?> note,
-  Value<int> targetAmount,
-  Value<int> currentAmount,
-  Value<DateTime?> targetDate,
-  Value<String?> categoryId,
-  Value<bool> isActive,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$GoalsTableCreateCompanionBuilder =
+    GoalsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      Value<String?> note,
+      required int targetAmount,
+      Value<int> currentAmount,
+      Value<DateTime?> targetDate,
+      Value<String?> categoryId,
+      Value<bool> isActive,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$GoalsTableUpdateCompanionBuilder =
+    GoalsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String?> note,
+      Value<int> targetAmount,
+      Value<int> currentAmount,
+      Value<DateTime?> targetDate,
+      Value<String?> categoryId,
+      Value<bool> isActive,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$GoalsTableFilterComposer extends Composer<_$AppDatabase, $GoalsTable> {
   $$GoalsTableFilterComposer({
@@ -41238,54 +43448,56 @@ typedef $$RecurringTransactionRunsTableProcessedTableManager =
       RecurringTransactionRun,
       PrefetchHooks Function()
     >;
-typedef $$RemindersTableCreateCompanionBuilder = RemindersCompanion Function({
-  required String id,
-  required String householdId,
-  required String title,
-  Value<String?> note,
-  required DateTime scheduledAt,
-  Value<String> recurrenceType,
-  Value<String> weekdaysJson,
-  Value<bool> isActive,
-  Value<String?> soundUri,
-  Value<String?> soundName,
-  Value<int> defaultSnoozeMinutes,
-  required int notificationId,
-  required DateTime createdAt,
-  Value<DateTime?> updatedAt,
-  Value<String?> sourceType,
-  Value<String?> sourceId,
-  Value<String> origin,
-  Value<String> mode,
-  Value<int?> calendarEventId,
-  Value<bool> isSyncedToCalendar,
-  Value<DateTime?> syncedAt,
-  Value<int> rowid,
-});
-typedef $$RemindersTableUpdateCompanionBuilder = RemindersCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> title,
-  Value<String?> note,
-  Value<DateTime> scheduledAt,
-  Value<String> recurrenceType,
-  Value<String> weekdaysJson,
-  Value<bool> isActive,
-  Value<String?> soundUri,
-  Value<String?> soundName,
-  Value<int> defaultSnoozeMinutes,
-  Value<int> notificationId,
-  Value<DateTime> createdAt,
-  Value<DateTime?> updatedAt,
-  Value<String?> sourceType,
-  Value<String?> sourceId,
-  Value<String> origin,
-  Value<String> mode,
-  Value<int?> calendarEventId,
-  Value<bool> isSyncedToCalendar,
-  Value<DateTime?> syncedAt,
-  Value<int> rowid,
-});
+typedef $$RemindersTableCreateCompanionBuilder =
+    RemindersCompanion Function({
+      required String id,
+      required String householdId,
+      required String title,
+      Value<String?> note,
+      required DateTime scheduledAt,
+      Value<String> recurrenceType,
+      Value<String> weekdaysJson,
+      Value<bool> isActive,
+      Value<String?> soundUri,
+      Value<String?> soundName,
+      Value<int> defaultSnoozeMinutes,
+      required int notificationId,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<String?> sourceType,
+      Value<String?> sourceId,
+      Value<String> origin,
+      Value<String> mode,
+      Value<int?> calendarEventId,
+      Value<bool> isSyncedToCalendar,
+      Value<DateTime?> syncedAt,
+      Value<int> rowid,
+    });
+typedef $$RemindersTableUpdateCompanionBuilder =
+    RemindersCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> title,
+      Value<String?> note,
+      Value<DateTime> scheduledAt,
+      Value<String> recurrenceType,
+      Value<String> weekdaysJson,
+      Value<bool> isActive,
+      Value<String?> soundUri,
+      Value<String?> soundName,
+      Value<int> defaultSnoozeMinutes,
+      Value<int> notificationId,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<String?> sourceType,
+      Value<String?> sourceId,
+      Value<String> origin,
+      Value<String> mode,
+      Value<int?> calendarEventId,
+      Value<bool> isSyncedToCalendar,
+      Value<DateTime?> syncedAt,
+      Value<int> rowid,
+    });
 
 class $$RemindersTableFilterComposer
     extends Composer<_$AppDatabase, $RemindersTable> {
@@ -43789,32 +46001,34 @@ typedef $$ActivityEntriesTableProcessedTableManager =
       ActivityEntry,
       PrefetchHooks Function()
     >;
-typedef $$DailyNotesTableCreateCompanionBuilder = DailyNotesCompanion Function({
-  required String id,
-  required String householdId,
-  required DateTime noteDate,
-  Value<String?> title,
-  required String body,
-  Value<String?> treatmentType,
-  Value<int> priority,
-  Value<bool> isArchived,
-  required DateTime createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$DailyNotesTableUpdateCompanionBuilder = DailyNotesCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<DateTime> noteDate,
-  Value<String?> title,
-  Value<String> body,
-  Value<String?> treatmentType,
-  Value<int> priority,
-  Value<bool> isArchived,
-  Value<DateTime> createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$DailyNotesTableCreateCompanionBuilder =
+    DailyNotesCompanion Function({
+      required String id,
+      required String householdId,
+      required DateTime noteDate,
+      Value<String?> title,
+      required String body,
+      Value<String?> treatmentType,
+      Value<int> priority,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$DailyNotesTableUpdateCompanionBuilder =
+    DailyNotesCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<DateTime> noteDate,
+      Value<String?> title,
+      Value<String> body,
+      Value<String?> treatmentType,
+      Value<int> priority,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$DailyNotesTableFilterComposer
     extends Composer<_$AppDatabase, $DailyNotesTable> {
@@ -44085,32 +46299,34 @@ typedef $$DailyNotesTableProcessedTableManager =
       DailyNote,
       PrefetchHooks Function()
     >;
-typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
-  required String id,
-  required String householdId,
-  required String title,
-  Value<String?> note,
-  Value<DateTime?> dueDate,
-  Value<String> status,
-  Value<DateTime?> completedAt,
-  Value<bool> isArchived,
-  required DateTime createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> title,
-  Value<String?> note,
-  Value<DateTime?> dueDate,
-  Value<String> status,
-  Value<DateTime?> completedAt,
-  Value<bool> isArchived,
-  Value<DateTime> createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$TasksTableCreateCompanionBuilder =
+    TasksCompanion Function({
+      required String id,
+      required String householdId,
+      required String title,
+      Value<String?> note,
+      Value<DateTime?> dueDate,
+      Value<String> status,
+      Value<DateTime?> completedAt,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$TasksTableUpdateCompanionBuilder =
+    TasksCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> title,
+      Value<String?> note,
+      Value<DateTime?> dueDate,
+      Value<String> status,
+      Value<DateTime?> completedAt,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
   $$TasksTableFilterComposer({
@@ -51396,8 +53612,15 @@ class $AppDatabaseManager {
       $$DailyNoteTagsTableTableManager(_db, _db.dailyNoteTags);
   $$AttachmentsTableTableManager get attachments =>
       $$AttachmentsTableTableManager(_db, _db.attachments);
+  $$ElectricityMetersTableTableManager get electricityMeters =>
+      $$ElectricityMetersTableTableManager(_db, _db.electricityMeters);
   $$UtilityTokenPurchasesTableTableManager get utilityTokenPurchases =>
       $$UtilityTokenPurchasesTableTableManager(_db, _db.utilityTokenPurchases);
+  $$ElectricityMeterReadingsTableTableManager get electricityMeterReadings =>
+      $$ElectricityMeterReadingsTableTableManager(
+        _db,
+        _db.electricityMeterReadings,
+      );
   $$TransfersTableTableManager get transfers =>
       $$TransfersTableTableManager(_db, _db.transfers);
   $$EnvelopeBudgetsTableTableManager get envelopeBudgets =>

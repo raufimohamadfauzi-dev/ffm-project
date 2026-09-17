@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/di/injection.dart';
@@ -112,8 +113,10 @@ class _ReminderView extends StatefulWidget {
   State<_ReminderView> createState() => _ReminderViewState();
 }
 
+enum _HistoryFilter { all, actionable, completed, missed }
+
 class _ReminderViewState extends State<_ReminderView> {
-  ReminderHistoryStatus? _historyFilter;
+  _HistoryFilter _historyFilter = _HistoryFilter.all;
   ReminderOrigin? _originFilter;
   String? _lastNotifiedPendingHistoryId;
   final _focusedHistoryKey = GlobalKey();
@@ -231,6 +234,39 @@ class _ReminderViewState extends State<_ReminderView> {
     });
   }
 
+  Future<void> _confirmClearCompletedHistory(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Bersihkan Riwayat'),
+        content: const Text(
+          'Hapus semua riwayat pengingat yang sudah selesai atau dibatalkan?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Bersihkan'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      context.read<ReminderBloc>().add(
+        const ReminderCompletedHistoriesCleared(),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Riwayat selesai berhasil dibersihkan.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) => DefaultTabController(
     length: 2,
@@ -268,11 +304,27 @@ class _ReminderViewState extends State<_ReminderView> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final history = _historyFilter == null
-              ? state.history
-              : state.history
-                    .where((item) => item.history.status == _historyFilter)
-                    .toList(growable: false);
+          final history = switch (_historyFilter) {
+            _HistoryFilter.all => state.history,
+            _HistoryFilter.actionable => state.history
+                .where(
+                  (item) =>
+                      item.history.status != ReminderHistoryStatus.completed &&
+                      item.history.status != ReminderHistoryStatus.cancelled,
+                )
+                .toList(growable: false),
+            _HistoryFilter.completed => state.history
+                .where(
+                  (item) =>
+                      item.history.status == ReminderHistoryStatus.completed,
+                )
+                .toList(growable: false),
+            _HistoryFilter.missed => state.history
+                .where(
+                  (item) => item.history.status == ReminderHistoryStatus.missed,
+                )
+                .toList(growable: false),
+          };
 
           final rawReminders = _originFilter == null
               ? state.reminders
@@ -386,37 +438,75 @@ class _ReminderViewState extends State<_ReminderView> {
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ),
-                      DropdownButton<ReminderHistoryStatus?>(
-                        value: _historyFilter,
-                        hint: const Text('Semua Status'),
-                        underline: const SizedBox.shrink(),
-                        items: [
-                          const DropdownMenuItem<ReminderHistoryStatus?>(
-                            value: null,
-                            child: Text('Semua Status'),
+                      if (state.history.any(
+                        (h) =>
+                            h.history.status ==
+                                ReminderHistoryStatus.completed ||
+                            h.history.status ==
+                                ReminderHistoryStatus.cancelled,
+                      ))
+                        TextButton.icon(
+                          onPressed: () =>
+                              _confirmClearCompletedHistory(context),
+                          icon: const Icon(
+                            Icons.cleaning_services_outlined,
+                            size: 16,
                           ),
-                          ...ReminderHistoryStatus.values.map(
-                            (status) => DropdownMenuItem(
-                              value: status,
-                              child: Text(status.label),
-                            ),
-                          ),
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _historyFilter = value),
+                          label: const Text('Bersihkan selesai'),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      FilterChip(
+                        label: const Text('Semua'),
+                        selected: _historyFilter == _HistoryFilter.all,
+                        onSelected: (_) =>
+                            setState(() => _historyFilter = _HistoryFilter.all),
+                      ),
+                      FilterChip(
+                        label: const Text('Perlu Tindakan'),
+                        selected: _historyFilter == _HistoryFilter.actionable,
+                        onSelected: (_) => setState(
+                          () => _historyFilter = _HistoryFilter.actionable,
+                        ),
+                      ),
+                      FilterChip(
+                        label: const Text('Selesai'),
+                        selected: _historyFilter == _HistoryFilter.completed,
+                        onSelected: (_) => setState(
+                          () => _historyFilter = _HistoryFilter.completed,
+                        ),
+                      ),
+                      FilterChip(
+                        label: const Text('Terlewat'),
+                        selected: _historyFilter == _HistoryFilter.missed,
+                        onSelected: (_) => setState(
+                          () => _historyFilter = _HistoryFilter.missed,
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   if (history.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 32),
                       child: AppEmptyState(
                         icon: Icons.history_toggle_off_rounded,
                         title: 'Riwayat kosong',
-                        message: _historyFilter == null
-                            ? 'Belum ada riwayat pengingat yang tercatat.'
-                            : 'Belum ada riwayat dengan filter status ${_historyFilter!.label}.',
+                        message: switch (_historyFilter) {
+                          _HistoryFilter.all =>
+                            'Belum ada riwayat pengingat yang tercatat.',
+                          _HistoryFilter.actionable =>
+                            'Tidak ada pengingat yang memerlukan tindakan saat ini.',
+                          _HistoryFilter.completed =>
+                            'Belum ada riwayat pengingat yang diselesaikan.',
+                          _HistoryFilter.missed =>
+                            'Tidak ada pengingat yang terlewat.',
+                        },
                       ),
                     )
                   else
@@ -427,48 +517,52 @@ class _ReminderViewState extends State<_ReminderView> {
                       final isActionable =
                           historyItem.status !=
                               ReminderHistoryStatus.completed &&
-                          historyItem.status != ReminderHistoryStatus.cancelled;
+                          historyItem.status !=
+                              ReminderHistoryStatus.cancelled;
                       final isMissed =
                           historyItem.status == ReminderHistoryStatus.missed;
                       final isCompleted =
-                          historyItem.status == ReminderHistoryStatus.completed;
+                          historyItem.status ==
+                          ReminderHistoryStatus.completed;
+                      final isSnoozed =
+                          historyItem.status == ReminderHistoryStatus.snoozed;
+                      final isAutonomous =
+                          item.reminder?.origin == ReminderOrigin.autonomous;
                       final isHighlighted =
                           historyItem.id == _lastNotifiedPendingHistoryId ||
                           (historyItem.id == widget.focusHistoryId &&
-                              historyItem.reminderId == widget.focusReminderId);
+                              historyItem.reminderId ==
+                                  widget.focusReminderId);
                       final colorScheme = Theme.of(context).colorScheme;
-
-                      final subtitle = historyItem.snoozedUntil == null
-                          ? '${_formatReminderDateTime(historyItem.scheduledAt)} · ${historyItem.status.label}'
-                          : '${_formatReminderDateTime(historyItem.scheduledAt)} · ${historyItem.status.label} sampai ${_formatReminderDateTime(historyItem.snoozedUntil!)}';
-
-                      final cardColor = isMissed
-                          ? colorScheme.errorContainer.withAlpha(120)
-                          : isCompleted
-                          ? colorScheme.surfaceContainerHighest.withAlpha(120)
-                          : isHighlighted
-                          ? colorScheme.tertiaryContainer
-                          : null;
 
                       return AppCard(
                         key: historyItem.id == widget.focusHistoryId
                             ? _focusedHistoryKey
                             : null,
-                        color: cardColor,
+                        border: isHighlighted
+                            ? BorderSide(color: colorScheme.primary, width: 1.5)
+                            : null,
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(
-                                    _statusIcon(historyItem.status),
-                                    color: isMissed
-                                        ? colorScheme.error
-                                        : isCompleted
-                                        ? colorScheme.primary
-                                        : null,
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Icon(
+                                      _statusIcon(historyItem.status),
+                                      color: isCompleted
+                                          ? colorScheme.primary
+                                          : isMissed
+                                              ? colorScheme.error
+                                              : isSnoozed
+                                                  ? Colors.orange.shade700
+                                                  : colorScheme.primary,
+                                      size: 22,
+                                    ),
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
@@ -476,46 +570,107 @@ class _ReminderViewState extends State<_ReminderView> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                historyItem.title,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                  color: isMissed
-                                                      ? colorScheme
-                                                            .onErrorContainer
-                                                      : null,
-                                                ),
+                                        Text(
+                                          historyItem.title,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleSmall
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
                                               ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Wrap(
+                                          spacing: 6,
+                                          runSpacing: 4,
+                                          crossAxisAlignment:
+                                              WrapCrossAlignment.center,
+                                          children: [
+                                            _HistoryStatusBadge(
+                                              status: historyItem.status,
+                                              snoozedUntil:
+                                                  historyItem.snoozedUntil,
                                             ),
-                                            if (isMissed) ...[
-                                              const SizedBox(width: 6),
+                                            if (isAutonomous)
                                               Container(
                                                 padding:
                                                     const EdgeInsets.symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 2,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: colorScheme.error,
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
+                                                  horizontal: 6,
+                                                  vertical: 2,
                                                 ),
-                                                child: Text(
-                                                  'Terlewat',
-                                                  style: TextStyle(
-                                                    color: colorScheme.onError,
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w700,
+                                                decoration: BoxDecoration(
+                                                  color: colorScheme.brightness ==
+                                                          Brightness.dark
+                                                      ? Colors.deepPurple.shade900
+                                                          .withAlpha(190)
+                                                      : Colors.deepPurple.shade50,
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                  border: Border.all(
+                                                    color: colorScheme.brightness ==
+                                                            Brightness.dark
+                                                        ? Colors.purple.shade300
+                                                            .withAlpha(140)
+                                                        : Colors.deepPurple.shade400,
+                                                    width: 0.8,
                                                   ),
                                                 ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      Icons.auto_awesome,
+                                                      size: 11,
+                                                      color: colorScheme
+                                                                  .brightness ==
+                                                              Brightness.dark
+                                                          ? Colors.purple.shade200
+                                                          : Colors.deepPurple
+                                                              .shade800,
+                                                    ),
+                                                    const SizedBox(width: 3.5),
+                                                    Text(
+                                                      'Otonom',
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .labelSmall
+                                                          ?.copyWith(
+                                                            fontSize: 10.5,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color: colorScheme
+                                                                        .brightness ==
+                                                                    Brightness
+                                                                        .dark
+                                                                ? Colors.purple
+                                                                    .shade100
+                                                                : Colors
+                                                                    .deepPurple
+                                                                    .shade900,
+                                                          ),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
-                                            ],
+                                            if (item.reminder?.sourceType !=
+                                                null)
+                                              _ReminderSourceTypeBadge(
+                                                sourceType:
+                                                    item.reminder!.sourceType!,
+                                              ),
                                           ],
                                         ),
-                                        Text(subtitle),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Waktu: ${_formatReminderDateTime(historyItem.scheduledAt)}',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -537,17 +692,8 @@ class _ReminderViewState extends State<_ReminderView> {
                                   ),
                                 ],
                               ),
-                              if (isHighlighted) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Pengingat baru masuk. Pilih tindakan di bawah.',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
                               if (isActionable) ...[
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 12),
                                 Row(
                                   children: [
                                     Expanded(
@@ -560,7 +706,10 @@ class _ReminderViewState extends State<_ReminderView> {
                                                     .completed,
                                               ),
                                             ),
-                                        icon: const Icon(Icons.check_rounded),
+                                        icon: const Icon(
+                                          Icons.check_rounded,
+                                          size: 18,
+                                        ),
                                         label: const Text('Selesai'),
                                       ),
                                     ),
@@ -568,8 +717,9 @@ class _ReminderViewState extends State<_ReminderView> {
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: OutlinedButton.icon(
-                                          onPressed: () =>
-                                              context.read<ReminderBloc>().add(
+                                          onPressed: () => context
+                                              .read<ReminderBloc>()
+                                              .add(
                                                 ReminderHistoryStatusChanged(
                                                   history: historyItem,
                                                   status: ReminderHistoryStatus
@@ -584,6 +734,7 @@ class _ReminderViewState extends State<_ReminderView> {
                                               ),
                                           icon: const Icon(
                                             Icons.snooze_rounded,
+                                            size: 18,
                                           ),
                                           label: const Text('Tunda 10 mnt'),
                                         ),
@@ -708,6 +859,74 @@ class _ReminderSourceTypeBadge extends StatelessWidget {
               fontWeight: FontWeight.w600,
               fontSize: 10.5,
               color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryStatusBadge extends StatelessWidget {
+  const _HistoryStatusBadge({
+    required this.status,
+    this.snoozedUntil,
+  });
+
+  final ReminderHistoryStatus status;
+  final DateTime? snoozedUntil;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final (label, icon, color) = switch (status) {
+      ReminderHistoryStatus.completed => (
+        'Selesai',
+        Icons.check_circle_outline_rounded,
+        Colors.green.shade700,
+      ),
+      ReminderHistoryStatus.snoozed => (
+        snoozedUntil != null
+            ? 'Ditunda s/d ${_formatReminderDateTime(snoozedUntil!)}'
+            : 'Ditunda',
+        Icons.snooze_rounded,
+        Colors.orange.shade800,
+      ),
+      ReminderHistoryStatus.missed => (
+        'Terlewat',
+        Icons.warning_amber_rounded,
+        colorScheme.error,
+      ),
+      ReminderHistoryStatus.pending => (
+        'Perlu Tindakan',
+        Icons.notifications_active_outlined,
+        colorScheme.primary,
+      ),
+      ReminderHistoryStatus.cancelled => (
+        'Dibatalkan',
+        Icons.cancel_outlined,
+        colorScheme.onSurfaceVariant,
+      ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withAlpha(25),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withAlpha(90), width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 3.5),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 10.5,
+              color: color,
             ),
           ),
         ],
@@ -1536,6 +1755,12 @@ class _PermissionBannerState extends State<_PermissionBanner> {
     }
   }
 
+  Future<void> _openBatterySettings() async {
+    try {
+      await openAppSettings();
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -1578,27 +1803,56 @@ class _PermissionBannerState extends State<_PermissionBanner> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    SizedBox(
-                      height: 32,
-                      child: FilledButton(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: colorScheme.error,
-                          foregroundColor: colorScheme.onError,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          textStyle: const TextStyle(fontSize: 13),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        SizedBox(
+                          height: 32,
+                          child: FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: colorScheme.error,
+                              foregroundColor: colorScheme.onError,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                              textStyle: const TextStyle(fontSize: 13),
+                            ),
+                            onPressed: _requesting ? null : _requestOrOpen,
+                            child: _requesting
+                                ? SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: colorScheme.onError,
+                                    ),
+                                  )
+                                : Text(buttonLabel),
+                          ),
                         ),
-                        onPressed: _requesting ? null : _requestOrOpen,
-                        child: _requesting
-                            ? SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: colorScheme.onError,
+                        SizedBox(
+                          height: 32,
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: colorScheme.onErrorContainer,
+                              side: BorderSide(
+                                color: colorScheme.onErrorContainer.withAlpha(
+                                  120,
                                 ),
-                              )
-                            : Text(buttonLabel),
-                      ),
+                              ),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 10),
+                              textStyle: const TextStyle(fontSize: 12),
+                            ),
+                            onPressed: _openBatterySettings,
+                            icon: const Icon(
+                              Icons.battery_charging_full_rounded,
+                              size: 15,
+                            ),
+                            label: const Text('Bebaskan Baterai'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

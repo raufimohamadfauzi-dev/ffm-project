@@ -61,7 +61,7 @@ class FfmAssistantQueryRegistry {
          _DatabaseStructureQueryTool(FfmDatabaseStructureService(database)),
          _AccountBalanceQueryTool(database),
          _TobaccoPurchaseQueryTool(database),
-         UtilityMeterRepositoryQueryTool(database, UtilityMeterRepository()),
+         UtilityMeterRepositoryQueryTool(UtilityMeterRepository(database)),
          _ExpenseExtremeQueryTool(database),
          _LatestTransactionQueryTool(database),
          _TransactionSummaryQueryTool(database),
@@ -119,19 +119,18 @@ class FfmAssistantQueryRegistry {
 }
 
 class UtilityMeterRepositoryQueryTool implements FfmAssistantQueryTool {
-  const UtilityMeterRepositoryQueryTool(this._database, this._repository);
+  const UtilityMeterRepositoryQueryTool(this._repository);
 
-  final AppDatabase _database;
   final UtilityMeterRepository _repository;
 
   @override
   bool canHandle(String normalizedText) {
     final asksUtility = RegExp(
-      r'\b(?:token\s+listrik|nomor\s+token|meteran|meter\s+listrik|idpel|kwh)\b',
+      r'\b(?:listrik|token\s+listrik|nomor\s+token|meteran|meter\s+listrik|idpel|kwh)\b',
       caseSensitive: false,
     ).hasMatch(normalizedText);
     final asksRead = RegExp(
-      r'\b(?:apa|ada|daftar|list|nomor|nama|siapa|terakhir|terbaru|lihat|tampilkan|punya|milik)\b',
+      r'\b(?:apa|ada|daftar|list|nomor|nama|siapa|terakhir|terbaru|lihat|tampilkan|punya|milik|boros|hemat|banding|analisis|analisa)\b',
       caseSensitive: false,
     ).hasMatch(normalizedText);
     return asksUtility && asksRead;
@@ -142,15 +141,22 @@ class UtilityMeterRepositoryQueryTool implements FfmAssistantQueryTool {
     FfmAssistantQueryRequest request,
   ) async {
     final meters = await _repository.getAllMeters(request.householdId);
-    final history =
-        await (_database.select(_database.utilityTokenPurchases)
-              ..where((row) => row.householdId.equals(request.householdId))
-              ..orderBy([(row) => OrderingTerm.desc(row.purchasedAt)]))
-            .get();
-    if (meters.isEmpty) {
+    final history = await _repository.getPurchaseHistory(
+      request.householdId,
+      limit: 8,
+    );
+    final summaries = <String, ElectricityUsageSummary>{};
+    for (final meter in meters) {
+      summaries[meter.id] = await _repository.summarizeUsage(
+        request.householdId,
+        meterId: meter.id,
+      );
+    }
+    if (meters.isEmpty && history.isEmpty) {
       return const FfmAssistantQueryAnswer(
         title: 'Meteran dan token listrik',
         message: 'Belum ada data meteran listrik yang tersimpan.',
+        capabilityId: 'read.electricity',
       );
     }
     final lines = meters
@@ -166,12 +172,24 @@ class UtilityMeterRepositoryQueryTool implements FfmAssistantQueryTool {
     final historyText = history.isEmpty
         ? 'Belum ada histori pembelian token.'
         : 'Histori pembelian:\n${history.map((row) {
-            final token = row.tokenCode == null || row.tokenCode!.isEmpty ? 'token belum dicatat' : row.tokenCode!;
-            return '- ${row.meterNumber}: Rp${row.amount}; $token; ${DateFormat('dd/MM/yyyy').format(row.purchasedAt)}';
+            final kwh = row.creditedKwh == null ? '' : '; ${row.creditedKwh!.toStringAsFixed(2)} kWh';
+            return '- ${row.meterNumber}: Rp${row.amount}$kwh; ${DateFormat('dd/MM/yyyy').format(row.purchasedAt)}';
           }).join('\n')}';
+    final comparable = meters
+        .where((meter) => summaries[meter.id]?.averageCostPerKwh != null)
+        .map((meter) {
+          final value = summaries[meter.id]!.averageCostPerKwh!;
+          return '- ${meter.name}: Rp${value.round()}/kWh token.';
+        })
+        .join('\n');
+    final analysisText = comparable.isEmpty
+        ? 'Analisis antar rumah belum tersedia karena data kWh belum cukup.'
+        : 'Perbandingan biaya token per rumah:\n$comparable\n'
+              'Ini bukan vonis boros/hemat; pemakaian aktual memerlukan pembacaan meter berkala.';
     return FfmAssistantQueryAnswer(
       title: 'Meteran dan token listrik',
-      message: '$lines\n\n$historyText',
+      message: '$lines\n\n$historyText\n\n$analysisText',
+      capabilityId: 'read.electricity',
     );
   }
 }

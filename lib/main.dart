@@ -1232,6 +1232,8 @@ class _AppShellState extends State<AppShell> {
     return switch (recurrence.toString().toLowerCase()) {
       'daily' || 'harian' => ReminderRecurrenceType.daily,
       'weekly' || 'mingguan' => ReminderRecurrenceType.weekly,
+      'monthly' || 'bulanan' => ReminderRecurrenceType.monthly,
+      'yearly' || 'tahunan' => ReminderRecurrenceType.yearly,
       'once' || 'sekali' => ReminderRecurrenceType.once,
       _ => null,
     };

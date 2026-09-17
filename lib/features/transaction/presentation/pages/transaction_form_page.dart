@@ -44,6 +44,7 @@ class TransactionFormPage extends StatefulWidget {
     this.initialAttachmentPaths = const <String>[],
     this.assistantMerchantName,
     this.assistantSlmFieldValues = const <String, String>{},
+    this.assistantMetadata = const <String, Object?>{},
     this.assistantPrefill,
     this.onReturnToAssistant,
     this.showFirstTransactionGuide = false,
@@ -61,6 +62,7 @@ class TransactionFormPage extends StatefulWidget {
   final List<String> initialAttachmentPaths;
   final String? assistantMerchantName;
   final Map<String, String> assistantSlmFieldValues;
+  final Map<String, Object?> assistantMetadata;
   final FfmAssistantFormPrefill? assistantPrefill;
   final Future<void> Function()? onReturnToAssistant;
   final bool showFirstTransactionGuide;
@@ -973,6 +975,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
         attachmentPaths: _attachmentPaths,
         assistantMerchantName: widget.assistantMerchantName,
         assistantSlmFieldValues: widget.assistantSlmFieldValues,
+        assistantMetadata: widget.assistantMetadata,
       ),
     ]);
   }

@@ -72,6 +72,10 @@ class FfmAssistantReminderMutationService {
     required String title,
     required DateTime scheduledAt,
     String? note,
+    ReminderMode? mode,
+    String? soundUri,
+    String? soundName,
+    ReminderRecurrenceType? recurrenceType,
   }) async {
     final normalizedTitle = title.trim();
     if (normalizedTitle.isEmpty) {
@@ -83,17 +87,19 @@ class FfmAssistantReminderMutationService {
       title: normalizedTitle,
       note: note?.trim().isEmpty == true ? null : note?.trim(),
       scheduledAt: scheduledAt,
-      recurrenceType: previous.recurrenceType,
+      recurrenceType: recurrenceType ?? previous.recurrenceType,
       weekdays: previous.weekdays,
       isActive: previous.isActive,
-      soundUri: previous.soundUri,
-      soundName: previous.soundName,
+      soundUri: soundUri ?? previous.soundUri,
+      soundName: soundName ?? previous.soundName,
       defaultSnoozeMinutes: previous.defaultSnoozeMinutes,
       notificationId: previous.notificationId,
       createdAt: previous.createdAt,
       updatedAt: _clock(),
       sourceType: previous.sourceType,
       sourceId: previous.sourceId,
+      origin: previous.origin,
+      mode: mode ?? previous.mode,
     );
     if (_sameEditableFields(previous, next)) return previous;
 
@@ -181,7 +187,11 @@ class FfmAssistantReminderMutationService {
   bool _sameEditableFields(ReminderEntity left, ReminderEntity right) =>
       left.title == right.title &&
       left.note == right.note &&
-      left.scheduledAt == right.scheduledAt;
+      left.scheduledAt == right.scheduledAt &&
+      left.mode == right.mode &&
+      left.soundUri == right.soundUri &&
+      left.soundName == right.soundName &&
+      left.recurrenceType == right.recurrenceType;
 
   bool _shouldSyncToCalendar(ReminderEntity reminder) {
     // Check if reminder note contains calendar sync marker

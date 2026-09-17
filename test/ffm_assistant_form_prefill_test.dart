@@ -15,6 +15,7 @@ void main() {
         categoryName: 'Makan',
         note: 'Makan siang',
         date: DateTime(2026, 8, 28),
+        tags: 'makan',
       ),
     );
 

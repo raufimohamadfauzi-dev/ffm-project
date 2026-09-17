@@ -96,6 +96,56 @@ class FfmAssistantFinancialSnapshotService {
         'Jika quality bukan sufficient, nyatakan keterbatasan data.';
   }
 
+  Future<String> buildElectricityDigest({
+    required String householdId,
+    DateTime? startDate,
+    DateTime? endDate,
+    int maxItems = 8,
+  }) async {
+    final query = _database.select(_database.utilityTokenPurchases)
+      ..where((row) {
+        var predicate = row.householdId.equals(householdId);
+        if (startDate != null) {
+          predicate =
+              predicate & row.purchasedAt.isBiggerOrEqualValue(startDate);
+        }
+        if (endDate != null) {
+          predicate =
+              predicate &
+              row.purchasedAt.isSmallerThanValue(
+                endDate.add(const Duration(days: 1)),
+              );
+        }
+        return predicate;
+      })
+      ..orderBy([(row) => OrderingTerm.desc(row.purchasedAt)])
+      ..limit(maxItems.clamp(1, 8));
+    final rows = await query.get();
+    if (rows.isEmpty) return 'Electricity evidence bounded: data kosong.';
+    final total = rows.fold<int>(0, (sum, row) => sum + row.amount);
+    final totalKwh = rows.fold<double>(
+      0,
+      (sum, row) => sum + (row.creditedKwh ?? 0),
+    );
+    final facts = rows
+        .map((row) {
+          final digits = row.meterNumber.replaceAll(RegExp(r'\D'), '');
+          final masked = digits.length > 4
+              ? 'meter-***${digits.substring(digits.length - 4)}'
+              : 'meter-terlindungi';
+          final kwh = row.creditedKwh == null
+              ? 'kwh=unknown'
+              : 'kwh=${row.creditedKwh!.toStringAsFixed(2)}';
+          final date = row.purchasedAt.toIso8601String().substring(0, 10);
+          return '$date,$masked,amount=${row.amount},$kwh';
+        })
+        .join('|');
+    return 'Electricity evidence bounded: count=${rows.length}; '
+        'total_cost=$total; total_credited_kwh=${totalKwh.toStringAsFixed(2)}; '
+        'facts=$facts. Kode token dan nomor meter lengkap disembunyikan. '
+        'Gunakan hanya angka evidence ini; credited kWh bukan pemakaian aktual.';
+  }
+
   /// Digest transaksi untuk capability cloud yang eksplisit. Detail merchant,
   /// catatan, rekening, ID, dan kategori sengaja tidak ikut dikirim; Gemini
   /// hanya menerima maksimal delapan fakta tanggal/jenis/nominal.

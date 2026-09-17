@@ -193,6 +193,7 @@ Future<void> _scheduleBackgroundSnooze(
           sound: androidSound,
         ),
       );
+  final isAlarmSnooze = payload['mode'] == ReminderMode.alarm.storageValue;
   await plugin.zonedSchedule(
     id: snoozeNotifId,
     title: 'Pengingat Ditunda',
@@ -204,11 +205,17 @@ Future<void> _scheduleBackgroundSnooze(
         channelName,
         channelDescription: 'Notifikasi pengingat yang ditunda',
         importance: Importance.max,
-        priority: Priority.high,
+        priority: isAlarmSnooze ? Priority.max : Priority.high,
         playSound: true,
         sound: androidSound,
         color: _reminderAccentColor,
-        category: AndroidNotificationCategory.reminder,
+        audioAttributesUsage: isAlarmSnooze
+            ? AudioAttributesUsage.alarm
+            : AudioAttributesUsage.notification,
+        category: isAlarmSnooze
+            ? AndroidNotificationCategory.alarm
+            : AndroidNotificationCategory.reminder,
+        fullScreenIntent: isAlarmSnooze,
         visibility: NotificationVisibility.public,
         subText: _reminderSubText,
         styleInformation: BigTextStyleInformation(
@@ -623,17 +630,24 @@ class ReminderNotificationService
             sound: androidSound,
           ),
         );
+    final isAlarmMode = reminder.mode == ReminderMode.alarm;
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
         channelId,
         soundName,
         channelDescription: 'Notifikasi pengingat FFM',
         importance: Importance.max,
-        priority: Priority.high,
+        priority: isAlarmMode ? Priority.max : Priority.high,
         playSound: true,
         sound: androidSound,
         color: _reminderAccentColor,
-        category: AndroidNotificationCategory.reminder,
+        audioAttributesUsage: isAlarmMode
+            ? AudioAttributesUsage.alarm
+            : AudioAttributesUsage.notification,
+        category: isAlarmMode
+            ? AndroidNotificationCategory.alarm
+            : AndroidNotificationCategory.reminder,
+        fullScreenIntent: isAlarmMode,
         visibility: NotificationVisibility.public,
         subText: _reminderSubText,
         styleInformation: BigTextStyleInformation(
@@ -645,7 +659,7 @@ class ReminderNotificationService
         ),
         actions: [
           const AndroidNotificationAction('complete', 'Selesai'),
-          if (reminder.mode == ReminderMode.alarm)
+          if (isAlarmMode)
             const AndroidNotificationAction('snooze_10', 'Tunda 10 menit'),
         ],
       ),

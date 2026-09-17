@@ -205,11 +205,11 @@ class AutonomousEvaluationCoordinator {
     } catch (_) {}
 
     try {
-      final suggestion = await _reminderSuggestionDetector.detect(
+      final suggestions = await _reminderSuggestionDetector.detectAll(
         householdId: householdId,
         now: now,
       );
-      if (suggestion != null) {
+      for (final suggestion in suggestions) {
         await _autonomousReminderService.createFrom(suggestion);
       }
     } catch (_) {}

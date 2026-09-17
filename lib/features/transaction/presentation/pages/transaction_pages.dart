@@ -32,6 +32,7 @@ import '../widgets/transaction_filter_sheet.dart';
 import '../../../goal/domain/usecases/goal_balance_usecases.dart';
 import '../../../recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
 import '../../../settings/presentation/pages/master_data_page.dart';
+import '../../../settings/data/utility_meter_repository.dart';
 import '../../../assistant/data/ffm_assistant_personalization_repository.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/domain/ffm_assistant_form_prefill.dart';
@@ -159,6 +160,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
               initialAttachmentPaths: draft.attachmentPaths,
               assistantMerchantName: draft.merchantName,
               assistantSlmFieldValues: draft.slmFieldValues,
+              assistantMetadata: Map<String, Object?>.from(
+                draft.metadata ?? const <String, Object?>{},
+              ),
               assistantPrefill: prefill,
               onReturnToAssistant: widget.onOpenAssistant,
             ),
@@ -387,6 +391,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
       tags: _assistantTagNames(draft),
       assistantMerchantName: draft.merchantName,
       assistantSlmFieldValues: draft.slmFieldValues,
+      assistantMetadata: Map<String, Object?>.from(
+        draft.metadata ?? const <String, Object?>{},
+      ),
     );
     await _saveDrafts([transactionDraft]);
   }
@@ -2008,20 +2015,30 @@ class _TransactionListPageState extends State<TransactionListPage> {
           : (previous?.transaction.recordedAt ?? confirmationTime),
       updatedAt: confirmationTime,
     );
-    await getIt<SaveTransaction>()(
-      savedTransaction,
-      items: draft.items
-          .map(
-            (item) => TransactionItemEntity(
-              id: const Uuid().v4(),
-              transactionId: id,
-              itemName: item.name,
-              price: item.price,
-              qty: item.qty,
-            ),
-          )
-          .toList(),
-    );
+    await getIt<AppDatabase>().transaction(() async {
+      await getIt<SaveTransaction>()(
+        savedTransaction,
+        items: draft.items
+            .map(
+              (item) => TransactionItemEntity(
+                id: const Uuid().v4(),
+                transactionId: id,
+                itemName: item.name,
+                price: item.price,
+                qty: item.qty,
+              ),
+            )
+            .toList(),
+      );
+      final utilityProposal = draft.assistantMetadata['utilityProposal'];
+      if (utilityProposal is Map) {
+        await getIt<UtilityMeterRepository>().recordLinkedPurchase(
+          householdId: AppContext.householdId,
+          transactionId: id,
+          proposal: utilityProposal,
+        );
+      }
+    });
     await _syncGoalContribution(
       previous: previous == null ? null : _entityFromRow(previous.transaction),
       nextGoalId: savedTransaction.goalId,

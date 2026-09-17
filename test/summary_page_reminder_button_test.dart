@@ -94,6 +94,51 @@ void main() {
     expect(find.text('9+'), findsOneWidget);
   });
 
+  testWidgets(
+    'tampil titik merah (badge tanpa label teks) ketika ada pengingat otonom aktif',
+    (tester) async {
+      final autoReminders = [
+        Reminder(
+          id: 'rem-auto-1',
+          householdId: 'local-household',
+          title: 'Pengingat Otonom',
+          scheduledAt: DateTime(2026, 9, 15, 9),
+          recurrenceType: 'once',
+          weekdaysJson: '[]',
+          isActive: true,
+          defaultSnoozeMinutes: 10,
+          notificationId: 101,
+          createdAt: DateTime(2026, 9, 15, 7),
+          origin: 'autonomous',
+          mode: 'notification',
+          isSyncedToCalendar: false,
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            appBar: PreferredSize(
+              preferredSize: const Size.fromHeight(56),
+              child: ReminderNotificationButton(
+                historyStream: Stream.value(const <ReminderHistory>[]),
+                autonomousStream: Stream.value(autoReminders),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final badgeFinder = find.byType(Badge);
+      expect(badgeFinder, findsOneWidget);
+      final badgeWidget = tester.widget<Badge>(badgeFinder);
+      expect(badgeWidget.isLabelVisible, isTrue);
+      // When label is null, it renders as a pure red dot indicator
+      expect(badgeWidget.label, isNull);
+    },
+  );
+
   testWidgets('klik membuka ReminderPage atau aksi pengingat', (tester) async {
     var clicked = false;
     await tester.pumpWidget(

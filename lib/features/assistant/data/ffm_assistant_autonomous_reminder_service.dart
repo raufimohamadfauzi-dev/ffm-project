@@ -23,26 +23,31 @@ class FfmAssistantAutonomousReminderService {
         payload['type'] != 'reminder_suggestion') {
       return null;
     }
-    final sourceType = ReminderSourceTypeX.fromStorage(
-      payload['sourceType']?.toString(),
-    );
-    final sourceId = payload['sourceId']?.toString().trim();
-    final title = payload['title']?.toString().trim();
-    final scheduledAt = DateTime.tryParse(
-      payload['scheduledAt']?.toString() ?? '',
-    );
-    if (sourceType == null ||
-        sourceId == null ||
-        sourceId.isEmpty ||
-        title == null ||
-        title.isEmpty ||
-        scheduledAt == null) {
+    final sourceType =
+        ReminderSourceTypeX.fromStorage(payload['sourceType']?.toString()) ??
+        ReminderSourceType.assistantLog;
+    final rawSourceId = payload['sourceId']?.toString().trim();
+    final sourceId =
+        (rawSourceId != null && rawSourceId.isNotEmpty) ? rawSourceId : insight.id;
+    final rawTitle = payload['title']?.toString().trim();
+    final title =
+        (rawTitle != null && rawTitle.isNotEmpty) ? rawTitle : insight.title.trim();
+    final scheduledAt =
+        DateTime.tryParse(payload['scheduledAt']?.toString() ?? '') ??
+        insight.expiresAt?.subtract(const Duration(days: 7)) ??
+        DateTime.now().add(const Duration(hours: 1));
+
+    if (title.isEmpty) {
       return null;
     }
 
     final existing = await _reminders.getReminders(insight.householdId);
     if (existing.any(
-      (item) => item.sourceType == sourceType && item.sourceId == sourceId,
+      (item) =>
+          item.isActive &&
+          ((item.sourceType == sourceType && item.sourceId == sourceId) ||
+              (item.title.toLowerCase() == title.toLowerCase() &&
+                  item.origin == ReminderOrigin.autonomous)),
     )) {
       return null;
     }
@@ -56,7 +61,7 @@ class FfmAssistantAutonomousReminderService {
       id: id,
       householdId: insight.householdId,
       title: title,
-      note: payload['note']?.toString(),
+      note: payload['note']?.toString() ?? insight.summary,
       scheduledAt: scheduledAt,
       recurrenceType: ReminderRecurrenceType.once,
       weekdays: const [],

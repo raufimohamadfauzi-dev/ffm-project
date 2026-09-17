@@ -541,6 +541,55 @@ void main() {
         );
       },
     );
+
+    test(
+      'membersihkan riwayat yang selesai dan dibatalkan',
+      () async {
+        final item = reminder(
+          scheduledAt: DateTime.now().subtract(const Duration(hours: 1)),
+        );
+        await repository.saveReminder(item);
+        final occ1 = ReminderOccurrence(
+          key: 'occ-1',
+          scheduledAt: DateTime.now().subtract(const Duration(hours: 2)),
+          notificationId: 3001,
+        );
+        final occ2 = ReminderOccurrence(
+          key: 'occ-2',
+          scheduledAt: DateTime.now().subtract(const Duration(hours: 1)),
+          notificationId: 3002,
+        );
+        final h1 = await repository.ensureHistory(
+          reminder: item,
+          occurrence: occ1,
+        );
+        final h2 = await repository.ensureHistory(
+          reminder: item,
+          occurrence: occ2,
+        );
+        await repository.updateHistoryStatus(
+          householdId: householdId,
+          historyId: h1.id,
+          status: ReminderHistoryStatus.completed,
+        );
+        await repository.updateHistoryStatus(
+          householdId: householdId,
+          historyId: h2.id,
+          status: ReminderHistoryStatus.pending,
+        );
+
+        bloc.add(const ReminderLoadRequested());
+        await bloc.stream.firstWhere((s) => s.history.length == 2);
+
+        bloc.add(const ReminderCompletedHistoriesCleared());
+        final state = await bloc.stream.firstWhere(
+          (s) => s.history.length == 1,
+        );
+
+        expect(state.history.single.history.id, h2.id);
+        expect(state.history.single.history.status, ReminderHistoryStatus.pending);
+      },
+    );
   });
 }
 

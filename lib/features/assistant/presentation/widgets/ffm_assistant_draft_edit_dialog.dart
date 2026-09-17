@@ -61,11 +61,15 @@ class _FfmAssistantDraftEditDialogState
   late final TextEditingController _receiptChangeAmountController;
   late final TextEditingController _taxController;
   late final TextEditingController _discountController;
+  late final TextEditingController _meterNameController;
+  late final TextEditingController _meterNumberController;
   late List<ReceiptOcrItem> _items;
   late String _budgetPeriod;
   late final List<String> _tags;
   late List<String> _masterTags;
   late List<String> _parties;
+  List<Category> _masterCategories = const [];
+  List<String> _masterMerchants = const [];
   late String? _fromAccount;
   late String? _toAccount;
   late DateTime? _date;
@@ -181,7 +185,8 @@ class _FfmAssistantDraftEditDialogState
         ? TimeOfDay.fromDateTime(widget.draft.date!)
         : null;
 
-    final draftRecurrence = widget.draft.recurrenceType ??
+    final draftRecurrence =
+        widget.draft.recurrenceType ??
         (widget.draft.formValues['recurrence'] != null ||
                 widget.draft.formValues['recurrenceType'] != null
             ? ReminderRecurrenceTypeX.fromStorage(
@@ -192,7 +197,8 @@ class _FfmAssistantDraftEditDialogState
             : null);
     _recurrence = draftRecurrence ?? ReminderRecurrenceType.once;
 
-    _mode = widget.draft.reminderMode ??
+    _mode =
+        widget.draft.reminderMode ??
         ReminderModeX.fromStorage(
           widget.draft.formValues['reminderMode']?.toString() ??
               widget.draft.formValues['mode']?.toString(),
@@ -203,9 +209,9 @@ class _FfmAssistantDraftEditDialogState
         : widget.draft.formValues['weekdays'];
     _weekday = initialWeekdaysRaw is List
         ? initialWeekdaysRaw
-            .map((e) => int.tryParse(e.toString()))
-            .whereType<int>()
-            .toList()
+              .map((e) => int.tryParse(e.toString()))
+              .whereType<int>()
+              .toList()
         : <int>[];
 
     if (widget.draft.kind == FfmAssistantDraftKind.reminder) {
@@ -278,6 +284,18 @@ class _FfmAssistantDraftEditDialogState
           widget.draft.formValues['diskon'] ??
           '',
     );
+    _meterNameController = TextEditingController(
+      text:
+          widget.draft.formValues['proposedMeterName']?.toString() ??
+          widget.draft.formValues['meterName']?.toString() ??
+          '',
+    );
+    _meterNumberController = TextEditingController(
+      text:
+          widget.draft.formValues['meterNumber']?.toString() ??
+          widget.draft.formValues['idpel']?.toString() ??
+          '',
+    );
   }
 
   @override
@@ -298,6 +316,8 @@ class _FfmAssistantDraftEditDialogState
     _receiptChangeAmountController.dispose();
     _taxController.dispose();
     _discountController.dispose();
+    _meterNameController.dispose();
+    _meterNumberController.dispose();
     super.dispose();
   }
 
@@ -344,6 +364,25 @@ class _FfmAssistantDraftEditDialogState
     return text.isEmpty ? null : text;
   }
 
+  List<String> _categoriesForCurrentKind() {
+    if (_masterCategories.isEmpty) return const [];
+    final targetType = _selectedKind == FfmAssistantDraftKind.income
+        ? 'income'
+        : _selectedKind == FfmAssistantDraftKind.expense
+        ? 'expense'
+        : _isActivityDraft
+        ? 'activity'
+        : null;
+    if (targetType == null) {
+      return _masterCategories.map((c) => c.name.trim()).toList();
+    }
+    return _masterCategories
+        .where((c) => c.type == targetType)
+        .map((c) => c.name.trim())
+        .where((n) => n.isNotEmpty)
+        .toList();
+  }
+
   Future<void> _loadMasterData() async {
     if (!getIt.isRegistered<AppDatabase>()) return;
     try {
@@ -368,11 +407,36 @@ class _FfmAssistantDraftEditDialogState
                   ..orderBy([(t) => OrderingTerm.asc(t.name)]))
                 .get()
           : Future.value(const <TransactionParty>[]);
+      final categoriesFuture =
+          (db.select(db.categories)
+                ..where(
+                  (c) =>
+                      c.householdId.equals(AppContext.householdId) &
+                      c.isActive.equals(true),
+                )
+                ..orderBy([(c) => OrderingTerm.asc(c.name)]))
+              .get();
+      final merchantsFuture =
+          (db.select(db.merchants)
+                ..where(
+                  (m) =>
+                      m.householdId.equals(AppContext.householdId) &
+                      m.isActive.equals(true),
+                )
+                ..orderBy([(m) => OrderingTerm.asc(m.name)]))
+              .get();
 
-      final results = await Future.wait([tagsFuture, partiesFuture]);
+      final results = await Future.wait([
+        tagsFuture,
+        partiesFuture,
+        categoriesFuture,
+        merchantsFuture,
+      ]);
       if (!mounted) return;
       final tags = results[0] as List<Tag>;
       final parties = results[1] as List<TransactionParty>;
+      final categories = results[2] as List<Category>;
+      final merchants = results[3] as List<Merchant>;
       setState(() {
         if (_masterTags.isEmpty && tags.isNotEmpty) {
           _masterTags = tags
@@ -387,6 +451,12 @@ class _FfmAssistantDraftEditDialogState
               .toSet()
               .toList();
         }
+        _masterCategories = categories;
+        _masterMerchants = merchants
+            .map((m) => m.name.trim())
+            .where((n) => n.isNotEmpty)
+            .toSet()
+            .toList();
       });
     } catch (_) {}
   }
@@ -590,6 +660,20 @@ class _FfmAssistantDraftEditDialogState
         newFormValues.remove('party');
       }
     }
+    final meterName = _textOrNull(_meterNameController);
+    final meterNumber = _textOrNull(_meterNumberController);
+    if (meterName != null) {
+      newFormValues['proposedMeterName'] = meterName;
+      newFormValues['meterName'] = meterName;
+    } else {
+      newFormValues.remove('proposedMeterName');
+      newFormValues.remove('meterName');
+    }
+    if (meterNumber != null) {
+      newFormValues['meterNumber'] = meterNumber;
+    } else {
+      newFormValues.remove('meterNumber');
+    }
     if (receiptNumber != null && receiptNumber.isNotEmpty) {
       newFormValues['receiptNumber'] = receiptNumber;
     } else {
@@ -639,7 +723,9 @@ class _FfmAssistantDraftEditDialogState
       if (_recurrence == ReminderRecurrenceType.weekly && _weekday.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Pilih minimal satu hari untuk pengulangan mingguan.'),
+            content: Text(
+              'Pilih minimal satu hari untuk pengulangan mingguan.',
+            ),
           ),
         );
         return;
@@ -993,9 +1079,7 @@ class _FfmAssistantDraftEditDialogState
           if (_selectedKind == FfmAssistantDraftKind.reminder) ...[
             TextField(
               controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: 'Judul pengingat',
-              ),
+              decoration: const InputDecoration(labelText: 'Judul pengingat'),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -1041,9 +1125,8 @@ class _FfmAssistantDraftEditDialogState
                 alignment: Alignment.centerLeft,
                 child: Text(
                   'Pilih Hari Pengulangan',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
               const SizedBox(height: 6),
@@ -1106,9 +1189,8 @@ class _FfmAssistantDraftEditDialogState
                     ),
                   )
                   .toList(),
-              onChanged: (value) => setState(
-                () => _mode = value ?? ReminderMode.notification,
-              ),
+              onChanged: (value) =>
+                  setState(() => _mode = value ?? ReminderMode.notification),
             ),
             const SizedBox(height: 12),
             Container(
@@ -1133,9 +1215,8 @@ class _FfmAssistantDraftEditDialogState
                       const SizedBox(width: 8),
                       Text(
                         'Nada notifikasi',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ],
                   ),
@@ -1306,7 +1387,7 @@ class _FfmAssistantDraftEditDialogState
           if (_selectedKind == FfmAssistantDraftKind.income ||
               _selectedKind == FfmAssistantDraftKind.expense ||
               _selectedKind == FfmAssistantDraftKind.budget ||
-              _isActivityDraft)
+              _isActivityDraft) ...[
             TextField(
               controller: _categoryController,
               decoration: const InputDecoration(
@@ -1314,10 +1395,35 @@ class _FfmAssistantDraftEditDialogState
                 hintText: 'Contoh: Makanan, Transportasi',
               ),
             ),
+            if (_categoriesForCurrentKind().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 6),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    for (final catName in _categoriesForCurrentKind().take(8))
+                      ActionChip(
+                        avatar: Icon(
+                          _categoryController.text.trim().toLowerCase() ==
+                                  catName.toLowerCase()
+                              ? Icons.check
+                              : Icons.category_outlined,
+                          size: 14,
+                        ),
+                        label: Text(catName),
+                        onPressed: () {
+                          setState(() => _categoryController.text = catName);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+          ],
           // Kolom transaksi disamakan dengan form resmi + database:
           // merchant, lokasi, tanggal, pihak, biaya admin (transfer).
           if (_selectedKind == FfmAssistantDraftKind.income ||
-              _selectedKind == FfmAssistantDraftKind.expense)
+              _selectedKind == FfmAssistantDraftKind.expense) ...[
             TextField(
               controller: _merchantController,
               decoration: const InputDecoration(
@@ -1325,8 +1431,27 @@ class _FfmAssistantDraftEditDialogState
                 hintText: 'Contoh: Indomaret, Pasar',
               ),
             ),
+            if (_masterMerchants.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 6),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    for (final mName in _masterMerchants.take(8))
+                      ActionChip(
+                        avatar: const Icon(Icons.storefront_outlined, size: 14),
+                        label: Text(mName),
+                        onPressed: () {
+                          setState(() => _merchantController.text = mName);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+          ],
           if (_selectedKind == FfmAssistantDraftKind.income ||
-              _selectedKind == FfmAssistantDraftKind.expense)
+              _selectedKind == FfmAssistantDraftKind.expense) ...[
             TextField(
               controller: _locationController,
               decoration: const InputDecoration(
@@ -1334,6 +1459,29 @@ class _FfmAssistantDraftEditDialogState
                 hintText: 'Misalnya pasar, rumah, atau kantor',
               ),
             ),
+            if (_meterNumberController.text.isNotEmpty ||
+                widget.draft.formValues['meterNumber'] != null ||
+                widget.draft.formValues['idpel'] != null ||
+                (_categoryController.text.toLowerCase().contains('listrik') ||
+                    (widget.draft.categoryName?.toLowerCase().contains('listrik') ?? false))) ...[
+              TextField(
+                controller: _meterNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nama / Label Rumah Meteran PLN (opsional)',
+                  hintText: 'Contoh: Rumah Utama, Kontrakan A, Ruko',
+                  helperText: 'Label lokasi meteran listrik PLN di Buku Saku',
+                ),
+              ),
+              TextField(
+                controller: _meterNumberController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Nomor Meter / IDPEL PLN (opsional)',
+                  hintText: 'Contoh: 14123456789',
+                ),
+              ),
+            ],
+          ],
           if (_showsDate)
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -1794,7 +1942,9 @@ class _DraftReceiptItemRow extends StatelessWidget {
                   onChanged: (val) {
                     final qty =
                         double.tryParse(val.replaceAll(',', '.')) ?? 1.0;
-                    onChanged(item.copyWith(quantity: qty));
+                    onChanged(
+                      item.copyWith(quantity: qty, clearLineTotal: true),
+                    );
                   },
                 ),
               ),
@@ -1813,7 +1963,7 @@ class _DraftReceiptItemRow extends StatelessWidget {
                     final p =
                         int.tryParse(val.replaceAll(RegExp(r'[^0-9]'), '')) ??
                         0;
-                    onChanged(item.copyWith(price: p));
+                    onChanged(item.copyWith(price: p, clearLineTotal: true));
                   },
                 ),
               ),

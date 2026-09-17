@@ -77,7 +77,6 @@ class FfmAssistantReminderDueInsightService {
         suggestedAction: 'Tinjau pengingat',
         destination: FfmAssistantDestination.reminders,
         createdAt: now,
-        expiresAt: now.add(const Duration(days: 7)),
         dedupeKey: 'reminder-due:${history.id}',
       ),
     );

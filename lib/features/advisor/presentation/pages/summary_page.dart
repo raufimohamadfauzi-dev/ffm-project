@@ -2169,9 +2169,15 @@ class _QuickActionRow extends StatelessWidget {
 }
 
 class ReminderNotificationButton extends StatefulWidget {
-  const ReminderNotificationButton({super.key, this.historyStream, this.onTap});
+  const ReminderNotificationButton({
+    super.key,
+    this.historyStream,
+    this.autonomousStream,
+    this.onTap,
+  });
 
   final Stream<List<ReminderHistory>>? historyStream;
+  final Stream<List<Reminder>>? autonomousStream;
   final VoidCallback? onTap;
 
   @override
@@ -2181,28 +2187,38 @@ class ReminderNotificationButton extends StatefulWidget {
 
 class _ReminderNotificationButtonState
     extends State<ReminderNotificationButton> {
-  Stream<List<ReminderHistory>>? _stream;
+  StreamSubscription<List<ReminderHistory>>? _historySub;
+  StreamSubscription<List<Reminder>>? _autonomousSub;
+  int _pendingCount = 0;
+  bool _hasActiveAutonomous = false;
 
   @override
   void initState() {
     super.initState();
-    _initStream();
+    _initStreams();
   }
 
   @override
   void didUpdateWidget(covariant ReminderNotificationButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.historyStream != widget.historyStream) {
-      _initStream();
+    if (oldWidget.historyStream != widget.historyStream ||
+        oldWidget.autonomousStream != widget.autonomousStream) {
+      _initStreams();
     }
   }
 
-  void _initStream() {
+  void _initStreams() {
+    _historySub?.cancel();
+    _autonomousSub?.cancel();
+
+    Stream<List<ReminderHistory>>? historyStream;
+    Stream<List<Reminder>>? autonomousStream;
+
     if (widget.historyStream != null) {
-      _stream = widget.historyStream;
+      historyStream = widget.historyStream;
     } else if (getIt.isRegistered<AppDatabase>()) {
       final db = getIt<AppDatabase>();
-      _stream =
+      historyStream =
           (db.select(db.reminderHistories)..where(
                 (tbl) =>
                     tbl.householdId.equals(AppContext.householdId) &
@@ -2210,9 +2226,48 @@ class _ReminderNotificationButtonState
                     tbl.status.equals('pending'),
               ))
               .watch();
-    } else {
-      _stream = null;
     }
+
+    if (widget.autonomousStream != null) {
+      autonomousStream = widget.autonomousStream;
+    } else if (getIt.isRegistered<AppDatabase>()) {
+      final db = getIt<AppDatabase>();
+      autonomousStream =
+          (db.select(db.reminders)..where(
+                (tbl) =>
+                    tbl.householdId.equals(AppContext.householdId) &
+                    tbl.origin.equals('autonomous') &
+                    tbl.isActive.equals(true),
+              ))
+              .watch();
+    }
+
+    if (historyStream != null) {
+      _historySub = historyStream.listen((list) {
+        if (mounted) {
+          setState(() {
+            _pendingCount = list.length;
+          });
+        }
+      });
+    }
+
+    if (autonomousStream != null) {
+      _autonomousSub = autonomousStream.listen((list) {
+        if (mounted) {
+          setState(() {
+            _hasActiveAutonomous = list.isNotEmpty;
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _historySub?.cancel();
+    _autonomousSub?.cancel();
+    super.dispose();
   }
 
   void _handleTap() {
@@ -2228,37 +2283,29 @@ class _ReminderNotificationButtonState
 
   @override
   Widget build(BuildContext context) {
-    if (_stream == null) {
-      return IconButton(
-        tooltip: 'Pengingat',
-        onPressed: _handleTap,
-        icon: const Icon(Icons.notifications_none),
-      );
-    }
-
-    return StreamBuilder<List<ReminderHistory>>(
-      stream: _stream,
-      builder: (context, snapshot) {
-        final count = snapshot.data?.length ?? 0;
-        final tooltip = count > 0
-            ? 'Pengingat ($count butuh tindakan)'
+    final showBadge = _pendingCount > 0 || _hasActiveAutonomous;
+    final tooltip = _pendingCount > 0
+        ? 'Pengingat ($_pendingCount butuh tindakan)'
+        : _hasActiveAutonomous
+            ? 'Pengingat (Ada alarm/notifikasi otonom aktif)'
             : 'Pengingat';
-        return Semantics(
-          label: tooltip,
-          button: true,
-          child: IconButton(
-            tooltip: tooltip,
-            onPressed: _handleTap,
-            icon: Badge(
-              isLabelVisible: count > 0,
-              label: Text(count > 9 ? '9+' : '$count'),
-              backgroundColor: Theme.of(context).colorScheme.error,
-              textColor: Theme.of(context).colorScheme.onError,
-              child: const Icon(Icons.notifications_none),
-            ),
-          ),
-        );
-      },
+
+    return Semantics(
+      label: tooltip,
+      button: true,
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: _handleTap,
+        icon: Badge(
+          isLabelVisible: showBadge,
+          label: _pendingCount > 0
+              ? Text(_pendingCount > 9 ? '9+' : '$_pendingCount')
+              : null,
+          backgroundColor: Theme.of(context).colorScheme.error,
+          textColor: Theme.of(context).colorScheme.onError,
+          child: const Icon(Icons.notifications_none),
+        ),
+      ),
     );
   }
 }

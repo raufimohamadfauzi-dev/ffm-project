@@ -106,8 +106,8 @@ void main() {
 
     expect(template, contains('ffm-receipt-draft-v1'));
     expect(template, contains('unit_price'));
-    expect(result.items, hasLength(1));
-    expect(result.items.single.name, 'Nama barang');
+    expect(result.items, isEmpty);
+    expect(result.warnings, isNotEmpty);
   });
 
   test('JSON batch membaca banyak transaksi dan rincian item', () {
@@ -187,7 +187,8 @@ void main() {
 
     expect(template, contains('ffm-transaction-batch-v1'));
     expect(result.entries, hasLength(1));
-    expect(result.entries.single.items, hasLength(1));
+    expect(result.entries.single.items, isEmpty);
+    expect(result.warnings, isNotEmpty);
   });
 
   test('JSON mutasi bank membaca pemasukan, pengeluaran, transfer, dan saldo akhir', () {

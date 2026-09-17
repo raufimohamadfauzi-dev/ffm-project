@@ -61,6 +61,15 @@ class FfmAssistantCapabilityRegistry {
       readOnly: true,
     ),
     const FfmAssistantCapability(
+      id: 'read.electricity',
+      label: 'Baca listrik',
+      description: 'Membaca meter, pembelian token, kWh, dan perbandingan biaya listrik secara bounded.',
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      destination: FfmAssistantDestination.utilityMeter,
+      parameterNames: ['period', 'dateFrom', 'dateTo', 'meter'],
+      readOnly: true,
+    ),
+    const FfmAssistantCapability(
       id: 'read.budget',
       label: 'Baca anggaran',
       description: 'Membaca anggaran dan pemakaian kategori secara lokal.',

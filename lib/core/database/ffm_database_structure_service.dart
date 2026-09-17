@@ -363,6 +363,16 @@ class FfmDatabaseStructureService {
       'Utilitas',
       'Riwayat token listrik prabayar yang dikaitkan dengan meteran dan transaksi.',
     ),
+    'electricity_meters': _TableDefinition(
+      'Meter listrik per rumah',
+      'Utilitas',
+      'Data meter atau IDPEL per rumah/lokasi sebagai sumber utama riwayat listrik.',
+    ),
+    'electricity_meter_readings': _TableDefinition(
+      'Pembacaan meter listrik',
+      'Utilitas',
+      'Pembacaan kWh berkala per meter untuk analisis pemakaian aktual.',
+    ),
   };
 }
 

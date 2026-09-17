@@ -1,4 +1,4 @@
-enum ReminderRecurrenceType { once, daily, weekly }
+enum ReminderRecurrenceType { once, daily, weekly, monthly, yearly, hijriMonthly }
 
 enum ReminderOrigin { user, autonomous }
 
@@ -75,21 +75,21 @@ extension ReminderSourceTypeX on ReminderSourceType {
   };
 
   String get label => switch (this) {
-    ReminderSourceType.liability => 'hutang',
-    ReminderSourceType.receivable => 'piutang',
-    ReminderSourceType.goal => 'target keuangan',
-    ReminderSourceType.recurringTransaction => 'jadwal transaksi rutin',
-    ReminderSourceType.activity => 'aktivitas',
-    ReminderSourceType.task => 'tugas',
-    ReminderSourceType.familyProfile => 'profil keluarga',
+    ReminderSourceType.liability => 'Hutang',
+    ReminderSourceType.receivable => 'Piutang',
+    ReminderSourceType.goal => 'Target',
+    ReminderSourceType.recurringTransaction => 'Transaksi Rutin',
+    ReminderSourceType.activity => 'Aktivitas',
+    ReminderSourceType.task => 'Tugas',
+    ReminderSourceType.familyProfile => 'Profil Keluarga',
     ReminderSourceType.telegram => 'Telegram',
-    ReminderSourceType.diagnostics => 'diagnostik aplikasi',
-    ReminderSourceType.accountSetup => 'rekening',
-    ReminderSourceType.goalSetup => 'target keuangan',
-    ReminderSourceType.budgetSetup => 'anggaran',
-    ReminderSourceType.cashFlowProfile => 'siklus kas',
-    ReminderSourceType.cloudSetup => 'cloud asisten',
-    ReminderSourceType.assistantLog => 'Asisten Log',
+    ReminderSourceType.diagnostics => 'Diagnostik',
+    ReminderSourceType.accountSetup => 'Rekening',
+    ReminderSourceType.goalSetup => 'Setup Target',
+    ReminderSourceType.budgetSetup => 'Setup Anggaran',
+    ReminderSourceType.cashFlowProfile => 'Arus Kas',
+    ReminderSourceType.cloudSetup => 'Koneksi Cloud',
+    ReminderSourceType.assistantLog => 'Asisten',
   };
 
   static ReminderSourceType? fromStorage(String? value) => switch (value) {
@@ -117,17 +117,26 @@ extension ReminderRecurrenceTypeX on ReminderRecurrenceType {
     ReminderRecurrenceType.once => 'once',
     ReminderRecurrenceType.daily => 'daily',
     ReminderRecurrenceType.weekly => 'weekly',
+    ReminderRecurrenceType.monthly => 'monthly',
+    ReminderRecurrenceType.yearly => 'yearly',
+    ReminderRecurrenceType.hijriMonthly => 'hijri_monthly',
   };
 
   String get label => switch (this) {
     ReminderRecurrenceType.once => 'Sekali',
     ReminderRecurrenceType.daily => 'Setiap hari',
     ReminderRecurrenceType.weekly => 'Hari tertentu',
+    ReminderRecurrenceType.monthly => 'Bulanan',
+    ReminderRecurrenceType.yearly => 'Tahunan',
+    ReminderRecurrenceType.hijriMonthly => 'Bulanan Hijriah',
   };
 
   static ReminderRecurrenceType fromStorage(String value) => switch (value) {
     'daily' => ReminderRecurrenceType.daily,
     'weekly' => ReminderRecurrenceType.weekly,
+    'monthly' => ReminderRecurrenceType.monthly,
+    'yearly' => ReminderRecurrenceType.yearly,
+    'hijri_monthly' => ReminderRecurrenceType.hijriMonthly,
     _ => ReminderRecurrenceType.once,
   };
 }

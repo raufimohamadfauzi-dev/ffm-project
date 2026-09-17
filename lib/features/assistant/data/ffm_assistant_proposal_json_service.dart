@@ -750,9 +750,16 @@ class FfmAssistantProposalJsonService {
           'once',
           'daily',
           'weekly',
+          'monthly',
+          'yearly',
+          'hijri_monthly',
           'sekali',
           'harian',
           'mingguan',
+          'bulanan',
+          'tahunan',
+          'hijriah',
+          'bulanan hijriah',
         }.contains(recurrence)) {
       return const FfmAssistantProposalParseResult.invalid(
         'Pola pengulangan pengingat tidak valid.',
@@ -761,6 +768,10 @@ class FfmAssistantProposalJsonService {
     final recurrenceType = switch (recurrence) {
       'daily' || 'harian' => ReminderRecurrenceType.daily,
       'weekly' || 'mingguan' => ReminderRecurrenceType.weekly,
+      'monthly' || 'bulanan' => ReminderRecurrenceType.monthly,
+      'yearly' || 'tahunan' => ReminderRecurrenceType.yearly,
+      'hijri_monthly' || 'hijriah' || 'bulanan hijriah' =>
+        ReminderRecurrenceType.hijriMonthly,
       _ => ReminderRecurrenceType.once,
     };
 

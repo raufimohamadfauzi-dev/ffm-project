@@ -1,7 +1,7 @@
 # Plan Perbaikan & Fitur Listrik (Token PLN / Meteran)
 
 > **Dibuat**: 2026-09-17
-> **Status**: In Progress — Fase 1 belum dikerjakan
+> **Status**: Fase 1-3, 5 selesai. Fase 4 belum dikerjakan.
 > **Estimasi total**: ~2 jam (Fase 1–4)
 > **Instruksi**: Centang checkbox `[ ]` → `[x]` hanya setelah kode di-commit + `flutter analyze lib test` + `flutter test` pass. Setiap perbaikan harus diuji atau minimal diverifikasi lewat analyzer + test yang relevan.
 
@@ -95,7 +95,7 @@ test/
 
 ### 1.1 Samakan regex parsing nomor meter: interpreter vs repository
 
-- [ ] **File**: `lib/features/assistant/data/ffm_assistant_interpreter.dart` + `lib/features/settings/domain/entities/utility_meter_models.dart`
+- [x] **File**: `lib/features/assistant/data/ffm_assistant_interpreter.dart` + `lib/features/settings/domain/entities/utility_meter_models.dart`
 - **Masalah**: Regex di `_utilityProposalFromText` (line 9369) hanya menerima `\b(\d{11,12})\b`, tapi `resolveMeterTarget` di repository menerima 9–13 digit. User sebut "meteran 1401234567890" (13 digit) → tidak ter-parse → asisten tidak bisa resolve target. Juga: doc comment di `UtilityMeter.meterNumber` (utility_meter_models.dart:31) tertulis "11–12 digit" yang juga konsisten dengan regex lama, tapi TIDAK konsisten dengan repository (9-13 digit).
 - **Perbaikan**:
   1. Ganti regex di interpreter dari `r'\b(\d{11,12})\b'` → `r'\b(\d{9,13})\b'`
@@ -104,7 +104,7 @@ test/
 
 ### 1.2 Fix unique index `normalized_meter_number` vs `isArchived`
 
-- [ ] **File**: `lib/core/database/app_database.dart` (index di lines 743-744, migration di line 127)
+- [x] **File**: `lib/core/database/app_database.dart` (index di lines 743-744, migration di line 127)
 - **Masalah**: Index unik `idx_electricity_meters_number` pada `(household_id, normalized_meter_number)` berlaku untuk SEMUA baris (termasuk archived). Jika user arsipkan meter "Rumah A" (nomor X) lalu buat meter baru dengan nomor yang sama → crash constraint violation (unhandled). Index ini dibuat di `_createElectricityIndexes()` (line 743-744), BUKAN di `tables.dart`.
 - **Perbaikan**: Tambah migration baru `if (from < 66)` di `onUpgrade` (setelah block `from < 65` di line 127):
   1. `schemaVersion` di line 78 harus diupdate dari `65` → `66`.
@@ -126,21 +126,21 @@ test/
 
 ### 1.3 Perluas cek duplikat token ke seluruh history
 
-- [ ] **File**: `lib/features/settings/data/utility_meter_repository.dart`
+- [x] **File**: `lib/features/settings/data/utility_meter_repository.dart`
 - **Masalah**: `scanPurchaseAnomalies` (line ~331) hanya scan 100 record terakhir via `getPurchaseHistory(householdId, limit: 100)`. Token duplikat yang lebih tua terlewat.
 - **Perbaikan**: Query langsung ke `utilityTokenPurchases` dengan `SELECT 1 FROM utility_token_purchases WHERE household_id = ? AND token_code = ? LIMIT 1` (tanpa limit 100). Jika ada → flag duplikat. Pertimbangkan: tambahkan timestamp pembelian lama di pesan anomali ("Token ini pernah dipakai pada [tanggal]").
 - **Verifikasi**: `flutter analyze lib test` clean. Test: beli token X, buat 150 transaksi lain, beli token X lagi → anomali terdeteksi.
 
 ### 1.4 Fix cek same-day duplikat: query langsung ke tabel pembelian
 
-- [ ] **File**: `lib/features/settings/data/utility_meter_repository.dart`
+- [x] **File**: `lib/features/settings/data/utility_meter_repository.dart`
 - **Masalah**: Cek same-day duplikat (line ~344–361) hanya membandingkan `meter.lastAmount` dan `meter.lastPurchasedAt`. Jika user beli nominal sama dua kali sehari → yang kedua tidak terdeteksi (karena `lastAmount` sudah diupdate ke yang kedua).
 - **Perbaikan**: Query langsung: `SELECT COUNT(*) FROM utility_token_purchases WHERE household_id = ? AND meter_id = ? AND amount = ? AND date(purchased_at) = date(?) AND transaction_id != ?`. Jika count > 0 → flag "Kemungkinan duplikat: ada pembelian Rp [amount] yang sama pada hari ini".
 - **Verifikasi**: `flutter analyze lib test` clean. Test: beli token 50rb untuk meter A jam 10:00, beli lagi 50rb untuk meter A jam 14:00 → anomali terdeteksi di yang kedua.
 
 ### 1.5 Persempit range anomali tarif Rp/kWh
 
-- [ ] **File**: `lib/features/settings/data/utility_meter_repository.dart`
+- [x] **File**: `lib/features/settings/data/utility_meter_repository.dart`
 - **Masalah**: Range `250-4000` Rp/kWh terlalu lebar. Tarif PLN normal:
   - Subsidi lifeline R1/450VA: ~Rp415/kWh
   - Subsidi R1/900VA: ~Rp605/kWh
@@ -165,7 +165,7 @@ test/
 
 ### 2.1 Retry mechanism untuk field yang hilang
 
-- [ ] **File**: `lib/features/assistant/data/receipt_scanner_service.dart`
+- [x] **File**: `lib/features/assistant/data/receipt_scanner_service.dart`
 - **Masalah**: Scanner single-pass. Jika Gemini return JSON valid tapi `token_code` atau `kwh` null → data hilang permanen, tidak ada retry.
 - **Perbaikan**: Di dalam `scanImage()`, setelah parse batch berhasil, cek setiap entry PLN (type expense + merchant PLN + budgetName Listrik). Jika `token_code` atau `kwh` null pada entry:
   1. Kirim follow-up Gemini call dengan prompt: `"Pada gambar struk ini, temukan nomor token 20 digit dan jumlah kWh. Jika tidak ada, tulis null. Format JSON: {token_code: ..., kwh: ...}"`
@@ -176,14 +176,14 @@ test/
 
 ### 2.2 Ekstrak kWh dari chat input
 
-- [ ] **File**: `lib/features/assistant/data/ffm_assistant_interpreter.dart`
+- [x] **File**: `lib/features/assistant/data/ffm_assistant_interpreter.dart`
 - **Masalah**: `_utilityProposalFromText` (line ~9353–9389) tidak mengekstrak kWh dari chat. "beli token 200rb kwh 50" → amount tertangkap, kWh hilang.
 - **Perbaikan**: Di `_utilityProposalFromText`, tambahkan regex: `r'(?:kwh|kW\s*H)\s*[:=]?\s*(\d+(?:[.,]\d+)?)'` → extract ke `creditedKwh`. Jika ada koma → convert ke titik (desimal).
 - **Verifikasi**: `flutter analyze lib test` clean. Test: "beli token listrik 200rb kwh 50" → `creditedKwh = 50.0`.
 
 ### 2.3 Warning saat token/kWh tidak terbaca
 
-- [ ] **File**: `lib/features/assistant/data/ffm_assistant_interpreter.dart`
+- [x] **File**: `lib/features/assistant/data/ffm_assistant_interpreter.dart`
 - **Masalah**: Response draft selalu bilang "Pembelian token listrik untuk [target] dipersiapkan" meskipun token tidak terbaca. User tidak tahu ada data yang kurang.
 - **Perbaikan**: Di `_resolveElectricityPurchase`, setelah build proposal, cek:
   - Jika `tokenCode == null` → tambahkan warning ke response: "⚠️ Kode token tidak terbaca dari struk. Pastikan sudah benar di preview sebelum konfirmasi."
@@ -193,28 +193,28 @@ test/
 
 ### 2.4 Tombol "Foto Ulang" saat scan gagal
 
-- [ ] **File**: `lib/features/assistant/presentation/widgets/ffm_assistant_sheet.dart`
+- [x] **File**: `lib/features/assistant/presentation/widgets/ffm_assistant_sheet.dart`
 - **Masalah**: Saat `outcome.ok == false` (line ~2568–2593), hanya tampilkan pesan error. User harus manual mulai ulang scan.
 - **Perbaikan**: Setelah pesan error scan, tambahkan button "📷 Foto Ulang" yang memanggil `_handleImageUpload()` lagi (buka kamera/galeri). Pattern: ikuti pola tombol existing di sheet (mis. `TextButton` atau `ActionButton` yang sudah ada).
 - **Verifikasi**: `flutter analyze lib test` clean. Visual check: error scan → ada tombol foto ulang.
 
 ### 2.5 Perbaiki routing "cek struk ini"
 
-- [ ] **File**: `lib/features/assistant/presentation/widgets/ffm_assistant_sheet.dart`
+- [x] **File**: `lib/features/assistant/presentation/widgets/ffm_assistant_sheet.dart`
 - **Masalah**: `_isBroadVisualQuestion` (line ~2489–2502) menangkap "cek struk ini" → route ke visual Q&A, padahal harusnya ke receipt scan.
 - **Perbaikan**: Di `_isBroadVisualQuestion`, tambahkan exclusion: jika teks mengandung "struk" DAN ada lampiran gambar → `return false` (biar masuk receipt scan path). Atau lebih spesifik: exclude pola `cek.*struk|lihat.*struk|cek.*bon`.
 - **Verifikasi**: `flutter analyze lib test` clean. Test: "cek struk ini" + gambar → masuk receipt scan, bukan visual Q&A.
 
 ### 2.6 Perlebar regex kWh — terima tanpa suffix unit
 
-- [ ] **File**: `lib/features/assistant/data/receipt_scanner_service.dart`
+- [x] **File**: `lib/features/assistant/data/receipt_scanner_service.dart`
 - **Masalah**: `extractPlnKwh` (line ~109–116) membutuhkan suffix `kWh` atau `kwh`. Jika OCR menghapus unit → value hilang.
 - **Perbaikan**: Tambah fallback regex: setelah regex utama gagal, coba `r'(\d+(?:[.,]\d+)?)\s*(?:kwh|kW\s*H)?'` dengan context check — hanya match jika ada keyword "pemakaian" atau "jumlah" di sekitarnya (untuk hindari false positive angka lain).
 - **Verifikasi**: `flutter analyze lib test` clean. Test: "Jumlah KWH: 63,70" → 63.7, "Pemakaian 63.70" → 63.7, "Rp 63.700" → null (bukan kWh).
 
 ### 2.7 Tambahkan `read.electricity` ke capability adapter handlers
 
-- [ ] **File**: `lib/features/assistant/data/ffm_assistant_capability_adapters.dart`
+- [x] **File**: `lib/features/assistant/data/ffm_assistant_capability_adapters.dart`
 - **Masalah**: `read.electricity` ada di Gemini allowlist (`ffm_assistant_capabilities.dart:64`) tapi tidak ada handler di adapter registry (line ~141–265). Agent mode tidak bisa execute capability ini.
 - **Perbaikan**: Tambah handler di `handlers` map:
   ```dart

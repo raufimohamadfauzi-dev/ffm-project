@@ -42,6 +42,7 @@ class TransactionDraft {
     this.attachmentPaths = const [],
     this.assistantMerchantName,
     this.assistantSlmFieldValues = const <String, String>{},
+    this.assistantMetadata = const <String, Object?>{},
   });
 
   final TransactionType type;
@@ -70,6 +71,7 @@ class TransactionDraft {
   final List<String> attachmentPaths;
   final String? assistantMerchantName;
   final Map<String, String> assistantSlmFieldValues;
+  final Map<String, Object?> assistantMetadata;
 }
 
 class TransactionWithItems {
