@@ -329,7 +329,7 @@ test/
 
 ### 5.2 UI: tombol "Catat Pembacaan" di meter card + panduan baca meter
 
-- [ ] **File**: `lib/features/settings/presentation/pages/utility_meter_page.dart`
+- [x] **File**: `lib/features/settings/presentation/pages/utility_meter_page.dart`
 - **Masalah**: User tidak ada cara untuk input pembacaan meter aktual. Selain itu, user perlu tahu **angka kWh itu dari mana dan cara bacanya**.
 - **Perubahan**: Di `_buildMeterCard`, setelah bar chart (atau setelah summary), tambahkan tombol "📝 Catat Pembacaan" yang buka dialog:
   - **Header dialog**: "Catat Pembacaan Meter" + ikon meter ⚡
