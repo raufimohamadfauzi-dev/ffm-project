@@ -27,6 +27,7 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
   Map<String, List<UtilityPurchaseHistory>> _historyByMeter = const {};
   Map<String, ElectricityUsageSummary> _summaryByMeter = const {};
   Map<String, List<PeriodUsage>> _periodDataByMeter = const {};
+  Map<String, MeterReading?> _latestReadingByMeter = const {};
   bool _isLoading = true;
 
   @override
@@ -43,6 +44,7 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
     final history = <String, List<UtilityPurchaseHistory>>{};
     final summaries = <String, ElectricityUsageSummary>{};
     final periodData = <String, List<PeriodUsage>>{};
+    final latestReadings = <String, MeterReading?>{};
     for (final meter in list) {
       history[meter.id] = await _repository.getPurchaseHistory(
         householdId,
@@ -59,6 +61,10 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
         period: 'monthly',
         limit: 6,
       );
+      latestReadings[meter.id] = await _repository.getLatestReading(
+        householdId,
+        meter.id,
+      );
     }
     if (!mounted) return;
     setState(() {
@@ -66,6 +72,7 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
       _historyByMeter = history;
       _summaryByMeter = summaries;
       _periodDataByMeter = periodData;
+      _latestReadingByMeter = latestReadings;
       _isLoading = false;
     });
   }
@@ -375,6 +382,185 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
     );
   }
 
+  Future<void> _showMeterReadingDialog(UtilityMeter meter) async {
+    final readingCtrl = TextEditingController();
+    final noteCtrl = TextEditingController();
+    final latest = _latestReadingByMeter[meter.id];
+    var recordedAt = DateTime.now();
+    var isSaving = false;
+    String? validationMessage;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final parsedReading = double.tryParse(
+            readingCtrl.text.trim().replaceAll(',', '.'),
+          );
+          final isLower = latest != null &&
+              parsedReading != null &&
+              parsedReading < latest.readingKwh;
+          return AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.speed_rounded),
+                SizedBox(width: 8),
+                Expanded(child: Text('Catat Pembacaan Meter')),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.lightbulb_outline_rounded, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Lihat angka kWh pada layar digital meter PLN. '
+                            'Catat angka yang terlihat, biasanya 5-6 digit sebelum titik desimal.',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: readingCtrl,
+                    autofocus: true,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Angka kWh *',
+                      hintText: 'Contoh: 10112 atau 10112.3',
+                      prefixIcon: Icon(Icons.electric_bolt_rounded),
+                    ),
+                  ),
+                  if (isLower) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Pembacaan lebih rendah dari sebelumnya '
+                      '(${latest.readingKwh.toStringAsFixed(2)} kWh). Pastikan angka sudah benar.',
+                      style: TextStyle(
+                        color: Theme.of(ctx).colorScheme.error,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.calendar_today_outlined),
+                    title: const Text('Tanggal pembacaan'),
+                    subtitle: Text(_formatDate(recordedAt)),
+                    onTap: () async {
+                      final selected = await showDatePicker(
+                        context: ctx,
+                        initialDate: recordedAt,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime.now().add(const Duration(days: 1)),
+                      );
+                      if (selected != null) {
+                        setDialogState(() {
+                          recordedAt = DateTime(
+                            selected.year,
+                            selected.month,
+                            selected.day,
+                            recordedAt.hour,
+                            recordedAt.minute,
+                          );
+                        });
+                      }
+                    },
+                  ),
+                  TextField(
+                    controller: noteCtrl,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Catatan (opsional)',
+                      hintText: 'Contoh: setelah perbaikan listrik',
+                      prefixIcon: Icon(Icons.notes_outlined),
+                    ),
+                  ),
+                  if (validationMessage != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      validationMessage!,
+                      style: TextStyle(
+                        color: Theme.of(ctx).colorScheme.error,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                child: const Text('Batal'),
+              ),
+              FilledButton.icon(
+                onPressed: isSaving || isLower
+                    ? null
+                    : () async {
+                        final value = double.tryParse(
+                          readingCtrl.text.trim().replaceAll(',', '.'),
+                        );
+                        if (value == null || value < 0) {
+                          setDialogState(
+                            () => validationMessage =
+                                'Masukkan angka kWh yang valid.',
+                          );
+                          return;
+                        }
+                        setDialogState(() => isSaving = true);
+                        try {
+                          await _repository.recordMeterReading(
+                            householdId: meter.householdId,
+                            meterId: meter.id,
+                            readingKwh: value,
+                            recordedAt: recordedAt,
+                            note: noteCtrl.text.trim().isEmpty
+                                ? null
+                                : noteCtrl.text.trim(),
+                          );
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (mounted) await _loadMeters();
+                        } catch (error) {
+                          setDialogState(() {
+                            isSaving = false;
+                            validationMessage = error.toString().replaceFirst(
+                              'Bad state: ',
+                              '',
+                            );
+                          });
+                        }
+                      },
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Simpan'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    readingCtrl.dispose();
+    noteCtrl.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -529,6 +715,7 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
     final history = _historyByMeter[meter.id] ?? const [];
     final summary = _summaryByMeter[meter.id];
     final periodData = _periodDataByMeter[meter.id] ?? const [];
+    final latestReading = _latestReadingByMeter[meter.id];
 
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
@@ -819,6 +1006,17 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                 ),
             ],
               MiniMonthlyBarChart(data: periodData),
+              if (latestReading != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Pembacaan terakhir: ${latestReading.readingKwh.toStringAsFixed(2)} kWh (${_formatDate(latestReading.recordedAt)})',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 8),
             if (history.isNotEmpty) ...[
               const SizedBox(height: 14),
               const Text(
@@ -852,6 +1050,11 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                TextButton.icon(
+                  onPressed: () => _showMeterReadingDialog(meter),
+                  icon: const Icon(Icons.speed_outlined, size: 16),
+                  label: const Text('Catat Pembacaan'),
+                ),
                 TextButton.icon(
                   onPressed: () => _quickUpdateToken(meter),
                   icon: const Icon(Icons.add_box_outlined, size: 16),
