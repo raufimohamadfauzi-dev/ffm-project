@@ -1017,6 +1017,39 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                   ),
                 ),
               ],
+              const SizedBox(height: 4),
+              Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: const EdgeInsets.only(bottom: 4),
+                  leading: Icon(
+                    Icons.lightbulb_outline_rounded,
+                    size: 18,
+                    color: theme.colorScheme.tertiary,
+                  ),
+                  title: const Text(
+                    'Cara membaca meter',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '• Lihat angka kWh pada layar digital meter.\n'
+                        '• Biasanya 5-6 digit, contohnya 10.112 kWh.\n'
+                        '• Catat angka yang terlihat tanpa menekan tombol meter.\n'
+                        '• Catat setiap bulan agar grafik pemakaian makin akurat.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.5,
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 8),
             if (history.isNotEmpty) ...[
               const SizedBox(height: 14),
