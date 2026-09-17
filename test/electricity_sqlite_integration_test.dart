@@ -228,9 +228,41 @@ void main() {
     final latest = await repository.getLatestReading('household-a', meter.id);
     expect(latest?.readingKwh, 10237.5);
     expect(latest?.source, 'photo');
+    final readings = await repository.getMeterReadings(
+      'household-a',
+      meterId: meter.id,
+    );
+    expect(readings, hasLength(2));
+    expect(readings.first.recordedAt, to);
+  });
+
+  test('pemakaian aktual null jika belum ada dua batas pembacaan', () async {
+    final database = createInMemoryDatabaseForTests();
+    addTearDown(database.close);
+    final repository = UtilityMeterRepository(database);
+    final meter = UtilityMeter(
+      id: 'meter-insufficient',
+      householdId: 'household-a',
+      name: 'Rumah Utama',
+      meterNumber: '14123456789',
+      createdAt: DateTime(2026, 9, 1),
+    );
+    await repository.saveMeter(meter);
+    await repository.recordMeterReading(
+      householdId: 'household-a',
+      meterId: meter.id,
+      readingKwh: 100,
+      recordedAt: DateTime(2026, 9, 1),
+    );
+
     expect(
-      (await repository.getMeterReadings('household-a', meterId: meter.id)),
-      hasLength(2),
+      await repository.calculateActualUsage(
+        'household-a',
+        meterId: meter.id,
+        from: DateTime(2026, 9, 1),
+        to: DateTime(2026, 10, 1),
+      ),
+      isNull,
     );
   });
 
