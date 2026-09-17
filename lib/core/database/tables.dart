@@ -210,6 +210,27 @@ class Attachments extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+class ElectricityMeters extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get name => text()();
+  TextColumn get meterNumber => text()();
+  TextColumn get normalizedMeterNumber => text()();
+  TextColumn get customerName => text().withDefault(const Constant(''))();
+  TextColumn get tariffPower => text().withDefault(const Constant(''))();
+  TextColumn get location => text().withDefault(const Constant(''))();
+  TextColumn get notes => text().withDefault(const Constant(''))();
+  TextColumn get lastTokenNumber => text().nullable()();
+  DateTimeColumn get lastPurchasedAt => dateTime().nullable()();
+  RealColumn get lastAmount => real().nullable()();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 class UtilityTokenPurchases extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();
@@ -217,8 +238,23 @@ class UtilityTokenPurchases extends Table {
   TextColumn get meterNumber => text()();
   TextColumn get tokenCode => text().nullable()();
   IntColumn get amount => integer()();
+  IntColumn get adminFee => integer().withDefault(const Constant(0))();
+  RealColumn get creditedKwh => real().nullable()();
   DateTimeColumn get purchasedAt => dateTime()();
   TextColumn get transactionId => text().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class ElectricityMeterReadings extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get meterId => text()();
+  RealColumn get readingKwh => real()();
+  DateTimeColumn get recordedAt => dateTime()();
+  TextColumn get source => text().withDefault(const Constant('manual'))();
+  TextColumn get note => text().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};

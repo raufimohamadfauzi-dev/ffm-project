@@ -2782,7 +2782,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   '⚡ **Struk Token Listrik PLN Terdeteksi!**\n'
                   '• Properti: **${matchedMeter.name}**\n'
                   '• No. Meter: `${matchedMeter.formattedMeterNumber}`\n'
-                  '• Kode Token: `${matchedMeter.formattedTokenNumber}`\n\n'
+                  '• Kode Token: `$formattedToken`\n\n'
                   'Token listrik ini akan dicatat setelah Anda mengonfirmasi transaksi.\n\n'
                   '$response';
             } else if (cleanMeterNumber != null) {
@@ -2942,6 +2942,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         rawText: 'pindai struk',
         normalizedText: 'pindai struk',
         type: intentType,
+        // The transaction form remains the primary save destination. The PLN
+        // proposal is persisted as its linked electricity history after save.
         destination: FfmAssistantDestination.transactions,
         draft: draft,
         confidence: 0.9,

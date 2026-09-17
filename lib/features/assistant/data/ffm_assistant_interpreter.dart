@@ -8793,6 +8793,26 @@ class FfmAssistantInterpreter {
           : ReminderMode.notification;
       final modeStr = reminderMode.name;
 
+      final isDaily = RegExp(
+        r'\b(setiap hari|tiap hari|harian)\b',
+        caseSensitive: false,
+      ).hasMatch(normalized);
+      final isWeekly = RegExp(
+        r'\b(setiap pekan|tiap pekan|mingguan|setiap minggu)\b',
+        caseSensitive: false,
+      ).hasMatch(normalized);
+      final recurrenceType = isDaily
+          ? ReminderRecurrenceType.daily
+          : isWeekly
+              ? ReminderRecurrenceType.weekly
+              : ReminderRecurrenceType.once;
+      final weekdays = <int>[];
+      if (recurrenceType == ReminderRecurrenceType.weekly) {
+        final weekday =
+            _weekdayDateFromText(normalized)?.weekday ?? parsedTime.weekday;
+        weekdays.add(weekday);
+      }
+
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.reminder,
         createdAt: now,
@@ -8800,6 +8820,8 @@ class FfmAssistantInterpreter {
         note: note,
         date: parsedTime,
         reminderMode: reminderMode,
+        recurrenceType: recurrenceType,
+        weekdays: weekdays,
         formValues: {
           'time':
               '${parsedTime.hour.toString().padLeft(2, '0')}:${parsedTime.minute.toString().padLeft(2, '0')}',
@@ -8808,6 +8830,9 @@ class FfmAssistantInterpreter {
           'hasExplicitTime': hasExplicitTime,
           'reminderMode': modeStr,
           'mode': modeStr,
+          'recurrence': recurrenceType.name,
+          'recurrenceType': recurrenceType.name,
+          if (weekdays.isNotEmpty) 'weekdays': weekdays,
         },
         metadata: billReminder
             ? {'calendar_sync': true, 'is_bill_reminder': true}

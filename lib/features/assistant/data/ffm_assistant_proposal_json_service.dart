@@ -758,6 +758,17 @@ class FfmAssistantProposalJsonService {
         'Pola pengulangan pengingat tidak valid.',
       );
     }
+    final recurrenceType = switch (recurrence) {
+      'daily' || 'harian' => ReminderRecurrenceType.daily,
+      'weekly' || 'mingguan' => ReminderRecurrenceType.weekly,
+      _ => ReminderRecurrenceType.once,
+    };
+
+    // Jika waktu yang diminta hari ini sudah lewat, jadwalkan untuk giliran berikutnya (besok).
+    if (targetDate.isBefore(createdAt)) {
+      targetDate = targetDate.add(const Duration(days: 1));
+    }
+
     final soundUri = _boundedText(proposal['soundUri'], 500);
     final soundName = _boundedText(proposal['soundName'], 120);
     final weekdaysRaw = proposal['weekdays'];
@@ -789,11 +800,9 @@ class FfmAssistantProposalJsonService {
       'hasExplicitTime': timeRaw != null && timeRaw.isNotEmpty,
       'reminderMode': modeValue,
       'mode': modeValue,
+      'recurrence': recurrenceType.storageValue,
+      'recurrenceType': recurrenceType.storageValue,
     };
-    if (recurrence != null) {
-      formValues['recurrence'] = recurrence;
-      formValues['recurrenceType'] = recurrence;
-    }
     if (weekdays.isNotEmpty) {
       formValues['weekdays'] = weekdays;
     }
@@ -819,6 +828,8 @@ class FfmAssistantProposalJsonService {
         soundUri: soundUri,
         soundName: soundName,
         reminderMode: reminderMode,
+        recurrenceType: recurrenceType,
+        weekdays: weekdays,
         formValues: formValues,
       ),
     );

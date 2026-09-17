@@ -4,6 +4,7 @@ import 'package:ffm_manager/features/assistant/presentation/widgets/ffm_assistan
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/features/transaction/data/services/receipt_import_models.dart';
+import 'package:ffm_manager/features/reminder/domain/entities/reminder_entity.dart';
 
 void main() {
   testWidgets('koreksi Data Utama hanya menampilkan field yang relevan', (
@@ -556,4 +557,130 @@ void main() {
       expect(find.text('Pakai perubahan'), findsOneWidget);
     });
   }
+
+  testWidgets(
+    'koreksi pengingat menampilkan field yang setara dengan halaman pengingat dan menyimpan recurrence, mode, serta weekdays',
+    (tester) async {
+      FfmAssistantDraft? result;
+      final futureDate = DateTime.now().add(const Duration(days: 2));
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.reminder,
+        createdAt: DateTime.now(),
+        title: 'Alarm jam 06:00',
+        note: 'Minum obat',
+        date: futureDate,
+        reminderMode: ReminderMode.notification,
+        recurrenceType: ReminderRecurrenceType.once,
+        weekdays: const [],
+        formValues: {
+          'reminderMode': 'notification',
+          'recurrence': 'once',
+        },
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                result = await showDialog<FfmAssistantDraft>(
+                  context: context,
+                  builder: (_) => FfmAssistantDraftEditDialog(
+                    draft: draft,
+                    feedbackService: FfmAssistantDraftFeedbackService(),
+                  ),
+                );
+              },
+              child: const Text('Koreksi'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Koreksi'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ubah draft di chat'), findsOneWidget);
+      expect(find.text('Jenis draft: Pengingat / Alarm'), findsOneWidget);
+      expect(find.text('Judul pengingat'), findsOneWidget);
+      expect(find.text('Catatan tambahan (opsional)'), findsOneWidget);
+      expect(find.text('Waktu mulai'), findsOneWidget);
+      expect(find.text('Pengulangan'), findsOneWidget);
+      expect(find.text('Tipe pengingat'), findsOneWidget);
+      expect(find.text('Nada notifikasi'), findsOneWidget);
+
+      // Edit title
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Judul pengingat'),
+        'Alarm Sahur',
+      );
+
+      // Tap Pakai perubahan
+      await tester.ensureVisible(find.text('Pakai perubahan'));
+      await tester.tap(find.text('Pakai perubahan'));
+      await tester.pumpAndSettle();
+
+      expect(result, isNotNull);
+      expect(result?.title, 'Alarm Sahur');
+      expect(result?.note, 'Minum obat');
+      expect(result?.reminderMode, ReminderMode.notification);
+      expect(result?.recurrenceType, ReminderRecurrenceType.once);
+    },
+  );
+
+  testWidgets(
+    'koreksi pengingat otomatis roll over waktu lampau ke masa depan dan dapat disimpan tanpa error',
+    (tester) async {
+      FfmAssistantDraft? result;
+      // Date in the past (10 hours ago)
+      final pastDate = DateTime.now().subtract(const Duration(hours: 10));
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.reminder,
+        createdAt: DateTime.now(),
+        title: 'Alarm jam 06:00',
+        note: 'Bangun pagi',
+        date: pastDate,
+        reminderMode: ReminderMode.alarm,
+        recurrenceType: ReminderRecurrenceType.once,
+        weekdays: const [],
+        formValues: const {
+          'reminderMode': 'alarm',
+          'mode': 'alarm',
+          'recurrence': 'once',
+        },
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                result = await showDialog<FfmAssistantDraft>(
+                  context: context,
+                  builder: (_) => FfmAssistantDraftEditDialog(
+                    draft: draft,
+                    feedbackService: FfmAssistantDraftFeedbackService(),
+                  ),
+                );
+              },
+              child: const Text('Koreksi'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Koreksi'));
+      await tester.pumpAndSettle();
+
+      // Tap Pakai perubahan directly without manual edit
+      await tester.ensureVisible(find.text('Pakai perubahan'));
+      await tester.tap(find.text('Pakai perubahan'));
+      await tester.pumpAndSettle();
+
+      expect(result, isNotNull);
+      // Auto-rolled over to future date
+      expect(result!.date!.isAfter(DateTime.now()), isTrue);
+      expect(result!.reminderMode, ReminderMode.alarm);
+    },
+  );
 }

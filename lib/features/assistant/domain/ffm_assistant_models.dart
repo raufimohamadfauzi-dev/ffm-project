@@ -491,6 +491,8 @@ class FfmAssistantDraft {
     this.soundUri,
     this.soundName,
     this.reminderMode,
+    this.recurrenceType,
+    this.weekdays = const <int>[],
   });
 
   final FfmAssistantDraftKind kind;
@@ -547,6 +549,8 @@ class FfmAssistantDraft {
   final String? soundUri;
   final String? soundName;
   final ReminderMode? reminderMode;
+  final ReminderRecurrenceType? recurrenceType;
+  final List<int> weekdays;
 
   bool get hasAmount => amount != null && amount! > 0;
 
@@ -595,6 +599,8 @@ class FfmAssistantDraft {
     String? soundUri,
     String? soundName,
     ReminderMode? reminderMode,
+    ReminderRecurrenceType? recurrenceType,
+    List<int>? weekdays,
     bool clearFromAccountName = false,
     bool clearToAccountName = false,
   }) => FfmAssistantDraft(
@@ -650,6 +656,8 @@ class FfmAssistantDraft {
     soundUri: soundUri ?? this.soundUri,
     soundName: soundName ?? this.soundName,
     reminderMode: reminderMode ?? this.reminderMode,
+    recurrenceType: recurrenceType ?? this.recurrenceType,
+    weekdays: weekdays ?? this.weekdays,
   );
 }
 

@@ -60,6 +60,24 @@ abstract final class FfmAssistantDraftValidator {
         _validateReceiptFields(draft, issues);
         _validateTransactionDate(draft, issues);
         _validateTransactionReferences(draft, issues);
+        final tags = <String>[
+          if (draft.tags != null) draft.tags!,
+          if (draft.newTags != null) draft.newTags!,
+          if (draft.formValues['tags'] != null) draft.formValues['tags']!,
+          if (draft.formValues['newTags'] != null)
+            draft.formValues['newTags']!,
+        ].expand((value) => value.split(',')).where((value) => value.trim().isNotEmpty);
+        if (tags.isEmpty) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'expense_tags_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'tag',
+              message:
+                  'Pilih atau tambahkan minimal 1 tag untuk transaksi pengeluaran.',
+            ),
+          );
+        }
         if (_isBlank(draft.fromAccountName)) {
           issues.add(
             const FfmAssistantDraftIssue(

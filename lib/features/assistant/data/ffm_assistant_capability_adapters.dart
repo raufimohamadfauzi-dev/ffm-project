@@ -5622,12 +5622,23 @@ class FfmAssistantCapabilityAdapterRegistry {
       };
 
       final weekdaysRaw = step.parameters['weekdays'];
-      final List<int> weekdays = weekdaysRaw is List
+      final List<int> parsedWeekdays = weekdaysRaw is List
           ? weekdaysRaw
                 .map((e) => int.tryParse(e.toString()))
                 .whereType<int>()
                 .toList()
-          : const [];
+          : weekdaysRaw is String
+              ? weekdaysRaw
+                    .split(',')
+                    .map((e) => int.tryParse(e.trim()))
+                    .whereType<int>()
+                    .toList()
+              : const [];
+      final List<int> weekdays =
+          (recurrenceType == ReminderRecurrenceType.weekly &&
+                  parsedWeekdays.isEmpty)
+              ? [date.weekday]
+              : parsedWeekdays;
 
       final note = step.parameters['note']?.toString() ?? '';
       final soundUri = step.parameters['soundUri']?.toString();

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../reminder/domain/entities/reminder_entity.dart';
 import '../../../domain/ffm_assistant_models.dart';
 
 /// Kartu pratinjau draf interaktif yang dapat dibuka-tutup untuk memeriksa detail lengkap.
@@ -235,9 +236,47 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
               : '${draft.date!.day.toString().padLeft(2, '0')}/${draft.date!.month.toString().padLeft(2, '0')}/${draft.date!.year}',
         ),
       if (draft.kind == FfmAssistantDraftKind.reminder) ...[
+        () {
+          final recurrenceType = draft.recurrenceType ??
+              (draft.formValues['recurrence'] != null ||
+                      draft.formValues['recurrenceType'] != null
+                  ? ReminderRecurrenceTypeX.fromStorage(
+                      (draft.formValues['recurrence'] ??
+                              draft.formValues['recurrenceType'])
+                          .toString(),
+                    )
+                  : ReminderRecurrenceType.once);
+          final recurrenceLabel = switch (recurrenceType) {
+            ReminderRecurrenceType.once => 'Sekali',
+            ReminderRecurrenceType.daily => 'Setiap hari',
+            ReminderRecurrenceType.weekly => () {
+              final days = draft.weekdays.isNotEmpty
+                  ? draft.weekdays
+                  : (draft.formValues['weekdays'] is List
+                      ? (draft.formValues['weekdays'] as List)
+                          .map((e) => int.tryParse(e.toString()))
+                          .whereType<int>()
+                          .toList()
+                      : <int>[]);
+              if (days.isEmpty) return 'Hari tertentu';
+              const dayNames = {
+                1: 'Senin',
+                2: 'Selasa',
+                3: 'Rabu',
+                4: 'Kamis',
+                5: 'Jumat',
+                6: 'Sabtu',
+                7: 'Minggu',
+              };
+              return 'Hari: ${days.map((d) => dayNames[d] ?? '$d').join(', ')}';
+            }(),
+          };
+          return MapEntry('Pengulangan', recurrenceLabel);
+        }(),
         MapEntry(
           'Tipe Pengingat',
-          (draft.formValues['reminderMode'] == 'alarm' ||
+          (draft.reminderMode == ReminderMode.alarm ||
+                  draft.formValues['reminderMode'] == 'alarm' ||
                   draft.formValues['mode'] == 'alarm')
               ? 'Alarm Nyaring ⏰'
               : 'Notifikasi Biasa 🔔',
@@ -291,6 +330,10 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
                     'mode',
                     'hasExplicitTime',
                     'targetDate',
+                    'time',
+                    'recurrence',
+                    'recurrenceType',
+                    'weekdays',
                   }.contains(field.key),
             )
             .map(

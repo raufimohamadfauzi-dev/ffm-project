@@ -1123,6 +1123,11 @@ class _AppShellState extends State<AppShell> {
                               draft?.formValues['mode']?.toString(),
                         ))
                   : null,
+              initialWeekdays: draft?.kind == FfmAssistantDraftKind.reminder
+                  ? (draft?.weekdays.isNotEmpty == true
+                        ? draft?.weekdays
+                        : _parseWeekdaysFromDraft(draft!))
+                  : null,
             ),
           ),
         );
@@ -1220,14 +1225,28 @@ class _AppShellState extends State<AppShell> {
   }
 
   ReminderRecurrenceType? _parseRecurrenceFromDraft(FfmAssistantDraft draft) {
+    if (draft.recurrenceType != null) return draft.recurrenceType;
     final recurrence =
         draft.formValues['recurrence'] ?? draft.formValues['recurrenceType'];
     if (recurrence == null) return null;
     return switch (recurrence.toString().toLowerCase()) {
       'daily' || 'harian' => ReminderRecurrenceType.daily,
       'weekly' || 'mingguan' => ReminderRecurrenceType.weekly,
+      'once' || 'sekali' => ReminderRecurrenceType.once,
       _ => null,
     };
+  }
+
+  List<int>? _parseWeekdaysFromDraft(FfmAssistantDraft draft) {
+    if (draft.weekdays.isNotEmpty) return draft.weekdays;
+    final raw = draft.formValues['weekdays'];
+    if (raw is List) {
+      return raw
+          .map((e) => int.tryParse(e.toString()))
+          .whereType<int>()
+          .toList();
+    }
+    return null;
   }
 
   Future<void> _handleAssistantIntents(List<FfmAssistantIntent> intents) async {

@@ -541,6 +541,14 @@ class FfmGeminiCloudOrchestrator {
                   'type': 'STRING',
                   'description': 'Mode pengingat: "notification" (notifikasi biasa) atau "alarm" (alarm nyaring berdering). Default "notification" kecuali jika pengguna secara eksplisit meminta alarm/jam weker/bunyi nyaring.',
                 },
+                'recurrence': {
+                  'type': 'STRING',
+                  'description': 'Pengulangan pengingat: "once" (sekali), "daily" (setiap hari), atau "weekly" (setiap pekan). Default "once".',
+                },
+                'weekdays': {
+                  'type': 'STRING',
+                  'description': 'Daftar angka hari (1=Senin, 7=Minggu) dipisah koma untuk pengulangan mingguan (contoh: "1,3,5" untuk Senin, Rabu, Jumat).',
+                },
                 'dueDate': {
                   'type': 'STRING',
                   'description': 'Tanggal jatuh tempo YYYY-MM-DD (untuk type liability atau receivable)',
@@ -707,7 +715,7 @@ ATURAN AKTIVITAS & TARGET & PENGINGAT:
       KAMU WAJIB MEMANGGIL tool `ask_clarification` TERLEBIH DAHULU untuk menanyakan jam berapa ingin diingatkan (contoh: "Mau saya ingatkan jam berapa untuk [judul]? Misalnya jam 08:00 pagi atau 19:00 malam?").
       JANGAN memanggil `create_draft` sebelum jam/waktunya jelas!
     - Begitu pengguna menyebutkan jamnya (misal: "jam 8 pagi", "jam 19.30", "pukul 14.00") ATAU jika pengguna sejak awal sudah menyebutkan jam (misal: "ingatkan bayar listrik besok jam 8 pagi"):
-      Panggil tool `create_draft` dengan `type: "reminder"`, `title`, `targetDate`, dan `time` (format HH:mm) yang presisi.
+      Panggil tool `create_draft` dengan `type: "reminder"`, `title`, `targetDate`, dan `time` (format HH:mm) yang presisi. Jika pengguna meminta alarm nyaring/weker, sertakan `reminderMode: "alarm"`. Jika pengguna meminta pengulangan harian/mingguan (misal: "setiap hari", "tiap hari", "setiap senin"), sertakan `recurrence: "daily"` atau `recurrence: "weekly"` beserta `weekdays: "1"` (1=Senin..7=Minggu).
     - Dengan draf yang super lengkap ini, pengguna tinggal mengklik satu kali konfirmasi tanpa perlu repot mengedit apa pun lagi.
 - Untuk melihat pengingat/alarm yang sudah dijadwalkan pengguna, gunakan `read_data` dengan `read.reminders`. Gunakan ini saat user bertanya tentang alarm, jadwal, pengingat, atau ketika kamu perlu mengkorelasikan topik percakapan dengan pengingat yang sudah ada.
 - Kalender Hijriah lokal tersedia di konteks, gunakan untuk referensi tanggal Islam.

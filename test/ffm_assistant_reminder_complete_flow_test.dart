@@ -120,6 +120,57 @@ void main() {
         expect(result.draft, isNull);
         expect(result.error, contains('Hari pengulangan'));
       });
+
+      test('past time on current date automatically rolls over to tomorrow', () {
+        // created at 16:45 on 2026-09-15, user asks for 06:00
+        final createdAt = DateTime(2026, 9, 15, 16, 45);
+        final json = jsonEncode({
+          'formatVersion': 'ffm-assistant-proposal-v1',
+          'proposal': {
+            'type': 'reminder',
+            'title': 'Alarm jam 06:00',
+            'targetDate': '2026-09-15',
+            'time': '06:00',
+            'reminderMode': 'alarm',
+          },
+        });
+
+        final result = FfmAssistantProposalJsonService.parse(
+          json,
+          createdAt: createdAt,
+        );
+        expect(result.draft, isNotNull);
+
+        final draft = result.draft!;
+        expect(draft.reminderMode, ReminderMode.alarm);
+        // Automatically rolled over to tomorrow 2026-09-16 06:00
+        expect(draft.date, DateTime(2026, 9, 16, 6, 0));
+        expect(draft.date!.isAfter(createdAt), isTrue);
+      });
+
+      test('parses weekly recurrence and weekdays into typed fields', () {
+        final json = jsonEncode({
+          'formatVersion': 'ffm-assistant-proposal-v1',
+          'proposal': {
+            'type': 'reminder',
+            'title': 'Rapat Tim',
+            'targetDate': '2026-09-16',
+            'time': '10:00',
+            'recurrence': 'weekly',
+            'weekdays': [1, 3, 5],
+          },
+        });
+
+        final result = FfmAssistantProposalJsonService.parse(
+          json,
+          createdAt: now,
+        );
+        expect(result.draft, isNotNull);
+
+        final draft = result.draft!;
+        expect(draft.recurrenceType, ReminderRecurrenceType.weekly);
+        expect(draft.weekdays, [1, 3, 5]);
+      });
     },
   );
 

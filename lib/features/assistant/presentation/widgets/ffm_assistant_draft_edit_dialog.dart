@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../../activity/domain/entities/activity_entity.dart';
 import '../../../reminder/data/services/reminder_sound_picker.dart';
+import '../../../reminder/domain/entities/reminder_entity.dart';
 import '../../../transaction/data/services/receipt_import_models.dart';
 import '../../data/ffm_assistant_draft_feedback_service.dart';
 import '../../domain/ffm_assistant_draft_validator.dart';
@@ -70,6 +72,9 @@ class _FfmAssistantDraftEditDialogState
   late TimeOfDay? _time; // only used for reminder drafts
   String? _soundUri;
   String? _soundName;
+  late ReminderRecurrenceType _recurrence;
+  late ReminderMode _mode;
+  late List<int> _weekday;
   late ActivityMode _activityMode;
   late FfmAssistantDraftKind _selectedKind;
 
@@ -175,6 +180,55 @@ class _FfmAssistantDraftEditDialogState
             widget.draft.date != null
         ? TimeOfDay.fromDateTime(widget.draft.date!)
         : null;
+
+    final draftRecurrence = widget.draft.recurrenceType ??
+        (widget.draft.formValues['recurrence'] != null ||
+                widget.draft.formValues['recurrenceType'] != null
+            ? ReminderRecurrenceTypeX.fromStorage(
+                (widget.draft.formValues['recurrence'] ??
+                        widget.draft.formValues['recurrenceType'])
+                    .toString(),
+              )
+            : null);
+    _recurrence = draftRecurrence ?? ReminderRecurrenceType.once;
+
+    _mode = widget.draft.reminderMode ??
+        ReminderModeX.fromStorage(
+          widget.draft.formValues['reminderMode']?.toString() ??
+              widget.draft.formValues['mode']?.toString(),
+        );
+
+    final initialWeekdaysRaw = widget.draft.weekdays.isNotEmpty
+        ? widget.draft.weekdays
+        : widget.draft.formValues['weekdays'];
+    _weekday = initialWeekdaysRaw is List
+        ? initialWeekdaysRaw
+            .map((e) => int.tryParse(e.toString()))
+            .whereType<int>()
+            .toList()
+        : <int>[];
+
+    if (widget.draft.kind == FfmAssistantDraftKind.reminder) {
+      final now = DateTime.now();
+      if (_date == null) {
+        _date = now.add(const Duration(hours: 1));
+        _time = TimeOfDay.fromDateTime(_date!);
+      } else if (_time != null) {
+        var combined = DateTime(
+          _date!.year,
+          _date!.month,
+          _date!.day,
+          _time!.hour,
+          _time!.minute,
+        );
+        if (combined.isBefore(now)) {
+          combined = combined.add(const Duration(days: 1));
+          _date = combined;
+          _time = TimeOfDay.fromDateTime(combined);
+        }
+      }
+    }
+
     _soundUri =
         widget.draft.soundUri ??
         widget.draft.formValues['soundUri']?.toString();
@@ -576,9 +630,40 @@ class _FfmAssistantDraftEditDialogState
       );
     }
     if (_selectedKind == FfmAssistantDraftKind.reminder) {
+      if (title == null || title.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Judul pengingat wajib diisi.')),
+        );
+        return;
+      }
+      if (_recurrence == ReminderRecurrenceType.weekly && _weekday.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pilih minimal satu hari untuk pengulangan mingguan.'),
+          ),
+        );
+        return;
+      }
+      if (effectiveDate != null && effectiveDate.isBefore(DateTime.now())) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pilih waktu pengingat yang masih akan datang.'),
+          ),
+        );
+        return;
+      }
+      newFormValues['reminderMode'] = _mode.storageValue;
+      newFormValues['mode'] = _mode.storageValue;
+      newFormValues['recurrence'] = _recurrence.storageValue;
+      newFormValues['recurrenceType'] = _recurrence.storageValue;
+      newFormValues['weekdays'] = _weekday.join(',');
       if (_time != null) {
         newFormValues['time'] =
             '${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')}';
+      }
+      if (effectiveDate != null) {
+        newFormValues['targetDate'] =
+            '${effectiveDate.year}-${effectiveDate.month.toString().padLeft(2, '0')}-${effectiveDate.day.toString().padLeft(2, '0')}';
       }
       if (_soundUri != null && _soundUri!.isNotEmpty) {
         newFormValues['soundUri'] = _soundUri!;
@@ -640,6 +725,15 @@ class _FfmAssistantDraftEditDialogState
       cycleProfileType: widget.draft.cycleProfileType,
       soundUri: _soundUri,
       soundName: _soundName,
+      reminderMode: _selectedKind == FfmAssistantDraftKind.reminder
+          ? _mode
+          : widget.draft.reminderMode,
+      recurrenceType: _selectedKind == FfmAssistantDraftKind.reminder
+          ? _recurrence
+          : widget.draft.recurrenceType,
+      weekdays: _selectedKind == FfmAssistantDraftKind.reminder
+          ? _weekday
+          : widget.draft.weekdays,
     );
 
     if (_isTransaction) {
@@ -688,11 +782,48 @@ class _FfmAssistantDraftEditDialogState
     _ => false,
   };
 
+  DateTime _effectiveReminderDate() {
+    final now = DateTime.now();
+    DateTime base =
+        _date ?? widget.draft.date ?? now.add(const Duration(hours: 1));
+    final time = _time ?? TimeOfDay.fromDateTime(base);
+    return DateTime(base.year, base.month, base.day, time.hour, time.minute);
+  }
+
+  String _formatReminderDateTime(DateTime value) {
+    final local = value.toLocal();
+    String two(int number) => number.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)}/${local.year} ${two(local.hour)}:${two(local.minute)}';
+  }
+
+  Future<void> _pickReminderDateTime() async {
+    final effectiveDate = _effectiveReminderDate();
+    final pickedDate = await showDatePicker(
+      context: context,
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 730)),
+      initialDate: effectiveDate.isBefore(DateTime.now())
+          ? DateTime.now()
+          : effectiveDate,
+      helpText: 'Pilih tanggal pengingat',
+    );
+    if (!mounted || pickedDate == null) return;
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: _time ?? TimeOfDay.fromDateTime(effectiveDate),
+      helpText: 'Pilih jam pengingat',
+    );
+    if (!mounted || pickedTime == null) return;
+    setState(() {
+      _date = pickedDate;
+      _time = pickedTime;
+    });
+  }
+
   bool get _showsDate =>
       _isTransaction ||
       _isDebtOrReceivable ||
       _selectedKind == FfmAssistantDraftKind.goal ||
-      _selectedKind == FfmAssistantDraftKind.reminder ||
       _isActivityDraft;
 
   bool get _isGoalContribution =>
@@ -859,7 +990,215 @@ class _FfmAssistantDraftEditDialogState
               ],
             ),
           ),
-          if (!_isTransaction && !_isGoalContribution) ...[
+          if (_selectedKind == FfmAssistantDraftKind.reminder) ...[
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(
+                labelText: 'Judul pengingat',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _noteController,
+              decoration: const InputDecoration(
+                labelText: 'Catatan tambahan (opsional)',
+              ),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Waktu mulai'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_formatReminderDateTime(_effectiveReminderDate())),
+                  HijriDateLabel(date: _effectiveReminderDate()),
+                ],
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.edit_calendar),
+                onPressed: _pickReminderDateTime,
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<ReminderRecurrenceType>(
+              initialValue: _recurrence,
+              decoration: const InputDecoration(labelText: 'Pengulangan'),
+              items: ReminderRecurrenceType.values
+                  .map(
+                    (item) =>
+                        DropdownMenuItem(value: item, child: Text(item.label)),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(
+                () => _recurrence = value ?? ReminderRecurrenceType.once,
+              ),
+            ),
+            if (_recurrence == ReminderRecurrenceType.weekly) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Pilih Hari Pengulangan',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 6,
+                  children: List.generate(7, (index) {
+                    final dayNumber = index + 1;
+                    final isSelected = _weekday.contains(dayNumber);
+                    const labels = [
+                      'Sen',
+                      'Sel',
+                      'Rab',
+                      'Kam',
+                      'Jum',
+                      'Sab',
+                      'Min',
+                    ];
+                    return FilterChip(
+                      label: Text(labels[index]),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            if (!_weekday.contains(dayNumber)) {
+                              _weekday.add(dayNumber);
+                            }
+                          } else {
+                            _weekday.remove(dayNumber);
+                          }
+                        });
+                      },
+                    );
+                  }),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            DropdownButtonFormField<ReminderMode>(
+              initialValue: _mode,
+              decoration: const InputDecoration(labelText: 'Tipe pengingat'),
+              items: ReminderMode.values
+                  .map(
+                    (item) => DropdownMenuItem(
+                      value: item,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            item == ReminderMode.alarm
+                                ? Icons.alarm_rounded
+                                : Icons.notifications_none_rounded,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(item.label),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(
+                () => _mode = value ?? ReminderMode.notification,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.music_note_outlined,
+                        size: 20,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Nada notifikasi',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _soundName ?? 'Bawaan FFM',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            try {
+                              final selection =
+                                  await getIt<ReminderSoundPicker>().pick(
+                                    currentUri: _soundUri,
+                                  );
+                              if (!mounted || selection == null) return;
+                              setState(() {
+                                _soundUri = selection.uri;
+                                _soundName = selection.name;
+                              });
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Nada dering belum bisa dipilih: $e',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.folder_open_outlined,
+                            size: 18,
+                          ),
+                          label: const Text('Pilih nada'),
+                        ),
+                      ),
+                      if (_soundUri != null) ...[
+                        const SizedBox(width: 8),
+                        IconButton.outlined(
+                          tooltip: 'Kembalikan ke nada bawaan',
+                          onPressed: () {
+                            setState(() {
+                              _soundUri = null;
+                              _soundName = null;
+                            });
+                          },
+                          icon: const Icon(Icons.restart_alt_rounded),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ] else if (!_isTransaction && !_isGoalContribution) ...[
             TextField(
               controller: _titleController,
               decoration: InputDecoration(
@@ -1039,166 +1378,7 @@ class _FfmAssistantDraftEditDialogState
                 child: const Text('Ganti'),
               ),
             ),
-          // Reminder-only: dedicated time picker so changing the date doesn't
-          // reset the hour/minute and the full scheduledAt is visible.
-          if (_selectedKind == FfmAssistantDraftKind.reminder) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Tipe Pengingat',
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 6),
-            SizedBox(
-              width: double.infinity,
-              child: DropdownButtonFormField<String>(
-                initialValue:
-                    widget.draft.formValues['reminderMode'] ?? 'notification',
-                decoration: const InputDecoration(labelText: 'Tipe Pengingat'),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'notification',
-                    child: Row(
-                      children: [
-                        Icon(Icons.notifications_none_rounded, size: 18),
-                        SizedBox(width: 8),
-                        Text('Notifikasi'),
-                      ],
-                    ),
-                  ),
-                  DropdownMenuItem(
-                    value: 'alarm',
-                    child: Row(
-                      children: [
-                        Icon(Icons.alarm_rounded, size: 18),
-                        SizedBox(width: 8),
-                        Text('Alarm Nyaring'),
-                      ],
-                    ),
-                  ),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      widget.draft.formValues['reminderMode'] = value;
-                      widget.draft.formValues['mode'] = value;
-                    });
-                  }
-                },
-              ),
-            ),
-            const SizedBox(height: 8),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.access_time_outlined),
-              title: const Text('Jam pengingat'),
-              subtitle: Text(
-                _time == null
-                    ? 'Belum diisi (akan pakai 00:00)'
-                    : '${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')} WIB',
-              ),
-              trailing: TextButton(
-                onPressed: () async {
-                  final picked = await showTimePicker(
-                    context: context,
-                    initialTime: _time ?? TimeOfDay.now(),
-                    helpText: 'Pilih jam pengingat',
-                  );
-                  if (picked != null && mounted) {
-                    setState(() => _time = picked);
-                  }
-                },
-                child: const Text('Ganti'),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(top: 4, bottom: 8),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerLowest,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.music_note_outlined,
-                        size: 20,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Nada notifikasi pengingat',
-                        style: Theme.of(context).textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _soundName ?? 'Bawaan FFM',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            try {
-                              final selection =
-                                  await getIt<ReminderSoundPicker>().pick(
-                                    currentUri: _soundUri,
-                                  );
-                              if (!mounted || selection == null) return;
-                              setState(() {
-                                _soundUri = selection.uri;
-                                _soundName = selection.name;
-                              });
-                            } catch (e) {
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(this.context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Nada dering belum bisa dipilih: $e',
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          icon: const Icon(
-                            Icons.folder_open_outlined,
-                            size: 18,
-                          ),
-                          label: const Text('Pilih nada dering'),
-                        ),
-                      ),
-                      if (_soundUri != null) ...[
-                        const SizedBox(width: 8),
-                        IconButton.outlined(
-                          tooltip: 'Kembalikan ke nada bawaan',
-                          onPressed: () {
-                            setState(() {
-                              _soundUri = null;
-                              _soundName = null;
-                            });
-                          },
-                          icon: const Icon(Icons.restart_alt_rounded),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
+
           if (_selectedKind == FfmAssistantDraftKind.budget) ...[
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
@@ -1522,14 +1702,15 @@ class _FfmAssistantDraftEditDialogState
               ),
             ),
           ],
-          TextField(
-            controller: _noteController,
-            maxLines: 2,
-            decoration: const InputDecoration(
-              labelText: 'Catatan',
-              hintText: 'Tambahan keterangan ringkas',
+          if (_selectedKind != FfmAssistantDraftKind.reminder)
+            TextField(
+              controller: _noteController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Catatan',
+                hintText: 'Tambahan keterangan ringkas',
+              ),
             ),
-          ),
         ],
       ),
     ),

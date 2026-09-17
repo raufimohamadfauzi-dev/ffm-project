@@ -52,6 +52,9 @@ class HijriDateText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!getIt.isRegistered<HijriCalendarService>()) {
+      return const SizedBox.shrink();
+    }
     final textStyle = compact
         ? Theme.of(context).textTheme.bodySmall
         : Theme.of(context).textTheme.bodyMedium;

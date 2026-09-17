@@ -24,6 +24,7 @@ class ReminderPage extends StatelessWidget {
     this.initialSourceId,
     this.initialSoundUri,
     this.initialSoundName,
+    this.initialWeekdays,
     this.focusReminderId,
     this.focusHistoryId,
   });
@@ -39,6 +40,7 @@ class ReminderPage extends StatelessWidget {
   final String? initialSourceId;
   final String? initialSoundUri;
   final String? initialSoundName;
+  final List<int>? initialWeekdays;
   final String? focusReminderId;
   final String? focusHistoryId;
 
@@ -66,6 +68,7 @@ class ReminderPage extends StatelessWidget {
               initialSourceId: initialSourceId,
               initialSoundUri: initialSoundUri,
               initialSoundName: initialSoundName,
+              initialWeekdays: initialWeekdays,
               focusReminderId: focusReminderId,
               focusHistoryId: focusHistoryId,
             ),
@@ -87,6 +90,7 @@ class _ReminderView extends StatefulWidget {
     this.initialSourceId,
     this.initialSoundUri,
     this.initialSoundName,
+    this.initialWeekdays,
     this.focusReminderId,
     this.focusHistoryId,
   });
@@ -100,6 +104,7 @@ class _ReminderView extends StatefulWidget {
   final String? initialSourceId;
   final String? initialSoundUri;
   final String? initialSoundName;
+  final List<int>? initialWeekdays;
   final String? focusReminderId;
   final String? focusHistoryId;
 
@@ -131,6 +136,7 @@ class _ReminderViewState extends State<_ReminderView> {
             initialSourceId: widget.initialSourceId,
             initialSoundUri: widget.initialSoundUri,
             initialSoundName: widget.initialSoundName,
+            initialWeekdays: widget.initialWeekdays,
           );
         }
       });
@@ -149,6 +155,7 @@ class _ReminderViewState extends State<_ReminderView> {
     String? initialSourceId,
     String? initialSoundUri,
     String? initialSoundName,
+    List<int>? initialWeekdays,
   }) async {
     final reminder = await showDialog<ReminderEntity>(
       context: context,
@@ -163,6 +170,7 @@ class _ReminderViewState extends State<_ReminderView> {
         initialSourceId: initialSourceId,
         initialSoundUri: initialSoundUri,
         initialSoundName: initialSoundName,
+        initialWeekdays: initialWeekdays,
       ),
     );
     if (reminder != null && context.mounted) {
@@ -1125,6 +1133,7 @@ class _ReminderDialog extends StatefulWidget {
     this.initialSourceId,
     this.initialSoundUri,
     this.initialSoundName,
+    this.initialWeekdays,
   });
 
   final ReminderEntity? initial;
@@ -1139,6 +1148,7 @@ class _ReminderDialog extends StatefulWidget {
   final String? initialSourceId;
   final String? initialSoundUri;
   final String? initialSoundName;
+  final List<int>? initialWeekdays;
 
   @override
   State<_ReminderDialog> createState() => _ReminderDialogState();
@@ -1165,16 +1175,36 @@ class _ReminderDialogState extends State<_ReminderDialog> {
       text: initial?.note ?? widget.initialNote ?? '',
     );
     // Priority: existing entity scheduledAt > pre-fill from draft > now+1h
-    _scheduledAt =
-        initial?.scheduledAt ??
-        widget.initialScheduledAt ??
-        DateTime.now().add(const Duration(hours: 1));
+    final initialDate = initial?.scheduledAt ?? widget.initialScheduledAt;
+    if (initialDate != null) {
+      if (initialDate.isBefore(DateTime.now()) && initial == null) {
+        final now = DateTime.now();
+        var rollover = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          initialDate.hour,
+          initialDate.minute,
+        );
+        if (rollover.isBefore(now)) {
+          rollover = rollover.add(const Duration(days: 1));
+        }
+        _scheduledAt = rollover;
+      } else {
+        _scheduledAt = initialDate;
+      }
+    } else {
+      _scheduledAt = DateTime.now().add(const Duration(hours: 1));
+    }
     _recurrence =
         initial?.recurrenceType ??
         widget.initialRecurrence ??
         ReminderRecurrenceType.once;
     _mode = initial?.mode ?? widget.initialMode ?? ReminderMode.notification;
-    _weekday = [...?initial?.weekdays];
+    _weekday = [...?initial?.weekdays, ...?widget.initialWeekdays];
+    if (_recurrence == ReminderRecurrenceType.weekly && _weekday.isEmpty) {
+      _weekday = [_scheduledAt.weekday];
+    }
     _soundUri = initial?.soundUri ?? widget.initialSoundUri;
     _soundName = initial?.soundName ?? widget.initialSoundName;
   }
@@ -1350,8 +1380,22 @@ class _ReminderDialogState extends State<_ReminderDialog> {
             decoration: const InputDecoration(labelText: 'Tipe pengingat'),
             items: ReminderMode.values
                 .map(
-                  (item) =>
-                      DropdownMenuItem(value: item, child: Text(item.label)),
+                  (item) => DropdownMenuItem(
+                    value: item,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          item == ReminderMode.alarm
+                              ? Icons.alarm_rounded
+                              : Icons.notifications_none_rounded,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(item.label),
+                      ],
+                    ),
+                  ),
                 )
                 .toList(),
             onChanged: (value) =>

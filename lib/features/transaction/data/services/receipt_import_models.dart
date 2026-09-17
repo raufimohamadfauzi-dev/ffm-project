@@ -22,12 +22,13 @@ class ReceiptOcrItem {
     double? quantity,
     String? unit,
     int? lineTotal,
+    bool clearLineTotal = false,
   }) => ReceiptOcrItem(
     name: name ?? this.name,
     price: price ?? this.price,
     quantity: quantity ?? this.quantity,
     unit: unit ?? this.unit,
-    lineTotal: lineTotal ?? this.lineTotal,
+    lineTotal: clearLineTotal ? null : lineTotal ?? this.lineTotal,
   );
 }
 

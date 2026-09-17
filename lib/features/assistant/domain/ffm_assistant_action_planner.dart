@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../reminder/domain/entities/reminder_entity.dart';
 import 'ffm_assistant_action_plan.dart';
 import 'ffm_assistant_models.dart';
 import 'ffm_assistant_execution_limits.dart';
@@ -605,9 +606,15 @@ class FfmAssistantActionPlanner {
       'cycleProfileType': draft.cycleProfileType,
     if (draft.soundUri != null) 'soundUri': draft.soundUri,
     if (draft.soundName != null) 'soundName': draft.soundName,
+    if (draft.recurrenceType != null) ...{
+      'recurrence': draft.recurrenceType!.storageValue,
+      'recurrenceType': draft.recurrenceType!.storageValue,
+    },
+    if (draft.weekdays.isNotEmpty) 'weekdays': draft.weekdays,
     if (draft.kind == FfmAssistantDraftKind.reminder ||
         draft.reminderMode != null)
       'reminderMode':
+          draft.reminderMode?.storageValue ??
           draft.reminderMode?.name ??
           draft.formValues['reminderMode']?.toString() ??
           draft.formValues['mode']?.toString() ??
@@ -615,6 +622,7 @@ class FfmAssistantActionPlanner {
     if (draft.kind == FfmAssistantDraftKind.reminder ||
         draft.reminderMode != null)
       'mode':
+          draft.reminderMode?.storageValue ??
           draft.reminderMode?.name ??
           draft.formValues['reminderMode']?.toString() ??
           draft.formValues['mode']?.toString() ??

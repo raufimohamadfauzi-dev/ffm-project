@@ -769,25 +769,29 @@ Aturan:
     final double safeQuantity = quantity == null || quantity <= 0
         ? 1.0
         : quantity;
-    final safeAmount =
-        amount ??
-        (unitPrice == null ? null : (unitPrice * safeQuantity).round());
-    if (safeAmount == null) {
+    final safeAmount = amount != null && amount > 0
+        ? amount
+        : (unitPrice == null || unitPrice <= 0
+              ? null
+              : (unitPrice * safeQuantity).round());
+    if (safeAmount == null || safeAmount <= 0) {
       warnings.add('Nominal item "$name" belum terbaca.');
-      return ReceiptOcrItem(
-        name: name,
-        price: unitPrice ?? 0,
-        quantity: safeQuantity,
-        unit: _text(data['unit'] ?? data['satuan']),
+      return null;
+    }
+    final parsedPrice = unitPrice != null && unitPrice > 0 ? unitPrice : null;
+    final safePrice = parsedPrice ?? (safeAmount / safeQuantity).round();
+    final calculatedAmount = (safePrice * safeQuantity).round();
+    if (calculatedAmount != safeAmount) {
+      warnings.add(
+        'Total item "$name" dinormalisasi agar sesuai harga dan jumlah.',
       );
     }
-    final safePrice = unitPrice ?? (safeAmount / safeQuantity).round();
     return ReceiptOcrItem(
       name: name,
       price: safePrice,
       quantity: safeQuantity,
       unit: _text(data['unit'] ?? data['satuan']),
-      lineTotal: safeAmount,
+      lineTotal: calculatedAmount,
     );
   }
 
