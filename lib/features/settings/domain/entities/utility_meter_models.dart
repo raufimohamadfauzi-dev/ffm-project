@@ -159,3 +159,23 @@ class PeriodUsage {
   final double totalKwh;
   final int purchaseCount;
 }
+
+class MeterReading {
+  const MeterReading({
+    required this.id,
+    required this.householdId,
+    required this.meterId,
+    required this.readingKwh,
+    required this.recordedAt,
+    required this.source,
+    this.note,
+  });
+
+  final String id;
+  final String householdId;
+  final String meterId;
+  final double readingKwh;
+  final DateTime recordedAt;
+  final String source;
+  final String? note;
+}

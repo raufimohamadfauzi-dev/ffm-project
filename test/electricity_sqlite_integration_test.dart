@@ -185,4 +185,90 @@ void main() {
       throwsException,
     );
   });
+
+  test('menyimpan pembacaan meter dan menghitung pemakaian aktual', () async {
+    final database = createInMemoryDatabaseForTests();
+    addTearDown(database.close);
+    final repository = UtilityMeterRepository(database);
+    final meter = UtilityMeter(
+      id: 'meter-reading',
+      householdId: 'household-a',
+      name: 'Rumah Utama',
+      meterNumber: '14123456789',
+      createdAt: DateTime(2026, 9, 1),
+    );
+    await repository.saveMeter(meter);
+    final from = DateTime(2026, 9, 1);
+    final to = DateTime(2026, 10, 1);
+
+    await repository.recordMeterReading(
+      householdId: 'household-a',
+      meterId: meter.id,
+      readingKwh: 10112,
+      recordedAt: from,
+    );
+    await repository.recordMeterReading(
+      householdId: 'household-a',
+      meterId: meter.id,
+      readingKwh: 10237.5,
+      recordedAt: to,
+      source: 'photo',
+      note: 'Foto display meter',
+    );
+
+    expect(
+      await repository.calculateActualUsage(
+        'household-a',
+        meterId: meter.id,
+        from: from,
+        to: to,
+      ),
+      125.5,
+    );
+    final latest = await repository.getLatestReading('household-a', meter.id);
+    expect(latest?.readingKwh, 10237.5);
+    expect(latest?.source, 'photo');
+    expect(
+      (await repository.getMeterReadings('household-a', meterId: meter.id)),
+      hasLength(2),
+    );
+  });
+
+  test('menolak pembacaan lebih rendah dan meter yang tidak dikenal', () async {
+    final database = createInMemoryDatabaseForTests();
+    addTearDown(database.close);
+    final repository = UtilityMeterRepository(database);
+    final meter = UtilityMeter(
+      id: 'meter-validation',
+      householdId: 'household-a',
+      name: 'Rumah Utama',
+      meterNumber: '14123456789',
+      createdAt: DateTime(2026, 9, 1),
+    );
+    await repository.saveMeter(meter);
+    await repository.recordMeterReading(
+      householdId: 'household-a',
+      meterId: meter.id,
+      readingKwh: 100,
+      recordedAt: DateTime(2026, 9, 1),
+    );
+
+    await expectLater(
+      repository.recordMeterReading(
+        householdId: 'household-a',
+        meterId: meter.id,
+        readingKwh: 99,
+        recordedAt: DateTime(2026, 9, 2),
+      ),
+      throwsStateError,
+    );
+    await expectLater(
+      repository.recordMeterReading(
+        householdId: 'household-a',
+        meterId: 'missing-meter',
+        readingKwh: 100,
+      ),
+      throwsStateError,
+    );
+  });
 }

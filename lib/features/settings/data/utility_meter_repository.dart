@@ -656,6 +656,137 @@ class UtilityMeterRepository {
     );
   }
 
+  Future<void> recordMeterReading({
+    required String householdId,
+    required String meterId,
+    required double readingKwh,
+    DateTime? recordedAt,
+    String source = 'manual',
+    String? note,
+  }) async {
+    final database = _database;
+    if (database == null) {
+      throw StateError('Database listrik belum tersedia.');
+    }
+    if (readingKwh < 0) {
+      throw StateError('Pembacaan meter tidak boleh negatif.');
+    }
+    if (source != 'manual' && source != 'photo') {
+      throw ArgumentError.value(source, 'source', 'Use manual or photo');
+    }
+    final meter = await (database.select(database.electricityMeters)
+          ..where(
+            (row) =>
+                row.id.equals(meterId) &
+                row.householdId.equals(householdId) &
+                row.isArchived.equals(false),
+          ))
+        .getSingleOrNull();
+    if (meter == null) {
+      throw StateError('Meteran yang dipilih tidak ditemukan atau sudah diarsipkan.');
+    }
+
+    final timestamp = recordedAt ?? DateTime.now();
+    final latest = await getLatestReading(householdId, meterId);
+    if (latest != null &&
+        timestamp.isAfter(latest.recordedAt) &&
+        readingKwh < latest.readingKwh) {
+      throw StateError(
+        'Pembacaan meter lebih rendah dari sebelumnya '
+        '(${latest.readingKwh.toStringAsFixed(2)} kWh).',
+      );
+    }
+
+    await database.into(database.electricityMeterReadings).insert(
+      ElectricityMeterReadingsCompanion.insert(
+        id: const Uuid().v4(),
+        householdId: householdId,
+        meterId: meterId,
+        readingKwh: readingKwh,
+        recordedAt: timestamp,
+        source: Value(source),
+        note: Value(note),
+      ),
+    );
+  }
+
+  Future<List<MeterReading>> getMeterReadings(
+    String householdId, {
+    required String meterId,
+    int limit = 30,
+  }) async {
+    final database = _database;
+    if (database == null) return const [];
+    final rows = await (database.select(database.electricityMeterReadings)
+          ..where(
+            (row) =>
+                row.householdId.equals(householdId) &
+                row.meterId.equals(meterId),
+          )
+          ..orderBy([(row) => OrderingTerm.desc(row.recordedAt)])
+          ..limit(limit.clamp(1, 100)))
+        .get();
+    return rows.map(_readingFromRow).toList(growable: false);
+  }
+
+  Future<MeterReading?> getLatestReading(
+    String householdId,
+    String meterId,
+  ) async {
+    final readings = await getMeterReadings(
+      householdId,
+      meterId: meterId,
+      limit: 1,
+    );
+    return readings.isEmpty ? null : readings.first;
+  }
+
+  Future<double?> calculateActualUsage(
+    String householdId, {
+    required String meterId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    if (!to.isAfter(from)) {
+      throw ArgumentError.value(to, 'to', 'Must be after from');
+    }
+    final database = _database;
+    if (database == null) return null;
+    final before = await (database.select(database.electricityMeterReadings)
+          ..where(
+            (row) =>
+                row.householdId.equals(householdId) &
+                row.meterId.equals(meterId) &
+                row.recordedAt.isSmallerOrEqualValue(from),
+          )
+          ..orderBy([(row) => OrderingTerm.desc(row.recordedAt)])
+          ..limit(1))
+        .getSingleOrNull();
+    final after = await (database.select(database.electricityMeterReadings)
+          ..where(
+            (row) =>
+                row.householdId.equals(householdId) &
+                row.meterId.equals(meterId) &
+                row.recordedAt.isBiggerOrEqualValue(to),
+          )
+          ..orderBy([(row) => OrderingTerm.asc(row.recordedAt)])
+          ..limit(1))
+        .getSingleOrNull();
+    if (before == null || after == null) return null;
+    final usage = after.readingKwh - before.readingKwh;
+    return usage < 0 ? null : usage;
+  }
+
+  MeterReading _readingFromRow(ElectricityMeterReading row) => MeterReading(
+    id: row.id,
+    householdId: row.householdId,
+    meterId: row.meterId,
+    readingKwh: row.readingKwh,
+    recordedAt: row.recordedAt,
+    source: row.source,
+    note: row.note,
+  );
+
   Future<List<PeriodUsage>> summarizeUsageByPeriod(
     String householdId, {
     required String meterId,
