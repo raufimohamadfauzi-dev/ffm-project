@@ -286,6 +286,133 @@ test/
 
 ---
 
+## Fase 5 — Input Pembacaan Meter Aktual (Level 2)
+
+> **Prioritas**: SEDANG-TINGGI. Setelah Fase 3.
+> **Alasan**: Estimasi dari pola beli (Level 1) sudah jalan. Level 2 menambah akurasi dengan data aktual dari display meter fisik. Tanpa ini, grafik hanya menampilkan estimasi.
+> **Penting**: Saat banyak meter terdaftar, asisten WAJIB mengklarifikasi meter mana yang dimaksud sebelum membuat draft. Jangan tebak. Ini berlaku untuk both token purchase DAN meter reading.
+
+### 5.1 Repository: aktifkan tabel `ElectricityMeterReadings`
+
+- [x] **File**: `lib/features/settings/data/utility_meter_repository.dart` + `lib/core/database/tables.dart`
+- **Masalah**: Tabel `ElectricityMeterReadings` sudah ada di schema (`tables.dart:250-261`) tapi belum ada repository method yang memakainya. Dormant.
+- **Struktur tabel** (sudah ada): `id`, `householdId`, `meterId`, `readingKwh`, `recordedAt`, `source` (enum: manual/photo), `note`
+- **Method baru di repository**:
+  ```dart
+  Future<void> recordMeterReading({
+    required String householdId,
+    required String meterId,
+    required double readingKwh,
+    DateTime? recordedAt,
+    String source = 'manual',
+    String? note,
+  });
+  
+  Future<List<MeterReading>> getMeterReadings(
+    String householdId, {
+    required String meterId,
+    int limit = 30,
+  });
+  
+  Future<MeterReading?> getLatestReading(String householdId, String meterId);
+  
+  Future<double?> calculateActualUsage(
+    String householdId, {
+    required String meterId,
+    required DateTime from,
+    required DateTime to,
+  });
+  ```
+- **`calculateActualUsage`**: Selisih antara reading terakhir SEBELUM `from` dan reading pertama SESUDAH `to`. Jika tidak ada data cukup → return null (fallback ke estimasi pola beli).
+- **Class baru `MeterReading`**: Tambahkan di `utility_meter_models.dart` setelah `PeriodUsage`.
+- **Verifikasi**: `flutter analyze lib test` clean. Test: simpan 2 reading → hitung selisih → benar.
+
+### 5.2 UI: tombol "Catat Pembacaan" di meter card + panduan baca meter
+
+- [ ] **File**: `lib/features/settings/presentation/pages/utility_meter_page.dart`
+- **Masalah**: User tidak ada cara untuk input pembacaan meter aktual. Selain itu, user perlu tahu **angka kWh itu dari mana dan cara bacanya**.
+- **Perubahan**: Di `_buildMeterCard`, setelah bar chart (atau setelah summary), tambahkan tombol "📝 Catat Pembacaan" yang buka dialog:
+  - **Header dialog**: "Catat Pembacaan Meter" + ikon meter ⚡
+  - **Panduan visual** (sebelum input field):
+    - Tampilkan ilustrasi sederhana meter PLN (atau teks berformat):
+      ```
+      📍 Di mana lihat angka kWh?
+      ┌─────────────────────────┐
+      │  Layar digital meter    │
+      │  ┌───────────────────┐  │
+      │  │   1 0 1 1 2 . 3   │  │  ← Angka ini (di layar meter)
+      │  └───────────────────┘  │
+      │  KWh                    │
+      └─────────────────────────┘
+      ```
+    - Atau minimal helper text: "Angka kWh ada di layar digital meter Anda. Biasanya 5-6 digit sebelum titik desimal."
+  - **Field input**: angka kWh (number input, required, hint: "contoh: 10112")
+  - **Field tanggal**: date picker (default hari ini)
+  - **Field catatan**: optional (mis. "setelah perbaikan listrik")
+  - **Validasi real-time**: Jika input < reading terakhir → warning merah "⚠️ Reading lebih rendah dari sebelumnya (terakhir: 10.112 kWh). Pastikan angka sudah benar."
+  - Tombol "Simpan" → panggil `repository.recordMeterReading()`
+- **Tampilkan reading terakhir**: Di meter card, setelah "KWH TERCATAT", tampilkan: "Pembacaan terakhir: 10.112 kWh (17 Sep 2026)" jika ada.
+- **Verifikasi**: `flutter analyze lib test` clean. Visual: tap "Catat Pembacaan" → dialog muncul dengan panduan → user tahu harus lihat di mana → simpan → data terlihat di card.
+
+### 5.3 Asisten: route pembacaan meter via teks/foto
+
+- [ ] **File**: `lib/features/assistant/data/ffm_assistant_interpreter.dart` + `lib/features/assistant/presentation/widgets/ffm_assistant_sheet.dart`
+- **Masalah**: Asisten belum bisa memproses input "pembacaan meter 10.112 kWh untuk rumah A" atau foto display meter → simpan ke `ElectricityMeterReadings`.
+- **Path teks** (interpreter):
+  - Deteksi intent: pola `baca(???)?\s*method\s*meter\s*(\d+[\d.,]*)\s*kwh` atau `pembacaan\s*meter\s*(\d+[\d.,]*)\s*kwh` atau `meter\s*show\s*(\d+[\d.,]*)\s*kwh`
+  - Route ke draft dengan type `meterReading` (bukan `expense`). Draft berisi: `readingKwh`, `meterId`/`meterNumber`, `recordedAt`.
+  - **Penting**: Jika banyak rumah dan tidak ada target jelas → klarifikasi dulu (sama seperti flow token listrik). Jangan tebak.
+  - Guard: perintah `pembacaan meter` tidak boleh di-bajak oleh flow token listrik.
+- **Path foto** (sheet):
+  - Saat user kirim foto display meter + caption "pembacaan meter" atau "catat meter" → route ke `askVisualQuestion` dengan prompt: "Baca angka kWh pada display meter ini. Balas hanya angka tanpa unit."
+  - Extract angka → buat draft `meterReading` → konfirmasi → simpan.
+  - **Response asisten harus menjelaskan**: "Saya melihat angka **10.112 kWh** pada display meter di foto Anda. Apakah ingin saya catat sebagai pembacaan meter [nama meter]?" — user tahu angka itu dari mana.
+  - Jika banyak rumah → tanyakan meter mana (gunakan `resolveMeterTarget`).
+- **Verifikasi**: `flutter analyze lib test` clean. Test: teks "pembacaan meter 10112 kWh untuk rumah A" → draft meterReading terbuat.
+
+### 5.4 Integration: gabungkan Level 1 + Level 2 di grafik
+
+- [ ] **File**: `lib/features/settings/presentation/pages/utility_meter_page.dart` + `lib/features/settings/data/utility_meter_repository.dart`
+- **Masalah**: Grafik saat ini hanya menampilkan estimasi dari pola beli. Jika ada data pembacaan aktual, harus ditampilkan juga.
+- **Perubahan**:
+  1. Di `summarizeUsageByPeriod`, tambahkan parameter `includeReadings: false`. Jika `true`, gabungkan data pembelian dengan data pembacaan aktual.
+  2. Di `MiniMonthlyBarChart`, jika ada reading aktual → tampilkan garis overlay (line) di atas bar chart. Garis solid = aktual, bar = estimasi.
+  3. Jika tidak ada reading → tetap tampilkan bar chart saja (Level 1).
+- **Alternatif simpler**: Tampilkan aktual dan estimasi sebagai 2 series berbeda dalam bar chart (side-by-side bars).
+- **Verifikasi**: `flutter analyze lib test` clean. Visual: meter dengan data aktual → grafik tampil 2 series. Meter tanpa aktual → grafik 1 series.
+
+### 5.6 UI tambahan: panduan "Cara Membaca Meter" di meter card
+
+- [ ] **File**: `lib/features/settings/presentation/pages/utility_meter_page.dart`
+- **Masalah**: User baru mungkin bingung cara baca meter PLN. Perlu panduan singkat yang mudah diakses.
+- **Perubahan**: Di `_buildMeterCard`, di bawah "Pembacaan terakhir", tambahkan link/text yang bisa di-expand:
+  ```
+  💡 Cara membaca meter →
+  ```
+  Saat di-tap, tampilkan panduan singkat:
+  ```
+  📍 Angka kWh ada di layar digital meter
+  📊 Biasanya 5-6 digit (contoh: 10.112)
+  ⚠️ Catat angka yang terlihat, JANGAN tekan tombol apa pun
+  🔄 Catat setiap bulan untuk grafik akurat
+  ```
+  - Style: card kecil dengan background abu-abu muda, font kecil, bisa di-collapse.
+  - Tampilkan hanya sekali per sesi (atau selalu jika user mau).
+- **Verifikasi**: `flutter analyze lib test` clean. Visual: panduan terlihat jelas tapi tidak mengganggu UX utama.
+
+### 5.5 Test: coverage pembacaan meter
+
+- [ ] **File**: `test/electricity_sqlite_integration_test.dart`
+- **Test baru**:
+  1. Simpan 2 reading untuk meter yang sama → `calculateActualUsage` return selisih benar.
+  2. Simpan reading yang lebih rendah dari sebelumnya → warning / error.
+  3. Reading untuk meter yang tidak ada → error.
+  4. `getLatestReading` return reading terbaru.
+  5. `getMeterReadings` return list terurut dari yang terbaru.
+- **Verifikasi**: `flutter test test/electricity_sqlite_integration_test.dart` pass.
+
+---
+
 ## Fase 4 — Cleanup & Polish
 
 > **Prioritas**: RENDAH. Optional tapi menambah kualitas.
@@ -320,6 +447,7 @@ test/
 2. **Fase 2** (2.1 → 2.2 → 2.3 → 2.4 → 2.5 → 2.6 → 2.7) — Setelah Fase 1 hijau.
 3. **Fase 3** (3.1 → 3.2 → 3.3) — Setelah Fase 2 hijau.
 4. **Fase 4** (4.1 → 4.2 → 4.3) — Optional, kapan saja setelah Fase 1.
+5. **Fase 5** (5.1 → 5.2 → 5.3 → 5.4 → 5.5) — Setelah Fase 3 hijau. Input pembacaan meter aktual.
 
 ### Validasi wajib per task
 ```
@@ -343,18 +471,25 @@ flutter test   # full suite (harus semua pass)
 | 3.1 | `utility_meter_repository.dart` |
 | 3.2–3.3 | `utility_meter_page.dart` |
 | 4.1–4.3 | various |
+| 5.1 | `utility_meter_repository.dart`, `tables.dart`, `utility_meter_models.dart` |
+| 5.2 | `utility_meter_page.dart` |
+| 5.3 | `interpreter.dart`, `ffm_assistant_sheet.dart` |
+| 5.4 | `utility_meter_page.dart`, `utility_meter_repository.dart` |
+| 5.5 | `electricity_sqlite_integration_test.dart` |
 
 ### Strategi test
 - Setiap perbaikan di Fase 1: tambah 1–2 test case di `electricity_meter_resolution_test.dart` atau `electricity_sqlite_integration_test.dart`.
 - Setiap perbaikan di Fase 2: tambah test di `receipt_scanner_service_test.dart` atau `electricity_meter_resolution_test.dart`.
 - Setiap perbaikan di Fase 3: tambah test di `electricity_sqlite_integration_test.dart` untuk query `summarizeUsageByPeriod`.
+- Fase 5: tambah 5 test di `electricity_sqlite_integration_test.dart` untuk `recordMeterReading`, `getLatestReading`, `calculateActualUsage`.
 - Setelah setiap fase: jalankan full `flutter test` + `flutter build apk --target-platform android-arm64 --release`.
 
 ### Test coverage yang sudah ada (per 2026-09-17)
-- `electricity_sqlite_integration_test.dart` (2 tests): 1:1 transaksi-token, rollback kWh invalid
-- `electricity_meter_resolution_test.dart` (12 tests): resolver target, anomali, interpreter flow
-- **Belum ada test untuk**: unique index constraint, archive+recreate meter, duplikat meter, `summarizeUsageByPeriod` (belum ada methodnya)
-- **Tabel `ElectricityMeterReadings`**: sudah ada di schema tapi belum ada aplikasi code yang pakai (dormant)
+- `electricity_sqlite_integration_test.dart` (4 tests): 1:1 transaksi-token, rollback kWh invalid, period aggregation, archive+recreate
+- `electricity_meter_resolution_test.dart` (19 tests): resolver target, anomalies, interpreter flow
+- `receipt_scanner_service_test.dart` (21 tests): OCR, batch, multi-token, retry
+- **Belum ada test untuk**: unique index constraint, duplikat meter, `summarizeUsageByPeriod` sudah ada test
+- **Tabel `ElectricityMeterReadings`**: sudah ada di schema tapi belum ada aplikasi code yang pakai (dormant) — akan diaktifkan di Fase 5
 
 ### Referensi kode penting (sudah diverifikasi ulang 2026-09-17)
 - `resolveMeterTarget`: `utility_meter_repository.dart:245-299`
@@ -369,12 +504,12 @@ flutter test   # full suite (harus semua pass)
 - `ElectricityUsageSummary`: `utility_meter_repository.dart:34-46`
 - `summarizeUsage`: `utility_meter_repository.dart:587-607`
 - `UtilityPurchaseHistory`: `utility_meter_repository.dart:10-32`
-- `ElectricityMeterReadings` table: `tables.dart:250-261` (dormant, belum dipakai)
+- `ElectricityMeterReadings` table: `tables.dart:250-261` (dormant, akan diaktifkan di Fase 5.1)
 - Pattern bar chart: `summary_page.dart:916-1067` (`_MonthlyExpenseTrendCard`)
 - `UtilityMeter.meterNumber` doc comment: `utility_meter_models.dart:31`
 - `_createElectricityIndexes`: `app_database.dart:741-758`
 - Unique index `idx_electricity_meters_number`: `app_database.dart:743-744`
-- Schema version: `app_database.dart:78` (saat ini 65)
+- Schema version: `app_database.dart:78` (saat ini 66)
 - Migration block terakhir: `app_database.dart:127` (`if (from < 65)`)
 
 ---
@@ -436,12 +571,51 @@ Untuk setiap task:
 Setelah Fase 3 selesai, jalankan full `flutter test` + `flutter build apk --target-platform android-arm64 --release`.
 ```
 
+### Prompt: Mulai Fase 4
+
+```
+Baca file PLAN_ELECTRICITY_FIXES.md di root project. Fase 1-3 sudah selesai.
+Mulai kerjakan Fase 4 (task 4.1 sampai 4.3) secara berurutan.
+
+Fase 4 adalah cleanup & polish — optional tapi menambah kualitas.
+Ikuti deskripsi di file MD.
+
+Untuk setiap task:
+1. Baca deskripsi masalah dan lokasi kode di file tersebut
+2. Baca kode sumber di path yang tercantum untuk memahami konteks
+3. Implementasi perbaikan
+4. Jalankan verifikasi yang tercantum (flutter analyze + test yang relevan)
+5. Centang checkbox [ ] → [x] di file MD jika semua verifikasi pass
+
+Setelah Fase 4 selesai, jalankan full `flutter test` + `flutter build apk --target-platform android-arm64 --release`.
+```
+
+### Prompt: Mulai Fase 5
+
+```
+Baca file PLAN_ELECTRICITY_FIXES.md di root project. Fase 1-3 sudah selesai.
+Mulai kerjakan Fase 5 (task 5.1 sampai 5.5) secara berurutan.
+
+Fase 5 menambahkan input pembacaan meter aktual (Level 2). 
+Tabel ElectricityMeterReadings sudah ada di schema tapi dormant.
+Task 5.1 mengaktifkannya dengan repository method baru.
+
+Untuk setiap task:
+1. Baca deskripsi masalah dan lokasi kode di file tersebut
+2. Baca kode sumber di path yang tercantum untuk memahami konteks
+3. Implementasi perbaikan
+4. Jalankan verifikasi yang tercantum (flutter analyze + test yang relevan)
+5. Centang checkbox [ ] → [x] di file MD jika semua verifikasi pass
+
+Setelah Fase 5 selesai, jalankan full `flutter test` + `flutter build apk --target-platform android-arm64 --release`.
+```
+
 ### Prompt: Kerjakan Semua Sekaligus
 
 ```
-Baca file PLAN_ELECTRICITY_FIXES.md di root project. Kerjakan SEMUA Fase (1-4) secara berurutan.
+Baca file PLAN_ELECTRICITY_FIXES.md di root project. Kerjakan SEMUA Fase (1-5) secara berurutan.
 
-Urutan: Fase 1 → Fase 2 → Fase 3 → Fase 4.
+Urutan: Fase 1 → Fase 2 → Fase 3 → Fase 4 → Fase 5.
 
 Untuk setiap task:
 1. Baca deskripsi masalah dan lokasi kode di file tersebut
@@ -460,5 +634,5 @@ Setelah semua selesai, jalankan `flutter build apk --target-platform android-arm
 ```
 Baca file PLAN_ELECTRICITY_FIXES.md di root project. 
 Berapa banyak checkbox yang sudah dicentang [x] vs yang masih kosong [ ]?
-Tuliskan progress: "[X/18] task selesai" dan sebutkan task mana yang belum dikerjakan.
+Tuliskan progress: "[X/24] task selesai" dan sebutkan task mana yang belum dikerjakan.
 ```
