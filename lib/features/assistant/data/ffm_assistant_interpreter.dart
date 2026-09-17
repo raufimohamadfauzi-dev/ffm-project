@@ -25,6 +25,7 @@ import '../../advisor/domain/usecases/budget_guard_service.dart';
 import '../../advisor/domain/usecases/flexible_cash_flow_calculator.dart';
 import '../../asset/data/repositories/market_news_cache_repository.dart';
 import '../../hijri/domain/hijri_calendar_service.dart';
+import '../../settings/data/utility_meter_repository.dart';
 import 'ffm_assistant_memory_repository.dart';
 import 'ffm_assistant_user_model_service.dart';
 import 'ffm_assistant_correction_service.dart';
@@ -131,6 +132,7 @@ class FfmAssistantInterpreter {
       clock: _clock,
       marketCache: marketCache,
     );
+    _utilityMeters = UtilityMeterRepository(_database);
     _actionRegistry = FfmAssistantContextualActionRegistry(clock: _clock);
     _harness = createDefaultHarness(_database);
     _analysisEngine = analysisEngine ?? FfmAssistantAnalysisEngine(_database);
@@ -199,6 +201,10 @@ class FfmAssistantInterpreter {
   late final FfmGeminiCloudOrchestrator _geminiCloud;
   late final FfmAssistantQueryRegistry _queryRegistry;
   late final FfmAssistantContextualActionRegistry _actionRegistry;
+
+  /// Resolver meteran/IDPEL listrik — dipakai untuk memastikan target
+  /// pembelian token pasti (baru/eksisting) sebelum draft dibuat.
+  late final UtilityMeterRepository _utilityMeters;
 
   /// Harness modular ala DeepSeek Harness — 14 plugin Mata/Tangan/Logika offline.
   late final FfmAgentHarness _harness;
@@ -3321,6 +3327,16 @@ class FfmAssistantInterpreter {
       if (contextualDraft != null) {
         return _intentForDraft(rawText, normalized, contextualDraft);
       }
+      final electricityIntent = await _resolveElectricityPurchase(
+        rawText: rawText,
+        normalized: normalized,
+        accounts: accounts,
+        categories: categories,
+        currentDestination: currentDestination,
+        activitySnapshot: activitySnapshot,
+        amount: FfmAssistantAmountParser.parse(normalized),
+      );
+      if (electricityIntent != null) return electricityIntent;
       final draft = _parseFinancialDraft(
         rawText,
         normalized,
@@ -6914,25 +6930,69 @@ class FfmAssistantInterpreter {
       );
       final titleCandidate = _scheduleTitleFromText(changeText);
       final title = titleCandidate.isEmpty ? target.title : titleCandidate;
+
+      ReminderMode? newMode;
+      if (RegExp(r'\b(alarm|nyaring|bunyi|dering)\b', caseSensitive: false).hasMatch(changeText) &&
+          !RegExp(r'\b(bukan alarm|bukan nyaring|notifikasi biasa)\b', caseSensitive: false).hasMatch(changeText)) {
+        newMode = ReminderMode.alarm;
+      } else if (RegExp(r'\b(notifikasi|biasa|hening|senyap)\b', caseSensitive: false).hasMatch(changeText)) {
+        newMode = ReminderMode.notification;
+      }
+
+      String? newSoundName;
+      final soundMatch = RegExp(r'\b(?:nada|suara|ringtone)\s+([a-zA-Z0-9_\-]+)\b', caseSensitive: false).firstMatch(changeText);
+      if (soundMatch != null) {
+        newSoundName = soundMatch.group(1);
+      }
+
+      ReminderRecurrenceType? newRecurrence;
+      if (RegExp(r'\b(setiap hari|tiap hari|harian)\b', caseSensitive: false).hasMatch(changeText)) {
+        newRecurrence = ReminderRecurrenceType.daily;
+      } else if (RegExp(r'\b(setiap pekan|tiap pekan|mingguan|setiap minggu)\b', caseSensitive: false).hasMatch(changeText)) {
+        newRecurrence = ReminderRecurrenceType.weekly;
+      } else if (RegExp(r'\b(setiap bulan|tiap bulan|bulanan)\b', caseSensitive: false).hasMatch(changeText)) {
+        newRecurrence = ReminderRecurrenceType.monthly;
+      } else if (RegExp(r'\b(setiap tahun|tiap tahun|tahunan)\b', caseSensitive: false).hasMatch(changeText)) {
+        newRecurrence = ReminderRecurrenceType.yearly;
+      } else if (RegExp(r'\b(sekali|hanya sekali|tidak berulang)\b', caseSensitive: false).hasMatch(changeText)) {
+        newRecurrence = ReminderRecurrenceType.once;
+      }
+
       final draft = FfmAssistantDraft(
         kind: FfmAssistantDraftKind.reminderUpdate,
         createdAt: _clock(),
         title: title,
         note: target.note,
         date: scheduledAt,
+        reminderMode: newMode ?? ReminderModeX.fromStorage(target.mode),
+        recurrenceType:
+            newRecurrence ?? ReminderRecurrenceTypeX.fromStorage(target.recurrenceType),
         formValues: {
           'entity': 'reminder',
           'targetId': target.id,
           'operation': 'update',
           'targetSummary': _reminderCandidateLabel(target),
           'scheduledAt': scheduledAt.toIso8601String(),
-          'preserveRecurrence': 'true',
-          'preserveSound': 'true',
+          if (newMode != null) ...{
+            'mode': newMode.storageValue,
+            'reminderMode': newMode.storageValue,
+          },
+          if (newSoundName != null) ...{
+            'soundName': newSoundName,
+            'soundUri': newSoundName,
+          },
+          if (newRecurrence != null) ...{
+            'recurrence': newRecurrence.storageValue,
+            'recurrenceType': newRecurrence.storageValue,
+          },
+          'preserveRecurrence': newRecurrence == null ? 'true' : 'false',
+          'preserveSound': newSoundName == null ? 'true' : 'false',
           'preserveNotificationId': 'true',
         },
       );
+      final modeNote = newMode != null ? ' Mode disesuaikan menjadi ${newMode.label}.' : '';
       return _intentForDraft(rawText, normalized, draft).copyWith(
-        response: 'Aku menyiapkan perubahan satu pengingat. Pola berulang, suara, snooze, dan identitas notifikasi akan dipertahankan. Cek preview lalu konfirmasi; belum ada data yang diubah.',
+        response: 'Aku menyiapkan perubahan satu pengingat.$modeNote Cek preview lalu konfirmasi; belum ada data yang diubah.',
       );
     }
     final archive = RegExp(
@@ -8801,11 +8861,23 @@ class FfmAssistantInterpreter {
         r'\b(setiap pekan|tiap pekan|mingguan|setiap minggu)\b',
         caseSensitive: false,
       ).hasMatch(normalized);
+      final isMonthly = RegExp(
+        r'\b(setiap bulan|tiap bulan|bulanan|tiap tgl|tiap tanggal|setiap tanggal)\b',
+        caseSensitive: false,
+      ).hasMatch(normalized);
+      final isYearly = RegExp(
+        r'\b(setiap tahun|tiap tahun|tahunan)\b',
+        caseSensitive: false,
+      ).hasMatch(normalized);
       final recurrenceType = isDaily
           ? ReminderRecurrenceType.daily
           : isWeekly
               ? ReminderRecurrenceType.weekly
-              : ReminderRecurrenceType.once;
+              : isMonthly
+                  ? ReminderRecurrenceType.monthly
+                  : isYearly
+                      ? ReminderRecurrenceType.yearly
+                      : ReminderRecurrenceType.once;
       final weekdays = <int>[];
       if (recurrenceType == ReminderRecurrenceType.weekly) {
         final weekday =
@@ -9164,6 +9236,130 @@ class FfmAssistantInterpreter {
     );
   }
 
+  static bool _hasElectricityPurchaseIntent(String normalized) {
+    final hasKeyword = RegExp(
+      r'\b(token\s*listrik|token\s*pln|pulsa\s*listrik|voucher\s*listrik|isi\s*token|beli\s*token|tambah\s*token|token|stroom|idpel|kwh)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+    if (hasKeyword) return true;
+    final hasLongNumber = RegExp(r'\b\d{11,12}\b').hasMatch(normalized);
+    return hasLongNumber &&
+        RegExp(r'\b(listrik|pln|meteran|meter)\b', caseSensitive: false)
+            .hasMatch(normalized);
+  }
+
+  /// Resolusi target meteran listrik sebelum draft dibuat. Deterministik:
+  /// jika ada lebih dari satu rumah dan target tidak jelas, WAJIB tanya balik
+  /// (tanpa draft, tanpa write). Jika hanya satu meteran, dipakai otomatis
+  /// agar pembelian berikutnya memperbarui rumah yang sama tanpa identitas baru.
+  Future<FfmAssistantIntent?> _resolveElectricityPurchase({
+    required String rawText,
+    required String normalized,
+    required List<Account> accounts,
+    required List<Category> categories,
+    required FfmAssistantDestination? currentDestination,
+    required ActivityLiveSnapshot? activitySnapshot,
+    int? amount,
+  }) async {
+    if (!_hasElectricityPurchaseIntent(normalized)) return null;
+    // Jangan membajak perintah pengelolaan master meter (hapus/ubah/lihat/cek)
+    // — path lain atau query/Gemini yang menanganinya.
+    if (RegExp(
+      r'\b(hapus|arsipkan|nonaktifkan|ubah|ganti|edit|lihat|cek|tampilkan|show|berapa|kapan|riwayat)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized)) {
+      return null;
+    }
+
+    final now = _clock();
+    final baseProposal = _utilityProposalFromText(rawText, normalized, amount);
+    final proposal = <String, Object?>{
+      ...?baseProposal,
+      'amount': amount,
+      'timestamp': now.toIso8601String(),
+      'adminFee': 0,
+    };
+
+    final resolution = await _utilityMeters.resolveMeterTarget(
+      householdId: AppContext.householdId,
+      proposal: proposal,
+    );
+    if (!resolution.isResolvable) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.unknown,
+        confidence: .9,
+        clarification: resolution.message,
+      );
+    }
+
+    final meter = resolution.meter;
+    if (meter != null) {
+      proposal['meterNumber'] = UtilityMeterRepository.normalizeNumber(
+        meter.meterNumber,
+      );
+      proposal['meterId'] = meter.id;
+      proposal['meterName'] = meter.name;
+      proposal['isNewMeter'] = false;
+    } else if (resolution.meterNumber != null) {
+      proposal['meterNumber'] = resolution.meterNumber!;
+      proposal['isNewMeter'] = true;
+      proposal['proposedMeterName'] ??=
+          'Meteran PLN ${resolution.meterNumber}';
+    }
+
+    final baseDraft = _parseFinancialDraft(
+      rawText,
+      normalized,
+      accounts,
+      categories,
+      currentDestination: currentDestination,
+      activitySnapshot: activitySnapshot,
+    );
+    final draft = (baseDraft ?? FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.expense,
+      createdAt: now,
+      amount: amount,
+      categoryName: 'Listrik',
+      note: rawText.trim(),
+      date: now,
+    )).copyWith(
+      metadata: {'utilityProposal': proposal},
+    );
+
+    final warnings = await _utilityMeters.scanPurchaseAnomalies(
+      householdId: AppContext.householdId,
+      proposal: proposal,
+    );
+
+    final targetLabel = meter != null
+        ? '${meter.name} (no. ${meter.meterNumber})'
+        : '${resolution.meterNumber} (meteran baru)';
+    final response = StringBuffer(
+      '⚡ Pembelian token listrik untuk **$targetLabel** dipersiapkan. '
+      'Tidak ada yang tersimpan sampai kamu mengonfirmasi.',
+    );
+    if (proposal['tokenCode'] == null) {
+      response.write(
+        '\n\n⚠️ Data belum lengkap: kode token PLN belum terbaca dari teks. Cek foto struk atau masukkan nomor token agar riwayat listrik akurat.',
+      );
+    }
+    if (proposal['creditedKwh'] == null) {
+      response.write(
+        '\n\n⚠️ Data belum lengkap: kWh belum terdeteksi dari teks. Cek foto struk atau masukkan pemakaian kWh bila tersedia.',
+      );
+    }
+    if (warnings.isNotEmpty) {
+      response.write('\n\n🛡️ Perhatian:\n');
+      for (final warning in warnings) {
+        response.write('• $warning\n');
+      }
+    }
+    return _intentForDraft(rawText, normalized, draft)
+        .copyWith(response: response.toString());
+  }
+
   Map<String, Object?>? _utilityProposalFromText(
     String rawText,
     String normalized,
@@ -9180,7 +9376,12 @@ class FfmAssistantInterpreter {
     }
     final tokenMatch = RegExp(r'\b(?:token\s*)?((?:\d[\s-]?){20})\b')
         .firstMatch(rawText);
-    final meterMatch = RegExp(r'\b(\d{11,12})\b').firstMatch(rawText);
+    final meterMatch = RegExp(r'\b(\d{9,13})\b').firstMatch(rawText);
+    final kwhMatch = RegExp(
+      r'(?:jumlah\s*)?(?:kwh|stroom)\s*[:#-]?\s*(\d+(?:[.,]\d+)?)|'
+      r'(\d+(?:[.,]\d+)?)\s*kwh\b',
+      caseSensitive: false,
+    ).firstMatch(rawText);
     final referenceMatch = RegExp(
       r'(?:meteran|meter|kwh|untuk)\s+([a-z][a-z0-9 _-]{2,40})',
       caseSensitive: false,
@@ -9188,7 +9389,13 @@ class FfmAssistantInterpreter {
     final tokenCode = tokenMatch?.group(1)?.replaceAll(RegExp(r'\D'), '');
     final meterNumber = meterMatch?.group(1);
     final meterReference = referenceMatch?.group(1)?.trim();
-    if (tokenCode == null && meterNumber == null && meterReference == null) {
+    final creditedKwhValue = kwhMatch == null
+        ? null
+        : double.tryParse(
+            (kwhMatch.group(1) ?? kwhMatch.group(2) ?? '')
+                .replaceAll(',', '.'),
+          );
+    if (tokenCode == null && meterNumber == null && meterReference == null && creditedKwhValue == null) {
       return null;
     }
     return {
@@ -9197,6 +9404,7 @@ class FfmAssistantInterpreter {
           : {'tokenCode': tokenCode},
       ...?meterNumber == null ? null : {'meterNumber': meterNumber},
       ...?meterReference == null ? null : {'meterReference': meterReference},
+      ...?creditedKwhValue == null ? null : {'creditedKwh': creditedKwhValue},
       ...?amount == null ? null : {'amount': amount},
       'timestamp': DateTime.now().toIso8601String(),
     };

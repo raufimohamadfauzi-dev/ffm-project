@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:drift/drift.dart';
 
 import 'package:ffm_manager/core/database/app_database.dart';
@@ -11,6 +12,9 @@ import 'package:ffm_manager/features/reminder/domain/entities/reminder_entity.da
 import 'package:ffm_manager/features/reminder/domain/usecases/reminder_usecases.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  SharedPreferences.setMockInitialValues({});
+
   late AppDatabase database;
   late FfmAssistantCapabilityAdapterRegistry adapters;
   late _FakeReminderGateway reminderGateway;
@@ -93,6 +97,18 @@ void main() {
     expect(saved.isSuccess, isTrue);
     expect(verified.isSuccess, isTrue);
     expect(verified.message, contains('aset “Dana darurat”'));
+  });
+
+  test('read.electricity adapter tersedia dan merangkum data meteran', () async {
+    final step = const FfmAssistantActionStep(
+      id: 'read-electricity',
+      capabilityId: 'read.electricity',
+    );
+
+    final result = await adapters.handlers['read.electricity']!(step);
+
+    expect(result.isSuccess, isTrue);
+    expect(result.message, anyOf(contains('meter'), contains('Belum ada')));
   });
 
   test(

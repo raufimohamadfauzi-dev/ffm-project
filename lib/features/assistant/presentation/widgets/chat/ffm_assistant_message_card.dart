@@ -56,6 +56,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
     this.onMarkIssue,
     this.issueLogged = false,
     this.onRetryGemini,
+    this.onRetryScan,
     required this.activityConfirmed,
     this.actionPlan,
     this.visibleText,
@@ -99,6 +100,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
   final VoidCallback? onMarkIssue;
   final bool issueLogged;
   final VoidCallback? onRetryGemini;
+  final VoidCallback? onRetryScan;
   final bool activityConfirmed;
   final FfmAssistantActionPlan? actionPlan;
   final void Function(List<String> questions)? onShowFollowUpQuestions;
@@ -331,6 +333,17 @@ class FfmAssistantMessageCard extends StatelessWidget {
             text: visibleText ?? entry.text,
             color: textColor,
           ),
+          if (onRetryScan != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: onRetryScan,
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Foto Ulang'),
+              ),
+            ),
+          ],
           if (isStreaming &&
               visibleText != null &&
               visibleText!.length < entry.text.length)

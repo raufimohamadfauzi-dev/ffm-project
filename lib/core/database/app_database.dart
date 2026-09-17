@@ -25,7 +25,9 @@ part 'app_database.g.dart';
     TransactionTags,
     DailyNoteTags,
     Attachments,
+    ElectricityMeters,
     UtilityTokenPurchases,
+    ElectricityMeterReadings,
     Transfers,
     EnvelopeBudgets,
     EnvelopeTransfers,
@@ -73,7 +75,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 64;
+  int get schemaVersion => 66;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -93,6 +95,7 @@ class AppDatabase extends _$AppDatabase {
       await _createAssistantAutonomyIndexes();
       await _createAssistantApprovalIndexes();
       await _createPersonalizationIndexes();
+      await _createElectricityIndexes();
       await _seedInitialData();
       await _seedActivityCategories();
     },
@@ -120,6 +123,47 @@ class AppDatabase extends _$AppDatabase {
           'CREATE INDEX IF NOT EXISTS idx_utility_token_purchases_transaction '
           'ON utility_token_purchases (transaction_id)',
         );
+      }
+      if (from < 65) {
+        if (!await _hasTable('electricity_meters')) {
+          await m.createTable(electricityMeters);
+        }
+        if (!await _hasTable('electricity_meter_readings')) {
+          await m.createTable(electricityMeterReadings);
+        }
+        if (!await _hasTable('utility_token_purchases')) {
+          await m.createTable(utilityTokenPurchases);
+        } else if (!await _hasColumns('utility_token_purchases', const [
+          'admin_fee',
+        ])) {
+          await m.addColumn(
+            utilityTokenPurchases,
+            utilityTokenPurchases.adminFee,
+          );
+        }
+        if (!await _hasColumns('utility_token_purchases', const [
+          'credited_kwh',
+        ])) {
+          await m.addColumn(
+            utilityTokenPurchases,
+            utilityTokenPurchases.creditedKwh,
+          );
+        }
+        await customStatement(
+          'DELETE FROM utility_token_purchases WHERE transaction_id IS NOT NULL '
+          'AND rowid NOT IN (SELECT MIN(rowid) FROM utility_token_purchases '
+          'WHERE transaction_id IS NOT NULL GROUP BY transaction_id)',
+        );
+        await _createElectricityIndexes();
+      }
+      if (from < 66) {
+        await customStatement('DROP INDEX IF EXISTS idx_electricity_meters_number');
+        await customStatement(
+          'CREATE UNIQUE INDEX IF NOT EXISTS idx_electricity_meters_number '
+          'ON electricity_meters (household_id, normalized_meter_number) '
+          'WHERE is_archived = 0',
+        );
+        await _createElectricityIndexes();
       }
       if (from < 56 && await _hasTable('reminders')) {
         if (!await _hasColumns('reminders', const ['source_type'])) {
@@ -700,6 +744,26 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
       'CREATE UNIQUE INDEX IF NOT EXISTS idx_interaction_patterns_lookup '
       'ON interaction_patterns (household_id, merchant_name, field_name)',
+    );
+  }
+
+  Future<void> _createElectricityIndexes() async {
+    await customStatement(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_electricity_meters_number '
+      'ON electricity_meters (household_id, normalized_meter_number) '
+      'WHERE is_archived = 0',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_electricity_readings_meter_date '
+      'ON electricity_meter_readings (household_id, meter_id, recorded_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_utility_token_purchases_meter_date '
+      'ON utility_token_purchases (household_id, meter_id, purchased_at)',
+    );
+    await customStatement(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_utility_token_purchases_transaction_unique '
+      'ON utility_token_purchases (transaction_id) WHERE transaction_id IS NOT NULL',
     );
   }
 

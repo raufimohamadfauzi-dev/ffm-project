@@ -991,10 +991,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   final _supabaseConfig = SupabaseConfig();
   final _supabase = SupabaseService();
+  late FfmAssistantDestination? _activeDestination;
 
   @override
   void initState() {
     super.initState();
+    _activeDestination = widget.currentDestination;
     _scrollController.addListener(_updateLatestMessagePreference);
     _speechStateSubscription = _speech.playbackStates.listen(_onSpeechState);
     _historyRestoreFuture = _restoreChatHistory();
@@ -2494,6 +2496,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     ).hasMatch(lower);
     if (isExplicitTransactionCmd) return false;
 
+    final isReceiptCheckCommand = RegExp(
+      r'\b(?:cek|lihat|baca|periksa)\s+(?:struk|nota|receipt)\b',
+    ).hasMatch(lower);
+    if (isReceiptCheckCommand) return false;
+
     final hasQuestionMark = lower.contains('?');
     final hasQuestionWords = RegExp(
       r'\b(apa|apakah|kenapa|mengapa|bagaimana|gimana|berapa|siapa|kapan|baca|bacakan|jelaskan|analisa|analisis|cek|periksa|lihat)\b',
@@ -2580,12 +2587,21 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 ],
               )
             : null;
+        final retryIntent = FfmAssistantIntent(
+          rawText: caption,
+          normalizedText: caption,
+          type: FfmAssistantIntentType.unknown,
+          confidence: 0.5,
+          response: outcome.message,
+          pluginMetadata: {'retryScan': true},
+        );
         _appendEntry(
           FfmAssistantChatEntry(
             isUser: false,
             text: outcome.message,
             filePath: path,
             fileFormat: 'image',
+            intent: retryIntent,
             processTrace: errorTrace,
             createdAt: DateTime.now(),
           ),
@@ -2730,6 +2746,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           cleanMeterNumber = ReceiptScannerService.extractPlnMeterNumber(
             allText,
           );
+          final creditedKwh = ReceiptScannerService.extractPlnKwh(allText);
           if (cleanMeterNumber == null) {
             final fallbackMeterRegex = RegExp(r'\b(\d{11,12})\b');
             for (final m in fallbackMeterRegex.allMatches(allText)) {
@@ -2740,6 +2757,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               }
             }
           }
+
+          // Deteksi struk dengan beberapa meteran (2 rumah dalam 1 gambar).
+          // Jika Gemini tidak memisahkannya menjadi beberapa entry, kita ingatkan
+          // user alih-alih menebak meter tujuan.
+          final detectedTokens = ReceiptScannerService.extractPlnTokens(allText);
+          final detectedMeters = ReceiptScannerService.extractPlnMeters(allText);
 
           if (cleanToken != null) {
             final formattedToken =
@@ -2758,6 +2781,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               'tokenCode': cleanToken,
               'formattedToken': formattedToken,
               'amount': entry.amount?.toDouble(),
+              'adminFee': entry.adminFee ?? 0,
+              'creditedKwh': creditedKwh,
               'timestamp': now.toIso8601String(),
             };
 
@@ -2793,6 +2818,23 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   '• Kode Token: `$formattedToken`\n\n'
                   'Meteran baru ini akan didaftarkan setelah Anda mengonfirmasi transaksi.\n\n'
                   '$response';
+            }
+
+            if (detectedTokens.length > 1 || detectedMeters.length > 1) {
+              response +=
+                  '\n\n⚠️ Deteksi meteran ganda: struk ini tampaknya memuat '
+                  '${detectedMeters.length > 1 ? '${detectedMeters.length} nomor meter' : '${detectedTokens.length} kode token'}. '
+                  'Jika ini beberapa pembelian untuk rumah berbeda, aplikasi akan '
+                  'membuat draft terpisah per pembelian sehingga tiap rumah terisi dengan benar.\n';
+            }
+
+            final anomalyWarnings = await utilityRepo.scanPurchaseAnomalies(
+              householdId: AppContext.householdId,
+              proposal: utilityMetadata,
+            );
+            if (anomalyWarnings.isNotEmpty) {
+              response +=
+                  '\n\n🛡️ Perhatian:\n${anomalyWarnings.map((warn) => '• $warn').join('\n')}\n';
             }
 
             // Simpan metadata ke draft untuk dieksekusi setelah konfirmasi
@@ -3740,6 +3782,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   Future<void> _handleEntryIntent(FfmAssistantChatEntry entry) async {
     final intent = entry.intent;
     if (intent == null) return;
+
+    if (intent.destination != null) {
+      setState(() {
+        _activeDestination = intent.destination;
+      });
+    }
 
     _selectDraftFromEntry(entry);
     await _handleIntent(intent);
@@ -5244,9 +5292,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final currentPage = widget.currentDestination == null
+    final currentPage = _activeDestination == null
         ? null
-        : FfmAssistantCatalog.findByDestination(widget.currentDestination!);
+        : FfmAssistantCatalog.findByDestination(_activeDestination!);
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -5447,6 +5495,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                               entry.intent?.responseOrigin ==
                                   FfmAssistantResponseOrigin.cloudError
                               ? () => _submit(entry.intent!.rawText)
+                              : null,
+                          onRetryScan:
+                              entry.intent?.pluginMetadata?['retryScan'] == true &&
+                                  entry.filePath != null
+                              ? () => _scanReceiptFromPhoto(
+                                  customPath: entry.filePath!,
+                                )
                               : null,
                           onCopyText: () => _copyEntryText(entry),
                           onShareFile: entry.filePath == null

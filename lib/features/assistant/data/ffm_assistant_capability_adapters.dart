@@ -27,7 +27,6 @@ import '../../settings/data/merchant_repository.dart';
 import '../../settings/data/tag_repository.dart';
 import '../../settings/data/utility_meter_repository.dart';
 import '../../settings/data/vehicle_repository.dart';
-import '../../settings/domain/entities/utility_meter_models.dart';
 import '../../settings/domain/entities/vehicle_models.dart';
 // ...
 import '../../goal/domain/entities/goal_entity.dart';
@@ -146,6 +145,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'read.categories': _readCategories,
     'read.analysis': _readAnalysis,
     'read.activity': _readActivity,
+    'read.electricity': _readElectricity,
     'read.budget': _readBudget,
     'read.goals': _readGoals,
     'read.assets': _readAssets,
@@ -2870,21 +2870,47 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
     try {
+      final modeRaw = step.parameters['mode']?.toString();
+      final mode = modeRaw == null ? null : ReminderModeX.fromStorage(modeRaw);
+      final soundUri = step.parameters['soundUri']?.toString();
+      final soundName = step.parameters['soundName']?.toString();
+      final rawRecurrence =
+          (step.parameters['recurrence'] ?? step.parameters['recurrenceType'])
+              ?.toString()
+              .toLowerCase();
+      final recurrenceType = switch (rawRecurrence) {
+        'daily' || 'harian' => ReminderRecurrenceType.daily,
+        'weekly' || 'mingguan' => ReminderRecurrenceType.weekly,
+        'monthly' || 'bulanan' => ReminderRecurrenceType.monthly,
+        'yearly' || 'tahunan' => ReminderRecurrenceType.yearly,
+        'once' || 'sekali' => ReminderRecurrenceType.once,
+        'hijri_monthly' || 'hijriah' || 'bulanan hijriah' =>
+          ReminderRecurrenceType.hijriMonthly,
+        _ => null,
+      };
+
       final updated = await reminderMutations.updateTitleAndScheduledAt(
         previous: previous,
         title: title,
         note: step.parameters['note']?.toString(),
         scheduledAt: scheduledAt,
+        mode: mode,
+        soundUri: soundUri,
+        soundName: soundName,
+        recurrenceType: recurrenceType,
       );
       if (updated.title == previous.title &&
           updated.note == previous.note &&
-          updated.scheduledAt == previous.scheduledAt) {
+          updated.scheduledAt == previous.scheduledAt &&
+          updated.mode == previous.mode &&
+          updated.soundUri == previous.soundUri &&
+          updated.recurrenceType == previous.recurrenceType) {
         return const FfmAssistantCapabilityExecutionResult.success(
           'alreadyApplied: pengingat sudah sesuai dengan draft perubahan.',
         );
       }
       return FfmAssistantCapabilityExecutionResult.success(
-        'Pengingat “${updated.title}” diperbarui dan dijadwalkan ulang. Pola berulang, suara, snooze, dan identitas notifikasi tetap dipertahankan. Hasilnya akan dibaca kembali untuk verifikasi.',
+        'Pengingat “${updated.title}” diperbarui dan dijadwalkan ulang. Mode: ${updated.mode.label}. Hasilnya akan dibaca kembali untuk verifikasi.',
       );
     } on Object {
       return const FfmAssistantCapabilityExecutionResult.failure(
@@ -3843,131 +3869,21 @@ class FfmAssistantCapabilityAdapterRegistry {
     Map<String, Object?> parameters, {
     String? transactionId,
   }) async {
-    try {
-      final metadataRaw = parameters['metadata'];
-      if (metadataRaw is! Map) return;
-
-      final utilityProposal = metadataRaw['utilityProposal'];
-      if (utilityProposal is! Map) return;
-
-      final tokenCode = utilityProposal['tokenCode']?.toString();
-
-      // Import utility repository secara lazy
-      if (!getIt.isRegistered<UtilityMeterRepository>()) return;
-      final utilityRepo = getIt<UtilityMeterRepository>();
-
-      final timestampStr = utilityProposal['timestamp']?.toString();
-      final timestamp = timestampStr != null
-          ? DateTime.tryParse(timestampStr)
-          : _clock();
-
-      var meterNumber = utilityProposal['meterNumber']?.toString();
-      final meterReference = utilityProposal['meterReference']?.toString();
-      if ((meterNumber == null || meterNumber.isEmpty) &&
-          meterReference != null &&
-          meterReference.trim().isNotEmpty) {
-        final reference = meterReference.trim().toLowerCase();
-        final matches = (await utilityRepo.getAllMeters(_householdId))
-            .where(
-              (meter) =>
-                  meter.name.toLowerCase() == reference ||
-                  meter.customerName.toLowerCase() == reference ||
-                  meter.meterNumber.replaceAll(RegExp(r'\D'), '') ==
-                      reference.replaceAll(RegExp(r'\D'), ''),
-            )
-            .toList(growable: false);
-        if (matches.length == 1) meterNumber = matches.single.meterNumber;
-      }
-      if (meterNumber == null || meterNumber.isEmpty) return;
-      final resolvedMeterNumber = meterNumber;
-      final isNewMeter = utilityProposal['isNewMeter'] == true;
-
-      if (isNewMeter) {
-        // Buat meter baru
-        final newMeter = UtilityMeter(
-          id: 'meter_${Uuid().v4()}',
-          householdId: _householdId,
-          name:
-              utilityProposal['proposedMeterName']?.toString() ??
-              'Meteran PLN $meterNumber',
-          meterNumber: resolvedMeterNumber,
-          createdAt: timestamp ?? _clock(),
-          lastTokenNumber: tokenCode,
-          lastAmount: (utilityProposal['amount'] as num?)?.toDouble(),
-          lastPurchasedAt: timestamp ?? _clock(),
-        );
-        await utilityRepo.saveMeter(newMeter);
-      } else if (tokenCode != null && tokenCode.isNotEmpty) {
-        // Update meter existing
-        await utilityRepo.updateLastToken(
-          householdId: _householdId,
-          meterNumber: resolvedMeterNumber,
-          tokenCode: tokenCode,
-          amount: (utilityProposal['amount'] as num?)?.toDouble(),
-          timestamp: timestamp ?? _clock(),
-        );
-      } else {
-        await utilityRepo.recordPurchase(
-          householdId: _householdId,
-          meterNumber: meterNumber,
-          amount: (utilityProposal['amount'] as num?)?.toDouble(),
-          timestamp: timestamp ?? _clock(),
-        );
-      }
-
-      final meters = await utilityRepo.getAllMeters(_householdId);
-      final matchedMeter = meters
-          .where(
-            (meter) =>
-                meter.meterNumber.replaceAll(RegExp(r'\D'), '') ==
-                resolvedMeterNumber.replaceAll(RegExp(r'\D'), ''),
-          )
-          .firstOrNull;
-      await _database
-          .into(_database.utilityTokenPurchases)
-          .insert(
-            UtilityTokenPurchasesCompanion.insert(
-              id: 'token_${Uuid().v4()}',
-              householdId: _householdId,
-              meterId: Value(matchedMeter?.id),
-              meterNumber: resolvedMeterNumber,
-              tokenCode: Value(
-                tokenCode == null || tokenCode.isEmpty ? null : tokenCode,
-              ),
-              amount: (utilityProposal['amount'] as num?)?.round() ?? 0,
-              purchasedAt: timestamp ?? _clock(),
-              transactionId: Value(transactionId),
-            ),
-          );
-
-      // Catat aktivitas otonom jika tersedia
-      if (getIt.isRegistered<AutonomousActivityRepository>()) {
-        final activityRepo = getIt<AutonomousActivityRepository>();
-        final meterName =
-            utilityProposal['meterName']?.toString() ??
-            (isNewMeter
-                ? utilityProposal['proposedMeterName']?.toString()
-                : meterNumber);
-        await activityRepo.recordActivity(
-          AutonomousActivityRecord(
-            id: 'act_${Uuid().v4()}_utility',
-            householdId: _householdId,
-            title: 'Pencatatan Token Listrik ($meterName)',
-            description:
-                'Memperbarui token ${utilityProposal['formattedToken']} untuk meteran $meterNumber.',
-            activityType: AutonomousActivityType.utilityMeter,
-            occurredAt: timestamp ?? _clock(),
-            payload: {
-              'meterId': utilityProposal['meterId']?.toString(),
-              'isNewMeter': isNewMeter,
-              'token': tokenCode,
-            },
-          ),
-        );
-      }
-    } on Object {
-      // Best-effort: gagal tidak membatalkan transaksi utama
+    final metadataRaw = parameters['metadata'];
+    if (metadataRaw is! Map) return;
+    final proposal = metadataRaw['utilityProposal'];
+    if (proposal is! Map) return;
+    if (transactionId == null || transactionId.isEmpty) {
+      throw StateError('Transaksi wajib tersedia untuk riwayat token listrik.');
     }
+    if (!getIt.isRegistered<UtilityMeterRepository>()) {
+      throw StateError('Penyimpanan listrik belum tersedia.');
+    }
+    await getIt<UtilityMeterRepository>().recordLinkedPurchase(
+      householdId: _householdId,
+      transactionId: transactionId,
+      proposal: proposal,
+    );
   }
 
   /// Eksekusi proposal fuel log (BBM) setelah transaksi berhasil disimpan
@@ -4973,6 +4889,51 @@ class FfmAssistantCapabilityAdapterRegistry {
     );
   }
 
+  Future<FfmAssistantCapabilityExecutionResult> _readElectricity(
+    FfmAssistantActionStep step,
+  ) async {
+    final repo = UtilityMeterRepository(_database);
+    final meters = await repo.getAllMeters(_householdId);
+    final history = await repo.getPurchaseHistory(_householdId, limit: 8);
+
+    if (meters.isEmpty && history.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'Belum ada meteran listrik atau riwayat pembelian token yang tercatat.',
+      );
+    }
+
+    final buffer = StringBuffer();
+    if (meters.isNotEmpty) {
+      buffer.writeln('Meteran listrik terdaftar (${meters.length}):');
+      for (final meter in meters.take(5)) {
+        final lastToken = meter.lastTokenNumber == null || meter.lastTokenNumber!.isEmpty
+            ? 'belum ada token terakhir'
+            : meter.lastTokenNumber!;
+        final lastAmount = meter.lastAmount == null
+            ? 'belum ada nominal'
+            : 'Rp${meter.lastAmount!.round()}';
+        buffer.writeln(
+          '• ${meter.name} (${meter.formattedMeterNumber}) — token terakhir: $lastToken; belanja: $lastAmount',
+        );
+      }
+    }
+    if (history.isNotEmpty) {
+      buffer.writeln('Riwayat token terbaru:');
+      for (final row in history.take(5)) {
+        final kwh = row.creditedKwh == null
+            ? ''
+            : ' • ${row.creditedKwh!.toStringAsFixed(2)} kWh';
+        buffer.writeln(
+          '• ${row.meterNumber} — Rp${row.amount}$kwh • ${_dateTime(row.purchasedAt)}',
+        );
+      }
+    }
+
+    return FfmAssistantCapabilityExecutionResult.success(
+      buffer.toString().trim(),
+    );
+  }
+
   Future<FfmAssistantCapabilityExecutionResult> _readBudget(
     FfmAssistantActionStep step,
   ) async {
@@ -5618,6 +5579,10 @@ class FfmAssistantCapabilityAdapterRegistry {
       final recurrenceType = switch (rawRecurrence) {
         'daily' || 'harian' => ReminderRecurrenceType.daily,
         'weekly' || 'mingguan' => ReminderRecurrenceType.weekly,
+        'monthly' || 'bulanan' => ReminderRecurrenceType.monthly,
+        'yearly' || 'tahunan' => ReminderRecurrenceType.yearly,
+        'hijri_monthly' || 'hijriah' || 'bulanan hijriah' =>
+          ReminderRecurrenceType.hijriMonthly,
         _ => ReminderRecurrenceType.once,
       };
 
@@ -5628,17 +5593,17 @@ class FfmAssistantCapabilityAdapterRegistry {
                 .whereType<int>()
                 .toList()
           : weekdaysRaw is String
-              ? weekdaysRaw
-                    .split(',')
-                    .map((e) => int.tryParse(e.trim()))
-                    .whereType<int>()
-                    .toList()
-              : const [];
+          ? weekdaysRaw
+                .split(',')
+                .map((e) => int.tryParse(e.trim()))
+                .whereType<int>()
+                .toList()
+          : const [];
       final List<int> weekdays =
           (recurrenceType == ReminderRecurrenceType.weekly &&
-                  parsedWeekdays.isEmpty)
-              ? [date.weekday]
-              : parsedWeekdays;
+              parsedWeekdays.isEmpty)
+          ? [date.weekday]
+          : parsedWeekdays;
 
       final note = step.parameters['note']?.toString() ?? '';
       final soundUri = step.parameters['soundUri']?.toString();

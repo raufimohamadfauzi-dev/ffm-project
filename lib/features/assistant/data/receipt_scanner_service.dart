@@ -76,9 +76,44 @@ class ReceiptScannerService {
     return digits?.length == 20 ? digits : null;
   }
 
+  /// Mengambil SEMUA kode token PLN 20 digit unik dalam teks. Dipakai untuk
+  /// mendeteksi satu gambar yang berisi beberapa pembelian token (multi-IDPEL).
+  static List<String> extractPlnTokens(String text) {
+    final result = <String>[];
+    final seen = <String>{};
+    for (final match in _tokenCodeRegex.allMatches(text)) {
+      final digits = match.group(1)!.replaceAll(RegExp(r'\D'), '');
+      if (digits.length == 20 && seen.add(digits)) result.add(digits);
+    }
+    return result;
+  }
+
   /// Mengambil nomor meter/IDPEL hanya dari label PLN yang jelas.
   static String? extractPlnMeterNumber(String text) {
     return _meterNumberRegex.firstMatch(text)?.group(1);
+  }
+
+  /// Mengambil SEMUA nomor meter/IDPEL unik pada teks. Berguna untuk deteksi
+  /// struk dengan beberapa meteran (2 rumah dalam 1 gambar).
+  static List<String> extractPlnMeters(String text) {
+    final result = <String>[];
+    final seen = <String>{};
+    for (final match in _meterNumberRegex.allMatches(text)) {
+      final value = match.group(1)!;
+      if (seen.add(value)) result.add(value);
+    }
+    return result;
+  }
+
+  static double? extractPlnKwh(String text) {
+    final match = RegExp(
+      r'(?:jumlah\s*)?(?:kwh|stroom)\s*[:#-]?\s*(\d+(?:[.,]\d+)?)|'
+      r'(\d+(?:[.,]\d+)?)\s*kwh\b',
+      caseSensitive: false,
+    ).firstMatch(text);
+    final raw = match?.group(1) ?? match?.group(2);
+    final value = double.tryParse(raw?.replaceAll(',', '.') ?? '');
+    return value != null && value > 0 ? value : null;
   }
 
   /// Batas ukuran inline image yang dikirim tanpa diubah (10 MB).
@@ -148,11 +183,19 @@ class ReceiptScannerService {
 
     try {
       final batch = ReceiptImportService.parseBatchJson(text);
-      final warnings = _crossValidate(batch);
+      final reheatedBatch = await _retryMissingPlnMetadata(
+        batch: batch,
+        originalText: text,
+        image: prepared,
+        userCaption: userCaption,
+        apiKey: apiKey,
+        model: model,
+      );
+      final warnings = _crossValidate(reheatedBatch);
       return ReceiptScanOutcome(
         ok: true,
         message: 'Struk terbaca, berikut rancangan transaksinya. Periksa sebelum disimpan.',
-        batch: batch,
+        batch: reheatedBatch,
         warnings: warnings,
         latency: result.latency,
         model: result.model,
@@ -172,7 +215,8 @@ class ReceiptScannerService {
       }
       return ReceiptScanOutcome(
         ok: false,
-        message: 'Struk terbaca tetapi hasilnya belum cocok: ${error.message}',
+        message:
+            'Struk terbaca tetapi hasilnya belum cocok: angka atau rinciannya kurang jelas (${error.message}). Coba foto lebih dekat dan terang, atau lengkapi lewat tombol Edit.',
         latency: result.latency,
         model: result.model,
         imagePath: imagePath,
@@ -246,6 +290,109 @@ Tugasmu:
     );
   }
 
+  Future<ReceiptBatchImport> _retryMissingPlnMetadata({
+    required ReceiptBatchImport batch,
+    required String originalText,
+    required (Uint8List, String)? image,
+    String? userCaption,
+    String? apiKey,
+    String? model,
+  }) async {
+    final needsRetry = batch.entries.any((entry) {
+      final merchant = entry.merchant ?? '';
+      final budget = entry.budgetName ?? '';
+      final note = entry.note ?? '';
+      final allText = [merchant, budget, note].join(' ');
+      final lower = allText.toLowerCase();
+      final looksLikePlnTokenReceipt =
+          lower.contains('pln') &&
+          (lower.contains('token listrik') ||
+              lower.contains('pulsa listrik') ||
+              lower.contains('meter') ||
+              lower.contains('idpel') ||
+              lower.contains('kwh'));
+      if (!looksLikePlnTokenReceipt) return false;
+      final token = extractPlnToken(note) ?? extractPlnToken(merchant) ?? extractPlnToken(budget);
+      final kwh = extractPlnKwh(note) ?? extractPlnKwh(merchant) ?? extractPlnKwh(budget);
+      return token == null || kwh == null;
+    });
+    if (!needsRetry) return batch;
+
+    final retryPrompt = '''
+Pada gambar struk ini, cari data PLN yang hilang dan lengkapi tanpa mengarang detail lain.
+Format JSON yang harus dikembalikan:
+{"token_code": "<20-digit code atau null>", "kwh": <angka atau null>}
+
+Gunakan konteks berikut dari hasil OCR awal: $originalText
+${userCaption != null && userCaption.trim().isNotEmpty ? 'Catatan pengguna: ${userCaption.trim()}\n' : ''}Jika data tidak ditemukan, tulis null.
+''';
+
+    final retryResult = await _gemini.chat(
+      prompt: retryPrompt,
+      systemInstruction: 'Kamu membantu melengkapi data struk PLN yang masih kosong. Jawab hanya JSON valid tanpa teks tambahan.',
+      image: image == null ? null : GeminiImageInput(
+        base64Data: base64Encode(image.$1),
+        mimeType: image.$2,
+      ),
+      apiKey: apiKey,
+      model: model,
+      maxOutputTokens: 512,
+    );
+    if (!retryResult.ok || retryResult.text == null || retryResult.text!.trim().isEmpty) {
+      return batch;
+    }
+
+    try {
+      final decoded = jsonDecode(retryResult.text!);
+      final payload = decoded is Map ? Map<String, dynamic>.from(decoded) : const {};
+      final tokenCode = payload['token_code']?.toString();
+      final rawKwh = payload['kwh'];
+      final kwh = rawKwh == null ? null : double.tryParse(rawKwh.toString());
+      if (tokenCode == null && kwh == null) return batch;
+
+      final updatedEntries = <ReceiptBatchEntry>[];
+      var didRetry = false;
+      for (final entry in batch.entries) {
+        final lower = '${entry.merchant ?? ''} ${entry.budgetName ?? ''} ${entry.note ?? ''}'.toLowerCase();
+        final isPln = lower.contains('pln') || lower.contains('listrik') || lower.contains('token listrik');
+        if (!isPln) {
+          updatedEntries.add(entry);
+          continue;
+        }
+
+        String note = entry.note ?? '';
+        final token = extractPlnToken(note);
+        final existingKwh = extractPlnKwh(note);
+        if (token == null && tokenCode != null) {
+          note = [note, 'Token: $tokenCode'].join(' ').trim();
+        }
+        if (existingKwh == null && kwh != null) {
+          note = [note, 'KWH: ${kwh.toStringAsFixed(1)}'].join(' ').trim();
+        }
+        if (note != (entry.note ?? '')) {
+          didRetry = true;
+        }
+        updatedEntries.add(entry.copyWith(note: note));
+      }
+
+      if (!didRetry) return batch;
+      return ReceiptBatchImport(
+        entries: updatedEntries,
+        warnings: batch.warnings,
+        isBankStatement: batch.isBankStatement,
+        statementAccountId: batch.statementAccountId,
+        statementAccountName: batch.statementAccountName,
+        openingBalance: batch.openingBalance,
+        closingBalance: batch.closingBalance,
+        periodStart: batch.periodStart,
+        periodEnd: batch.periodEnd,
+        hadOcrRetry: true,
+      );
+    } on Object {
+      return batch;
+    }
+  }
+
   /// Validasi deterministik: total transaksi wajib sama dengan jumlah baris item.
   List<String> _crossValidate(ReceiptBatchImport batch) {
     final warnings = <String>[...batch.warnings];
@@ -283,6 +430,7 @@ Perhatikan baik-baik gambar sebelum menulis JSON:
   * Jika nota merupakan faktur penjualan barang/jasa, kuitansi penerimaan pembayaran, bukti transfer masuk, atau nota uang masuk: gunakan type "income".
   * Jika bukti mutasi kirim uang / setor tunai antar-rekening: gunakan type "transfer".
 - Struk pembelian TOKEN LISTRIK PLN: tulis sebagai satu transaksi expense; isi budget_name dengan "Listrik" atau pos anggaran utilitas yang cocok; masukkan nomor token 20 digit (format 5 blok: xxxx-xxxx-xxxx-xxxx-xxxx atau 20 angka) dan IDPEL / nomor meteran ke note dan items. Total pembelian token adalah jumlah yang dibayar (Rupiah), bukan kWh.
+- PENTING UNTUK STRUK TOKEN LISTRIK BERGANDA: jika satu gambar berisi DUA atau lebih pembelian token (misal struk berisi 2 IDPEL/no.meteran BEDA, 2 kode token BEDA, dan 2 nominal BEDA), buatkan entries TERPISAH per pembelian — SATU entry per meteran/IDPEL. Jangan pernah menggabungkan nominal beberapa token menjadi satu amount, dan jangan campur token/meteran antar-entry. Setiap entry harus membawa IDPEL/no.meteran dan token miliknya sendiri (tulis di note/items entry tersebut).
 - Struk pembelian BBM di SPBU (Pertamina/Shell/BP/dll): tulis sebagai transaksi expense dengan merchant nama SPBU; isi budget_name "Transportasi" atau "BBM"; tulis jenis BBM (Pertalite/Pertamax/Solar/Dexlite) dan jumlah liter ke note atau rincian items, serta plat nomor kendaraan bila terbaca.
 - Struk isi ulang PULSA/KUOTA/DATA: satu transaksi expense dengan merchant sesuai merek provider.
 - Struk TOP-UP SALDO E-WALLET (GoPay, OVO, Dana, ShopeePay, LinkAja, dll): gunakan type "transfer" karena ini adalah pemindahan saldo antar-rekening milik keluarga; from_account adalah rekening bank sumber (bila terbaca), to_account adalah e-wallet tujuan. Jika ada biaya admin top-up, catat ke admin_fee.
