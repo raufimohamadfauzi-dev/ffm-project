@@ -383,7 +383,7 @@ test/
 
 ### 5.6 UI tambahan: panduan "Cara Membaca Meter" di meter card
 
-- [ ] **File**: `lib/features/settings/presentation/pages/utility_meter_page.dart`
+- [x] **File**: `lib/features/settings/presentation/pages/utility_meter_page.dart`
 - **Masalah**: User baru mungkin bingung cara baca meter PLN. Perlu panduan singkat yang mudah diakses.
 - **Perubahan**: Di `_buildMeterCard`, di bawah "Pembacaan terakhir", tambahkan link/text yang bisa di-expand:
   ```
