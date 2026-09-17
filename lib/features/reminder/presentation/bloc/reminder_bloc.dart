@@ -276,7 +276,9 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
           _householdId,
           event.history.reminderId,
         );
-        if (reminder != null && reminder.isActive) {
+        if (reminder != null &&
+            reminder.isActive &&
+            reminder.mode == ReminderMode.alarm) {
           await _scheduleSnooze(
             reminder: reminder,
             history: event.history,
@@ -402,7 +404,11 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
         historyId: history.id,
       );
       final reminder = await _repository.getReminder(_householdId, reminderId);
-      if (reminder == null || !reminder.isActive) return;
+      if (reminder == null ||
+          !reminder.isActive ||
+          reminder.mode != ReminderMode.alarm) {
+        return;
+      }
       final requestedUntil = DateTime.tryParse(
         '${payload['snoozedUntil'] ?? ''}',
       );

@@ -18,6 +18,7 @@ void main() {
     ReminderRecurrenceType recurrence = ReminderRecurrenceType.once,
     required DateTime scheduledAt,
     List<int> weekdays = const [],
+    ReminderMode mode = ReminderMode.notification,
   }) => ReminderEntity(
     id: 'reminder-test',
     householdId: householdId,
@@ -26,6 +27,7 @@ void main() {
     recurrenceType: recurrence,
     weekdays: weekdays,
     notificationId: 1001,
+    mode: mode,
   );
 
   group('ReminderOccurrenceCalculator', () {
@@ -392,9 +394,10 @@ void main() {
     );
 
     test(
-      'snooze mengubah status dan menjadwalkan ulang sepuluh menit',
+      'snooze mengubah status dan menjadwalkan ulang sepuluh menit pada mode alarm',
       () async {
         final item = reminder(
+          mode: ReminderMode.alarm,
           scheduledAt: DateTime.now().subtract(const Duration(minutes: 1)),
         );
         await repository.saveReminder(item);
@@ -442,9 +445,46 @@ void main() {
     );
 
     test(
+      'snooze tidak menjadwalkan ulang jika mode notifikasi biasa',
+      () async {
+        final item = reminder(
+          mode: ReminderMode.notification,
+          scheduledAt: DateTime.now().subtract(const Duration(minutes: 1)),
+        );
+        await repository.saveReminder(item);
+        final occurrence = ReminderOccurrence(
+          key: '20260820-1200',
+          scheduledAt: item.scheduledAt,
+          notificationId: 2002,
+        );
+
+        final history = await repository.ensureHistory(
+          reminder: item,
+          occurrence: occurrence,
+        );
+        final until = DateTime.now().add(const Duration(minutes: 10));
+
+        bloc.add(
+          ReminderHistoryStatusChanged(
+            history: history,
+            status: ReminderHistoryStatus.snoozed,
+            snoozedUntil: until,
+          ),
+        );
+        await bloc.stream.firstWhere(
+          (state) => state.history.any((view) => view.history.id == history.id),
+        );
+
+        // Gateway TIDAK menjadwalkan ulang karena mode notifikasi biasa
+        expect(gateway.scheduled, isEmpty);
+      },
+    );
+
+    test(
       'snooze dari aksi notifikasi memakai ID canonical dan meneruskan series',
       () async {
         final item = reminder(
+          mode: ReminderMode.alarm,
           recurrence: ReminderRecurrenceType.daily,
           scheduledAt: DateTime.now().subtract(const Duration(minutes: 1)),
         );

@@ -191,12 +191,15 @@ class _ReminderViewState extends State<_ReminderView> {
       return;
     }
     _lastNotifiedPendingHistoryId = pending.history.id;
+    final isAlarm = pending.reminder?.mode == ReminderMode.alarm;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Alarm masuk ke riwayat. Pilih Selesai atau Tunda 10 menit.',
+            isAlarm
+                ? 'Alarm masuk ke riwayat. Pilih Selesai atau Tunda 10 menit.'
+                : 'Pengingat masuk ke riwayat. Pilih Selesai.',
           ),
           behavior: SnackBarBehavior.floating,
         ),

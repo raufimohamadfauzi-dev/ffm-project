@@ -25,9 +25,7 @@ part 'app_database.g.dart';
     TransactionTags,
     DailyNoteTags,
     Attachments,
-    ElectricityMeters,
     UtilityTokenPurchases,
-    ElectricityMeterReadings,
     Transfers,
     EnvelopeBudgets,
     EnvelopeTransfers,
@@ -75,7 +73,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 65;
+  int get schemaVersion => 64;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -95,7 +93,6 @@ class AppDatabase extends _$AppDatabase {
       await _createAssistantAutonomyIndexes();
       await _createAssistantApprovalIndexes();
       await _createPersonalizationIndexes();
-      await _createElectricityIndexes();
       await _seedInitialData();
       await _seedActivityCategories();
     },
@@ -123,20 +120,6 @@ class AppDatabase extends _$AppDatabase {
           'CREATE INDEX IF NOT EXISTS idx_utility_token_purchases_transaction '
           'ON utility_token_purchases (transaction_id)',
         );
-      }
-      if (from < 65) {
-        await m.createTable(electricityMeters);
-        await m.createTable(electricityMeterReadings);
-        if (!await _hasColumns('utility_token_purchases', const ['admin_fee'])) {
-          await m.addColumn(utilityTokenPurchases, utilityTokenPurchases.adminFee);
-        }
-        if (!await _hasColumns('utility_token_purchases', const ['credited_kwh'])) {
-          await m.addColumn(
-            utilityTokenPurchases,
-            utilityTokenPurchases.creditedKwh,
-          );
-        }
-        await _createElectricityIndexes();
       }
       if (from < 56 && await _hasTable('reminders')) {
         if (!await _hasColumns('reminders', const ['source_type'])) {

@@ -44,6 +44,10 @@ Future<void> reminderNotificationBackgroundResponse(
   if (payload == null) return;
 
   if (actionId == 'snooze_10') {
+    if (payload['mode'] != null &&
+        payload['mode'] != ReminderMode.alarm.storageValue) {
+      return;
+    }
     final minutes = _boundedSnoozeMinutes(payload['defaultSnoozeMinutes']);
     final snoozedUntil = receivedAt.add(Duration(minutes: minutes));
     payload['snoozedUntil'] = snoozedUntil.toIso8601String();
@@ -212,9 +216,10 @@ Future<void> _scheduleBackgroundSnooze(
           contentTitle: 'Pengingat ditunda',
           summaryText: _reminderSubText,
         ),
-        actions: const [
-          AndroidNotificationAction('complete', 'Selesai'),
-          AndroidNotificationAction('snooze_10', 'Tunda 10 menit'),
+        actions: [
+          const AndroidNotificationAction('complete', 'Selesai'),
+          if (payload['mode'] == ReminderMode.alarm.storageValue)
+            const AndroidNotificationAction('snooze_10', 'Tunda 10 menit'),
         ],
       ),
     ),
@@ -638,9 +643,10 @@ class ReminderNotificationService
           contentTitle: reminder.title,
           summaryText: _reminderSubText,
         ),
-        actions: const [
-          AndroidNotificationAction('complete', 'Selesai'),
-          AndroidNotificationAction('snooze_10', 'Tunda 10 menit'),
+        actions: [
+          const AndroidNotificationAction('complete', 'Selesai'),
+          if (reminder.mode == ReminderMode.alarm)
+            const AndroidNotificationAction('snooze_10', 'Tunda 10 menit'),
         ],
       ),
     );
@@ -666,6 +672,7 @@ class ReminderNotificationService
         'channelId': channelId,
         'soundUri': reminder.soundUri ?? '',
         'origin': reminder.origin.storageValue,
+        'mode': reminder.mode.storageValue,
         'recurrence': reminder.recurrenceType.storageValue,
         'weekdays': reminder.weekdays,
         'seriesScheduledAt': reminder.scheduledAt.toIso8601String(),
@@ -718,9 +725,10 @@ class ReminderNotificationService
             contentTitle: 'Pengingat ditunda',
             summaryText: _reminderSubText,
           ),
-          actions: const [
-            AndroidNotificationAction('complete', 'Selesai'),
-            AndroidNotificationAction('snooze_10', 'Tunda 10 menit'),
+          actions: [
+            const AndroidNotificationAction('complete', 'Selesai'),
+            if (reminder.mode == ReminderMode.alarm)
+              const AndroidNotificationAction('snooze_10', 'Tunda 10 menit'),
           ],
         ),
       ),
@@ -737,6 +745,7 @@ class ReminderNotificationService
         'channelId': channelId,
         'soundUri': reminder.soundUri ?? '',
         'origin': reminder.origin.storageValue,
+        'mode': reminder.mode.storageValue,
         'recurrence': reminder.recurrenceType.storageValue,
         'weekdays': reminder.weekdays,
         'seriesScheduledAt': reminder.scheduledAt.toIso8601String(),
