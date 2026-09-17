@@ -150,6 +150,7 @@ class PeriodUsage {
     required this.totalCost,
     required this.totalKwh,
     required this.purchaseCount,
+    this.actualKwh,
   });
 
   final String label;
@@ -158,6 +159,7 @@ class PeriodUsage {
   final int totalCost;
   final double totalKwh;
   final int purchaseCount;
+  final double? actualKwh;
 }
 
 class MeterReading {

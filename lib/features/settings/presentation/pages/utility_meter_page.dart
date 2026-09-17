@@ -60,6 +60,7 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
         meterId: meter.id,
         period: 'monthly',
         limit: 6,
+        includeReadings: true,
       );
       latestReadings[meter.id] = await _repository.getLatestReading(
         householdId,
@@ -1137,7 +1138,13 @@ class MiniMonthlyBarChart extends StatelessWidget {
       0,
       (max, point) => point.totalCost > max ? point.totalCost : max,
     );
-    if (maxCost <= 0) return const SizedBox.shrink();
+    final maxActual = points.fold<double>(
+      0,
+      (max, point) => (point.actualKwh ?? 0) > max
+          ? point.actualKwh!
+          : max,
+    );
+    if (maxCost <= 0 && maxActual <= 0) return const SizedBox.shrink();
 
     final now = DateTime.now();
     return Padding(
@@ -1150,13 +1157,25 @@ class MiniMonthlyBarChart extends StatelessWidget {
               Icon(Icons.bar_chart_rounded, size: 17, color: scheme.primary),
               const SizedBox(width: 6),
               Text(
-                'Tren pembelian 6 bulan',
+                'Tren listrik 6 bulan',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: scheme.onSurfaceVariant,
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 12,
+            children: [
+              _LegendItem(color: scheme.primary, label: 'Estimasi beli'),
+              if (maxActual > 0)
+                _LegendItem(
+                  color: scheme.tertiary,
+                  label: 'Aktual kWh',
+                ),
             ],
           ),
           const SizedBox(height: 10),
@@ -1166,6 +1185,9 @@ class MiniMonthlyBarChart extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: points.map((point) {
                 final ratio = point.totalCost / maxCost;
+                final actualRatio = maxActual <= 0
+                    ? 0.0
+                    : (point.actualKwh ?? 0) / maxActual;
                 final isCurrentMonth =
                     point.dateFrom.year == now.year &&
                     point.dateFrom.month == now.month;
@@ -1195,20 +1217,41 @@ class MiniMonthlyBarChart extends StatelessWidget {
                             ),
                           ),
                           Expanded(
-                            child: Align(
-                              alignment: Alignment.bottomCenter,
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 220),
-                                height: 8 + (66 * ratio),
-                                decoration: BoxDecoration(
-                                  color: isCurrentMonth
-                                      ? scheme.primary
-                                      : scheme.primaryContainer,
-                                  borderRadius: const BorderRadius.vertical(
-                                    top: Radius.circular(7),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (maxCost > 0)
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 220),
+                                    width: 8,
+                                    height: 8 + (54 * ratio),
+                                    decoration: BoxDecoration(
+                                      color: isCurrentMonth
+                                          ? scheme.primary
+                                          : scheme.primaryContainer,
+                                      borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(7),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
+                                if (maxActual > 0) ...[
+                                  const SizedBox(width: 3),
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 220),
+                                    width: 8,
+                                    height: (point.actualKwh ?? 0) <= 0
+                                        ? 2
+                                        : 8 + (54 * actualRatio),
+                                    decoration: BoxDecoration(
+                                      color: scheme.tertiary,
+                                      borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(7),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                           const SizedBox(height: 6),
@@ -1239,4 +1282,25 @@ class MiniMonthlyBarChart extends StatelessWidget {
     if (amount >= 1000) return 'Rp${(amount / 1000).toStringAsFixed(0)}rb';
     return 'Rp$amount';
   }
+}
+
+class _LegendItem extends StatelessWidget {
+  const _LegendItem({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+      const SizedBox(width: 4),
+      Text(label, style: Theme.of(context).textTheme.labelSmall),
+    ],
+  );
 }

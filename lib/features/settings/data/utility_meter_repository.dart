@@ -792,6 +792,7 @@ class UtilityMeterRepository {
     required String meterId,
     String period = 'monthly',
     int limit = 6,
+    bool includeReadings = false,
   }) async {
     final database = _database;
     if (database == null) return const [];
@@ -825,7 +826,7 @@ class UtilityMeterRepository {
       ],
     ).get();
 
-    return rows.map((row) {
+    final usages = rows.map((row) {
       final firstPurchase = _periodDate(row.data['first_purchase']);
       final dateFrom = period == 'monthly'
           ? DateTime(firstPurchase.year, firstPurchase.month)
@@ -844,6 +845,27 @@ class UtilityMeterRepository {
         purchaseCount: _asInt(row.data['purchase_count']),
       );
     }).toList(growable: false);
+    if (!includeReadings) return usages;
+
+    return Future.wait(
+      usages.map((usage) async {
+        final actualKwh = await calculateActualUsage(
+          householdId,
+          meterId: meterId,
+          from: usage.dateFrom,
+          to: usage.dateTo,
+        );
+        return PeriodUsage(
+          label: usage.label,
+          dateFrom: usage.dateFrom,
+          dateTo: usage.dateTo,
+          totalCost: usage.totalCost,
+          totalKwh: usage.totalKwh,
+          purchaseCount: usage.purchaseCount,
+          actualKwh: actualKwh,
+        );
+      }),
+    );
   }
 
   DateTime _periodDate(Object? value) {

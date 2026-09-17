@@ -271,4 +271,48 @@ void main() {
       throwsStateError,
     );
   });
+
+  test('agregasi periode dapat menyertakan pemakaian kWh aktual', () async {
+    final database = createInMemoryDatabaseForTests();
+    addTearDown(database.close);
+    final repository = UtilityMeterRepository(database);
+    final meterNumber = '14123456789';
+    final before = DateTime(2026, 8, 31);
+    final after = DateTime(2026, 10, 1);
+    await repository.recordLinkedPurchase(
+      householdId: 'household-a',
+      transactionId: 'tx-actual-period',
+      proposal: {
+        'meterNumber': meterNumber,
+        'tokenCode': '42345678901234567890',
+        'amount': 150000,
+        'creditedKwh': 90.0,
+        'timestamp': DateTime(2026, 9, 17).toIso8601String(),
+      },
+    );
+    final meter = (await repository.getAllMeters('household-a')).single;
+    await repository.recordMeterReading(
+      householdId: 'household-a',
+      meterId: meter.id,
+      readingKwh: 2000,
+      recordedAt: before,
+    );
+    await repository.recordMeterReading(
+      householdId: 'household-a',
+      meterId: meter.id,
+      readingKwh: 2125.5,
+      recordedAt: after,
+    );
+
+    final usage = await repository.summarizeUsageByPeriod(
+      'household-a',
+      meterId: meter.id,
+      period: 'monthly',
+      includeReadings: true,
+    );
+
+    expect(usage, hasLength(1));
+    expect(usage.single.totalKwh, 90);
+    expect(usage.single.actualKwh, 125.5);
+  });
 }
