@@ -394,6 +394,33 @@ class _AgentInboxPageState extends State<AgentInboxPage>
     );
   }
 
+  Future<void> _handleBatchDismissAll() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Tandai Semua Selesai?'),
+        content: Text(
+          'Tindakan ini akan menyelesaikan ${_activeInsights.length} temuan di kotak masuk sekaligus.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Tandai Selesai'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    for (final insight in _activeInsights) {
+      await _repository.markActed(insight.id);
+    }
+    await _loadInsights();
+  }
+
   Widget _buildActiveList(ThemeData theme) {
     if (_errorMessage != null && _activeInsights.isEmpty) {
       return Center(
@@ -448,22 +475,58 @@ class _AgentInboxPageState extends State<AgentInboxPage>
                   : Icons.auto_awesome_outlined,
               title: 'Kotak Masuk Bersih',
               message: hasEnoughData
-                  ? 'Tidak ada peringatan aktif. Evaluasi tetap berjalan saat data berubah.'
-                  : 'Data belum cukup untuk mendeteksi pola dengan aman. Tambahkan minimal ${5 - _transactionCount} transaksi lagi; otonom tetap memantau perubahan data.',
+                  ? 'Semua insight proaktif telah Anda tangani atau belum ada temuan baru.'
+                  : 'Asisten otonom sedang mengamati pola finansial Anda. Temuan cerdas akan muncul otomatis setelah Anda mencatat beberapa transaksi.',
             ),
           ],
         ),
       );
     }
 
+    final showBatchHeader = _activeInsights.length >= 2;
     return RefreshIndicator(
       onRefresh: () => _loadInsights(evaluate: true),
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-        itemCount: _activeInsights.length,
+        itemCount: _activeInsights.length + (showBatchHeader ? 1 : 0),
         separatorBuilder: (_, _) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
-          final insight = _activeInsights[index];
+          if (showBatchHeader && index == 0) {
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.checklist_rounded,
+                    size: 20,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '${_activeInsights.length} temuan aktif',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _handleBatchDismissAll,
+                    icon: const Icon(Icons.done_all_rounded, size: 16),
+                    label: const Text('Selesaikan Semua'),
+                  ),
+                ],
+              ),
+            );
+          }
+          final insight = _activeInsights[showBatchHeader ? index - 1 : index];
           return _InsightCard(
             insight: insight,
             onTapAction: () => _handleAction(insight),

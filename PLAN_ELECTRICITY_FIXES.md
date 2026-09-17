@@ -40,7 +40,7 @@ lib/
 ├── core/
 │   ├── database/
 │   │   ├── tables.dart              ← Drift table definitions
-│   │   ├── app_database.dart        ← DB class, migrations, indexes (schema version 65)
+│   │   ├── app_database.dart        ← DB class, migrations, indexes (schema version 66)
 │   │   └── app_database.g.dart      ← Generated code (jangan edit manual)
 │   └── di/injection.dart            ← Service locator (getIt)
 ├── features/

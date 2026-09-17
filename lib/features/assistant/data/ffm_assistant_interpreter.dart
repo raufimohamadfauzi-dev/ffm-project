@@ -56,6 +56,7 @@ import '../domain/ffm_assistant_financial_education.dart';
 import '../domain/ffm_context_relevance.dart';
 import '../domain/ffm_assistant_work_item.dart';
 import '../domain/assistant_onboarding_orchestrator.dart';
+import '../domain/ffm_forex_parser.dart';
 import 'ffm_assistant_work_item_service.dart';
 import '../../activity/domain/entities/activity_entity.dart';
 import '../../activity/domain/activity_mode_detector.dart';
@@ -109,8 +110,8 @@ class FfmAssistantInterpreter {
        _themeController =
            themeController ??
            (getIt.isRegistered<AppThemeController>()
-               ? getIt<AppThemeController>()
-               : null) {
+             ? getIt<AppThemeController>()
+             : null) {
     _personalContextProvider = personalContextProvider;
     _categorySuggestion = categorySuggestion;
     _financialSnapshot = FfmAssistantFinancialSnapshotService(
@@ -8630,7 +8631,12 @@ class FfmAssistantInterpreter {
     ActivityLiveSnapshot? activitySnapshot,
   }) {
     final now = _clock();
-    final amount = FfmAssistantAmountParser.parse(normalized);
+    final forexConversion = FfmForexParser.detectAndConvert(rawText);
+    final amount =
+        forexConversion?.idrAmount ?? FfmAssistantAmountParser.parse(normalized);
+    final transactionNote = forexConversion != null
+        ? '${rawText.trim()} ${forexConversion.noteAnnotation}'
+        : rawText.trim();
     final adminFee = _parseAdminFee(normalized);
     final createCycle = _containsAny(normalized, const [
       'buat siklus kas',
@@ -9234,7 +9240,7 @@ class FfmAssistantInterpreter {
       categoryName: categoryName,
       toAccountName: income ? selectedAccount?.name : null,
       fromAccountName: fromAccountName,
-      note: rawText.trim(),
+      note: transactionNote,
       partyName: income
           ? _extractParty(normalized, const ['dari', 'sumber'])
           : _extractParty(normalized, const [
@@ -9248,9 +9254,17 @@ class FfmAssistantInterpreter {
       slmFieldValues: slmFieldValues,
       linkedActivityId: activitySnapshot?.activeSessions.lastOrNull?.id,
       date: now,
-      metadata: utilityProposal == null
-          ? null
-          : {'utilityProposal': utilityProposal},
+      metadata: (utilityProposal != null || forexConversion != null)
+          ? {
+              'utilityProposal': ?utilityProposal,
+              if (forexConversion != null)
+                'forex': {
+                  'currency': forexConversion.currencyCode,
+                  'foreignAmount': forexConversion.foreignAmount,
+                  'rate': forexConversion.exchangeRate,
+                },
+            }
+          : null,
     );
   }
 

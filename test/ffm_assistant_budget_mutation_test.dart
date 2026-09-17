@@ -134,6 +134,103 @@ void main() {
   );
 
   test(
+    'snapshot anggaran memakai pemakaian, transfer, status, dan filter',
+    () async {
+      await database
+          .into(database.transactions)
+          .insert(
+            TransactionsCompanion.insert(
+              id: 'food-expense',
+              householdId: AppContext.householdId,
+              type: 'expense',
+              amount: -800000,
+              date: now,
+              recordedAt: now,
+              categoryId: const Value('category-food'),
+              createdAt: now,
+            ),
+          );
+      await database
+          .into(database.envelopeTransfers)
+          .insert(
+            EnvelopeTransfersCompanion.insert(
+              id: 'food-transfer-out',
+              householdId: AppContext.householdId,
+              fromEnvelopeId: 'budget-food',
+              toEnvelopeId: 'another-budget',
+              amount: 100000,
+              createdAt: now,
+            ),
+          );
+      await database
+          .into(database.envelopeBudgets)
+          .insert(
+            EnvelopeBudgetsCompanion.insert(
+              id: 'future-budget',
+              householdId: AppContext.householdId,
+              name: 'Masa Depan',
+              allocated: const Value(500000),
+              periodType: const Value('monthly'),
+              startDate: DateTime(2026, 9, 1),
+              endDate: DateTime(2026, 9, 30),
+              createdAt: now,
+            ),
+          );
+
+      final snapshots = await budgets.readSnapshots(
+        householdId: AppContext.householdId,
+        now: now,
+        periodType: 'monthly',
+        categoryId: 'category-food',
+      );
+
+      expect(snapshots, hasLength(1));
+      final snapshot = snapshots.single;
+      expect(snapshot.spent, 800000);
+      expect(snapshot.available, 1000000);
+      expect(snapshot.remaining, 200000);
+      expect(snapshot.progress, closeTo(.8, 1e-9));
+      expect(snapshot.status, 'Mendekati batas');
+    },
+  );
+
+  test('read.budget menampilkan posisi terkini yang terfilter', () async {
+    await database
+        .into(database.transactions)
+        .insert(
+          TransactionsCompanion.insert(
+            id: 'food-expense',
+            householdId: AppContext.householdId,
+            type: 'expense',
+            amount: -250000,
+            date: now,
+            recordedAt: now,
+            categoryId: const Value('category-food'),
+            createdAt: now,
+          ),
+        );
+    final adapters = FfmAssistantCapabilityAdapterRegistry(
+      database: database,
+      householdId: AppContext.householdId,
+      clock: () => now,
+    );
+
+    final result = await adapters.handlers['read.budget']!(
+      const FfmAssistantActionStep(
+        id: 'read-food-budget',
+        capabilityId: 'read.budget',
+        parameters: {'period': 'monthly', 'category': 'Makan'},
+      ),
+    );
+
+    expect(result.isSuccess, isTrue);
+    expect(result.message, contains('Makan: batas Rp 1.000.000'));
+    expect(result.message, contains('pakai Rp 250.000'));
+    expect(result.message, contains('sisa Rp 850.000'));
+    expect(result.message, contains('25%, Aman'));
+  });
+
+  test(
     'note Budget mengalir dari JSON ke draft, plan, executor, dan verifier',
     () async {
       final parsed = FfmAssistantProposalJsonService.parse(

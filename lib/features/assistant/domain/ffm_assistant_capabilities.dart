@@ -75,7 +75,7 @@ class FfmAssistantCapabilityRegistry {
       description: 'Membaca anggaran dan pemakaian kategori secara lokal.',
       risk: FfmAssistantCapabilityRisk.readOnly,
       destination: FfmAssistantDestination.budget,
-      parameterNames: ['period', 'category'],
+      parameterNames: ['period', 'category', 'budgetId'],
       readOnly: true,
     ),
     const FfmAssistantCapability(

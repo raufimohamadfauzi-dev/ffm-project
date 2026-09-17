@@ -2884,8 +2884,9 @@ class FfmAssistantCapabilityAdapterRegistry {
         'monthly' || 'bulanan' => ReminderRecurrenceType.monthly,
         'yearly' || 'tahunan' => ReminderRecurrenceType.yearly,
         'once' || 'sekali' => ReminderRecurrenceType.once,
-        'hijri_monthly' || 'hijriah' || 'bulanan hijriah' =>
-          ReminderRecurrenceType.hijriMonthly,
+        'hijri_monthly' ||
+        'hijriah' ||
+        'bulanan hijriah' => ReminderRecurrenceType.hijriMonthly,
         _ => null,
       };
 
@@ -4906,7 +4907,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (meters.isNotEmpty) {
       buffer.writeln('Meteran listrik terdaftar (${meters.length}):');
       for (final meter in meters.take(5)) {
-        final lastToken = meter.lastTokenNumber == null || meter.lastTokenNumber!.isEmpty
+        final lastToken =
+            meter.lastTokenNumber == null || meter.lastTokenNumber!.isEmpty
             ? 'belum ada token terakhir'
             : meter.lastTokenNumber!;
         final lastAmount = meter.lastAmount == null
@@ -4937,23 +4939,72 @@ class FfmAssistantCapabilityAdapterRegistry {
   Future<FfmAssistantCapabilityExecutionResult> _readBudget(
     FfmAssistantActionStep step,
   ) async {
-    final rows =
-        await (_database.select(_database.envelopeBudgets)..where(
-              (row) =>
-                  row.householdId.equals(_householdId) &
-                  row.isActive.equals(true),
-            ))
-            .get();
-    if (rows.isEmpty) {
-      return const FfmAssistantCapabilityExecutionResult.success(
-        'Belum ada anggaran yang dibuat.',
+    final period = step.parameters['period']?.toString().trim();
+    const periodTypes = {
+      'weekly',
+      'biweekly',
+      'monthly',
+      'bimonthly',
+      'fourmonthly',
+      'fivemonthly',
+      'nonrecurring',
+    };
+    if (period != null && period.isNotEmpty && !periodTypes.contains(period)) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Periode Anggaran "$period" tidak didukung. Gunakan mingguan, dua mingguan, bulanan, atau tidak rutin.',
       );
     }
-    final lines = rows.take(10).map((row) {
-      return '${row.name}: anggaran $_money(row.allocated)';
+    final requestedCategory = step.parameters['category']?.toString().trim();
+    String? categoryId;
+    if (requestedCategory != null && requestedCategory.isNotEmpty) {
+      final categories =
+          await (_database.select(_database.categories)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.isActive.equals(true) &
+                    row.type.equals('expense'),
+              ))
+              .get();
+      final matches = categories
+          .where(
+            (category) =>
+                category.id == requestedCategory ||
+                category.name.toLowerCase() == requestedCategory.toLowerCase(),
+          )
+          .toList(growable: false);
+      if (matches.length != 1) {
+        return FfmAssistantCapabilityExecutionResult.failure(
+          matches.isEmpty
+              ? 'Kategori pengeluaran "$requestedCategory" tidak ditemukan.'
+              : 'Kategori "$requestedCategory" tidak unik. Sebut nama kategori yang lebih spesifik.',
+        );
+      }
+      categoryId = matches.single.id;
+    }
+    final snapshots =
+        await BudgetRepository(
+          _database,
+          AuditLogger(_database),
+          clock: _clock,
+        ).readSnapshots(
+          householdId: _householdId,
+          now: _clock(),
+          periodType: period?.isEmpty ?? true ? null : period,
+          categoryId: categoryId,
+          budgetId: step.parameters['budgetId']?.toString().trim(),
+        );
+    if (snapshots.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'Belum ada anggaran aktif yang sesuai pada periode berjalan.',
+      );
+    }
+    final lines = snapshots.map((snapshot) {
+      return '${snapshot.budget.name}: batas ${_money(snapshot.allocated)}, '
+          'pakai ${_money(snapshot.spent)}, sisa ${_money(snapshot.remaining)} '
+          '(${(snapshot.progress * 100).round()}%, ${snapshot.status}).';
     });
     return FfmAssistantCapabilityExecutionResult.success(
-      'Anggaran (${rows.length}): ${lines.join('; ')}.',
+      'Anggaran (${snapshots.length}): ${lines.join(' ')}',
     );
   }
 
@@ -5581,8 +5632,9 @@ class FfmAssistantCapabilityAdapterRegistry {
         'weekly' || 'mingguan' => ReminderRecurrenceType.weekly,
         'monthly' || 'bulanan' => ReminderRecurrenceType.monthly,
         'yearly' || 'tahunan' => ReminderRecurrenceType.yearly,
-        'hijri_monthly' || 'hijriah' || 'bulanan hijriah' =>
-          ReminderRecurrenceType.hijriMonthly,
+        'hijri_monthly' ||
+        'hijriah' ||
+        'bulanan hijriah' => ReminderRecurrenceType.hijriMonthly,
         _ => ReminderRecurrenceType.once,
       };
 

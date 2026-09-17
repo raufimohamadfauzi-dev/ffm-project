@@ -544,32 +544,26 @@ class FfmAssistantFinancialSnapshotService {
     int maxItems = 8,
     int maxCharacters = 1100,
   }) async {
-    final budgets = await (_database.select(
-      _database.envelopeBudgets,
-    )..where((row) => row.householdId.equals(householdId))).get();
-    if (budgets.isEmpty) {
-      return 'Budget digest: belum ada anggaran.';
-    }
-    budgets.sort((a, b) => a.name.compareTo(b.name));
-    final visible = budgets
-        .where((row) => !row.id.startsWith('overall-'))
-        .take(maxItems)
-        .toList(growable: false);
     final repository = BudgetRepository(_database, AuditLogger(_database));
-    final lines = <String>[];
-    for (final row in visible) {
-      final name = row.name.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
-      final snapshot = await repository.snapshot(
-        householdId: householdId,
-        id: row.id,
-      );
-      if (snapshot == null) continue;
-      lines.add(
-        '$name|batas=${row.allocated}|pakai=${snapshot.spent}|sisa=${snapshot.remaining}|periode=${row.periodType}',
-      );
+    final snapshots = await repository.readSnapshots(
+      householdId: householdId,
+      now: now,
+      limit: 1000,
+    );
+    if (snapshots.isEmpty) {
+      return 'Budget digest: belum ada anggaran aktif pada periode berjalan.';
     }
-    final suffix = budgets.length > maxItems
-        ? '; … (+${budgets.length - maxItems} lebih)'
+    final visible = snapshots.take(maxItems).toList(growable: false);
+    final lines = visible
+        .map((snapshot) {
+          final name = snapshot.budget.name
+              .replaceAll(RegExp(r'[\r\n]+'), ' ')
+              .trim();
+          return '$name|batas=${snapshot.allocated}|pakai=${snapshot.spent}|sisa=${snapshot.remaining}|persen=${(snapshot.progress * 100).round()}|status=${snapshot.status}|periode=${snapshot.budget.periodType}';
+        })
+        .toList(growable: false);
+    final suffix = snapshots.length > maxItems
+        ? '; … (+${snapshots.length - maxItems} lebih)'
         : '';
     return _clip(
       'Budget digest (sisa = batas + rollover + transferMasuk − transferKeluar − pakai dalam periode; progres = pakai / (batas + rollover + transferMasuk − transferKeluar)): ${lines.join('; ')}$suffix.',
