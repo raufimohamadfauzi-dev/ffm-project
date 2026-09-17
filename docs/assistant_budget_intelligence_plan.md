@@ -44,8 +44,8 @@ yang diizinkan, dan menjelaskan fakta yang dikembalikan aplikasi.
   serta mengarsipkan satu pos dengan guard.
 - [x] Detector rebalance telah dapat menemukan kandidat surplus/defisit dan
   mengirim rekomendasi ke Kotak Masuk Agen.
-- [ ] `read.budget` belum mengembalikan realisasi, sisa, persentase, status,
-  prediksi, atau filter yang benar-benar diterapkan.
+- [x] `read.budget` mengembalikan realisasi, sisa, persentase, status, dan
+  filter periode/kategori/ID pos untuk anggaran aktif pada periode berjalan.
 - [ ] Asisten belum dapat membuat paket anggaran mingguan/bulanan berdasarkan
   kebiasaan pengeluaran pengguna.
 - [ ] Asisten belum dapat mengubah atribut anggaran selain nominal plafon.
@@ -83,20 +83,20 @@ Kriteria selesai:
 
 ### Fase 1 - Snapshot Anggaran Otoritatif
 
-- [ ] Buat service/query deterministic tunggal untuk menghitung snapshot per
+- [x] Buat service/query deterministic tunggal untuk menghitung snapshot per
   pos dan agregat; jangan menghitung ulang dengan formula berbeda di widget,
   adapter, atau Gemini context.
-- [ ] Hitung plafon, realisasi expense yang cocok, sisa, persentase pemakaian,
+- [x] Hitung plafon, realisasi expense yang cocok, sisa, persentase pemakaian,
   status aman/peringatan/over-budget, dan jumlah hari tersisa untuk periode
   aktif.
 - [ ] Tentukan dan uji aturan transaksi yang masuk ke pos: kategori tunggal,
   kategori gabungan, transaksi terarah `budgetId`, transaksi sebelum/sesudah
   rentang periode, pembatalan, dan transfer yang bukan pengeluaran.
-- [ ] Terapkan rollover sesuai kontrak repository/domain yang ada dan jelaskan
+- [x] Terapkan rollover sesuai kontrak repository/domain yang ada dan jelaskan
   nilainya pada snapshot tanpa mengubah saldo/plafon.
-- [ ] Dukung filter `period`, `category`, `budgetId`, dan batas hasil pada
+- [x] Dukung filter `period`, `category`, `budgetId`, dan batas hasil pada
   `read.budget`; tolak filter ambigu dengan respons yang dapat ditindaklanjuti.
-- [ ] Perbarui capability response menjadi data terstruktur/bounded untuk
+- [x] Perbarui capability response menjadi data terstruktur/bounded untuk
   orchestrator dan ringkasan yang aman untuk UI/Gemini.
 - [ ] Hentikan fallback context yang sengaja melewati data anggaran bila jalur
   tersebut masih digunakan; gunakan snapshot bounded, bukan dump tabel.
@@ -294,12 +294,14 @@ Kriteria selesai:
 | 2026-09-17 | Insight otonom tidak boleh melakukan mutasi anggaran mandiri. | Mematuhi boundary validasi, konfirmasi, executor, dan verifikasi untuk state finansial. |
 | 2026-09-17 | Nominal rekomendasi berasal dari service deterministic, bukan Gemini. | Menjaga angka finansial tetap otoritatif, repeatable, dan dapat diuji. |
 | 2026-09-17 | Paket anggaran memakai draft/action-plan yang ada. | Menghindari orchestrator, planner, atau executor paralel. |
+| 2026-09-17 | `BudgetRepository.readSnapshots` menjadi sumber snapshot asisten. | Formula rollover/transfer/pemakaian yang sama dipakai oleh capability lokal dan digest Gemini. |
 
 ## Log Pekerjaan
 
 | Tanggal | Langkah | Status | Bukti / Catatan |
 | --- | --- | --- | --- |
 | 2026-09-17 | Dokumen rencana dibuat | PLANNED | Baseline berasal dari inspeksi capability, adapter, interpreter, dan detector rebalance. |
+| 2026-09-17 | Fase 1, increment snapshot | IN_PROGRESS | `read.budget` dan digest Gemini memakai snapshot deterministic; targeted test 22 lulus. |
 
 ## Definition of Done
 

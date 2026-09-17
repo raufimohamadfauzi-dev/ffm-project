@@ -224,10 +224,10 @@ void main() {
     );
 
     expect(result.isSuccess, isTrue);
-    expect(result.message, contains('Makan: batas Rp 1.000.000'));
-    expect(result.message, contains('pakai Rp 250.000'));
-    expect(result.message, contains('sisa Rp 850.000'));
-    expect(result.message, contains('25%, Aman'));
+    expect(result.message, contains('Makan: batas Rp1.000.000'));
+    expect(result.message, contains('pakai Rp250.000'));
+    expect(result.message, contains('sisa Rp850.000'));
+    expect(result.message, contains('23%, Aman'));
   });
 
   test(
