@@ -482,13 +482,20 @@ class UtilityMeterRepository {
     required String tokenCode,
     double? amount,
     DateTime? timestamp,
-  }) => _updateLatest(
-    householdId: householdId,
-    meterNumber: meterNumber,
-    tokenCode: tokenCode,
-    amount: amount,
-    timestamp: timestamp,
-  );
+  }) async {
+    final ok = await _updateLatest(
+      householdId: householdId,
+      meterNumber: meterNumber,
+      tokenCode: tokenCode,
+      amount: amount,
+      timestamp: timestamp,
+    );
+    if (!ok) {
+      // ignore: avoid_print
+      print('[UtilityMeterRepository] updateLastToken: meteran '
+          '$meterNumber tidak ditemukan, update dilewati.');
+    }
+  }
 
   Future<void> recordPurchase({
     required String householdId,
@@ -496,15 +503,22 @@ class UtilityMeterRepository {
     String? tokenCode,
     double? amount,
     DateTime? timestamp,
-  }) => _updateLatest(
-    householdId: householdId,
-    meterNumber: meterNumber,
-    tokenCode: tokenCode,
-    amount: amount,
-    timestamp: timestamp,
-  );
+  }) async {
+    final ok = await _updateLatest(
+      householdId: householdId,
+      meterNumber: meterNumber,
+      tokenCode: tokenCode,
+      amount: amount,
+      timestamp: timestamp,
+    );
+    if (!ok) {
+      // ignore: avoid_print
+      print('[UtilityMeterRepository] recordPurchase: meteran '
+          '$meterNumber tidak ditemukan, update dilewati.');
+    }
+  }
 
-  Future<void> _updateLatest({
+  Future<bool> _updateLatest({
     required String householdId,
     required String meterNumber,
     String? tokenCode,
@@ -512,7 +526,7 @@ class UtilityMeterRepository {
     DateTime? timestamp,
   }) async {
     final meter = await findMeterByNumber(householdId, meterNumber);
-    if (meter == null) return;
+    if (meter == null) return false;
     await saveMeter(
       meter.copyWith(
         lastTokenNumber: tokenCode ?? meter.lastTokenNumber,
@@ -520,6 +534,7 @@ class UtilityMeterRepository {
         lastPurchasedAt: timestamp ?? DateTime.now(),
       ),
     );
+    return true;
   }
 
   /// Menyimpan sisi listrik dari transaksi terkonfirmasi. transactionId unik
@@ -585,7 +600,7 @@ class UtilityMeterRepository {
       householdId: householdId,
       name: proposal['proposedMeterName']?.toString().trim().isNotEmpty == true
           ? proposal['proposedMeterName'].toString().trim()
-          : 'Meteran PLN $meterNumber',
+          : 'Meteran PLN (${meterNumber.substring(meterNumber.length - 4)})',
       meterNumber: meterNumber,
       createdAt: timestamp,
     );

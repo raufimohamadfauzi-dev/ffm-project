@@ -6964,6 +6964,8 @@ class FfmAssistantInterpreter {
         newRecurrence = ReminderRecurrenceType.monthly;
       } else if (RegExp(r'\b(setiap tahun|tiap tahun|tahunan)\b', caseSensitive: false).hasMatch(changeText)) {
         newRecurrence = ReminderRecurrenceType.yearly;
+      } else if (RegExp(r'\b(hijriah|hijri|ayyamul bidh|ayyamul-bidh|bulan hijriah)\b', caseSensitive: false).hasMatch(changeText)) {
+        newRecurrence = ReminderRecurrenceType.hijriMonthly;
       } else if (RegExp(r'\b(sekali|hanya sekali|tidak berulang)\b', caseSensitive: false).hasMatch(changeText)) {
         newRecurrence = ReminderRecurrenceType.once;
       }
@@ -8879,15 +8881,21 @@ class FfmAssistantInterpreter {
         r'\b(setiap tahun|tiap tahun|tahunan)\b',
         caseSensitive: false,
       ).hasMatch(normalized);
-      final recurrenceType = isDaily
-          ? ReminderRecurrenceType.daily
-          : isWeekly
-              ? ReminderRecurrenceType.weekly
-              : isMonthly
-                  ? ReminderRecurrenceType.monthly
-                  : isYearly
-                      ? ReminderRecurrenceType.yearly
-                      : ReminderRecurrenceType.once;
+      final isHijriMonthly = RegExp(
+        r'\b(hijriah|hijri|ayyamul bidh|ayyamul-bidh|bulan hijriah|tiap bulan hijriah|setiap bulan hijriah)\b',
+        caseSensitive: false,
+      ).hasMatch(normalized);
+      final recurrenceType = isHijriMonthly
+          ? ReminderRecurrenceType.hijriMonthly
+          : isDaily
+              ? ReminderRecurrenceType.daily
+              : isWeekly
+                  ? ReminderRecurrenceType.weekly
+                  : isMonthly
+                      ? ReminderRecurrenceType.monthly
+                      : isYearly
+                          ? ReminderRecurrenceType.yearly
+                          : ReminderRecurrenceType.once;
       final weekdays = <int>[];
       if (recurrenceType == ReminderRecurrenceType.weekly) {
         final weekday =
@@ -9383,7 +9391,7 @@ class FfmAssistantInterpreter {
       proposal['meterNumber'] = resolution.meterNumber!;
       proposal['isNewMeter'] = true;
       proposal['proposedMeterName'] ??=
-          'Meteran PLN ${resolution.meterNumber}';
+          'Meteran PLN (${resolution.meterNumber!.substring(resolution.meterNumber!.length - 4)})';
     }
 
     final baseDraft = _parseFinancialDraft(
@@ -9426,6 +9434,11 @@ class FfmAssistantInterpreter {
       response.write(
         '\n\n⚠️ Data belum lengkap: kWh belum terdeteksi dari teks. Cek foto struk atau masukkan pemakaian kWh bila tersedia.',
       );
+    } else {
+      final kwh = (proposal['creditedKwh'] as num?)?.toDouble();
+      if (kwh != null && kwh > 0) {
+        response.write('\n\n📊 KWH tercatat: ${kwh.toStringAsFixed(1)} kWh');
+      }
     }
     if (warnings.isNotEmpty) {
       response.write('\n\n🛡️ Perhatian:\n');

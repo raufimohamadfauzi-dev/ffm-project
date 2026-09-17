@@ -419,21 +419,21 @@ test/
 
 ### 4.1 Default nama meter lebih deskriptif
 
-- [ ] **File**: `lib/features/settings/data/utility_meter_repository.dart`
+- [x] **File**: `lib/features/settings/data/utility_meter_repository.dart`
 - **Masalah**: `recordLinkedPurchase` line ~538 default `'Meteran PLN $meterNumber'` — generic, membingungkan jika banyak meter auto-create.
 - **Perbaikan**: Jika `proposedMeterName` kosong, gunakan `"Meteran PLN (${meterNumber.substring(meterNumber.length - 4)})"` (4 digit terakhir). Atau tanyakan ke user via clarification sebelum create.
 - **Verifikasi**: `flutter analyze lib test` clean.
 
 ### 4.2 Handle `_updateLatest` silent failure
 
-- [ ] **File**: `lib/features/settings/data/utility_meter_repository.dart`
+- [x] **File**: `lib/features/settings/data/utility_meter_repository.dart`
 - **Masalah**: `_updateLatest` (line ~457–473) silently return jika meter tidak ditemukan. User tidak tahu update gagal.
 - **Perbaikan**: Return `bool` (success/failure). Jika false → log warning atau return error ke caller. Atau minimal, di `recordLinkedPurchase`, cek hasil `_updateLatest` dan handle.
 - **Verifikasi**: `flutter analyze lib test` clean.
 
 ### 4.3 Tambahkan `kWh` ke response chat saat resolve
 
-- [ ] **File**: `lib/features/assistant/data/ffm_assistant_interpreter.dart`
+- [x] **File**: `lib/features/assistant/data/ffm_assistant_interpreter.dart`
 - **Masalah**: Saat resolve meter target成功, response tidak menampilkan kWh yang terbaca.
 - **Perbaikan**: Jika `creditedKwh != null`, tambahkan ke response: "KWH tercatat: 63.7 kWh".
 - **Verifikasi**: `flutter analyze lib test` clean.
