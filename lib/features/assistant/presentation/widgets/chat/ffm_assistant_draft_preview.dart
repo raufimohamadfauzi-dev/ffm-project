@@ -96,6 +96,7 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     FfmAssistantDraftKind.activityEdit => 'Preview Edit Aktivitas',
     FfmAssistantDraftKind.cashFlowProfile => 'Draft Siklus Kas / AgroTrack',
     FfmAssistantDraftKind.monitoringJob => 'Draft Jadwal Pemantauan',
+    FfmAssistantDraftKind.meterReading => 'Draft Pembacaan Meter',
   };
 
   static String rupiah(int amount) =>
@@ -219,6 +220,21 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
         MapEntry('Tujuan Dana', draft.toAccountName!),
       if (draft.categoryName != null) MapEntry('Kategori', draft.categoryName!),
       if (draft.merchantName != null) MapEntry('Toko', draft.merchantName!),
+      if (draft.formValues['proposedMeterName'] != null ||
+          draft.formValues['meterName'] != null)
+        MapEntry(
+          'Meteran PLN',
+          (draft.formValues['proposedMeterName'] ??
+                  draft.formValues['meterName'])
+              .toString(),
+        ),
+      if (draft.formValues['meterNumber'] != null ||
+          draft.formValues['idpel'] != null)
+        MapEntry(
+          'IDPEL / No. Meter',
+          (draft.formValues['meterNumber'] ?? draft.formValues['idpel'])
+              .toString(),
+        ),
       if (draft.location?.trim().isNotEmpty == true)
         MapEntry('Lokasi', draft.location!.trim()),
       if (draft.date != null)
@@ -270,6 +286,9 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
               };
               return 'Hari: ${days.map((d) => dayNames[d] ?? '$d').join(', ')}';
             }(),
+            ReminderRecurrenceType.monthly => 'Bulanan',
+            ReminderRecurrenceType.yearly => 'Tahunan',
+            ReminderRecurrenceType.hijriMonthly => 'Bulanan Hijriah',
           };
           return MapEntry('Pengulangan', recurrenceLabel);
         }(),

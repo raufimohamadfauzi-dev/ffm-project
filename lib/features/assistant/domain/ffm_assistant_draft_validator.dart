@@ -811,6 +811,8 @@ abstract final class FfmAssistantDraftValidator {
         }
       case FfmAssistantDraftKind.monitoringJob:
         break;
+      case FfmAssistantDraftKind.meterReading:
+        break;
     }
     return issues;
   }
@@ -863,7 +865,8 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.transactionDelete ||
     FfmAssistantDraftKind.activityArchive ||
     FfmAssistantDraftKind.activityDelete ||
-    FfmAssistantDraftKind.monitoringJob => false,
+    FfmAssistantDraftKind.monitoringJob ||
+    FfmAssistantDraftKind.meterReading => false,
     _ => true,
   };
 

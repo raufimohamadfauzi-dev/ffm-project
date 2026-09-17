@@ -367,6 +367,7 @@ class FfmAssistantActionPlanner {
     FfmAssistantDraftKind.activityEdit => 'draft.activity_edit',
     FfmAssistantDraftKind.cashFlowProfile => 'draft.cash_flow_profile',
     FfmAssistantDraftKind.monitoringJob => 'draft.monitoring_job',
+    FfmAssistantDraftKind.meterReading => 'draft.meter_reading',
   };
 
   static String _mutationCapabilityFor(FfmAssistantDraftKind kind) =>

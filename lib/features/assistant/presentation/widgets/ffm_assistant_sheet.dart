@@ -1605,6 +1605,47 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         false;
   }
 
+  Future<void> _saveMeterReadingDraft(FfmAssistantIntent intent) async {
+    final draft = intent.draft;
+    final proposal = draft?.metadata?['meterReadingProposal'];
+    if (draft == null || proposal is! Map) return;
+    final repository = getIt.isRegistered<UtilityMeterRepository>()
+        ? getIt<UtilityMeterRepository>()
+        : UtilityMeterRepository();
+    try {
+      await repository.recordMeterReading(
+        householdId: AppContext.householdId,
+        meterId: proposal['meterId'].toString(),
+        readingKwh: (proposal['readingKwh'] as num).toDouble(),
+        recordedAt: DateTime.tryParse(proposal['recordedAt'].toString()),
+        source: proposal['source']?.toString() ?? 'manual',
+        note: draft.note,
+      );
+      if (!mounted) return;
+      setState(() {
+        final message =
+            'Pembacaan ${proposal['readingKwh']} kWh untuk ${proposal['meterName']} berhasil dicatat.';
+        widget.session.lastAssistantText = message;
+        _appendEntry(FfmAssistantChatEntry(isUser: false, text: message));
+        _queuedIntents.remove(intent);
+        widget.session
+          ..activeDraftReview = null
+          ..activeDraftIntent = null
+          ..activeDraftQueueId = null;
+      });
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _appendEntry(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text: 'Pembacaan meter belum tersimpan: $error',
+          ),
+        );
+      });
+    }
+  }
+
   Future<bool> _confirmDirectMutation(FfmAssistantDraft draft) async {
     if (draft.kind == FfmAssistantDraftKind.reminder) {
       final isAlarm =
@@ -2491,6 +2532,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   bool _isBroadVisualQuestion(String? caption) {
     if (caption == null || caption.trim().isEmpty) return false;
     final lower = caption.trim().toLowerCase();
+    if (RegExp(r'\b(pembacaan|catat|baca)\s+meter\b').hasMatch(lower)) {
+      return true;
+    }
     final isExplicitTransactionCmd = RegExp(
       r'\b(catat|rekam|simpan|masukkan|input)\s+(struk|nota|transaksi|belanja|pembelian)\b',
     ).hasMatch(lower);
@@ -2520,6 +2564,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final caption = (userCaption != null && userCaption.trim().isNotEmpty)
         ? userCaption.trim()
         : 'Aku lampirkan foto struk untuk dipindai.';
+    final isMeterReadingPhoto = RegExp(
+      r'\b(pembacaan|catat|baca)\s+meter\b',
+      caseSensitive: false,
+    ).hasMatch(caption);
 
     final placeholderText = isBroadQuestion
         ? 'Menganalisis gambar dengan Gemini Vision…'
@@ -2548,7 +2596,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _scrollToEnd(force: true);
 
     final outcome = isBroadQuestion
-        ? await _handleVisualQuestionWithOrchestrator(bytes, caption, path)
+      ? await _handleVisualQuestionWithOrchestrator(
+        bytes,
+        isMeterReadingPhoto
+          ? 'Baca angka kWh pada display meter ini. Balas hanya angka tanpa unit.'
+          : caption,
+        path,
+        )
         : await _receiptScanner.scanImage(
             bytes: bytes,
             mimeType: _mimeTypeFor(path),
@@ -2609,7 +2663,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       }
     });
     if (outcome.ok) {
-      if (isBroadQuestion || outcome.batch == null) {
+      if (isMeterReadingPhoto) {
+        await _appendMeterReadingPhotoOutcome(outcome, caption, path);
+      } else if (isBroadQuestion || outcome.batch == null) {
         final trace = outcome.tokenUsage != null
             ? FfmAssistantProcessTrace(
                 origin: FfmAssistantResponseOrigin.geminiCloud,
@@ -2662,6 +2718,83 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
     unawaited(_saveCurrentConversation());
     _scrollToEnd(force: true);
+  }
+
+  Future<void> _appendMeterReadingPhotoOutcome(
+    ReceiptScanOutcome outcome,
+    String caption,
+    String imagePath,
+  ) async {
+    final match = RegExp(r'(?<!\d)(\d+(?:[.,]\d+)?)(?!\d)').firstMatch(
+      outcome.message,
+    );
+    if (match == null) {
+      if (!mounted) return;
+      setState(() {
+        _appendEntry(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text: 'Angka kWh pada display belum terbaca jelas. Coba foto ulang dengan layar meter lebih dekat.',
+            filePath: imagePath,
+            fileFormat: 'image',
+          ),
+        );
+      });
+      return;
+    }
+    final readingText = match.group(1)!.replaceAll(',', '.');
+    final intent = await _interpreter.interpret(
+      'pembacaan meter $readingText kWh $caption',
+    );
+    if (!mounted) return;
+    if (intent.clarification != null) {
+      setState(() {
+        _appendEntry(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text: 'Saya melihat angka **$readingText kWh** pada display meter.\n\n${intent.clarification}',
+            filePath: imagePath,
+            fileFormat: 'image',
+          ),
+        );
+      });
+      return;
+    }
+    final draft = intent.draft;
+    if (draft == null) {
+      setState(() {
+        _appendEntry(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text: 'Saya melihat angka **$readingText kWh**, tetapi meter tujuan belum dapat ditentukan.',
+            filePath: imagePath,
+            fileFormat: 'image',
+          ),
+        );
+      });
+      return;
+    }
+    final review = FfmAssistantDraftReview(
+      draft: draft,
+      version: 1,
+      issues: FfmAssistantDraftValidator.validate(draft),
+    );
+    setState(() {
+      widget.session
+        ..activeDraftReview = review
+        ..activeDraftIntent = intent;
+      _enqueueDraft(intent, review);
+      _appendEntry(
+        FfmAssistantChatEntry(
+          isUser: false,
+          text: 'Saya melihat angka **$readingText kWh** pada display meter di foto. Periksa meter tujuan, lalu konfirmasi untuk mencatatnya.\n\n${intent.response ?? ''}',
+          intent: intent,
+          review: review,
+          filePath: imagePath,
+          fileFormat: 'image',
+        ),
+      );
+    });
   }
 
   String _mimeTypeFor(String path) {
@@ -3643,6 +3776,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         return;
       }
       intent = intent.copyWith(draft: review.draft);
+    }
+    if (intent.draft?.kind == FfmAssistantDraftKind.meterReading) {
+      final confirmed = await _confirmDraftInChat(intent.draft!);
+      if (confirmed) await _saveMeterReadingDraft(intent);
+      return;
     }
     final directMutation = _isDirectMutation(intent.draft);
     final plan = _actionPlanner.planFor(intent);

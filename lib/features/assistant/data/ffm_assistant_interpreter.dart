@@ -3320,6 +3320,11 @@ class FfmAssistantInterpreter {
     if (hasActionVerb ||
         hasDraftOrientedVerb ||
         FfmAssistantAmountParser.parse(normalized) != null) {
+      final meterReadingIntent = await _resolveMeterReading(
+        rawText: rawText,
+        normalized: normalized,
+      );
+      if (meterReadingIntent != null) return meterReadingIntent;
       final contextualDraft = await _actionRegistry.buildDraft(
         input: rawText,
         activePage: currentDestination,
@@ -5676,6 +5681,11 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.createMonitoringJob,
         destination: FfmAssistantDestination.autonomyMonitor,
         action: 'jadwal pemantauan',
+      ),
+      FfmAssistantDraftKind.meterReading => (
+        type: FfmAssistantIntentType.createExpense,
+        destination: FfmAssistantDestination.utilityMeter,
+        action: 'pembacaan meter',
       ),
     };
     if (draft.kind == FfmAssistantDraftKind.masterData) {
@@ -9246,6 +9256,73 @@ class FfmAssistantInterpreter {
     return hasLongNumber &&
         RegExp(r'\b(listrik|pln|meteran|meter)\b', caseSensitive: false)
             .hasMatch(normalized);
+  }
+
+  Future<FfmAssistantIntent?> _resolveMeterReading({
+    required String rawText,
+    required String normalized,
+  }) async {
+    final isReading = RegExp(
+      r'\b(pembacaan|baca|bacaan|catat)\s+(?:angka\s+)?meter\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+    if (!isReading ||
+        !RegExp(r'\bkwh\b', caseSensitive: false).hasMatch(normalized)) {
+      return null;
+    }
+
+    final valueMatch = RegExp(
+      r'(?:pembacaan|baca|bacaan|catat)\s+(?:angka\s+)?meter\s*[:=-]?\s*([\d.,]+)\s*kwh',
+      caseSensitive: false,
+    ).firstMatch(rawText);
+    final reading = double.tryParse(
+      valueMatch?.group(1)?.replaceAll('.', '').replaceAll(',', '.') ?? '',
+    );
+    if (reading == null || reading < 0) return null;
+
+    final referenceMatch = RegExp(
+      r'\b(?:untuk|di|pada)\s+([a-z][a-z0-9 _-]{2,40})',
+      caseSensitive: false,
+    ).firstMatch(normalized);
+    final meterNumberMatch = RegExp(r'\b\d{9,13}\b').firstMatch(rawText);
+    final proposal = <String, Object?>{
+      'readingKwh': reading,
+      'recordedAt': _clock().toIso8601String(),
+      if (meterNumberMatch != null) 'meterNumber': meterNumberMatch.group(0),
+      if (referenceMatch != null)
+        'meterReference': referenceMatch.group(1)!.trim(),
+    };
+    final resolution = await _utilityMeters.resolveMeterTarget(
+      householdId: AppContext.householdId,
+      proposal: proposal,
+    );
+    if (!resolution.isResolvable) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.unknown,
+        confidence: .95,
+        clarification: resolution.message,
+      );
+    }
+    final meter = resolution.meter;
+    if (meter == null) return null;
+    proposal
+      ..['meterId'] = meter.id
+      ..['meterNumber'] = meter.meterNumber
+      ..['meterName'] = meter.name;
+    final draft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.meterReading,
+      createdAt: _clock(),
+      title: 'Pembacaan meter ${meter.name}',
+      note: rawText.trim(),
+      date: _clock(),
+      metadata: {'meterReadingProposal': proposal},
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response:
+          'Saya menyiapkan pembacaan **${reading.toStringAsFixed(2)} kWh** untuk **${meter.name}**. Tidak ada data yang disimpan sampai kamu mengonfirmasi.',
+    );
   }
 
   /// Resolusi target meteran listrik sebelum draft dibuat. Deterministik:

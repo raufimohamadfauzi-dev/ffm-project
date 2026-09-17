@@ -485,5 +485,42 @@ void main() {
       );
       expect(hapus.type, isNot(FfmAssistantIntentType.createExpense));
     });
+
+    test('pembacaan meter membuat draft meterReading untuk meter yang jelas', () async {
+      await repository.saveMeter(meter('m-utama', 'Rumah Utama', '14123456789'));
+
+      final intent = await interpreter.interpret(
+        'pembacaan meter 10112 kWh untuk rumah utama',
+      );
+
+      expect(intent.draft, isNotNull);
+      expect(intent.draft!.kind.name, 'meterReading');
+      expect(intent.draft!.metadata?['meterReadingProposal'], isNotNull);
+      expect(intent.draft!.metadata!['meterReadingProposal']['readingKwh'], 10112);
+      expect(intent.draft!.metadata!['meterReadingProposal']['meterId'], 'm-utama');
+      expect(intent.response, contains('Rumah Utama'));
+    });
+
+    test('pembacaan meter tanpa target pada banyak rumah meminta klarifikasi', () async {
+      await repository.saveMeter(meter('m-utama', 'Rumah Utama', '14123456789'));
+      await repository.saveMeter(meter('m-ruko', 'Ruko Usaha', '15123456789'));
+
+      final intent = await interpreter.interpret('pembacaan meter 10112 kWh');
+
+      expect(intent.draft, isNull);
+      expect(intent.clarification, contains('Rumah Utama'));
+      expect(intent.clarification, contains('Ruko Usaha'));
+    });
+
+    test('pembacaan meter tidak dibajak menjadi pembelian token listrik', () async {
+      await repository.saveMeter(meter('m-utama', 'Rumah Utama', '14123456789'));
+
+      final intent = await interpreter.interpret(
+        'catat pembacaan meter 10112 kWh untuk rumah utama',
+      );
+
+      expect(intent.draft?.kind.name, 'meterReading');
+      expect(intent.draft?.metadata?['utilityProposal'], isNull);
+    });
   });
 }

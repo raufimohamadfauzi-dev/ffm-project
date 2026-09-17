@@ -276,6 +276,7 @@ enum FfmAssistantDraftKind {
   activityUpdate,
   activityEdit,
   monitoringJob,
+  meterReading,
 }
 
 /// Tingkat masalah draft. Hanya [required] dan [conflict] yang menahan
