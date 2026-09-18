@@ -4388,6 +4388,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         intent.draft == null;
 
     if (plan != null) {
+      // Pastikan plan sudah terdaftar sebelum transisi status.
+      // register() bersifat idempoten — jika sudah ada, mengembalikan plan
+      // yang existing tanpa mengubah statusnya. Ini diperlukan karena
+      // _handleIntent() dipanggil saat tombol Konfirmasi ditekan, sedangkan
+      // register() biasanya hanya dipanggil di applyTurnChanges() saat
+      // Gemini pertama kali memproduksi respons.
+      _actionPlanController.register(plan);
       if (intent.draft != null) {
         _actionPlanController.markAwaitingConfirmation(plan.id);
         unawaited(
@@ -4408,9 +4415,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         if (mounted) {
           setState(
             () => _appendEntry(
-              const FfmAssistantChatEntry(
+              FfmAssistantChatEntry(
                 isUser: false,
-                text: 'Konfirmasi tidak dapat diterapkan ke draft transaksi ini. Tidak ada data yang diubah.',
+                text: 'Konfirmasi tidak dapat diterapkan ke draft ${intent.draft?.kind.name ?? 'ini'}. Tidak ada data yang diubah.',
               ),
             ),
           );
@@ -5309,17 +5316,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       final sourceIndex = sourceEntry == null
           ? -1
           : _entries.indexOf(sourceEntry);
-      final revisedEntry = FfmAssistantChatEntry(
+      final revisedEntry = (sourceEntry ?? const FfmAssistantChatEntry(
         isUser: false,
+        text: '',
+      )).copyWith(
         text: revisedIntent.response!,
         intent: revisedIntent,
         understanding: 'Kamu mengubah field draft lewat form review.',
         review: nextReview,
-        filePath: sourceEntry?.filePath,
-        fileFormat: sourceEntry?.fileFormat,
-        processTrace: sourceEntry?.processTrace,
-        verifiedFacts: sourceEntry?.verifiedFacts,
-        analysisResults: sourceEntry?.analysisResults,
         isCorrected: true,
         correctionText: revisedIntent.response,
       );
@@ -5329,6 +5333,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         _appendEntry(revisedEntry);
       }
     });
+    await _saveCurrentConversation();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Draft berhasil diperbarui dan tersimpan di percakapan. Silakan tekan Konfirmasi.',
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
     _scrollToEnd();
   }
 
