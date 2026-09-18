@@ -613,6 +613,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
             primaryActionLabel:
                 primaryActionLabel ??
                 (intent?.destination != null ? 'Buka' : 'Lanjut'),
+            primaryActionIsConfirmation: intent?.draft != null,
             onPrimaryAction: onIntent,
             onConfirmActivity: onConfirmActivity,
             onShowTechnical: onToggleTechnicalDetails,

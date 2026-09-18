@@ -9,6 +9,7 @@ import 'package:ffm_manager/features/assistant/data/ffm_assistant_proposal_json_
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_plan.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_planner.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_capability_executor.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_assistant_draft_validator.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 
 void main() {
@@ -731,6 +732,76 @@ void main() {
       // Kategori lain tetap terisolasi dari filter Pertanian.
       expect(all.where((s) => s.categoryId == 'cat-shop'), hasLength(1));
       expect(farm.any((s) => s.categoryId == 'cat-shop'), isFalse);
+    },
+  );
+
+  test(
+    'saveActivity berhasil menyimpan draft aktivitas meskipun kategori belum ada di Data Utama',
+    () async {
+      final res = await saveDraft({
+        'kind': 'activity',
+        'title': 'Olahraga pagi keliling kompleks',
+        'category': 'Olahraga Khusus',
+        'activityMode': 'timeTracking',
+      });
+      expect(res.isSuccess, isTrue);
+
+      final repo = ActivityRepository(database, AuditLogger(database));
+      final sessions = await repo.getActiveSessions(householdId);
+      expect(sessions, hasLength(1));
+      expect(sessions.first.title, 'Olahraga pagi keliling kompleks');
+      expect(sessions.first.category, 'Olahraga Khusus');
+      expect(sessions.first.status, ActivitySessionStatus.active);
+    },
+  );
+
+  test(
+    'FfmAssistantDraftValidator memvalidasi dailyNote dengan body/note/title dan date fallback',
+    () {
+      // 1. Valid saat note ada
+      final draft1 = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.dailyNote,
+        createdAt: now,
+        title: 'Insiden kolam',
+        note: 'Pipa pembuangan tersumbat lumut',
+        date: now,
+      );
+      expect(FfmAssistantDraftValidator.validate(draft1), isEmpty);
+
+      // 2. Valid saat teks ada di formValues['body'] dan date fallback ke formValues
+      final draft2 = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.dailyNote,
+        createdAt: now,
+        title: 'Insiden kolam',
+        formValues: {
+          'body': 'Pipa pembuangan tersumbat lumut',
+          'date': now.toIso8601String(),
+        },
+      );
+      expect(FfmAssistantDraftValidator.validate(draft2), isEmpty);
+
+      // 3. Menolak jika tidak ada teks sama sekali
+      final draftEmpty = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.dailyNote,
+        createdAt: now,
+        date: now,
+      );
+      final issues = FfmAssistantDraftValidator.validate(draftEmpty);
+      expect(issues.any((i) => i.code == 'daily_note_body_required'), isTrue);
+    },
+  );
+
+  test(
+    'ProposalJsonService mem-parsing daily_note tanpa noteDate dengan fallback ke createdAt',
+    () {
+      final result = FfmAssistantProposalJsonService.parse(
+        '{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"daily_note","title":"Ayam mati karena kepanasan","body":"2 ekor ayam pedaging ditemukan mati tadi siang","tags":"peternakan"}}',
+        createdAt: now,
+      );
+      expect(result.isValid, isTrue);
+      expect(result.draft?.kind, FfmAssistantDraftKind.dailyNote);
+      expect(result.draft?.date, now);
+      expect(result.draft?.note, '2 ekor ayam pedaging ditemukan mati tadi siang');
     },
   );
 }

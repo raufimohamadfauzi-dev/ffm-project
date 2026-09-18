@@ -1596,6 +1596,74 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         : (verify.last.result ??
               verify.first.result ??
               'Perubahan ${subject.toLowerCase()} selesai dan telah diverifikasi.');
+
+    // Sinkronisasi otomatis ke UtilityMeterRepository jika transaksi adalah pembelian token listrik
+    final utilityProposal = intent.draft?.metadata?['utilityProposal'];
+    final rawMeter = intent.draft?.formValues['meterNumber'] ??
+        intent.draft?.formValues['idpel'] ??
+        (utilityProposal is Map
+            ? utilityProposal['meterNumber']?.toString()
+            : null);
+    if (rawMeter != null && rawMeter.trim().isNotEmpty) {
+      try {
+        final cleanMeter = UtilityMeterRepository.normalizeNumber(rawMeter);
+        if (cleanMeter.length >= 9 && cleanMeter.length <= 13) {
+          final utilityRepo = getIt.isRegistered<UtilityMeterRepository>()
+              ? getIt<UtilityMeterRepository>()
+              : UtilityMeterRepository();
+          final existing = await utilityRepo.findMeterByNumber(
+            AppContext.householdId,
+            cleanMeter,
+          );
+          final meterName = intent.draft?.formValues['proposedMeterName'] ??
+              intent.draft?.formValues['meterName'] ??
+              (utilityProposal is Map
+                  ? utilityProposal['proposedMeterName']?.toString()
+                  : null) ??
+              'Meteran PLN $cleanMeter';
+          final tokenCode = intent.draft?.formValues['tokenCode'] ??
+              (utilityProposal is Map
+                  ? utilityProposal['tokenCode']?.toString()
+                  : null);
+          final amountNum = intent.draft?.amount?.toDouble();
+
+          if (existing == null) {
+            final newMeter = UtilityMeter(
+              id: 'meter_${Uuid().v4()}',
+              householdId: AppContext.householdId,
+              name: meterName,
+              meterNumber: cleanMeter,
+              createdAt: DateTime.now(),
+              lastTokenNumber: tokenCode,
+              lastAmount: amountNum,
+              lastPurchasedAt: DateTime.now(),
+            );
+            await utilityRepo.saveMeter(newMeter);
+          } else {
+            await utilityRepo.recordPurchase(
+              householdId: AppContext.householdId,
+              meterNumber: cleanMeter,
+              tokenCode: tokenCode,
+              amount: amountNum,
+              timestamp: DateTime.now(),
+            );
+          }
+        }
+      } catch (_) {
+        // Non-blocking
+      }
+    }
+    final isDailyNote =
+        intent.draft?.kind == FfmAssistantDraftKind.dailyNote ||
+        intent.draft?.kind == FfmAssistantDraftKind.dailyNoteUpdate ||
+        intent.draft?.kind == FfmAssistantDraftKind.dailyNoteArchive ||
+        intent.draft?.kind == FfmAssistantDraftKind.dailyNoteRestore ||
+        intent.draft?.kind == FfmAssistantDraftKind.dailyNoteDelete;
+    if (isActivity || isDailyNote) {
+      if (getIt.isRegistered<ActivityBloc>()) {
+        getIt<ActivityBloc>().load();
+      }
+    }
     setState(() {
       widget.session.lastAssistantText = message;
       _appendEntry(FfmAssistantChatEntry(isUser: false, text: message));
@@ -1799,6 +1867,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
   }
 
+  // Kept for legacy callers that may still construct a non-direct mutation.
+  // ignore: unused_element
   Future<bool> _confirmDirectMutation(FfmAssistantDraft draft) async {
     if (draft.kind == FfmAssistantDraftKind.expense ||
         draft.kind == FfmAssistantDraftKind.income ||
@@ -3326,10 +3396,50 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             }
 
             // Simpan metadata ke draft untuk dieksekusi setelah konfirmasi
+            final splitProposals = ReceiptScannerService.expandPlnUtilityProposals(
+              allText,
+              baseProposal: {
+                'amount': entry.amount ?? 0,
+                'adminFee': entry.adminFee ?? 0,
+                'meterNumber': cleanMeterNumber,
+                'tokenCode': cleanToken,
+                'formattedToken': formattedToken,
+                if (cleanMeterNumber case final String meter) 'idpel': meter,
+                if (matchedMeter != null) 'meterName': matchedMeter.name,
+                if (utilityMetadata['proposedMeterName'] != null)
+                  'proposedMeterName': utilityMetadata['proposedMeterName'],
+                'creditedKwh': creditedKwh,
+              },
+            );
+
+            final utilityProposal = splitProposals.length > 1
+                ? splitProposals.first
+                : utilityMetadata;
+
             draft = draft.copyWith(
+              formValues: {
+                ...draft.formValues,
+                if (cleanMeterNumber != null) ...{
+                  'meterNumber': cleanMeterNumber,
+                  'idpel': cleanMeterNumber,
+                },
+                if (utilityMetadata['proposedMeterName'] != null) ...{
+                  'proposedMeterName':
+                      utilityMetadata['proposedMeterName'].toString(),
+                  'meterName':
+                      utilityMetadata['proposedMeterName'].toString(),
+                } else if (matchedMeter != null) ...{
+                  'proposedMeterName': matchedMeter.name,
+                  'meterName': matchedMeter.name,
+                },
+                'tokenCode': cleanToken,
+                'formattedToken': formattedToken,
+              },
               metadata: {
                 ...?draft.metadata,
-                'utilityProposal': utilityMetadata,
+                'utilityProposal': utilityProposal,
+                if (splitProposals.length > 1)
+                  'utilityProposalBatch': splitProposals,
               },
             );
           }
@@ -3485,53 +3595,126 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         'transfer' => FfmAssistantIntentType.createTransfer,
         _ => FfmAssistantIntentType.createExpense,
       };
-      final intent = FfmAssistantIntent(
-        rawText: 'pindai struk',
-        normalizedText: 'pindai struk',
-        type: intentType,
-        // The transaction form remains the primary save destination. The PLN
-        // proposal is persisted as its linked electricity history after save.
-        destination: FfmAssistantDestination.transactions,
-        draft: draft,
-        confidence: 0.9,
-        response: response,
-        responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
-        pluginName: 'receipt_scan',
-        pluginCategory: 'Impor Struk',
-        verifiedFacts: warnings.isEmpty ? null : warnings.join('\n'),
-        pluginMetadata: {
-          if (outcome.tokenUsage != null) 'tokenUsage': outcome.tokenUsage,
-        },
-      );
-      final review = FfmAssistantDraftReview(
-        draft: draft,
-        version: 1,
-        issues: FfmAssistantDraftValidator.validate(draft),
-      );
+
+      final utilitySplitProposals =
+          (draft.metadata?['utilityProposalBatch'] as List?) ?? const [];
+      final queuedDrafts = <({
+        FfmAssistantDraft draft,
+        FfmAssistantIntent intent,
+        FfmAssistantDraftReview review,
+      })>[];
+
+      if (utilitySplitProposals.length > 1) {
+        for (final proposal in utilitySplitProposals.cast<Map<String, dynamic>>()) {
+          final splitFormValues = <String, dynamic>{...draft.formValues};
+          if (proposal['meterNumber'] != null) {
+            splitFormValues['meterNumber'] = proposal['meterNumber'];
+            splitFormValues['idpel'] = proposal['meterNumber'];
+          }
+          if (proposal['tokenCode'] != null) {
+            splitFormValues['tokenCode'] = proposal['tokenCode'];
+          }
+          if (proposal['formattedToken'] != null) {
+            splitFormValues['formattedToken'] = proposal['formattedToken'];
+          }
+          if (proposal['meterName'] != null) {
+            splitFormValues['proposedMeterName'] = proposal['meterName'];
+            splitFormValues['meterName'] = proposal['meterName'];
+          }
+
+          final splitMetadata = Map<String, dynamic>.from(
+            draft.metadata ?? const <String, dynamic>{},
+          );
+          splitMetadata['utilityProposal'] = proposal;
+
+          final splitDraft = draft.copyWith(
+            amount: (proposal['amount'] as num?)?.round() ?? draft.amount,
+            adminFee: (proposal['adminFee'] as num?)?.round() ?? draft.adminFee,
+            note: proposal['meterNumber'] != null
+                ? 'Token PLN ${proposal['meterNumber']} (${proposal['formattedToken'] ?? proposal['tokenCode'] ?? 'Token'})'
+                : draft.note,
+            metadata: splitMetadata,
+            formValues: splitFormValues,
+          );
+          final splitIntent = FfmAssistantIntent(
+            rawText: 'pindai struk',
+            normalizedText: 'pindai struk',
+            type: intentType,
+            destination: FfmAssistantDestination.transactions,
+            draft: splitDraft,
+            confidence: 0.9,
+            response:
+                '⚡ Token listrik ${proposal['meterNumber'] ?? 'rumah'} sudah dipisahkan dari struk multi-meter. Periksa draft ini sebelum disimpan.',
+            responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
+            pluginName: 'receipt_scan',
+            pluginCategory: 'Impor Struk',
+            verifiedFacts: warnings.isEmpty ? null : warnings.join('\n'),
+            pluginMetadata: {
+              if (outcome.tokenUsage != null) 'tokenUsage': outcome.tokenUsage,
+            },
+          );
+          final splitReview = FfmAssistantDraftReview(
+            draft: splitDraft,
+            version: 1,
+            issues: FfmAssistantDraftValidator.validate(splitDraft),
+          );
+          queuedDrafts.add((draft: splitDraft, intent: splitIntent, review: splitReview));
+        }
+      } else {
+        final intent = FfmAssistantIntent(
+          rawText: 'pindai struk',
+          normalizedText: 'pindai struk',
+          type: intentType,
+          // The transaction form remains the primary save destination. The PLN
+          // proposal is persisted as its linked electricity history after save.
+          destination: FfmAssistantDestination.transactions,
+          draft: draft,
+          confidence: 0.9,
+          response: response,
+          responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
+          pluginName: 'receipt_scan',
+          pluginCategory: 'Impor Struk',
+          verifiedFacts: warnings.isEmpty ? null : warnings.join('\n'),
+          pluginMetadata: {
+            if (outcome.tokenUsage != null) 'tokenUsage': outcome.tokenUsage,
+          },
+        );
+        final review = FfmAssistantDraftReview(
+          draft: draft,
+          version: 1,
+          issues: FfmAssistantDraftValidator.validate(draft),
+        );
+        queuedDrafts.add((draft: draft, intent: intent, review: review));
+      }
+
       if (!mounted) return;
       setState(() {
-        widget.session
-          ..activeDraftReview = review
-          ..activeDraftIntent = intent;
-        _enqueueDraft(intent, review);
-        widget.session.lastAssistantText = response;
-        final processTrace = _traceFor(
-          intent,
-          outcome.latency ?? Duration.zero,
-          tokenUsage: outcome.tokenUsage,
-        );
-        _appendEntry(
-          FfmAssistantChatEntry(
-            isUser: false,
-            text: response,
-            intent: intent,
-            review: review,
-            filePath: outcome.imagePath,
-            fileFormat: 'image',
-            processTrace: processTrace,
-            verifiedFacts: intent.verifiedFacts,
-          ),
-        );
+        for (final queued in queuedDrafts) {
+          widget.session
+            ..activeDraftReview = queued.review
+            ..activeDraftIntent = queued.intent;
+          _enqueueDraft(queued.intent, queued.review);
+          widget.session.lastAssistantText = response;
+          final processTrace = _traceFor(
+            queued.intent,
+            outcome.latency ?? Duration.zero,
+            tokenUsage: outcome.tokenUsage,
+          );
+          _appendEntry(
+            FfmAssistantChatEntry(
+              isUser: false,
+              text: queuedDrafts.length > 1
+                  ? '⚡ Draft terpisah untuk ${queued.intent.draft?.formValues['meterNumber'] ?? 'meteran PLN'} siap diperiksa.'
+                  : response,
+              intent: queued.intent,
+              review: queued.review,
+              filePath: outcome.imagePath,
+              fileFormat: 'image',
+              processTrace: processTrace,
+              verifiedFacts: queued.intent.verifiedFacts,
+            ),
+          );
+        }
       });
     }
 
@@ -3805,7 +3988,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final key = _activityKey(intent);
     if (!intent.canConfirm || _confirmedActivityKeys.contains(key)) return;
     try {
-      await ActivityBloc(_activityRepository).executeVoiceIntent(intent);
+      final activityBloc = getIt.isRegistered<ActivityBloc>()
+          ? getIt<ActivityBloc>()
+          : ActivityBloc(_activityRepository);
+      await activityBloc.executeVoiceIntent(intent);
       if (!mounted) return;
       final response = switch (intent.type) {
         ActivityVoiceIntentType.start =>
@@ -4150,8 +4336,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       intent = intent.copyWith(draft: review.draft);
     }
     if (intent.draft?.kind == FfmAssistantDraftKind.meterReading) {
-      final confirmed = await _confirmDraftInChat(intent.draft!);
-      if (confirmed) await _saveMeterReadingDraft(intent);
+      // Klik tombol Konfirmasi pada kartu draft adalah persetujuan eksplisit.
+      // Simpan langsung di dalam sheet agar pengguna tidak perlu keluar dari
+      // percakapan atau melewati dialog konfirmasi kedua.
+      await _saveMeterReadingDraft(intent);
       return;
     }
     final directMutation = _isDirectMutation(intent.draft);
@@ -4211,21 +4399,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
 
     if (directMutation && plan != null && intent.draft != null) {
-      final confirmed = await _confirmDirectMutation(intent.draft!);
-      if (!confirmed) {
-        _actionPlanController.cancel(plan.id);
-        unawaited(
-          getIt<FfmAssistantAutonomyRepository>().recordApprovalDecision(
-            runId: plan.id,
-            status: FfmAssistantApprovalStatus.rejected,
-            reason: 'Mutasi dibatalkan pengguna.',
-          ),
-        );
-        if (mounted) {
-          setState(() => _queuedIntents.remove(intent));
-        }
-        return;
-      }
+      // Tombol utama pada kartu draft merupakan confirmation gate. Preview,
+      // validator, executor, dan verifikasi tetap berjalan sebelum database
+      // diubah, tetapi tidak ada navigasi atau dialog kedua.
       final executable = _actionPlanController.confirm(plan.id);
       if (executable == null ||
           executable.status != FfmAssistantActionPlanStatus.executing) {
@@ -4424,7 +4600,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final intent = entry.intent;
     if (intent == null) return;
     _selectDraftFromEntry(entry);
-    await _editActiveDraft(intent);
+    await _editActiveDraft(intent, sourceEntry: entry);
   }
 
   void _cancelDraftFromEntry(FfmAssistantChatEntry entry) {
@@ -5088,7 +5264,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
   }
 
-  Future<void> _editActiveDraft(FfmAssistantIntent intent) async {
+  Future<void> _editActiveDraft(
+    FfmAssistantIntent intent, {
+    FfmAssistantChatEntry? sourceEntry,
+  }) async {
     final review = widget.session.activeDraftReview;
     if (review == null) return;
     if (_activeDraftIsOpeningForm) {
@@ -5127,15 +5306,28 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         ..activeDraftReview = nextReview
         ..activeDraftIntent = revisedIntent;
       _replaceActiveQueueItem(intent: revisedIntent, review: nextReview);
-      _appendEntry(
-        FfmAssistantChatEntry(
-          isUser: false,
-          text: revisedIntent.response!,
-          intent: revisedIntent,
-          understanding: 'Kamu mengubah field draft lewat form review.',
-          review: nextReview,
-        ),
+      final sourceIndex = sourceEntry == null
+          ? -1
+          : _entries.indexOf(sourceEntry);
+      final revisedEntry = FfmAssistantChatEntry(
+        isUser: false,
+        text: revisedIntent.response!,
+        intent: revisedIntent,
+        understanding: 'Kamu mengubah field draft lewat form review.',
+        review: nextReview,
+        filePath: sourceEntry?.filePath,
+        fileFormat: sourceEntry?.fileFormat,
+        processTrace: sourceEntry?.processTrace,
+        verifiedFacts: sourceEntry?.verifiedFacts,
+        analysisResults: sourceEntry?.analysisResults,
+        isCorrected: true,
+        correctionText: revisedIntent.response,
       );
+      if (sourceIndex >= 0) {
+        _entries[sourceIndex] = revisedEntry;
+      } else {
+        _appendEntry(revisedEntry);
+      }
     });
     _scrollToEnd();
   }

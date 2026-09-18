@@ -828,6 +828,23 @@ class FfmAssistantInterpreter {
         'masterData': requestScopeForMeta.includeMasterData,
       },
     };
+    if (proposal.clarification != null &&
+        proposal.clarification!.trim().isNotEmpty) {
+      return _InterpretResult.single(
+        FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.unknown,
+          confidence: .9,
+          response: proposal.clarification!.trim(),
+          clarification: proposal.clarification!.trim(),
+          responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
+          pluginName: 'gemini_cloud',
+          pluginCategory: 'gemini_cloud',
+          pluginMetadata: geminiMetadata,
+        ),
+      );
+    }
     if (proposal.error != null) {
       _logAssistantFailure(
         code: 'gemini-proposal-parse',
@@ -5378,7 +5395,7 @@ class FfmAssistantInterpreter {
 
     // Deteksi kata kunci domain spesifik untuk memastikan ini bukan request generik
     final hasDomainKeyword = RegExp(
-      r'\b(kategori|rekening|toko|sumber|anggaran|target|tujuan|goal|transaksi|pemasukan|pengeluaran|belanja|transfer|aktivitas|pengingat|aset|hutang|piutang)\b',
+      r'\b(kategori|rekening|toko|sumber|anggaran|target|tujuan|goal|transaksi|pemasukan|pengeluaran|belanja|transfer|aktivitas|pengingat|alarm|alaram|jadwal|rutinitas|aset|hutang|piutang)\b',
       caseSensitive: false,
     ).hasMatch(normalized);
 
@@ -9406,15 +9423,30 @@ class FfmAssistantInterpreter {
         },
       );
     }
-    final createReminder = _containsAny(normalized, const [
-      'buat pengingat',
-      'tambah pengingat',
-      'ingatkan saya',
-      'pasang pengingat',
-      'buat alarm',
-      'pasang alarm',
-      'tambah alarm',
-    ]);
+    final createReminder =
+        _containsAny(normalized, const [
+          'buat pengingat',
+          'tambah pengingat',
+          'ingatkan saya',
+          'pasang pengingat',
+          'buat alarm',
+          'pasang alarm',
+          'tambah alarm',
+          'buatkan alarm',
+          'buat alaram',
+          'buatkan alaram',
+          'pasang alaram',
+          'set alarm',
+          'set alaram',
+        ]) ||
+        RegExp(
+          r'\b(buat|buatkan|pasang|set|atur|tambah)\s+(?:kan\s+)?(?:saya\s+)?(?:sebuah\s+)?(?:pengingat|alarm|alaram)\b',
+          caseSensitive: false,
+        ).hasMatch(normalized) ||
+        RegExp(
+          r'\b(ingatkan|ingatkanlah)\s+(?:saya|aku)\b',
+          caseSensitive: false,
+        ).hasMatch(normalized);
 
     // Detect bill reminder patterns for calendar sync
     final billReminder = _containsAny(normalized, const [
@@ -9466,7 +9498,7 @@ class FfmAssistantInterpreter {
       final parsedTime = _parseTimeFromText(normalized, now);
 
       final hasAlarm = RegExp(
-        r'\balarm\b',
+        r'\b(alarm|alaram)\b',
         caseSensitive: false,
       ).hasMatch(normalized);
       final reminderMode = hasAlarm
@@ -10401,6 +10433,21 @@ class FfmAssistantInterpreter {
       'jt',
       'rp',
       'idr',
+      'buat',
+      'buatkan',
+      'pasang',
+      'set',
+      'atur',
+      'alarm',
+      'alaram',
+      'pengingat',
+      'ingatkan',
+      'besok',
+      'kemarin',
+      'lusa',
+      'jam',
+      'pukul',
+      'waktu',
       'pagi',
       'siang',
       'sore',
@@ -11551,9 +11598,31 @@ class _InterpretResult {
 
 abstract final class FfmAssistantAmountParser {
   static int? parse(String text) {
+    final cleanedText = text
+        .replaceAll(
+          RegExp(
+            r'\b(?:jam|pukul)\s+\d{1,2}(?::\d{2})?(?:\s*(?:pagi|siang|sore|malam|wib|wita|wit))?\b',
+            caseSensitive: false,
+          ),
+          ' ',
+        )
+        .replaceAll(
+          RegExp(
+            r'\b(?:tanggal|tgl)\s+\d{1,2}\b',
+            caseSensitive: false,
+          ),
+          ' ',
+        )
+        .replaceAll(
+          RegExp(
+            r'\btahun\s+\d{4}\b',
+            caseSensitive: false,
+          ),
+          ' ',
+        );
     final numeric = RegExp(
       r'(?:rp\s*)?(\d[\d.,]*)(?:\s*(ribu|rb|k|jt|juta|m|miliar)\b)?',
-    ).allMatches(text);
+    ).allMatches(cleanedText);
     if (numeric.isNotEmpty) {
       final match = numeric.first;
       final rawNumber = match.group(1)!;

@@ -105,14 +105,13 @@ void main() {
       expect(find.text('BCA'), findsOneWidget);
       expect(find.text('Tunai'), findsOneWidget);
 
-      await tester.tap(
-        find.widgetWithText(
-          DropdownButtonFormField<String?>,
-          'Rekening tujuan',
-        ),
+      final destinationField = find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField &&
+            widget.decoration?.labelText == 'Rekening tujuan',
       );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('ShopeePay').last);
+      expect(destinationField, findsOneWidget);
+      await tester.enterText(destinationField, 'ShopeePay');
       await tester.pumpAndSettle();
       await tester.tap(find.text('Pakai perubahan'));
       await tester.pumpAndSettle();

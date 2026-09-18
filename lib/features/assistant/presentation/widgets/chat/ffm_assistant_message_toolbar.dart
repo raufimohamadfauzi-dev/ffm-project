@@ -41,6 +41,7 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
     required this.isUser,
     required this.hasPrimaryAction,
     required this.primaryActionLabel,
+    this.primaryActionIsConfirmation = false,
     this.onPrimaryAction,
     this.onConfirmActivity,
     required this.activityConfirmed,
@@ -67,6 +68,7 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
   final bool isUser;
   final bool hasPrimaryAction;
   final String primaryActionLabel;
+  final bool primaryActionIsConfirmation;
   final VoidCallback? onPrimaryAction;
   final VoidCallback? onConfirmActivity;
   final bool activityConfirmed;
@@ -166,6 +168,8 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
                           FfmAssistantActionPlanStatus.completed &&
                       !includesNavigation
                   ? 'Arahan ini sudah diselesaikan.'
+                  : primaryActionIsConfirmation
+                  ? 'Konfirmasi dan simpan draft melalui chatbot.'
                   : 'Buka arahan ini. Data belum disimpan otomatis.',
               child: FilledButton.tonalIcon(
                 onPressed:
@@ -179,6 +183,8 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
                               FfmAssistantActionPlanStatus.completed &&
                           !includesNavigation
                       ? Icons.done_all
+                      : primaryActionIsConfirmation
+                      ? Icons.check_circle_outline
                       : Icons.open_in_new,
                   size: 16,
                 ),

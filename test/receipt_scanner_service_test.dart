@@ -729,6 +729,27 @@ void main() {
     expect(ReceiptScannerService.extractPlnMeterNumber(text), '14123456789');
   });
 
+  test('multi token & multi IDPEL menghasilkan proposal terpisah per meteran', () {
+    const text =
+        'PLN TOKEN 1234-5678-9012-3456-7890 IDPEL 14123456789 '
+        'TOKEN 2234-5678-9012-3456-7890 IDPEL 15123456789';
+
+    final proposals = ReceiptScannerService.expandPlnUtilityProposals(
+      text,
+      baseProposal: const {
+        'amount': 100660,
+        'adminFee': 660,
+      },
+    );
+
+    expect(proposals, hasLength(2));
+    expect(proposals[0]['meterNumber'], '14123456789');
+    expect(proposals[0]['tokenCode'], '12345678901234567890');
+    expect(proposals[1]['meterNumber'], '15123456789');
+    expect(proposals[1]['tokenCode'], '22345678901234567890');
+    expect(proposals.every((proposal) => proposal['amount'] == 100660), isTrue);
+  });
+
   test(
     'gambar dimensi besar tapi kecil ukuran ikut di-resize ke PNG',
     () async {

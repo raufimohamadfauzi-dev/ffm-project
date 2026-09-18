@@ -41,7 +41,7 @@ void main() {
   });
 
   testWidgets(
-    'FfmAssistantMessageCard menampilkan tombol Buka dengan ikon open_in_new untuk intent dengan draft',
+    'FfmAssistantMessageCard menampilkan tombol Konfirmasi dengan ikon simpan untuk intent dengan draft',
     (tester) async {
       final intent = FfmAssistantIntent(
         rawText: 'catat gaji',
@@ -87,12 +87,12 @@ void main() {
         ),
       );
 
-      // Tombol Buka (open_in_new) harus ada dan aktif
-      final openButton = find.byIcon(Icons.open_in_new);
-      expect(openButton, findsOneWidget);
+      // Tombol Konfirmasi (check_circle_outline) harus ada dan aktif.
+      final confirmButton = find.byIcon(Icons.check_circle_outline);
+      expect(confirmButton, findsOneWidget);
 
       final buttonWidget = tester.widget<FilledButton>(
-        find.ancestor(of: openButton, matching: find.byType(FilledButton)),
+        find.ancestor(of: confirmButton, matching: find.byType(FilledButton)),
       );
       expect(buttonWidget.onPressed, isNotNull);
 

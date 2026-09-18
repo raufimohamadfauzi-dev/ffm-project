@@ -548,7 +548,11 @@ abstract final class FfmAssistantDraftValidator {
           );
         }
       case FfmAssistantDraftKind.dailyNote:
-        if (_isBlank(draft.note)) {
+        final effectiveNote = draft.note ??
+            draft.formValues['body']?.toString() ??
+            draft.formValues['note']?.toString() ??
+            draft.title;
+        if (_isBlank(effectiveNote)) {
           issues.add(
             const FfmAssistantDraftIssue(
               code: 'daily_note_body_required',
@@ -558,7 +562,7 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
-        if (draft.date == null) {
+        if (draft.date == null && _isBlank(draft.formValues['date'])) {
           issues.add(
             const FfmAssistantDraftIssue(
               code: 'daily_note_date_required',
@@ -593,7 +597,9 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
-        if (draft.date == null && draft.scheduledAt == null) {
+        if (draft.date == null &&
+            draft.scheduledAt == null &&
+            _isBlank(draft.formValues['date'])) {
           issues.add(
             const FfmAssistantDraftIssue(
               code: 'activity_date_required',
@@ -969,14 +975,20 @@ abstract final class FfmAssistantDraftValidator {
         0,
         (sum, item) => sum + item.calculatedTotal,
       );
-      final expected = subtotal + (draft.tax ?? 0) - (draft.discount ?? 0);
+      final expected = subtotal +
+          (draft.tax ?? 0) +
+          (draft.adminFee ?? 0) -
+          (draft.discount ?? 0);
       if (draft.amount != null && expected != draft.amount) {
+        final hasAdminFee = draft.adminFee != null && draft.adminFee! > 0;
         issues.add(
-          const FfmAssistantDraftIssue(
+          FfmAssistantDraftIssue(
             code: 'receipt_total_mismatch',
             severity: FfmAssistantDraftIssueSeverity.conflict,
             field: 'nominal',
-            message: 'Total harus sama dengan subtotal + pajak - diskon.',
+            message: hasAdminFee
+                ? 'Total harus sama dengan subtotal + pajak + biaya admin - diskon.'
+                : 'Total harus sama dengan subtotal + pajak - diskon.',
           ),
         );
       }

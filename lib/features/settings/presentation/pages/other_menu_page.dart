@@ -47,6 +47,15 @@ class OtherMenuPage extends StatefulWidget {
 class _OtherMenuPageState extends State<OtherMenuPage> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  String _selectedCategory = 'all';
+
+  final Map<String, bool> _expandedSections = {
+    'start': true,
+    'family': true,
+    'reports': true,
+    'tools': true,
+    'security': true,
+  };
 
   @override
   void dispose() {
@@ -56,6 +65,17 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
 
   void _open(BuildContext context, Widget page) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+  }
+
+  bool _isSectionActive(String sectionKey) {
+    if (_searchQuery.trim().isNotEmpty) return true;
+    return _selectedCategory == 'all' || _selectedCategory == sectionKey;
+  }
+
+  bool _isSectionExpanded(String sectionKey) {
+    if (_searchQuery.trim().isNotEmpty) return true;
+    if (_selectedCategory == sectionKey) return true;
+    return _expandedSections[sectionKey] ?? true;
   }
 
   bool _hasMatchingMenu() {
@@ -103,6 +123,74 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
     return '$title $subtitle'.toLowerCase().contains(query);
   }
 
+  Widget _buildSectionHeader({
+    required String sectionKey,
+    required String title,
+    required IconData icon,
+    required int count,
+  }) {
+    final isExpanded = _isSectionExpanded(sectionKey);
+    final isFilteringSingle = _selectedCategory == sectionKey;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 8),
+      child: InkWell(
+        onTap: isFilteringSingle
+            ? null
+            : () {
+                setState(() {
+                  _expandedSections[sectionKey] = !isExpanded;
+                });
+              },
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: scheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$count menu',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              if (!isFilteringSingle) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  isExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: scheme.onSurfaceVariant,
+                  size: 20,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FfmAssistantPageContext(
@@ -117,7 +205,8 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               onPressed: () => showAppInfoDialog(
                 context,
                 title: 'Tentang menu Lainnya',
-                message: 'Data Utama membantu menyiapkan pilihan transaksi. Menu lain dipakai untuk mengelola aset, target, laporan, keamanan, dan alat offline.',
+                message:
+                    'Data Utama membantu menyiapkan pilihan transaksi. Menu lain dipakai untuk mengelola aset, target, laporan, keamanan, dan alat offline.',
               ),
               icon: const Icon(Icons.info_outline),
             ),
@@ -146,465 +235,628 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 border: const OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 16),
-            const AppSectionHeader(title: 'Mulai dari sini'),
-            const SizedBox(height: 8),
-            if (_matches(
-              'Data Utama',
-              'Isi kategori, toko, tag, rekening, dan sumber pemasukan untuk pilihan transaksi.',
-            ))
-              AppCard(
-                color: const Color(0xFFD1FAE5).withValues(alpha: .5),
-                border: BorderSide(
-                  color: const Color(0xFF059669).withValues(alpha: .4),
-                  width: 1.5,
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: .45),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .7),
+                  width: 1,
                 ),
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF059669),
-                      borderRadius: BorderRadius.circular(14),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedCategory,
+                  isExpanded: true,
+                  icon: const Icon(Icons.tune_rounded, size: 20),
+                  borderRadius: BorderRadius.circular(12),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'all',
+                      child: Row(
+                        children: [
+                          Icon(Icons.dashboard_customize_rounded, size: 18),
+                          SizedBox(width: 10),
+                          Text('Semua Kategori (Tampilkan Semua)'),
+                        ],
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.tune_rounded,
-                      color: Colors.white,
-                      size: 24,
+                    DropdownMenuItem(
+                      value: 'start',
+                      child: Row(
+                        children: [
+                          Icon(Icons.rocket_launch_rounded, size: 18, color: Color(0xFF059669)),
+                          SizedBox(width: 10),
+                          Text('Mulai dari sini (Utama & AI)'),
+                        ],
+                      ),
                     ),
-                  ),
-                  title: Row(
-                    children: const [
-                      Expanded(
-                        child: Text(
-                          'Data Utama',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
+                    DropdownMenuItem(
+                      value: 'family',
+                      child: Row(
+                        children: [
+                          Icon(Icons.family_restroom_rounded, size: 18, color: Color(0xFFDB2777)),
+                          SizedBox(width: 10),
+                          Text('Data keluarga'),
+                        ],
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'reports',
+                      child: Row(
+                        children: [
+                          Icon(Icons.summarize_rounded, size: 18, color: Color(0xFF2563EB)),
+                          SizedBox(width: 10),
+                          Text('Laporan dan cadangan'),
+                        ],
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'tools',
+                      child: Row(
+                        children: [
+                          Icon(Icons.handyman_rounded, size: 18, color: Color(0xFFD97706)),
+                          SizedBox(width: 10),
+                          Text('Pengingat dan alat'),
+                        ],
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'security',
+                      child: Row(
+                        children: [
+                          Icon(Icons.security_rounded, size: 18, color: Color(0xFFDC2626)),
+                          SizedBox(width: 10),
+                          Text('Keamanan dan informasi'),
+                        ],
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        _selectedCategory = value;
+                        if (value != 'all') {
+                          _expandedSections[value] = true;
+                        }
+                      });
+                    }
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // SEKSI 1: MULAI DARI SINI
+            if (_isSectionActive('start')) ...[
+              _buildSectionHeader(
+                sectionKey: 'start',
+                title: 'Mulai dari sini',
+                icon: Icons.rocket_launch_rounded,
+                count: 3,
+              ),
+              if (_isSectionExpanded('start')) ...[
+                if (_matches(
+                  'Data Utama',
+                  'Isi kategori, toko, tag, rekening, dan sumber pemasukan untuk pilihan transaksi.',
+                ))
+                  AppCard(
+                    color: const Color(0xFFD1FAE5).withValues(alpha: .5),
+                    border: BorderSide(
+                      color: const Color(0xFF059669).withValues(alpha: .4),
+                      width: 1.5,
+                    ),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF059669),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.tune_rounded,
+                          color: Colors.white,
+                          size: 24,
                         ),
                       ),
-                      AppStatusChip(
-                        label: 'WAJIB AWAL',
-                        color: Color(0xFF059669),
-                        backgroundColor: Color(0xFFD1FAE5),
+                      title: Row(
+                        children: const [
+                          Expanded(
+                            child: Text(
+                              'Data Utama',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          AppStatusChip(
+                            label: 'WAJIB AWAL',
+                            color: Color(0xFF059669),
+                            backgroundColor: Color(0xFFD1FAE5),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  subtitle: const Padding(
-                    padding: EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Isi kategori, toko, tag, rekening, dan sumber pemasukan untuk pilihan transaksi.',
+                      subtitle: const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Isi kategori, toko, tag, rekening, dan sumber pemasukan untuk pilihan transaksi.',
+                        ),
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _open(context, const MasterDataPage()),
                     ),
                   ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _open(context, const MasterDataPage()),
+                const SizedBox(height: 12),
+                _MenuCard(
+                  icon: Icons.cloud_queue_rounded,
+                  title: 'Gemini Cloud & Memori',
+                  subtitle:
+                      'Simpan dan uji model Gemini untuk chatbot, serta sambungkan memori Supabase.',
+                  iconColor: const Color(0xFF0284C7),
+                  iconBackgroundColor: const Color(0xFFE0F2FE),
+                  badgeText: 'AI CLOUD',
+                  onTap: () => _open(context, const SupabaseSetupPage()),
+                  visible: _matches(
+                    'Gemini Cloud Memori simpan uji model chatbot Supabase',
+                    'Simpan dan uji model Gemini untuk chatbot, serta sambungkan memori Supabase.',
+                  ),
                 ),
+                _MenuCard(
+                  icon: Icons.psychology_alt_rounded,
+                  title: 'Asisten Log & Anomali',
+                  subtitle:
+                      'Riwayat laporan jawaban keliru dan pertanyaan gagal dijawab, lengkap dengan trace eksekusi untuk LLM / developer.',
+                  iconColor: const Color(0xFF7C3AED),
+                  iconBackgroundColor: const Color(0xFFEDE9FE),
+                  badgeText: 'LOG AI',
+                  onTap: () => _open(context, const FfmAssistantIssueLogPage()),
+                  visible: _matches(
+                    'Asisten Log Anomali error debug laporan masalah bug chatbot',
+                    'Riwayat laporan jawaban keliru dan pertanyaan gagal dijawab, lengkap dengan trace eksekusi untuk LLM / developer.',
+                  ),
+                ),
+              ],
+            ],
+
+            // SEKSI 2: DATA KELUARGA
+            if (_isSectionActive('family')) ...[
+              _buildSectionHeader(
+                sectionKey: 'family',
+                title: 'Data keluarga',
+                icon: Icons.family_restroom_rounded,
+                count: 4,
               ),
-            const SizedBox(height: 12),
-            _MenuCard(
-              icon: Icons.cloud_queue_rounded,
-              title: 'Gemini Cloud & Memori',
-              subtitle: 'Simpan dan uji model Gemini untuk chatbot, serta sambungkan memori Supabase.',
-              iconColor: const Color(0xFF0284C7),
-              iconBackgroundColor: const Color(0xFFE0F2FE),
-              badgeText: 'AI CLOUD',
-              onTap: () => _open(context, const SupabaseSetupPage()),
-              visible: _matches(
-                'Gemini Cloud Memori simpan uji model chatbot Supabase',
-                'Simpan dan uji model Gemini untuk chatbot, serta sambungkan memori Supabase.',
+              if (_isSectionExpanded('family')) ...[
+                _MenuCard(
+                  icon: Icons.family_restroom_rounded,
+                  title: 'Profil Keluarga',
+                  subtitle:
+                      'Isi profil keluarga dan data pribadi; kelola cadangan serta pembelajaran Asisten.',
+                  iconColor: const Color(0xFFDB2777),
+                  iconBackgroundColor: const Color(0xFFFCE7F3),
+                  badgeText: 'PROFIL',
+                  onTap: () => _open(context, const FamilyProfilePage()),
+                  visible: _matches(
+                    'Profil Keluarga personalisasi asisten',
+                    'Isi profil keluarga dan data pribadi; kelola cadangan ekspor impor serta pembelajaran pola Asisten.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.inventory_2_rounded,
+                  title: 'Aset keluarga',
+                  subtitle:
+                      'Catat barang atau kekayaan keluarga yang ingin dipantau.',
+                  iconColor: const Color(0xFF4F46E5),
+                  iconBackgroundColor: const Color(0xFFEEF2FF),
+                  badgeText: 'HARTA',
+                  onTap: () => _open(context, const AssetListPage()),
+                  visible: _matches(
+                    'Aset keluarga',
+                    'Catat barang atau kekayaan keluarga yang ingin dipantau.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.flag_rounded,
+                  title: 'Target keuangan',
+                  subtitle:
+                      'Pantau uang yang ingin dikumpulkan sampai batas waktu tertentu.',
+                  iconColor: const Color(0xFF0D9488),
+                  iconBackgroundColor: const Color(0xFFCCFBF1),
+                  badgeText: 'GOALS',
+                  onTap: () => _open(context, const GoalListPage()),
+                  visible: _matches(
+                    'Target keuangan',
+                    'Pantau uang yang ingin dikumpulkan sampai batas waktu tertentu.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.account_balance_rounded,
+                  title: 'Hutang & piutang',
+                  subtitle:
+                      'Kelola kewajiban dan uang yang masih perlu diterima keluarga.',
+                  iconColor: const Color(0xFFEA580C),
+                  iconBackgroundColor: const Color(0xFFFFEDD5),
+                  badgeText: 'KEWAJIBAN',
+                  onTap: () => _open(context, const LiabilityReceivablePage()),
+                  visible: _matches(
+                    'Hutang & piutang',
+                    'Kelola kewajiban dan uang yang masih perlu diterima keluarga.',
+                  ),
+                ),
+              ],
+            ],
+
+            // SEKSI 3: LAPORAN DAN CADANGAN
+            if (_isSectionActive('reports')) ...[
+              _buildSectionHeader(
+                sectionKey: 'reports',
+                title: 'Laporan dan cadangan',
+                icon: Icons.summarize_rounded,
+                count: 4,
               ),
-            ),
-            _MenuCard(
-              icon: Icons.psychology_alt_rounded,
-              title: 'Asisten Log & Anomali',
-              subtitle: 'Riwayat laporan jawaban keliru dan pertanyaan gagal dijawab, lengkap dengan trace eksekusi untuk LLM / developer.',
-              iconColor: const Color(0xFF7C3AED),
-              iconBackgroundColor: const Color(0xFFEDE9FE),
-              badgeText: 'LOG AI',
-              onTap: () => _open(context, const FfmAssistantIssueLogPage()),
-              visible: _matches(
-                'Asisten Log Anomali error debug laporan masalah bug chatbot',
-                'Riwayat laporan jawaban keliru dan pertanyaan gagal dijawab, lengkap dengan trace eksekusi untuk LLM / developer.',
+              if (_isSectionExpanded('reports')) ...[
+                _MenuCard(
+                  icon: Icons.ios_share_rounded,
+                  title: 'Ekspor & cadangan',
+                  subtitle:
+                      'Buat JSON, CSV, HTML, PDF, atau pulihkan data dari berkas.',
+                  iconColor: const Color(0xFF7C3AED),
+                  iconBackgroundColor: const Color(0xFFF3E8FF),
+                  badgeText: 'BACKUP',
+                  onTap: () => _open(context, const BackupPage()),
+                  visible: _matches(
+                    'Ekspor & cadangan',
+                    'Buat JSON, CSV, HTML, PDF, atau pulihkan data dari berkas.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.summarize_rounded,
+                  title: 'Ringkasan bulanan',
+                  subtitle:
+                      'Bandingkan arus kas, kesehatan keuangan, dan laporan per bulan.',
+                  iconColor: const Color(0xFF2563EB),
+                  iconBackgroundColor: const Color(0xFFDBEAFE),
+                  badgeText: 'LAPORAN',
+                  onTap: () => _open(context, const MonthlyReportPage()),
+                  visible: _matches(
+                    'Ringkasan bulanan',
+                    'Bandingkan arus kas, kesehatan keuangan, dan laporan per bulan.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.history_rounded,
+                  title: 'Log aktivitas',
+                  subtitle:
+                      'Lihat jejak perubahan transaksi, transfer, impor, dan rekonsiliasi.',
+                  iconColor: const Color(0xFF475569),
+                  iconBackgroundColor: const Color(0xFFF1F5F9),
+                  badgeText: 'AUDIT',
+                  onTap: () => _open(context, const ActivityLogPage()),
+                  visible: _matches(
+                    'Log aktivitas',
+                    'Lihat jejak perubahan transaksi, transfer, impor, dan rekonsiliasi.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.inventory_rounded,
+                  title: 'Retensi & Arsip',
+                  subtitle:
+                      'Arsipkan atau hapus permanen data lama per tanggal dengan preview dan cadangan wajib.',
+                  iconColor: const Color(0xFFB45309),
+                  iconBackgroundColor: const Color(0xFFFEF3C7),
+                  badgeText: 'ARSIP',
+                  onTap: () => _open(context, const DataRetentionManagerPage()),
+                  visible: _matches(
+                    'Retensi Arsip hapus permanen riwayat batas tanggal backup',
+                    'Arsipkan atau hapus permanen data lama per tanggal dengan preview dan cadangan wajib.',
+                  ),
+                ),
+              ],
+            ],
+
+            // SEKSI 4: PENGINGAT DAN ALAT
+            if (_isSectionActive('tools')) ...[
+              _buildSectionHeader(
+                sectionKey: 'tools',
+                title: 'Pengingat dan alat',
+                icon: Icons.handyman_rounded,
+                count: 14,
               ),
-            ),
-            const SizedBox(height: 16),
-            const AppSectionHeader(title: 'Data keluarga'),
-            const SizedBox(height: 8),
-            _MenuCard(
-              icon: Icons.family_restroom_rounded,
-              title: 'Profil Keluarga',
-              subtitle: 'Isi profil keluarga dan data pribadi; kelola cadangan serta pembelajaran Asisten.',
-              iconColor: const Color(0xFFDB2777),
-              iconBackgroundColor: const Color(0xFFFCE7F3),
-              badgeText: 'PROFIL',
-              onTap: () => _open(context, const FamilyProfilePage()),
-              visible: _matches(
-                'Profil Keluarga personalisasi asisten',
-                'Isi profil keluarga dan data pribadi; kelola cadangan ekspor impor serta pembelajaran pola Asisten.',
+              if (_isSectionExpanded('tools')) ...[
+                _MenuCard(
+                  icon: Icons.mark_email_unread_rounded,
+                  title: 'Laporan & Kotak Masuk Asisten',
+                  subtitle:
+                      'Tinjau rekomendasi proaktif, deteksi runway, rebalance anggaran, dan anomali belanja.',
+                  iconColor: const Color(0xFFD97706),
+                  iconBackgroundColor: const Color(0xFFFEF3C7),
+                  badgeText: 'PROAKTIF',
+                  onTap: () => _open(context, const AgentInboxPage()),
+                  visible: _matches(
+                    'Laporan Kotak Masuk Asisten insight rekomendasi saran runway rebalance',
+                    'Tinjau rekomendasi proaktif, deteksi runway, rebalance anggaran, dan anomali belanja.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.monitor_heart_rounded,
+                  title: 'Monitoring Agent',
+                  subtitle:
+                      'Periksa riwayat run dan eksekusi tool Agent secara read-only.',
+                  iconColor: const Color(0xFFE11D48),
+                  iconBackgroundColor: const Color(0xFFFFE4E6),
+                  badgeText: 'AUTONOMY',
+                  onTap: () =>
+                      _open(context, const FfmAssistantAutonomyMonitorPage()),
+                  visible: _matches(
+                    'Monitoring Agent riwayat run tool eksekusi autonomy',
+                    'Periksa riwayat run dan eksekusi tool Agent secara read-only.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: 'Delegasi Anggaran Asisten',
+                  subtitle:
+                      'Tinjau batas per pos, jeda atau cabut delegasi, serta batalkan eksekusi dengan aman.',
+                  iconColor: const Color(0xFF0F766E),
+                  iconBackgroundColor: const Color(0xFFCCFBF1),
+                  badgeText: 'ANGGARAN',
+                  onTap: () =>
+                      _open(context, const FfmAssistantBudgetDelegationsPage()),
+                  visible: _matches(
+                    'Delegasi Anggaran Asisten jeda cabut pembatalan riwayat eksekusi otonom',
+                    'Tinjau batas per pos, jeda atau cabut delegasi, serta batalkan eksekusi dengan aman.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.send_rounded,
+                  title: 'Telegram Bot Keluarga',
+                  subtitle:
+                      'Kirim laporan mingguan otomatis & alarm radar boncos ke chat/grup keluarga.',
+                  iconColor: const Color(0xFF0284C7),
+                  iconBackgroundColor: const Color(0xFFE0F2FE),
+                  badgeText: 'BOT KELUARGA',
+                  onTap: () => _open(context, const TelegramSetupPage()),
+                  visible: _matches(
+                    'Telegram Bot Keluarga notifikasi laporan alarm boncos grup suami istri',
+                    'Kirim laporan mingguan otomatis & alarm radar boncos ke chat/grup keluarga.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.qr_code_scanner,
+                  title: 'Pendeteksi Bayar Otomatis',
+                  subtitle:
+                      'Tangkap otomatis transaksi QRIS & bank dari notifikasi HP. 100% lokal, tanpa cloud.',
+                  iconColor: const Color(0xFF7C3AED),
+                  iconBackgroundColor: const Color(0xFFEDE9FE),
+                  badgeText: 'QRIS & BANK',
+                  onTap: () =>
+                      _open(context, const PaymentDetectorSettingsPage()),
+                  visible: _matches(
+                    'Pendeteksi Bayar Otomatis QRIS bank notifikasi transaksi auto detect',
+                    'Tangkap otomatis transaksi QRIS & bank dari notifikasi HP. 100% lokal, tanpa cloud.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.electric_bolt_rounded,
+                  title: 'Token Listrik',
+                  subtitle:
+                      'Simpan nomor IDPEL/meteran PLN, salin nomor meter dan 20-digit token dengan 1-ketukan.',
+                  iconColor: const Color(0xFFD97706),
+                  iconBackgroundColor: const Color(0xFFFEF3C7),
+                  badgeText: 'UTILITAS',
+                  onTap: () => _open(context, const UtilityMeterPage()),
+                  visible: _matches(
+                    'Token Listrik meteran token listrik pln idpel pulsa rumah ladang sawah ruko',
+                    'Simpan nomor IDPEL/meteran PLN, salin nomor meter dan 20-digit token dengan 1-ketukan.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.directions_car_rounded,
+                  title: 'Kendaraan & Catatan BBM',
+                  subtitle:
+                      'Daftarkan motor/mobil/traktor, no polisi, kapasitas tangki, serta riwayat pengisian & analisa BBM.',
+                  iconColor: const Color(0xFF0D9488),
+                  iconBackgroundColor: const Color(0xFFCCFBF1),
+                  badgeText: 'KENDARAAN',
+                  onTap: () => _open(context, const VehiclePage()),
+                  visible: _matches(
+                    'Kendaraan Catatan BBM bensin motor mobil no pol plat pertalite solar spbu traktor',
+                    'Daftarkan motor/mobil/traktor, no polisi, kapasitas tangki, serta riwayat pengisian & analisa BBM.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.auto_graph_rounded,
+                  title: 'Analisa',
+                  subtitle:
+                      'Baca pola keuangan dan saran dari data yang tersimpan.',
+                  iconColor: const Color(0xFF059669),
+                  iconBackgroundColor: const Color(0xFFD1FAE5),
+                  badgeText: 'INSIGHT',
+                  onTap: () => _open(context, const AnalysisPage()),
+                  visible: _matches(
+                    'Analisa',
+                    'Baca pola keuangan dan saran dari data yang tersimpan.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.notifications_active_rounded,
+                  title: 'Pengingat',
+                  subtitle:
+                      'Buat pengingat lokal untuk hal yang tidak boleh kelupaan.',
+                  iconColor: const Color(0xFFCA8A04),
+                  iconBackgroundColor: const Color(0xFFFEF9C3),
+                  badgeText: 'ALARM',
+                  onTap: () => _open(context, const ReminderPage()),
+                  visible: _matches(
+                    'Pengingat',
+                    'Buat pengingat lokal untuk hal yang tidak boleh kelupaan.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.nights_stay_rounded,
+                  title: 'Kalender Hijriah & Hilal',
+                  subtitle:
+                      'Atur koreksi Hilal (-2/+2 hari) dan penetapan awal bulan Hijriah.',
+                  iconColor: const Color(0xFF16A34A),
+                  iconBackgroundColor: const Color(0xFFDCFCE7),
+                  badgeText: 'HIJRIAH',
+                  onTap: () => _open(context, const HijriSettingsPage()),
+                  visible: _matches(
+                    'Kalender Hijriah Hilal rukyat isbat puasa ramadan',
+                    'Atur koreksi Hilal (-2/+2 hari) dan penetapan awal bulan Hijriah.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.event_repeat_rounded,
+                  title: 'Pemasukan berkala',
+                  subtitle:
+                      'Atur bunga atau pemasukan rutin harian, mingguan, dan bulanan.',
+                  iconColor: const Color(0xFF0891B2),
+                  iconBackgroundColor: const Color(0xFFCFFAFE),
+                  badgeText: 'RUTIN',
+                  onTap: () =>
+                      _open(context, const RecurringTransactionPage()),
+                  visible: _matches(
+                    'Pemasukan berkala',
+                    'Atur bunga atau pemasukan rutin harian, mingguan, dan bulanan.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.calendar_month_rounded,
+                  title: 'Kalender & Smartwatch',
+                  subtitle:
+                      'Sinkronisasi tagihan & jatuh tempo ke Google Calendar dan jam tangan pintar.',
+                  iconColor: const Color(0xFF0284C7),
+                  iconBackgroundColor: const Color(0xFFE0F2FE),
+                  badgeText: 'SINKRON',
+                  onTap: () => _open(context, const CalendarSettingsPage()),
+                  visible: _matches(
+                    'Kalender Smartwatch Google Calendar sinkronisasi jadwal tagihan jatuh tempo',
+                    'Sinkronisasi tagihan & jatuh tempo ke Google Calendar dan jam tangan pintar.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.nfc_rounded,
+                  title: 'Pemindai Kartu NFC e-Money',
+                  subtitle:
+                      'Pindai kartu tol/e-Money langsung untuk cek saldo dan hitung selisih mutasi otomatis.',
+                  iconColor: const Color(0xFF059669),
+                  iconBackgroundColor: const Color(0xFFD1FAE5),
+                  badgeText: 'NFC',
+                  onTap: () => NfcScanDialog.show(context),
+                  visible: _matches(
+                    'Pemindai Kartu NFC e-Money cek saldo kartu tol mutasi otomatis tap flazz brizzi',
+                    'Pindai kartu tol/e-Money langsung untuk cek saldo dan hitung selisih mutasi otomatis.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.tag_rounded,
+                  title: 'Program Tag Pintar NFC',
+                  subtitle:
+                      'Program stiker koin NFC untuk tombol instan bensin, dapur, atau asisten suara.',
+                  iconColor: const Color(0xFF0284C7),
+                  iconBackgroundColor: const Color(0xFFE0F2FE),
+                  badgeText: 'SMART TAG',
+                  onTap: () => NfcSmartTagWriterDialog.show(context),
+                  visible: _matches(
+                    'Program Tag Pintar NFC stiker koin tombol bensin mobil dapur shortcut ntag',
+                    'Program stiker koin NFC untuk tombol instan bensin, dapur, atau asisten suara.',
+                  ),
+                ),
+              ],
+            ],
+
+            // SEKSI 5: KEAMANAN DAN INFORMASI
+            if (_isSectionActive('security')) ...[
+              _buildSectionHeader(
+                sectionKey: 'security',
+                title: 'Keamanan dan informasi',
+                icon: Icons.security_rounded,
+                count: 5,
               ),
-            ),
-            _MenuCard(
-              icon: Icons.inventory_2_rounded,
-              title: 'Aset keluarga',
-              subtitle:
-                  'Catat barang atau kekayaan keluarga yang ingin dipantau.',
-              iconColor: const Color(0xFF4F46E5),
-              iconBackgroundColor: const Color(0xFFEEF2FF),
-              badgeText: 'HARTA',
-              onTap: () => _open(context, const AssetListPage()),
-              visible: _matches(
-                'Aset keluarga',
-                'Catat barang atau kekayaan keluarga yang ingin dipantau.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.flag_rounded,
-              title: 'Target keuangan',
-              subtitle: 'Pantau uang yang ingin dikumpulkan sampai batas waktu tertentu.',
-              iconColor: const Color(0xFF0D9488),
-              iconBackgroundColor: const Color(0xFFCCFBF1),
-              badgeText: 'GOALS',
-              onTap: () => _open(context, const GoalListPage()),
-              visible: _matches(
-                'Target keuangan',
-                'Pantau uang yang ingin dikumpulkan sampai batas waktu tertentu.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.account_balance_rounded,
-              title: 'Hutang & piutang',
-              subtitle: 'Kelola kewajiban dan uang yang masih perlu diterima keluarga.',
-              iconColor: const Color(0xFFEA580C),
-              iconBackgroundColor: const Color(0xFFFFEDD5),
-              badgeText: 'KEWAJIBAN',
-              onTap: () => _open(context, const LiabilityReceivablePage()),
-              visible: _matches(
-                'Hutang & piutang',
-                'Kelola kewajiban dan uang yang masih perlu diterima keluarga.',
-              ),
-            ),
-            const SizedBox(height: 16),
-            const AppSectionHeader(title: 'Laporan dan cadangan'),
-            const SizedBox(height: 8),
-            _MenuCard(
-              icon: Icons.ios_share_rounded,
-              title: 'Ekspor & cadangan',
-              subtitle:
-                  'Buat JSON, CSV, HTML, PDF, atau pulihkan data dari berkas.',
-              iconColor: const Color(0xFF7C3AED),
-              iconBackgroundColor: const Color(0xFFF3E8FF),
-              badgeText: 'BACKUP',
-              onTap: () => _open(context, const BackupPage()),
-              visible: _matches(
-                'Ekspor & cadangan',
-                'Buat JSON, CSV, HTML, PDF, atau pulihkan data dari berkas.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.summarize_rounded,
-              title: 'Ringkasan bulanan',
-              subtitle: 'Bandingkan arus kas, kesehatan keuangan, dan laporan per bulan.',
-              iconColor: const Color(0xFF2563EB),
-              iconBackgroundColor: const Color(0xFFDBEAFE),
-              badgeText: 'LAPORAN',
-              onTap: () => _open(context, const MonthlyReportPage()),
-              visible: _matches(
-                'Ringkasan bulanan',
-                'Bandingkan arus kas, kesehatan keuangan, dan laporan per bulan.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.history_rounded,
-              title: 'Log aktivitas',
-              subtitle: 'Lihat jejak perubahan transaksi, transfer, impor, dan rekonsiliasi.',
-              iconColor: const Color(0xFF475569),
-              iconBackgroundColor: const Color(0xFFF1F5F9),
-              badgeText: 'AUDIT',
-              onTap: () => _open(context, const ActivityLogPage()),
-              visible: _matches(
-                'Log aktivitas',
-                'Lihat jejak perubahan transaksi, transfer, impor, dan rekonsiliasi.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.inventory_rounded,
-              title: 'Retensi & Arsip',
-              subtitle: 'Arsipkan atau hapus permanen data lama per tanggal dengan preview dan cadangan wajib.',
-              iconColor: const Color(0xFFB45309),
-              iconBackgroundColor: const Color(0xFFFEF3C7),
-              badgeText: 'ARSIP',
-              onTap: () => _open(context, const DataRetentionManagerPage()),
-              visible: _matches(
-                'Retensi Arsip hapus permanen riwayat batas tanggal backup',
-                'Arsipkan atau hapus permanen data lama per tanggal dengan preview dan cadangan wajib.',
-              ),
-            ),
-            const SizedBox(height: 16),
-            const AppSectionHeader(title: 'Pengingat dan alat'),
-            const SizedBox(height: 8),
-            _MenuCard(
-              icon: Icons.mark_email_unread_rounded,
-              title: 'Laporan & Kotak Masuk Asisten',
-              subtitle: 'Tinjau rekomendasi proaktif, deteksi runway, rebalance anggaran, dan anomali belanja.',
-              iconColor: const Color(0xFFD97706),
-              iconBackgroundColor: const Color(0xFFFEF3C7),
-              badgeText: 'PROAKTIF',
-              onTap: () => _open(context, const AgentInboxPage()),
-              visible: _matches(
-                'Laporan Kotak Masuk Asisten insight rekomendasi saran runway rebalance',
-                'Tinjau rekomendasi proaktif, deteksi runway, rebalance anggaran, dan anomali belanja.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.monitor_heart_rounded,
-              title: 'Monitoring Agent',
-              subtitle: 'Periksa riwayat run dan eksekusi tool Agent secara read-only.',
-              iconColor: const Color(0xFFE11D48),
-              iconBackgroundColor: const Color(0xFFFFE4E6),
-              badgeText: 'AUTONOMY',
-              onTap: () =>
-                  _open(context, const FfmAssistantAutonomyMonitorPage()),
-              visible: _matches(
-                'Monitoring Agent riwayat run tool eksekusi autonomy',
-                'Periksa riwayat run dan eksekusi tool Agent secara read-only.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.account_balance_wallet_outlined,
-              title: 'Delegasi Anggaran Asisten',
-              subtitle: 'Tinjau batas per pos, jeda atau cabut delegasi, serta batalkan eksekusi dengan aman.',
-              iconColor: const Color(0xFF0F766E),
-              iconBackgroundColor: const Color(0xFFCCFBF1),
-              badgeText: 'ANGGARAN',
-              onTap: () =>
-                  _open(context, const FfmAssistantBudgetDelegationsPage()),
-              visible: _matches(
-                'Delegasi Anggaran Asisten jeda cabut pembatalan riwayat eksekusi otonom',
-                'Tinjau batas per pos, jeda atau cabut delegasi, serta batalkan eksekusi dengan aman.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.send_rounded,
-              title: 'Telegram Bot Keluarga',
-              subtitle: 'Kirim laporan mingguan otomatis & alarm radar boncos ke chat/grup keluarga.',
-              iconColor: const Color(0xFF0284C7),
-              iconBackgroundColor: const Color(0xFFE0F2FE),
-              badgeText: 'BOT KELUARGA',
-              onTap: () => _open(context, const TelegramSetupPage()),
-              visible: _matches(
-                'Telegram Bot Keluarga notifikasi laporan alarm boncos grup suami istri',
-                'Kirim laporan mingguan otomatis & alarm radar boncos ke chat/grup keluarga.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.qr_code_scanner,
-              title: 'Pendeteksi Bayar Otomatis',
-              subtitle: 'Tangkap otomatis transaksi QRIS & bank dari notifikasi HP. 100% lokal, tanpa cloud.',
-              iconColor: const Color(0xFF7C3AED),
-              iconBackgroundColor: const Color(0xFFEDE9FE),
-              badgeText: 'QRIS & BANK',
-              onTap: () => _open(context, const PaymentDetectorSettingsPage()),
-              visible: _matches(
-                'Pendeteksi Bayar Otomatis QRIS bank notifikasi transaksi auto detect',
-                'Tangkap otomatis transaksi QRIS & bank dari notifikasi HP. 100% lokal, tanpa cloud.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.electric_bolt_rounded,
-              title: 'Token Listrik',
-              subtitle: 'Simpan nomor IDPEL/meteran PLN, salin nomor meter dan 20-digit token dengan 1-ketukan.',
-              iconColor: const Color(0xFFD97706),
-              iconBackgroundColor: const Color(0xFFFEF3C7),
-              badgeText: 'UTILITAS',
-              onTap: () => _open(context, const UtilityMeterPage()),
-              visible: _matches(
-                'Token Listrik meteran token listrik pln idpel pulsa rumah ladang sawah ruko',
-                'Simpan nomor IDPEL/meteran PLN, salin nomor meter dan 20-digit token dengan 1-ketukan.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.directions_car_rounded,
-              title: 'Kendaraan & Catatan BBM',
-              subtitle: 'Daftarkan motor/mobil/traktor, no polisi, kapasitas tangki, serta riwayat pengisian & analisa BBM.',
-              iconColor: const Color(0xFF0D9488),
-              iconBackgroundColor: const Color(0xFFCCFBF1),
-              badgeText: 'KENDARAAN',
-              onTap: () => _open(context, const VehiclePage()),
-              visible: _matches(
-                'Kendaraan Catatan BBM bensin motor mobil no pol plat pertalite solar spbu traktor',
-                'Daftarkan motor/mobil/traktor, no polisi, kapasitas tangki, serta riwayat pengisian & analisa BBM.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.auto_graph_rounded,
-              title: 'Analisa',
-              subtitle:
-                  'Baca pola keuangan dan saran dari data yang tersimpan.',
-              iconColor: const Color(0xFF059669),
-              iconBackgroundColor: const Color(0xFFD1FAE5),
-              badgeText: 'INSIGHT',
-              onTap: () => _open(context, const AnalysisPage()),
-              visible: _matches(
-                'Analisa',
-                'Baca pola keuangan dan saran dari data yang tersimpan.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.notifications_active_rounded,
-              title: 'Pengingat',
-              subtitle:
-                  'Buat pengingat lokal untuk hal yang tidak boleh kelupaan.',
-              iconColor: const Color(0xFFCA8A04),
-              iconBackgroundColor: const Color(0xFFFEF9C3),
-              badgeText: 'ALARM',
-              onTap: () => _open(context, const ReminderPage()),
-              visible: _matches(
-                'Pengingat',
-                'Buat pengingat lokal untuk hal yang tidak boleh kelupaan.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.nights_stay_rounded,
-              title: 'Kalender Hijriah & Hilal',
-              subtitle: 'Atur koreksi Hilal (-2/+2 hari) dan penetapan awal bulan Hijriah.',
-              iconColor: const Color(0xFF16A34A),
-              iconBackgroundColor: const Color(0xFFDCFCE7),
-              badgeText: 'HIJRIAH',
-              onTap: () => _open(context, const HijriSettingsPage()),
-              visible: _matches(
-                'Kalender Hijriah Hilal rukyat isbat puasa ramadan',
-                'Atur koreksi Hilal (-2/+2 hari) dan penetapan awal bulan Hijriah.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.event_repeat_rounded,
-              title: 'Pemasukan berkala',
-              subtitle: 'Atur bunga atau pemasukan rutin harian, mingguan, dan bulanan.',
-              iconColor: const Color(0xFF0891B2),
-              iconBackgroundColor: const Color(0xFFCFFAFE),
-              badgeText: 'RUTIN',
-              onTap: () => _open(context, const RecurringTransactionPage()),
-              visible: _matches(
-                'Pemasukan berkala',
-                'Atur bunga atau pemasukan rutin harian, mingguan, dan bulanan.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.calendar_month_rounded,
-              title: 'Kalender & Smartwatch',
-              subtitle: 'Sinkronisasi tagihan & jatuh tempo ke Google Calendar dan jam tangan pintar.',
-              iconColor: const Color(0xFF0284C7),
-              iconBackgroundColor: const Color(0xFFE0F2FE),
-              badgeText: 'SINKRON',
-              onTap: () => _open(context, const CalendarSettingsPage()),
-              visible: _matches(
-                'Kalender Smartwatch Google Calendar sinkronisasi jadwal tagihan jatuh tempo',
-                'Sinkronisasi tagihan & jatuh tempo ke Google Calendar dan jam tangan pintar.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.nfc_rounded,
-              title: 'Pemindai Kartu NFC e-Money',
-              subtitle: 'Pindai kartu tol/e-Money langsung untuk cek saldo dan hitung selisih mutasi otomatis.',
-              iconColor: const Color(0xFF059669),
-              iconBackgroundColor: const Color(0xFFD1FAE5),
-              badgeText: 'NFC',
-              onTap: () => NfcScanDialog.show(context),
-              visible: _matches(
-                'Pemindai Kartu NFC e-Money cek saldo kartu tol mutasi otomatis tap flazz brizzi',
-                'Pindai kartu tol/e-Money langsung untuk cek saldo dan hitung selisih mutasi otomatis.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.tag_rounded,
-              title: 'Program Tag Pintar NFC',
-              subtitle: 'Program stiker koin NFC untuk tombol instan bensin, dapur, atau asisten suara.',
-              iconColor: const Color(0xFF0284C7),
-              iconBackgroundColor: const Color(0xFFE0F2FE),
-              badgeText: 'SMART TAG',
-              onTap: () => NfcSmartTagWriterDialog.show(context),
-              visible: _matches(
-                'Program Tag Pintar NFC stiker koin tombol bensin mobil dapur shortcut ntag',
-                'Program stiker koin NFC untuk tombol instan bensin, dapur, atau asisten suara.',
-              ),
-            ),
+              if (_isSectionExpanded('security')) ...[
+                _MenuCard(
+                  icon: Icons.lock_rounded,
+                  title: 'Kunci aplikasi',
+                  subtitle:
+                      'Atur PIN untuk membantu menjaga akses ke data keluarga.',
+                  iconColor: const Color(0xFFDC2626),
+                  iconBackgroundColor: const Color(0xFFFEE2E2),
+                  badgeText: 'PIN',
+                  onTap: () => _open(context, const PinSecurityPage()),
+                  visible: _matches(
+                    'Kunci aplikasi',
+                    'Atur PIN untuk membantu menjaga akses ke data keluarga.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.bug_report_rounded,
+                  title: 'Bantuan perbaikan',
+                  subtitle:
+                      'Lihat error yang benar-benar tercatat dan salin laporan aman untuk perbaikan APK.',
+                  iconColor: const Color(0xFFC2410C),
+                  iconBackgroundColor: const Color(0xFFFFEDD5),
+                  badgeText: 'DIAGNOSTIK',
+                  onTap: () => _open(context, const AppDiagnosticsPage()),
+                  visible: _matches(
+                    'Bantuan perbaikan',
+                    'Lihat error yang benar-benar tercatat dan salin laporan aman untuk perbaikan APK.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.privacy_tip_rounded,
+                  title: 'Pusat privasi',
+                  subtitle:
+                      'Lihat lokasi data, enkripsi, izin perangkat, dan kendali ekspor.',
+                  iconColor: const Color(0xFF4338CA),
+                  iconBackgroundColor: const Color(0xFFE0E7FF),
+                  badgeText: 'PRIVASI',
+                  onTap: () => _open(context, const PrivacyCenterPage()),
+                  visible: _matches(
+                    'Pusat privasi',
+                    'Lihat lokasi data, enkripsi, izin perangkat, dan kendali ekspor.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.storage_rounded,
+                  title: 'Struktur database',
+                  subtitle: 'Lihat tabel dan gambaran isi database lokal FFM.',
+                  iconColor: const Color(0xFF334155),
+                  iconBackgroundColor: const Color(0xFFE2E8F0),
+                  badgeText: 'SQL LOKAL',
+                  onTap: () => _open(context, const DatabaseStructurePage()),
+                  visible: _matches(
+                    'Struktur database',
+                    'Lihat tabel dan gambaran isi database lokal FFM.',
+                  ),
+                ),
+                _MenuCard(
+                  icon: Icons.delete_sweep_rounded,
+                  title: 'Penyimpanan FFM',
+                  subtitle:
+                      'Kelola data lokal atau setel ulang FFM melalui Setelan Android.',
+                  iconColor: const Color(0xFF7C3AED),
+                  iconBackgroundColor: const Color(0xFFEDE9FE),
+                  badgeText: 'RESET DATA',
+                  onTap: () => _open(context, const FfmStoragePage()),
+                  visible: _matches(
+                    'Penyimpanan FFM',
+                    'Kelola data lokal atau setel ulang FFM melalui Setelan Android.',
+                  ),
+                ),
+              ],
+            ],
 
             if (_searchQuery.trim().isNotEmpty && !_hasMatchingMenu())
               const Padding(
                 padding: EdgeInsets.only(top: 24),
                 child: Center(child: Text('Menu tidak ditemukan.')),
               ),
-            const SizedBox(height: 16),
-            const AppSectionHeader(title: 'Keamanan dan informasi'),
-            const SizedBox(height: 8),
-            _MenuCard(
-              icon: Icons.lock_rounded,
-              title: 'Kunci aplikasi',
-              subtitle:
-                  'Atur PIN untuk membantu menjaga akses ke data keluarga.',
-              iconColor: const Color(0xFFDC2626),
-              iconBackgroundColor: const Color(0xFFFEE2E2),
-              badgeText: 'PIN',
-              onTap: () => _open(context, const PinSecurityPage()),
-              visible: _matches(
-                'Kunci aplikasi',
-                'Atur PIN untuk membantu menjaga akses ke data keluarga.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.bug_report_rounded,
-              title: 'Bantuan perbaikan',
-              subtitle: 'Lihat error yang benar-benar tercatat dan salin laporan aman untuk perbaikan APK.',
-              iconColor: const Color(0xFFC2410C),
-              iconBackgroundColor: const Color(0xFFFFEDD5),
-              badgeText: 'DIAGNOSTIK',
-              onTap: () => _open(context, const AppDiagnosticsPage()),
-              visible: _matches(
-                'Bantuan perbaikan',
-                'Lihat error yang benar-benar tercatat dan salin laporan aman untuk perbaikan APK.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.privacy_tip_rounded,
-              title: 'Pusat privasi',
-              subtitle: 'Lihat lokasi data, enkripsi, izin perangkat, dan kendali ekspor.',
-              iconColor: const Color(0xFF4338CA),
-              iconBackgroundColor: const Color(0xFFE0E7FF),
-              badgeText: 'PRIVASI',
-              onTap: () => _open(context, const PrivacyCenterPage()),
-              visible: _matches(
-                'Pusat privasi',
-                'Lihat lokasi data, enkripsi, izin perangkat, dan kendali ekspor.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.storage_rounded,
-              title: 'Struktur database',
-              subtitle: 'Lihat tabel dan gambaran isi database lokal FFM.',
-              iconColor: const Color(0xFF334155),
-              iconBackgroundColor: const Color(0xFFE2E8F0),
-              badgeText: 'SQL LOKAL',
-              onTap: () => _open(context, const DatabaseStructurePage()),
-              visible: _matches(
-                'Struktur database',
-                'Lihat tabel dan gambaran isi database lokal FFM.',
-              ),
-            ),
-            _MenuCard(
-              icon: Icons.delete_sweep_rounded,
-              title: 'Penyimpanan FFM',
-              subtitle: 'Kelola data lokal atau setel ulang FFM melalui Setelan Android.',
-              iconColor: const Color(0xFF7C3AED),
-              iconBackgroundColor: const Color(0xFFEDE9FE),
-              badgeText: 'RESET DATA',
-              onTap: () => _open(context, const FfmStoragePage()),
-              visible: _matches(
-                'Penyimpanan FFM',
-                'Kelola data lokal atau setel ulang FFM melalui Setelan Android.',
-              ),
-            ),
           ],
         ),
       ),

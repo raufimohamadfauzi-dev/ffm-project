@@ -116,6 +116,63 @@ class ReceiptScannerService {
     return value != null && value > 0 ? value : null;
   }
 
+  /// Membagi satu struk PLN multi-meter menjadi proposal utility per meter.
+  static List<Map<String, dynamic>> expandPlnUtilityProposals(
+    String text, {
+    Map<String, dynamic>? baseProposal,
+  }) {
+    final tokens = extractPlnTokens(text);
+    final meters = extractPlnMeters(text);
+    final normalizedBase = Map<String, dynamic>.from(baseProposal ?? const {});
+
+    final orderedTokens = tokens.isNotEmpty
+        ? tokens
+        : (normalizedBase['tokenCode']?.toString() == null
+              ? <String>[]
+              : [normalizedBase['tokenCode'].toString()]);
+    final orderedMeters = meters.isNotEmpty
+        ? meters
+        : (normalizedBase['meterNumber']?.toString() == null
+              ? <String>[]
+              : [normalizedBase['meterNumber'].toString()]);
+
+    if (orderedTokens.isEmpty && orderedMeters.isEmpty && normalizedBase.isEmpty) {
+      return const <Map<String, dynamic>>[];
+    }
+
+    final totalItems = math.max(orderedTokens.length, orderedMeters.length);
+    if (totalItems <= 1) {
+      final proposal = <String, dynamic>{...normalizedBase};
+      if (orderedTokens.isNotEmpty) {
+        proposal['tokenCode'] = orderedTokens.first;
+      }
+      if (orderedMeters.isNotEmpty) {
+        proposal['meterNumber'] = orderedMeters.first;
+      }
+      return [proposal];
+    }
+
+    final proposals = <Map<String, dynamic>>[];
+    for (var index = 0; index < totalItems; index++) {
+      final proposal = <String, dynamic>{...normalizedBase};
+      final token = orderedTokens.length > index
+          ? orderedTokens[index]
+          : (orderedTokens.isNotEmpty ? orderedTokens.first : null);
+      final meter = orderedMeters.length > index
+          ? orderedMeters[index]
+          : (orderedMeters.isNotEmpty ? orderedMeters.first : null);
+
+      if (token != null) proposal['tokenCode'] = token;
+      if (meter != null) proposal['meterNumber'] = meter;
+
+      if (proposal['tokenCode'] != null || proposal['meterNumber'] != null) {
+        proposals.add(proposal);
+      }
+    }
+
+    return proposals;
+  }
+
   /// Batas ukuran inline image yang dikirim tanpa diubah (10 MB).
   static const int _maxInlineBytes = 10 * 1024 * 1024;
 

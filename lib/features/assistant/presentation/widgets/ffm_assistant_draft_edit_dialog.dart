@@ -94,7 +94,14 @@ class _FfmAssistantDraftEditDialogState
       text: widget.draft.categoryName ?? '',
     );
     _goalController = TextEditingController(text: widget.draft.goalName ?? '');
-    _noteController = TextEditingController(text: widget.draft.note ?? '');
+    _noteController = TextEditingController(
+      text:
+          widget.draft.note ??
+          widget.draft.formValues['body'] ??
+          widget.draft.formValues['note'] ??
+          widget.draft.formValues['text'] ??
+          '',
+    );
     _merchantController = TextEditingController(
       text:
           widget.draft.merchantName ??
@@ -176,7 +183,10 @@ class _FfmAssistantDraftEditDialogState
 
     _fromAccount = widget.draft.fromAccountName?.trim();
     _toAccount = widget.draft.toAccountName?.trim();
-    _date = widget.draft.date;
+    _date = widget.draft.date ??
+        (_selectedKind == FfmAssistantDraftKind.dailyNote
+            ? widget.draft.createdAt
+            : null);
     // For reminder drafts, preserve the time-of-day separately so changing
     // date doesn't reset the time and vice-versa.
     _time =
@@ -284,16 +294,28 @@ class _FfmAssistantDraftEditDialogState
           widget.draft.formValues['diskon'] ??
           '',
     );
+    final utilityMetadata = widget.draft.metadata?['utilityProposal'];
+    final utilityMap = utilityMetadata is Map<String, dynamic>
+        ? utilityMetadata
+        : (utilityMetadata is Map ? Map<String, dynamic>.from(utilityMetadata) : null);
     _meterNameController = TextEditingController(
       text:
           widget.draft.formValues['proposedMeterName']?.toString() ??
           widget.draft.formValues['meterName']?.toString() ??
+          utilityMap?['proposedMeterName']?.toString() ??
+          utilityMap?['meterName']?.toString() ??
+          widget.draft.metadata?['meterName']?.toString() ??
+          widget.draft.metadata?['proposedMeterName']?.toString() ??
           '',
     );
     _meterNumberController = TextEditingController(
       text:
           widget.draft.formValues['meterNumber']?.toString() ??
           widget.draft.formValues['idpel']?.toString() ??
+          utilityMap?['meterNumber']?.toString() ??
+          utilityMap?['idpel']?.toString() ??
+          widget.draft.metadata?['meterNumber']?.toString() ??
+          widget.draft.metadata?['idpel']?.toString() ??
           '',
     );
   }
@@ -326,6 +348,13 @@ class _FfmAssistantDraftEditDialogState
     final subtotal = _items.fold<int>(0, (sum, i) => sum + i.calculatedTotal);
     final taxText = _taxController.text.replaceAll(RegExp(r'[^0-9]'), '');
     final tax = taxText.isEmpty ? 0 : (int.tryParse(taxText) ?? 0);
+    final adminFeeText = _adminFeeController.text.replaceAll(
+      RegExp(r'[^0-9]'),
+      '',
+    );
+    final adminFee = adminFeeText.isEmpty
+        ? 0
+        : (int.tryParse(adminFeeText) ?? 0);
     final discountText = _discountController.text.replaceAll(
       RegExp(r'[^0-9]'),
       '',
@@ -333,7 +362,7 @@ class _FfmAssistantDraftEditDialogState
     final discount = discountText.isEmpty
         ? 0
         : (int.tryParse(discountText) ?? 0);
-    final total = subtotal + tax - discount;
+    final total = subtotal + tax + adminFee - discount;
     if (total > 0) {
       _amountController.text = total.toString();
     }
@@ -538,7 +567,7 @@ class _FfmAssistantDraftEditDialogState
         ? widget.draft.adminFee
         : int.tryParse(adminFeeText);
     final goalName = _textOrNull(_goalController);
-    final title = _isGoalContribution
+    var title = _isGoalContribution
         ? (widget.draft.kind == FfmAssistantDraftKind.goalDeposit
               ? 'Setor Target ${goalName ?? ''}'.trim()
               : 'Pakai Target ${goalName ?? ''}'.trim())
@@ -628,6 +657,25 @@ class _FfmAssistantDraftEditDialogState
       newFormValues['kind'] = _activityMode.activityKind.value;
       newFormValues['modeNeedsConfirmation'] = 'false';
     }
+    if (_selectedKind == FfmAssistantDraftKind.dailyNote) {
+      final noteText = _textOrNull(_noteController);
+      var effectiveTitle = title;
+      var effectiveNote = noteText;
+      if ((effectiveTitle == null || effectiveTitle.isEmpty) &&
+          effectiveNote != null) {
+        effectiveTitle = effectiveNote.length > 50
+            ? effectiveNote.substring(0, 50)
+            : effectiveNote;
+      } else if ((effectiveNote == null || effectiveNote.isEmpty) &&
+          effectiveTitle != null) {
+        effectiveNote = effectiveTitle;
+      }
+      title = effectiveTitle;
+      if (effectiveNote != null) {
+        newFormValues['body'] = effectiveNote;
+        newFormValues['note'] = effectiveNote;
+      }
+    }
     if (_selectedKind == FfmAssistantDraftKind.income) {
       if (partyName != null) {
         newFormValues['incomeSource'] = partyName;
@@ -636,7 +684,8 @@ class _FfmAssistantDraftEditDialogState
       }
     }
     if (_selectedKind == FfmAssistantDraftKind.income ||
-        _selectedKind == FfmAssistantDraftKind.expense) {
+        _selectedKind == FfmAssistantDraftKind.expense ||
+        _selectedKind == FfmAssistantDraftKind.dailyNote) {
       if (_tags.isNotEmpty) {
         newFormValues['tags'] = _tags.join(', ');
       } else {
@@ -731,12 +780,16 @@ class _FfmAssistantDraftEditDialogState
         return;
       }
       if (effectiveDate != null && effectiveDate.isBefore(DateTime.now())) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pilih waktu pengingat yang masih akan datang.'),
-          ),
-        );
-        return;
+        if (_recurrence == ReminderRecurrenceType.daily || _recurrence == ReminderRecurrenceType.once) {
+          effectiveDate = effectiveDate.add(const Duration(days: 1));
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pilih waktu pengingat yang masih akan datang.'),
+            ),
+          );
+          return;
+        }
       }
       newFormValues['reminderMode'] = _mode.storageValue;
       newFormValues['mode'] = _mode.storageValue;
@@ -811,11 +864,15 @@ class _FfmAssistantDraftEditDialogState
           ? adminFee
           : widget.draft.adminFee,
       goalName: goalName,
-      note: _textOrNull(_noteController),
+      note: _selectedKind == FfmAssistantDraftKind.dailyNote
+          ? (_textOrNull(_noteController) ?? title)
+          : _textOrNull(_noteController),
       date: effectiveDate,
       linkedActivityId: widget.draft.linkedActivityId,
       parentSessionId: widget.draft.parentSessionId,
-      activityMode: widget.draft.activityMode,
+      activityMode: _selectedKind == FfmAssistantDraftKind.activity
+          ? _activityMode
+          : widget.draft.activityMode,
       scheduledAt: widget.draft.scheduledAt,
       sourceId: widget.draft.sourceId,
       source: widget.draft.source,
@@ -945,6 +1002,7 @@ class _FfmAssistantDraftEditDialogState
       _isTransaction ||
       _isDebtOrReceivable ||
       _selectedKind == FfmAssistantDraftKind.goal ||
+      _selectedKind == FfmAssistantDraftKind.dailyNote ||
       _isActivityDraft;
 
   bool get _isGoalContribution =>
@@ -978,24 +1036,40 @@ class _FfmAssistantDraftEditDialogState
     String? helperText,
   }) {
     final options = _accountOptions(initial, widget.accounts);
-    return DropdownButtonFormField<String?>(
-      initialValue: initial?.trim().isNotEmpty == true ? initial!.trim() : null,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        helperText: helperText,
-      ),
-      items: [
-        const DropdownMenuItem<String?>(
-          value: null,
-          child: Text('Belum terlacak'),
-        ),
-        ...options.map(
-          (name) => DropdownMenuItem<String?>(value: name, child: Text(name)),
-        ),
-      ],
-      onChanged: (value) => onChanged(value),
+    return Autocomplete<String>(
+      initialValue: TextEditingValue(text: initial?.trim() ?? ''),
+      optionsBuilder: (value) {
+        final query = value.text.trim().toLowerCase();
+        if (query.isEmpty) return options;
+        return options.where((name) => name.toLowerCase().contains(query));
+      },
+      onSelected: onChanged,
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        return TextField(
+          controller: controller,
+          focusNode: focusNode,
+          onChanged: onChanged,
+          onSubmitted: (value) {
+            onChanged(value.trim().isEmpty ? null : value.trim());
+            onFieldSubmitted();
+          },
+          decoration: InputDecoration(
+            labelText: label,
+            hintText: hint,
+            helperText: helperText,
+            suffixIcon: controller.text.trim().isEmpty
+                ? const Icon(Icons.arrow_drop_down)
+                : IconButton(
+                    tooltip: 'Kosongkan rekening',
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      controller.clear();
+                      onChanged(null);
+                    },
+                  ),
+          ),
+        );
+      },
     );
   }
 
@@ -1322,6 +1396,8 @@ class _FfmAssistantDraftEditDialogState
                     ? 'Nama ${widget.draft.categoryName ?? 'data'}'
                     : _selectedKind == FfmAssistantDraftKind.goal
                     ? 'Nama target'
+                    : _selectedKind == FfmAssistantDraftKind.dailyNote
+                    ? 'Judul Catatan / Kejadian'
                     : 'Nama/Judul',
                 hintText: _selectedKind == FfmAssistantDraftKind.goal
                     ? 'Contoh: Dana Darurat, Liburan'
@@ -1423,12 +1499,41 @@ class _FfmAssistantDraftEditDialogState
               _selectedKind == FfmAssistantDraftKind.expense ||
               _selectedKind == FfmAssistantDraftKind.budget ||
               _isActivityDraft) ...[
-            TextField(
-              controller: _categoryController,
-              decoration: const InputDecoration(
-                labelText: 'Kategori',
-                hintText: 'Contoh: Makanan, Transportasi',
+            Autocomplete<String>(
+              initialValue: TextEditingValue(
+                text: _categoryController.text,
               ),
+              optionsBuilder: (value) {
+                final options = _categoriesForCurrentKind();
+                final query = value.text.trim().toLowerCase();
+                if (query.isEmpty) return options;
+                return options.where(
+                  (name) => name.toLowerCase().contains(query),
+                );
+              },
+              onSelected: (value) {
+                _categoryController.text = value;
+                setState(() {});
+              },
+              fieldViewBuilder:
+                  (context, controller, focusNode, onFieldSubmitted) {
+                    return TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      onChanged: (value) {
+                        _categoryController.text = value;
+                        setState(() {});
+                      },
+                      onSubmitted: (value) {
+                        _categoryController.text = value.trim();
+                        onFieldSubmitted();
+                      },
+                      decoration: const InputDecoration(
+                        labelText: 'Kategori',
+                        hintText: 'Ketik atau pilih kategori Data Utama',
+                      ),
+                    );
+                  },
             ),
             if (_categoriesForCurrentKind().isNotEmpty)
               Padding(
@@ -1678,7 +1783,8 @@ class _FfmAssistantDraftEditDialogState
               ),
             ),
           if (_selectedKind == FfmAssistantDraftKind.income ||
-              _selectedKind == FfmAssistantDraftKind.expense) ...[
+              _selectedKind == FfmAssistantDraftKind.expense ||
+              _selectedKind == FfmAssistantDraftKind.dailyNote) ...[
             const SizedBox(height: 8),
             Row(
               children: [
@@ -1705,8 +1811,48 @@ class _FfmAssistantDraftEditDialogState
             Text(
               _selectedKind == FfmAssistantDraftKind.expense
                   ? 'Wajib: Pilih minimal satu penanda dari Data Utama atau tambahkan tag baru.'
+                  : _selectedKind == FfmAssistantDraftKind.dailyNote
+                  ? 'Opsional. Tag atau penanda lahan/kategori untuk catatan kejadian.'
                   : 'Opsional. Tag untuk penanda pengelompokan transaksi.',
               style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Autocomplete<String>(
+              optionsBuilder: (value) {
+                final query = value.text.trim().toLowerCase();
+                final options = _masterTags
+                    .where((tag) => !_tags.any(
+                          (selected) =>
+                              selected.toLowerCase() == tag.toLowerCase(),
+                        ))
+                    .toList();
+                if (query.isEmpty) return options;
+                return options.where(
+                  (tag) => tag.toLowerCase().contains(query),
+                );
+              },
+              onSelected: (value) {
+                _addTag(value);
+                _tagsController.clear();
+              },
+              fieldViewBuilder:
+                  (context, controller, focusNode, onFieldSubmitted) {
+                    return TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (value) {
+                        _addTag(value);
+                        controller.clear();
+                        onFieldSubmitted();
+                      },
+                      decoration: const InputDecoration(
+                        labelText: 'Tag',
+                        hintText: 'Ketik tag atau pilih dari Data Utama',
+                        prefixIcon: Icon(Icons.local_offer_outlined),
+                      ),
+                    );
+                  },
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -1888,10 +2034,15 @@ class _FfmAssistantDraftEditDialogState
           if (_selectedKind != FfmAssistantDraftKind.reminder)
             TextField(
               controller: _noteController,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'Catatan',
-                hintText: 'Tambahan keterangan ringkas',
+              maxLines:
+                  _selectedKind == FfmAssistantDraftKind.dailyNote ? 4 : 2,
+              decoration: InputDecoration(
+                labelText: _selectedKind == FfmAssistantDraftKind.dailyNote
+                    ? 'Isi Catatan / Kejadian (wajib)'
+                    : 'Catatan',
+                hintText: _selectedKind == FfmAssistantDraftKind.dailyNote
+                    ? 'Rincian kejadian atau catatan harian...'
+                    : 'Tambahan keterangan ringkas',
               ),
             ),
         ],

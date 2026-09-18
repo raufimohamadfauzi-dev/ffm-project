@@ -198,8 +198,8 @@ class FfmAssistantActionPlanController {
     final plan = _plans[id];
     if (plan == null ||
         plan.isTerminal ||
-        !plan.requiresConfirmation ||
         (plan.status != FfmAssistantActionPlanStatus.planned &&
+            plan.status != FfmAssistantActionPlanStatus.ready &&
             plan.status != FfmAssistantActionPlanStatus.awaitingConfirmation)) {
       return null;
     }

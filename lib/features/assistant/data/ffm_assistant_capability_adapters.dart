@@ -6060,12 +6060,25 @@ class FfmAssistantCapabilityAdapterRegistry {
     final id = _stableId(idempotencyKey);
     final categoryName =
         step.parameters['category']?.toString().trim() ?? 'Lainnya';
-    final category = await _findCategory(categoryName, 'activity');
+    final directCategory = await _findCategory(categoryName, 'activity');
+    var category = directCategory;
     if (category == null) {
-      return FfmAssistantCapabilityExecutionResult.failure(
-        'Kategori aktivitas "$categoryName" tidak ditemukan atau tidak aktif di Data Utama.',
-      );
+      category = await _findCategory('Lainnya', 'activity');
+      if (category == null) {
+        final allActivityCategories = await (_database.select(_database.categories)
+              ..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.type.equals('activity') &
+                    row.isActive.equals(true),
+              ))
+            .get();
+        category = allActivityCategories.firstOrNull;
+      }
     }
+    final categoryId = category?.id as String?;
+    final resolvedCategoryName =
+        directCategory != null ? (directCategory.name as String) : categoryName;
     final parentId = step.parameters['parentSessionId']?.toString();
     if (parentId != null && parentId.trim().isNotEmpty) {
       final parentResolution = await _references.activity(parentId);
@@ -6109,7 +6122,7 @@ class FfmAssistantCapabilityAdapterRegistry {
       }
       final same =
           previous.title == title.trim() &&
-          previous.categoryId == category.id &&
+          previous.categoryId == categoryId &&
           previous.kind == activityKind.value &&
           previous.mode == effectiveMode.value &&
           previous.parentSessionId == parentId &&
@@ -6133,8 +6146,8 @@ class FfmAssistantCapabilityAdapterRegistry {
             householdId: _householdId,
             title: title.trim(),
             parentSessionId: Value(parentId),
-            categoryId: Value(category.id),
-            category: Value(category.name),
+            categoryId: Value(categoryId),
+            category: Value(resolvedCategoryName),
             kind: Value(activityKind.value),
             mode: Value(effectiveMode.value),
             activityGroupId: Value(activityGroupId),

@@ -192,10 +192,11 @@ class FfmAssistantProposalJsonService {
           return _parseNavigation({'navigation': topLevelNavigation});
         }
         final clarification = decoded['clarification']?.toString().trim() ?? '';
-        return FfmAssistantProposalParseResult.invalid(
-          clarification.isEmpty
-              ? 'Proposal belum bisa dibuat karena masih ada informasi yang kurang.'
-              : clarification,
+        if (clarification.isNotEmpty) {
+          return FfmAssistantProposalParseResult.clarification(clarification);
+        }
+        return const FfmAssistantProposalParseResult.invalid(
+          'Proposal belum bisa dibuat karena masih ada informasi yang kurang.',
         );
       }
       if (rawProposal is! Map) {
@@ -335,6 +336,11 @@ class FfmAssistantProposalJsonService {
         return FfmAssistantMultiProposalParseResult.multi(
           drafts: const [],
           teachingProposals: [single.teachingProposal!],
+        );
+      }
+      if (single.clarification != null) {
+        return FfmAssistantMultiProposalParseResult.clarification(
+          single.clarification!,
         );
       }
       if (single.error != null) {
@@ -689,12 +695,7 @@ class FfmAssistantProposalJsonService {
     }
     final dateValue =
         proposal['noteDate'] ?? proposal['targetDate'] ?? proposal['date'];
-    final noteDate = DateTime.tryParse(dateValue?.toString() ?? '');
-    if (noteDate == null) {
-      return const FfmAssistantProposalParseResult.invalid(
-        'Tanggal Catatan Harian wajib diisi dan valid.',
-      );
-    }
+    final noteDate = _dateOr(dateValue, createdAt);
 
     // Tag membantu pengelompokan daily_note, tetapi catatan tetap valid tanpa tag.
     final tagsValue = proposal['tags'] ?? proposal['tag'];
@@ -1728,12 +1729,15 @@ class FfmAssistantProposalParseResult {
   const FfmAssistantProposalParseResult._({
     this.draft,
     this.teachingProposal,
+    this.clarification,
     this.error,
   });
 
   const FfmAssistantProposalParseResult.notProposal() : this._();
   const FfmAssistantProposalParseResult.invalid(String error)
     : this._(error: error);
+  const FfmAssistantProposalParseResult.clarification(String clarification)
+    : this._(clarification: clarification, error: clarification);
   const FfmAssistantProposalParseResult.draft(FfmAssistantDraft draft)
     : this._(draft: draft);
   const FfmAssistantProposalParseResult.teaching(
@@ -1742,24 +1746,31 @@ class FfmAssistantProposalParseResult {
 
   final FfmAssistantDraft? draft;
   final FfmAssistantTeachingProposal? teachingProposal;
+  final String? clarification;
   final String? error;
 
   bool get isProposal =>
-      draft != null || teachingProposal != null || error != null;
+      draft != null ||
+      teachingProposal != null ||
+      clarification != null ||
+      error != null;
 
-  bool get isValid => isProposal && error == null;
+  bool get isValid => isProposal && draft != null;
 }
 
 class FfmAssistantMultiProposalParseResult {
   const FfmAssistantMultiProposalParseResult._({
     this.drafts = const [],
     this.teachingProposals = const [],
+    this.clarification,
     this.error,
   });
 
   const FfmAssistantMultiProposalParseResult.notProposal() : this._();
   const FfmAssistantMultiProposalParseResult.error(String error)
     : this._(error: error);
+  const FfmAssistantMultiProposalParseResult.clarification(String clarification)
+    : this._(clarification: clarification, error: clarification);
   const FfmAssistantMultiProposalParseResult.multi({
     required List<FfmAssistantDraft> drafts,
     required List<FfmAssistantTeachingProposal> teachingProposals,
@@ -1767,10 +1778,14 @@ class FfmAssistantMultiProposalParseResult {
 
   final List<FfmAssistantDraft> drafts;
   final List<FfmAssistantTeachingProposal> teachingProposals;
+  final String? clarification;
   final String? error;
 
   bool get isProposal =>
-      drafts.isNotEmpty || teachingProposals.isNotEmpty || error != null;
+      drafts.isNotEmpty ||
+      teachingProposals.isNotEmpty ||
+      clarification != null ||
+      error != null;
   bool get hasMultipleDrafts => drafts.length > 1;
 }
 

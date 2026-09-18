@@ -46,13 +46,13 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verifikasi ada 7 tab
-      expect(find.textContaining('Semua'), findsOneWidget);
-      expect(find.textContaining('Aktif'), findsOneWidget);
-      expect(find.textContaining('Terlambat'), findsOneWidget);
-      expect(find.textContaining('0-7 hari'), findsOneWidget);
-      expect(find.textContaining('8-30 hari'), findsOneWidget);
-      expect(find.textContaining('> 30 hari'), findsOneWidget);
-      expect(find.textContaining('Lunas'), findsOneWidget);
+      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Semua')), findsOneWidget);
+      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Aktif')), findsOneWidget);
+      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Terlambat')), findsOneWidget);
+      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('0-7 hari')), findsOneWidget);
+      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('8-30 hari')), findsOneWidget);
+      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('> 30 hari')), findsOneWidget);
+      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Lunas')), findsOneWidget);
 
       // Verifikasi ada kotak pencarian
       expect(find.byType(TextField), findsOneWidget);
