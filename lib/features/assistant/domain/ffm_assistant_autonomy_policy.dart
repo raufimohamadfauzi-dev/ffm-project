@@ -144,7 +144,7 @@ class FfmAssistantAutonomyPolicy {
     }
     if (capability.risk == FfmAssistantCapabilityRisk.mutation) {
       return approved &&
-          level.index >= FfmAssistantAutonomyLevel.executeLowRisk.index;
+          level.index >= FfmAssistantAutonomyLevel.createDraft.index;
     }
     if (capability.risk == FfmAssistantCapabilityRisk.prepare) {
       return level.index >= FfmAssistantAutonomyLevel.createDraft.index;

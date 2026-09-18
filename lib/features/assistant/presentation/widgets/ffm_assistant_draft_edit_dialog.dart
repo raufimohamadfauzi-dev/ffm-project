@@ -81,6 +81,12 @@ class _FfmAssistantDraftEditDialogState
   late List<int> _weekday;
   late ActivityMode _activityMode;
   late FfmAssistantDraftKind _selectedKind;
+  String? _saveError;
+
+  void _showSaveError(String message) {
+    if (!mounted) return;
+    setState(() => _saveError = message);
+  }
 
   @override
   void initState() {
@@ -220,6 +226,12 @@ class _FfmAssistantDraftEditDialogState
     _weekday = initialWeekdaysRaw is List
         ? initialWeekdaysRaw
               .map((e) => int.tryParse(e.toString()))
+              .whereType<int>()
+              .toList()
+        : initialWeekdaysRaw is String
+        ? initialWeekdaysRaw
+              .split(',')
+              .map((e) => int.tryParse(e.trim()))
               .whereType<int>()
               .toList()
         : <int>[];
@@ -550,11 +562,10 @@ class _FfmAssistantDraftEditDialogState
   }
 
   void _save() {
+    setState(() => _saveError = null);
     final rawAmountText = _amountController.text.trim();
     if (rawAmountText.contains('-')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nominal tidak boleh negatif.')),
-      );
+      _showSaveError('Nominal tidak boleh negatif.');
       return;
     }
     final amountText = rawAmountText.replaceAll(RegExp(r'[^0-9]'), '');
@@ -591,12 +602,8 @@ class _FfmAssistantDraftEditDialogState
     final isIncome = _selectedKind == FfmAssistantDraftKind.income;
     final isExpense = _selectedKind == FfmAssistantDraftKind.expense;
     if (isExpense && _tags.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Pilih atau tambahkan minimal 1 tag untuk transaksi pengeluaran.',
-          ),
-        ),
+      _showSaveError(
+        'Pilih atau tambahkan minimal 1 tag untuk transaksi pengeluaran.',
       );
       return;
     }
@@ -632,7 +639,7 @@ class _FfmAssistantDraftEditDialogState
     );
     final discount = discountText.isEmpty ? null : int.tryParse(discountText);
 
-    final newFormValues = Map<String, String>.from(widget.draft.formValues);
+    final newFormValues = Map<String, dynamic>.from(widget.draft.formValues);
     if (_selectedKind == FfmAssistantDraftKind.budget) {
       newFormValues['periodType'] = _budgetPeriod;
     }
@@ -764,30 +771,18 @@ class _FfmAssistantDraftEditDialogState
     }
     if (_selectedKind == FfmAssistantDraftKind.reminder) {
       if (title == null || title.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Judul pengingat wajib diisi.')),
-        );
+        _showSaveError('Judul pengingat wajib diisi.');
         return;
       }
       if (_recurrence == ReminderRecurrenceType.weekly && _weekday.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Pilih minimal satu hari untuk pengulangan mingguan.',
-            ),
-          ),
-        );
+        _showSaveError('Pilih minimal satu hari untuk pengulangan mingguan.');
         return;
       }
       if (effectiveDate != null && effectiveDate.isBefore(DateTime.now())) {
         if (_recurrence == ReminderRecurrenceType.daily || _recurrence == ReminderRecurrenceType.once) {
           effectiveDate = effectiveDate.add(const Duration(days: 1));
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Pilih waktu pengingat yang masih akan datang.'),
-            ),
-          );
+          _showSaveError('Pilih waktu pengingat yang masih akan datang.');
           return;
         }
       }
@@ -795,7 +790,7 @@ class _FfmAssistantDraftEditDialogState
       newFormValues['mode'] = _mode.storageValue;
       newFormValues['recurrence'] = _recurrence.storageValue;
       newFormValues['recurrenceType'] = _recurrence.storageValue;
-      newFormValues['weekdays'] = _weekday.join(',');
+      newFormValues['weekdays'] = _weekday;
       if (_time != null) {
         newFormValues['time'] =
             '${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')}';
@@ -929,8 +924,7 @@ class _FfmAssistantDraftEditDialogState
           .where((issue) => blockingCodes.contains(issue.code))
           .firstOrNull;
       if (blockingIssue != null) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(blockingIssue.message)));
+        _showSaveError(blockingIssue.message);
         return;
       }
     }
@@ -2045,6 +2039,36 @@ class _FfmAssistantDraftEditDialogState
                     : 'Tambahan keterangan ringkas',
               ),
             ),
+          if (_saveError != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _saveError!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     ),

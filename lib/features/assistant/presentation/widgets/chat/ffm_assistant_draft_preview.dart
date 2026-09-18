@@ -277,7 +277,13 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
                           .map((e) => int.tryParse(e.toString()))
                           .whereType<int>()
                           .toList()
-                      : <int>[]);
+                      : draft.formValues['weekdays'] is String
+                          ? (draft.formValues['weekdays'] as String)
+                              .split(',')
+                              .map((e) => int.tryParse(e.trim()))
+                              .whereType<int>()
+                              .toList()
+                          : <int>[]);
               if (days.isEmpty) return 'Hari tertentu';
               const dayNames = {
                 1: 'Senin',

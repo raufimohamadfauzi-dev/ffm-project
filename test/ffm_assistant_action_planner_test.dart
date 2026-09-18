@@ -54,6 +54,35 @@ void main() {
     expect(const FfmAssistantActionPlanner().planFor(intent)!.id, plan.id);
   });
 
+  test('planner mengarahkan reminder bertarget ke jalur update', () {
+    final intent = FfmAssistantIntent(
+      rawText: 'ubah alarm pagi',
+      normalizedText: 'ubah alarm pagi',
+      type: FfmAssistantIntentType.createReminder,
+      draft: FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.reminder,
+        title: 'Alarm Pagi',
+        date: DateTime(2026, 9, 19, 6),
+        soundUri: 'content://ringtone/new',
+        soundName: 'Nada Baru',
+        createdAt: DateTime(2026, 9, 18),
+        formValues: const {'targetId': 'reminder-1'},
+      ),
+    );
+
+    final plan = const FfmAssistantActionPlanner().planFor(intent)!;
+    expect(plan.steps.map((step) => step.capabilityId), [
+      'read.reminders',
+      'draft.reminder_update',
+      'mutate.update',
+      'verify.reminder_mutation',
+    ]);
+    final save = plan.steps.firstWhere((step) => step.id == 'save');
+    expect(save.parameters['targetId'], 'reminder-1');
+    expect(save.parameters['soundName'], 'Nada Baru');
+    expect(save.parameters['operation'], 'update');
+  });
+
   test('canonical draft fields tidak dapat ditimpa formValues', () {
     final intent = FfmAssistantIntent(
       rawText: 'transfer 100000',

@@ -77,6 +77,7 @@ import '../../../../core/network/supabase_config.dart';
 import '../../../../core/network/supabase_service.dart';
 import 'chat/ffm_assistant_draft_preview.dart';
 import '../../../reminder/domain/entities/reminder_entity.dart';
+import '../../../reminder/data/repositories/reminder_repository.dart';
 
 import 'chat/ffm_assistant_message_card.dart';
 import 'chat/ffm_streaming_text_controller.dart';
@@ -1591,11 +1592,21 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final verify = plan.steps.where(
       (step) => step.status == FfmAssistantActionStepStatus.completed,
     );
-    final message = verify.isEmpty
-        ? 'Perubahan ${subject.toLowerCase()} berhasil disimpan.'
-        : (verify.last.result ??
-              verify.first.result ??
-              'Perubahan ${subject.toLowerCase()} selesai dan telah diverifikasi.');
+    final String message;
+    if (isReminder) {
+      message =
+          'Pengingat “${intent.draft?.title ?? 'Alarm'}” berhasil disimpan dan sudah aktif.';
+    } else if (verify.isEmpty) {
+      message = 'Perubahan ${subject.toLowerCase()} berhasil disimpan.';
+    } else {
+      final raw = verify.last.result ?? verify.first.result;
+      if (raw != null && raw.startsWith('verified: ')) {
+        message = 'Perubahan ${subject.toLowerCase()} berhasil disimpan.';
+      } else {
+        message = raw ??
+            'Perubahan ${subject.toLowerCase()} selesai dan telah diverifikasi.';
+      }
+    }
 
     // Sinkronisasi otomatis ke UtilityMeterRepository jika transaksi adalah pembelian token listrik
     final utilityProposal = intent.draft?.metadata?['utilityProposal'];
@@ -4388,13 +4399,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         intent.draft == null;
 
     if (plan != null) {
-      // Pastikan plan sudah terdaftar sebelum transisi status.
-      // register() bersifat idempoten — jika sudah ada, mengembalikan plan
-      // yang existing tanpa mengubah statusnya. Ini diperlukan karena
-      // _handleIntent() dipanggil saat tombol Konfirmasi ditekan, sedangkan
-      // register() biasanya hanya dipanggil di applyTurnChanges() saat
-      // Gemini pertama kali memproduksi respons.
-      _actionPlanController.register(plan);
+      // Pastikan plan sudah terdaftar/terupdate sebelum transisi status.
+      // update() memastikan plan baru atau yang sudah diedit menggantikan
+      // plan lama/terminal sehingga transisi awaitingConfirmation -> executing
+      // dapat berjalan sukses.
+      _actionPlanController.update(plan);
       if (intent.draft != null) {
         _actionPlanController.markAwaitingConfirmation(plan.id);
         unawaited(
@@ -5256,6 +5265,19 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (before.formValues['periodType'] != after.formValues['periodType']) {
       return 'periode anggaran diubah menjadi ${after.formValues['periodType']}.';
     }
+    if (before.title != after.title && after.kind == FfmAssistantDraftKind.reminder) {
+      return 'judul pengingat diubah menjadi ${after.title}.';
+    }
+    if (before.date != after.date && after.kind == FfmAssistantDraftKind.reminder) {
+      return 'waktu pengingat diubah.';
+    }
+    if (before.reminderMode != after.reminderMode && after.kind == FfmAssistantDraftKind.reminder) {
+      return 'tipe alarm/pengingat diubah.';
+    }
+    if (before.soundName != after.soundName &&
+        after.kind == FfmAssistantDraftKind.reminder) {
+      return 'nada notifikasi diubah dari ${before.soundName ?? 'Bawaan FFM'} menjadi ${after.soundName ?? 'Bawaan FFM'}.';
+    }
     return 'draft diperbarui.';
   }
 
@@ -5298,16 +5320,27 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       ),
     );
     if (nextDraft == null || !mounted) return;
+    final targetId = await _resolveExistingReminderId(review.draft, nextDraft);
+    final draftForReview = targetId == null
+        ? nextDraft
+        : nextDraft.copyWith(
+            formValues: {...nextDraft.formValues, 'targetId': targetId},
+          );
     final nextReview = review.revise(
-      nextDraft: nextDraft,
-      nextIssues: FfmAssistantDraftValidator.validate(nextDraft),
+      nextDraft: draftForReview,
+      nextIssues: FfmAssistantDraftValidator.validate(draftForReview),
       changeSummary: _revisionSummary(review.draft, nextDraft),
     );
     final revisedIntent = intent.copyWith(
-      draft: nextDraft,
+      draft: draftForReview,
       response:
           'Sip, ${nextReview.changeSummary} Cek versi ${nextReview.version} ini dulu, ya.',
     );
+    final revisedPlan = _actionPlanner.planFor(revisedIntent);
+    if (revisedPlan != null) {
+      _actionPlanController.update(revisedPlan);
+      _actionPlanController.markAwaitingConfirmation(revisedPlan.id);
+    }
     setState(() {
       widget.session
         ..activeDraftReview = nextReview
@@ -5334,6 +5367,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       }
     });
     await _saveCurrentConversation();
+    _scrollToEnd();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -5343,7 +5377,37 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         behavior: SnackBarBehavior.floating,
       ),
     );
-    _scrollToEnd();
+  }
+
+  Future<String?> _resolveExistingReminderId(
+    FfmAssistantDraft original,
+    FfmAssistantDraft edited,
+  ) async {
+    final existingTargetId = original.formValues['targetId']?.toString().trim();
+    if (edited.kind != FfmAssistantDraftKind.reminder) return null;
+    if (existingTargetId != null && existingTargetId.isNotEmpty) {
+      return existingTargetId;
+    }
+    try {
+      final reminders = await ReminderRepository(getIt<AppDatabase>())
+          .getReminders(AppContext.householdId);
+      final title = original.title?.trim().toLowerCase();
+      if (title == null || title.isEmpty) return null;
+      final titleMatches = reminders
+          .where(
+            (item) => item.isActive && item.title.trim().toLowerCase() == title,
+          )
+          .toList();
+      final exactMatches = original.date == null
+          ? titleMatches
+          : titleMatches
+            .where((item) => item.scheduledAt == original.date)
+                .toList();
+      final matches = exactMatches.isNotEmpty ? exactMatches : titleMatches;
+      return matches.length == 1 ? matches.single.id : null;
+    } on Object {
+      return null;
+    }
   }
 
   void _cancelActiveDraft([FfmAssistantIntent? intent]) {

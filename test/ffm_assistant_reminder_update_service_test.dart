@@ -74,6 +74,25 @@ void main() {
     expect(stored?.notificationId, previous.notificationId);
   });
 
+  test('edit reminder menyimpan nada dering baru dan menjadwalkan ulang dengan nada tersebut', () async {
+    final next = await service.updateTitleAndScheduledAt(
+      previous: previous,
+      title: previous.title,
+      scheduledAt: previous.scheduledAt.add(const Duration(hours: 1)),
+      soundUri: 'content://ringtone/new',
+      soundName: 'Nada baru',
+    );
+
+    expect(next.soundUri, 'content://ringtone/new');
+    expect(next.soundName, 'Nada baru');
+
+    final stored = await repository.getReminder(householdId, previous.id);
+    expect(stored?.soundUri, 'content://ringtone/new');
+    expect(stored?.soundName, 'Nada baru');
+    expect(gateway.scheduled.last.reminder.soundUri, 'content://ringtone/new');
+    expect(gateway.scheduled.last.reminder.soundName, 'Nada baru');
+  });
+
   test(
     'izin gagal tidak membatalkan alarm atau menulis perubahan Pengingat',
     () async {

@@ -136,16 +136,28 @@ class FfmAssistantActionPlanner {
     }
     final draft = intent.draft;
     if (draft != null) {
-      final capabilityId = _draftCapabilityFor(draft.kind);
+      final existingReminder = _isExistingReminder(draft);
+      final capabilityId = existingReminder
+          ? 'draft.reminder_update'
+          : _draftCapabilityFor(draft.kind);
+      final draftParameters = {
+        ..._draftParameters(draft),
+        if (existingReminder) 'operation': 'update',
+      };
       steps.add(
         FfmAssistantActionStep(
           id: 'draft',
           capabilityId: capabilityId,
-          parameters: _draftParameters(draft),
+          parameters: draftParameters,
         ),
       );
-      final parameters = _draftParameters(draft);
-      final mutationCapability = _mutationCapabilityFor(draft.kind);
+      final parameters = draftParameters;
+        final mutationCapability = existingReminder
+          ? 'mutate.update'
+          : _mutationCapabilityFor(draft.kind);
+        final verifyCapability = existingReminder
+          ? 'verify.reminder_mutation'
+          : _verifyCapabilityFor(draft.kind);
       final idempotencyKey = '$planId:save';
       steps.add(
         FfmAssistantActionStep(
@@ -157,7 +169,7 @@ class FfmAssistantActionPlanner {
       steps.add(
         FfmAssistantActionStep(
           id: 'verify',
-          capabilityId: _verifyCapabilityFor(draft.kind),
+          capabilityId: verifyCapability,
           parameters: {...parameters, '_idempotencyKey': idempotencyKey},
         ),
       );
@@ -220,10 +232,20 @@ class FfmAssistantActionPlanner {
     for (var i = 0; i < drafts.length; i++) {
       final draft = drafts[i];
       final stepSuffix = drafts.length == 1 ? '' : '_${i + 1}';
-      final draftCapability = _draftCapabilityFor(draft.kind);
-      final mutationCapability = _mutationCapabilityFor(draft.kind);
-      final verifyCapability = _verifyCapabilityFor(draft.kind);
-      final parameters = _draftParameters(draft);
+        final existingReminder = _isExistingReminder(draft);
+        final draftCapability = existingReminder
+          ? 'draft.reminder_update'
+          : _draftCapabilityFor(draft.kind);
+        final mutationCapability = existingReminder
+          ? 'mutate.update'
+          : _mutationCapabilityFor(draft.kind);
+        final verifyCapability = existingReminder
+          ? 'verify.reminder_mutation'
+          : _verifyCapabilityFor(draft.kind);
+        final parameters = {
+          ..._draftParameters(draft),
+          if (existingReminder) 'operation': 'update',
+        };
       final idempotencyKey = '$planId:save$stepSuffix';
 
       steps.add(
@@ -445,6 +467,10 @@ class FfmAssistantActionPlanner {
     FfmAssistantDraftKind.monitoringJob => 'draft.monitoring_job',
     FfmAssistantDraftKind.meterReading => 'draft.meter_reading',
   };
+
+  static bool _isExistingReminder(FfmAssistantDraft draft) =>
+      draft.kind == FfmAssistantDraftKind.reminder &&
+      (draft.formValues['targetId']?.toString().trim().isNotEmpty ?? false);
 
   static String _mutationCapabilityFor(FfmAssistantDraftKind kind) =>
       switch (kind) {

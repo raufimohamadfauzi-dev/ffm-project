@@ -43,6 +43,21 @@ Future<void> reminderNotificationBackgroundResponse(
   } catch (_) {}
   if (payload == null) return;
 
+  if (actionId == 'complete' || actionId == 'snooze_10') {
+    try {
+      final plugin = FlutterLocalNotificationsPlugin();
+      const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+      await plugin.initialize(
+        settings: const InitializationSettings(android: android),
+      );
+      final notifId =
+          int.tryParse('${payload['notificationId'] ?? ''}') ?? response.id;
+      if (notifId != null) {
+        await plugin.cancel(id: notifId);
+      }
+    } catch (_) {}
+  }
+
   if (actionId == 'snooze_10') {
     if (payload['mode'] != null &&
         payload['mode'] != ReminderMode.alarm.storageValue) {
@@ -224,9 +239,17 @@ Future<void> _scheduleBackgroundSnooze(
           summaryText: _reminderSubText,
         ),
         actions: [
-          const AndroidNotificationAction('complete', 'Selesai'),
+          const AndroidNotificationAction(
+            'complete',
+            'Selesai',
+            cancelNotification: true,
+          ),
           if (payload['mode'] == ReminderMode.alarm.storageValue)
-            const AndroidNotificationAction('snooze_10', 'Tunda 10 menit'),
+            const AndroidNotificationAction(
+              'snooze_10',
+              'Tunda 10 menit',
+              cancelNotification: true,
+            ),
         ],
       ),
     ),
@@ -658,9 +681,17 @@ class ReminderNotificationService
           summaryText: _reminderSubText,
         ),
         actions: [
-          const AndroidNotificationAction('complete', 'Selesai'),
+          const AndroidNotificationAction(
+            'complete',
+            'Selesai',
+            cancelNotification: true,
+          ),
           if (isAlarmMode)
-            const AndroidNotificationAction('snooze_10', 'Tunda 10 menit'),
+            const AndroidNotificationAction(
+              'snooze_10',
+              'Tunda 10 menit',
+              cancelNotification: true,
+            ),
         ],
       ),
     );
@@ -740,9 +771,17 @@ class ReminderNotificationService
             summaryText: _reminderSubText,
           ),
           actions: [
-            const AndroidNotificationAction('complete', 'Selesai'),
+            const AndroidNotificationAction(
+              'complete',
+              'Selesai',
+              cancelNotification: true,
+            ),
             if (reminder.mode == ReminderMode.alarm)
-              const AndroidNotificationAction('snooze_10', 'Tunda 10 menit'),
+              const AndroidNotificationAction(
+                'snooze_10',
+                'Tunda 10 menit',
+                cancelNotification: true,
+              ),
           ],
         ),
       ),

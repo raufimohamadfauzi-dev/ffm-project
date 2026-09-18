@@ -682,4 +682,60 @@ void main() {
       expect(result!.reminderMode, ReminderMode.alarm);
     },
   );
+
+  testWidgets(
+    'koreksi pengingat dengan formValues bertipe non-String (bool, List) dapat disimpan dengan tombol Pakai perubahan tanpa TypeError',
+    (tester) async {
+      FfmAssistantDraft? result;
+      final futureDate = DateTime.now().add(const Duration(hours: 2));
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.reminder,
+        createdAt: DateTime.now(),
+        title: 'Alarm Bangun Pagi',
+        note: 'Jangan lupa bangun',
+        date: futureDate,
+        reminderMode: ReminderMode.alarm,
+        recurrenceType: ReminderRecurrenceType.weekly,
+        weekdays: const [1, 2, 3],
+        formValues: const {
+          'hasExplicitTime': true, // bool
+          'weekdays': [1, 2, 3], // List<int>
+          'reminderMode': 'alarm',
+          'mode': 'alarm',
+          'recurrence': 'weekly',
+        },
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                result = await showDialog<FfmAssistantDraft>(
+                  context: context,
+                  builder: (_) => FfmAssistantDraftEditDialog(
+                    draft: draft,
+                    feedbackService: FfmAssistantDraftFeedbackService(),
+                  ),
+                );
+              },
+              child: const Text('Koreksi'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Koreksi'));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Pakai perubahan'));
+      await tester.tap(find.text('Pakai perubahan'));
+      await tester.pumpAndSettle();
+
+      expect(result, isNotNull);
+      expect(result!.title, 'Alarm Bangun Pagi');
+      expect(result!.reminderMode, ReminderMode.alarm);
+      expect(result!.weekdays, [1, 2, 3]);
+    },
+  );
 }
