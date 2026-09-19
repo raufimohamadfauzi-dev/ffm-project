@@ -9555,6 +9555,8 @@ class FfmAssistantInterpreter {
         weekdays.add(weekday);
       }
 
+      final destinationRoute = _detectReminderDestinationRoute(normalized);
+
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.reminder,
         createdAt: now,
@@ -9564,6 +9566,7 @@ class FfmAssistantInterpreter {
         reminderMode: reminderMode,
         recurrenceType: recurrenceType,
         weekdays: weekdays,
+        destinationRoute: destinationRoute,
         formValues: {
           'time':
               '${parsedTime.hour.toString().padLeft(2, '0')}:${parsedTime.minute.toString().padLeft(2, '0')}',
@@ -9572,6 +9575,7 @@ class FfmAssistantInterpreter {
           'hasExplicitTime': hasExplicitTime,
           'reminderMode': modeStr,
           'mode': modeStr,
+          'destinationRoute': destinationRoute,
           'recurrence': recurrenceType.name,
           'recurrenceType': recurrenceType.name,
           if (weekdays.isNotEmpty) 'weekdays': weekdays,
@@ -10913,6 +10917,104 @@ class FfmAssistantInterpreter {
       }
     }
     return null;
+  }
+
+  /// Menentukan rute halaman tujuan (deep-link) secara cerdas berdasarkan konteks pengingat.
+  /// Contoh: kebun/tani -> activity, cicilan/tagihan -> liabilities, target -> goals.
+  /// Jika umum, default langsung ke pusat pengingat ('reminders').
+  String _detectReminderDestinationRoute(String normalized) {
+    if (_containsAny(normalized, const [
+      'kebun',
+      'sawah',
+      'ladang',
+      'tani',
+      'panen',
+      'pupuk',
+      'siram',
+      'bibit',
+      'tanaman',
+      'aktivitas',
+      'kegiatan',
+      'tugas',
+      'catatan',
+      'sesi',
+    ])) {
+      return 'activity';
+    }
+    if (_containsAny(normalized, const [
+      'cicilan',
+      'tagihan',
+      'hutang',
+      'piutang',
+      'pinjaman',
+      'kredit',
+      'due date',
+      'jatuh tempo',
+      'bayar listrik',
+      'bayar air',
+      'bayar bpjs',
+      'bayar indihome',
+      'bayar pdam',
+      'bayar wifi',
+      'bayar pulsa',
+      'pln',
+    ])) {
+      return 'liabilities';
+    }
+    if (_containsAny(normalized, const [
+      'target',
+      'tabung',
+      'nabung',
+      'tabungan',
+      'emas',
+      'impian',
+      'goal',
+    ])) {
+      return 'goals';
+    }
+    if (_containsAny(normalized, const [
+      'anggaran',
+      'budget',
+      'pos belanja',
+      'alokasi',
+    ])) {
+      return 'budget';
+    }
+    if (_containsAny(normalized, const [
+      'transaksi',
+      'belanja',
+      'beli',
+      'catat pengeluaran',
+      'catat pemasukan',
+      'struk',
+      'toko',
+    ])) {
+      return 'transactions';
+    }
+    if (_containsAny(normalized, const [
+      'aset',
+      'inventaris',
+      'kendaraan',
+      'tanah',
+      'rumah',
+    ])) {
+      return 'assets';
+    }
+    if (_containsAny(normalized, const [
+      'laporan',
+      'evaluasi bulanan',
+      'rekap',
+    ])) {
+      return 'monthlyReport';
+    }
+    if (_containsAny(normalized, const [
+      'keluarga',
+      'profil keluarga',
+      'anggota',
+    ])) {
+      return 'familyProfile';
+    }
+    return 'reminders';
   }
 
   /// Ekstraksi judul pengingat/alarm secara cerdas dengan membersihkan frasa tanggal,

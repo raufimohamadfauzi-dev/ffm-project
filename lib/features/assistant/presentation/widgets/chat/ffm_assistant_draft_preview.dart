@@ -106,6 +106,23 @@ class FfmAssistantDraftPreview extends StatefulWidget {
   static String rupiah(int amount) =>
       'Rp${amount.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => '.')}';
 
+  static String friendlyDestinationName(String? route) {
+    if (route == null || route.trim().isEmpty) return 'Pengingat / Alarm (Bawaan)';
+    return switch (route.trim().toLowerCase()) {
+      'reminders' || 'reminder' => 'Pengingat / Alarm (Bawaan)',
+      'transactions' => 'Daftar Transaksi',
+      'liabilities' => 'Hutang & Tagihan',
+      'budget' => 'Anggaran (Budget)',
+      'goals' => 'Target Keuangan (Goals)',
+      'assets' => 'Daftar Aset',
+      'activity' => 'Catatan Harian / Aktivitas',
+      'monthlyreport' => 'Laporan Bulanan',
+      'familyprofile' => 'Profil Keluarga',
+      'summary' => 'Ringkasan Finansial',
+      _ => route.trim(),
+    };
+  }
+
   static String formFieldLabel(String field) => switch (field) {
     'type' => 'Jenis Kategori',
     'defaultBudgetPeriod' => 'Saran Periode',
@@ -323,9 +340,11 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
                     .trim()
                     .isNotEmpty))
           MapEntry(
-            'Halaman Terkait',
-            draft.destinationRoute ??
-                draft.formValues['destinationRoute'].toString(),
+            'Halaman Tujuan',
+            FfmAssistantDraftPreview.friendlyDestinationName(
+              draft.destinationRoute ??
+                  draft.formValues['destinationRoute'].toString(),
+            ),
           ),
       ],
       if (draft.tags?.trim().isNotEmpty == true)
@@ -375,6 +394,7 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
                     'recurrence',
                     'recurrenceType',
                     'weekdays',
+                    'destinationRoute',
                   }.contains(field.key),
             )
             .map(

@@ -291,7 +291,7 @@ void main() {
       await database.close();
     });
 
-    test('ingatkan saya besok jam 6 pagi mau ke kebun -> mode notifikasi, judul bersih Ke Kebun', () async {
+    test('ingatkan saya besok jam 6 pagi mau ke kebun -> mode notifikasi, judul bersih Ke Kebun, route activity', () async {
       final intent = await interpreter.interpret('ingatkan saya besok jam 6 pagi mau ke kebun');
       expect(intent.type, FfmAssistantIntentType.createReminder);
       final draft = intent.draft;
@@ -302,9 +302,11 @@ void main() {
       expect(draft.date?.hour, 6);
       expect(draft.date?.minute, 0);
       expect(draft.title, 'Ke Kebun');
+      expect(draft.destinationRoute, 'activity');
+      expect(draft.formValues['destinationRoute'], 'activity');
     });
 
-    test('bangunkan saya besok jam 6 pagi mau ke kebun -> mode alarm otomatis, judul Ke Kebun', () async {
+    test('bangunkan saya besok jam 6 pagi mau ke kebun -> mode alarm otomatis, judul Ke Kebun, route activity', () async {
       final intent = await interpreter.interpret('bangunkan saya besok jam 6 pagi mau ke kebun');
       expect(intent.type, FfmAssistantIntentType.createReminder);
       final draft = intent.draft;
@@ -314,9 +316,10 @@ void main() {
       expect(draft.date?.day, 20);
       expect(draft.date?.hour, 6);
       expect(draft.title, 'Ke Kebun');
+      expect(draft.destinationRoute, 'activity');
     });
 
-    test('buat alarm besok jam 5 subuh -> mode alarm, judul Alarm', () async {
+    test('buat alarm besok jam 5 subuh -> mode alarm, judul Alarm, default route reminders', () async {
       final intent = await interpreter.interpret('buat alarm besok jam 5 subuh');
       expect(intent.type, FfmAssistantIntentType.createReminder);
       final draft = intent.draft;
@@ -326,6 +329,23 @@ void main() {
       expect(draft.date?.day, 20);
       expect(draft.date?.hour, 5);
       expect(draft.title, 'Alarm');
+      expect(draft.destinationRoute, 'reminders');
+    });
+
+    test('ingatkan bayar tagihan listrik besok jam 7 malam -> route liabilities', () async {
+      final intent = await interpreter.interpret('ingatkan bayar tagihan listrik besok jam 7 malam');
+      expect(intent.type, FfmAssistantIntentType.createReminder);
+      final draft = intent.draft;
+      expect(draft, isNotNull);
+      expect(draft!.destinationRoute, 'liabilities');
+    });
+
+    test('ingatkan saya target beli emas besok jam 9 pagi -> route goals', () async {
+      final intent = await interpreter.interpret('ingatkan saya target beli emas besok jam 9 pagi');
+      expect(intent.type, FfmAssistantIntentType.createReminder);
+      final draft = intent.draft;
+      expect(draft, isNotNull);
+      expect(draft!.destinationRoute, 'goals');
     });
   });
 }
