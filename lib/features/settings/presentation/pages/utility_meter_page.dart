@@ -465,6 +465,8 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
     var isSaving = false;
     String? validationMessage;
 
+    var isScanningLcd = false;
+
     await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -521,50 +523,107 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                       labelText: 'Angka kWh *',
                       hintText: 'Contoh: 10112 atau 10112.3',
                       prefixIcon: const Icon(Icons.electric_bolt_rounded),
-                      suffixIcon: IconButton(
-                        tooltip: 'Foto Layar Meteran PLN',
-                        icon: const Icon(Icons.camera_alt_outlined),
-                        onPressed: () async {
-                          final picker = ImagePicker();
-                          final file = await picker.pickImage(
-                            source: ImageSource.camera,
-                            maxWidth: 1600,
-                            maxHeight: 1600,
-                            imageQuality: 85,
-                          );
-                          if (file == null) return;
-                          try {
-                            final gemini = GeminiService();
-                            final bytes = await file.readAsBytes();
-                            final mimeType = file.path.toLowerCase().endsWith('.png')
-                                ? 'image/png'
-                                : 'image/jpeg';
-                            final result = await gemini.chat(
-                              prompt:
-                                  'Lihat gambar layar LCD meteran listrik PLN ini. '
-                                  'Tolong baca angka pembacaan kWh yang tertera pada layar. '
-                                  'Balas HANYA angka numerik saja (contoh: 12345.6 atau 9821), '
-                                  'tanpa tulisan kWh atau kata lain.',
-                              image: GeminiImageInput(
-                                base64Data: base64Encode(bytes),
-                                mimeType: mimeType,
+                      suffixIcon: isScanningLcd
+                          ? const Padding(
+                              padding: EdgeInsets.all(12.0),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               ),
-                              maxOutputTokens: 30,
-                            );
-                            if (result.ok && result.text != null) {
-                              final match = RegExp(r'[\d.,]+').firstMatch(result.text!);
-                              if (match != null) {
-                                final digits = match.group(0)!.replaceAll(',', '.');
-                                setDialogState(() {
-                                  readingCtrl.text = digits;
-                                });
-                              }
-                            }
-                          } catch (_) {}
-                        },
-                      ),
+                            )
+                          : IconButton(
+                              tooltip: 'Foto Layar Meteran PLN',
+                              icon: const Icon(Icons.camera_alt_outlined),
+                              onPressed: () async {
+                                final picker = ImagePicker();
+                                final file = await picker.pickImage(
+                                  source: ImageSource.camera,
+                                  maxWidth: 1600,
+                                  maxHeight: 1600,
+                                  imageQuality: 85,
+                                );
+                                if (file == null) return;
+                                setDialogState(() => isScanningLcd = true);
+                                try {
+                                  final gemini = GeminiService();
+                                  final bytes = await file.readAsBytes();
+                                  final mimeType = file.path
+                                          .toLowerCase()
+                                          .endsWith('.png')
+                                      ? 'image/png'
+                                      : 'image/jpeg';
+                                  final result = await gemini.chat(
+                                    prompt:
+                                        'Lihat gambar layar LCD meteran listrik PLN ini. '
+                                        'Tolong baca angka pembacaan kWh yang tertera pada layar. '
+                                        'Balas HANYA angka numerik saja (contoh: 12345.6 atau 9821), '
+                                        'tanpa tulisan kWh atau kata lain.',
+                                    image: GeminiImageInput(
+                                      base64Data: base64Encode(bytes),
+                                      mimeType: mimeType,
+                                    ),
+                                    maxOutputTokens: 30,
+                                  );
+                                  if (!ctx.mounted) return;
+                                  if (result.ok && result.text != null) {
+                                    final match = RegExp(
+                                      r'\d+(?:[.,]\d+)*',
+                                    ).firstMatch(result.text!);
+                                    if (match != null) {
+                                      var raw = match.group(0)!;
+                                      if (raw.contains('.') && raw.contains(',')) {
+                                        raw = raw.replaceAll('.', '').replaceAll(',', '.');
+                                      } else if (raw.contains(',')) {
+                                        raw = raw.replaceAll(',', '.');
+                                      }
+                                      final val = double.tryParse(raw);
+                                      if (val != null) {
+                                        setDialogState(() {
+                                          readingCtrl.text = raw;
+                                        });
+                                        ScaffoldMessenger.of(ctx).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Angka kWh ($raw) berhasil dibaca dari foto!',
+                                            ),
+                                            duration: const Duration(seconds: 2),
+                                          ),
+                                        );
+                                      }
+                                    } else {
+                                      ScaffoldMessenger.of(ctx).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Angka pada LCD tidak terbaca jelas. Pastikan foto terang dan tidak silau.',
+                                          ),
+                                          backgroundColor: Colors.orange,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                } catch (e) {
+                                  if (ctx.mounted) {
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Gagal memproses foto: $e',
+                                        ),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+ finally {
+                                  setDialogState(() => isScanningLcd = false);
+                                }
+                              },
+                            ),
                     ),
                   ),
+
                   if (isLower) ...[
                     const SizedBox(height: 8),
                     Text(

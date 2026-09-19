@@ -3341,11 +3341,18 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               );
             }
 
+            final totalAmount = entry.amount?.toDouble();
+            final adminFeeVal = (entry.adminFee ?? 0).toDouble();
+            final tokenSubtotal = (totalAmount != null && totalAmount > adminFeeVal)
+                ? totalAmount - adminFeeVal
+                : totalAmount;
+
             // Simpan sebagai metadata proposal, bukan mutasi langsung
             final utilityMetadata = <String, dynamic>{
               'tokenCode': cleanToken,
               'formattedToken': formattedToken,
-              'amount': entry.amount?.toDouble(),
+              'amount': tokenSubtotal,
+              'totalAmount': totalAmount,
               'adminFee': entry.adminFee ?? 0,
               'creditedKwh': creditedKwh,
               'timestamp': now.toIso8601String(),
@@ -3431,7 +3438,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             final splitProposals = ReceiptScannerService.expandPlnUtilityProposals(
               allText,
               baseProposal: {
-                'amount': entry.amount ?? 0,
+                'amount': tokenSubtotal ?? 0,
                 'adminFee': entry.adminFee ?? 0,
                 'meterNumber': cleanMeterNumber,
                 'tokenCode': cleanToken,
@@ -3448,9 +3455,18 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 ? splitProposals.first
                 : utilityMetadata;
 
+            final existingFormTags = draft.formValues['tags']?.toString();
+            final defaultTags = (existingFormTags == null || existingFormTags.trim().isEmpty)
+                ? 'utilitas, listrik'
+                : existingFormTags;
+
             draft = draft.copyWith(
+              tags: draft.tags != null && draft.tags!.trim().isNotEmpty
+                  ? draft.tags
+                  : 'utilitas, listrik',
               formValues: {
                 ...draft.formValues,
+                'tags': defaultTags,
                 if (cleanMeterNumber != null) ...{
                   'meterNumber': cleanMeterNumber,
                   'idpel': cleanMeterNumber,
@@ -3474,6 +3490,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   'utilityProposalBatch': splitProposals,
               },
             );
+
           }
         } on Object {
           // Draft transaksi tetap menggunakan hasil OCR Gemini.
