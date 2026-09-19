@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ffm_manager/core/database/app_database.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 import 'package:ffm_manager/features/assistant/presentation/widgets/chat/ffm_assistant_message_card.dart';
+import 'package:ffm_manager/features/reminder/domain/entities/reminder_entity.dart';
 import 'package:ffm_manager/features/reminder/presentation/widgets/alarm_ringing_dialog.dart';
 import 'package:ffm_manager/core/di/injection.dart';
 import 'package:ffm_manager/features/reminder/data/services/reminder_tts_service.dart';
@@ -268,6 +271,61 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
 
       expect(autoCompleted, isTrue);
+    });
+  });
+
+  group('Assistant Reminder Intent & Title Extraction', () {
+    late AppDatabase database;
+    late FfmAssistantInterpreter interpreter;
+    final fixedClock = DateTime(2026, 9, 19, 10, 0);
+
+    setUp(() {
+      database = createInMemoryDatabaseForTests();
+      interpreter = FfmAssistantInterpreter(
+        database,
+        clock: () => fixedClock,
+      );
+    });
+
+    tearDown(() async {
+      await database.close();
+    });
+
+    test('ingatkan saya besok jam 6 pagi mau ke kebun -> mode notifikasi, judul bersih Ke Kebun', () async {
+      final intent = await interpreter.interpret('ingatkan saya besok jam 6 pagi mau ke kebun');
+      expect(intent.type, FfmAssistantIntentType.createReminder);
+      final draft = intent.draft;
+      expect(draft, isNotNull);
+      expect(draft!.kind, FfmAssistantDraftKind.reminder);
+      expect(draft.reminderMode, ReminderMode.notification);
+      expect(draft.date?.day, 20); // besok
+      expect(draft.date?.hour, 6);
+      expect(draft.date?.minute, 0);
+      expect(draft.title, 'Ke Kebun');
+    });
+
+    test('bangunkan saya besok jam 6 pagi mau ke kebun -> mode alarm otomatis, judul Ke Kebun', () async {
+      final intent = await interpreter.interpret('bangunkan saya besok jam 6 pagi mau ke kebun');
+      expect(intent.type, FfmAssistantIntentType.createReminder);
+      final draft = intent.draft;
+      expect(draft, isNotNull);
+      expect(draft!.kind, FfmAssistantDraftKind.reminder);
+      expect(draft.reminderMode, ReminderMode.alarm);
+      expect(draft.date?.day, 20);
+      expect(draft.date?.hour, 6);
+      expect(draft.title, 'Ke Kebun');
+    });
+
+    test('buat alarm besok jam 5 subuh -> mode alarm, judul Alarm', () async {
+      final intent = await interpreter.interpret('buat alarm besok jam 5 subuh');
+      expect(intent.type, FfmAssistantIntentType.createReminder);
+      final draft = intent.draft;
+      expect(draft, isNotNull);
+      expect(draft!.kind, FfmAssistantDraftKind.reminder);
+      expect(draft.reminderMode, ReminderMode.alarm);
+      expect(draft.date?.day, 20);
+      expect(draft.date?.hour, 5);
+      expect(draft.title, 'Alarm');
     });
   });
 }

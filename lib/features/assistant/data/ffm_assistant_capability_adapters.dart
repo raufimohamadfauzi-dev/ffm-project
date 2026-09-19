@@ -3247,6 +3247,7 @@ class FfmAssistantCapabilityAdapterRegistry {
         _ => null,
       };
 
+      final destinationRoute = step.parameters['destinationRoute']?.toString();
       final updated = await reminderMutations.updateTitleAndScheduledAt(
         previous: previous,
         title: title,
@@ -3256,13 +3257,15 @@ class FfmAssistantCapabilityAdapterRegistry {
         soundUri: soundUri,
         soundName: soundName,
         recurrenceType: recurrenceType,
+        destinationRoute: destinationRoute,
       );
       if (updated.title == previous.title &&
           updated.note == previous.note &&
           updated.scheduledAt == previous.scheduledAt &&
           updated.mode == previous.mode &&
           updated.soundUri == previous.soundUri &&
-          updated.recurrenceType == previous.recurrenceType) {
+          updated.recurrenceType == previous.recurrenceType &&
+          updated.destinationRoute == previous.destinationRoute) {
         return const FfmAssistantCapabilityExecutionResult.success(
           'alreadyApplied: pengingat sudah sesuai dengan draft perubahan.',
         );
@@ -6346,6 +6349,7 @@ class FfmAssistantCapabilityAdapterRegistry {
       final sourceTypeRaw = step.parameters['sourceType']?.toString();
       final sourceType = ReminderSourceTypeX.fromStorage(sourceTypeRaw);
       final sourceId = step.parameters['sourceId']?.toString();
+      final destinationRoute = step.parameters['destinationRoute']?.toString();
       final previous = await ReminderRepository(_database)
           .getReminder(_householdId, id);
       if (previous != null) {
@@ -6360,7 +6364,12 @@ class FfmAssistantCapabilityAdapterRegistry {
             previous.sourceType == sourceType &&
             previous.sourceId == sourceId &&
             previous.origin == origin &&
-            previous.mode == mode;
+            previous.mode == mode &&
+            previous.destinationRoute ==
+                ((destinationRoute != null &&
+                        destinationRoute.trim().isNotEmpty)
+                    ? destinationRoute.trim()
+                    : null);
         return samePayload
             ? const FfmAssistantCapabilityExecutionResult.success(
                 'alreadyApplied: pengingat sudah tersimpan sebelumnya.',
@@ -6386,6 +6395,10 @@ class FfmAssistantCapabilityAdapterRegistry {
           sourceId: sourceId,
           origin: origin,
           mode: mode,
+          destinationRoute:
+              (destinationRoute != null && destinationRoute.trim().isNotEmpty)
+                  ? destinationRoute.trim()
+                  : null,
           createdAt: now,
         ),
       );

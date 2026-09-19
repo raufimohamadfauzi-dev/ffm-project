@@ -76,6 +76,7 @@ class FfmAssistantReminderMutationService {
     String? soundUri,
     String? soundName,
     ReminderRecurrenceType? recurrenceType,
+    String? destinationRoute,
   }) async {
     final normalizedTitle = title.trim();
     if (normalizedTitle.isEmpty) {
@@ -100,6 +101,7 @@ class FfmAssistantReminderMutationService {
       sourceId: previous.sourceId,
       origin: previous.origin,
       mode: mode ?? previous.mode,
+      destinationRoute: destinationRoute ?? previous.destinationRoute,
     );
     if (_sameEditableFields(previous, next)) return previous;
 
@@ -230,7 +232,8 @@ class FfmAssistantReminderMutationService {
       left.mode == right.mode &&
       left.soundUri == right.soundUri &&
       left.soundName == right.soundName &&
-      left.recurrenceType == right.recurrenceType;
+      left.recurrenceType == right.recurrenceType &&
+      left.destinationRoute == right.destinationRoute;
 
   bool _shouldSyncToCalendar(ReminderEntity reminder) {
     // Check if reminder note contains calendar sync marker

@@ -2154,6 +2154,10 @@ class FfmAssistantInterpreter {
               'update',
               'hapus',
               'buka',
+              'ingatkan',
+              'bangunkan',
+              'bangunin',
+              'pasang',
             ]) ||
             RegExp(r'\bcatat\b', caseSensitive: false).hasMatch(normalized));
     // Kata arah perubahan/pindah yang memicu jalur draft deterministic tetapi
@@ -9431,6 +9435,7 @@ class FfmAssistantInterpreter {
           'buat pengingat',
           'tambah pengingat',
           'ingatkan saya',
+          'ingatkan aku',
           'pasang pengingat',
           'buat alarm',
           'pasang alarm',
@@ -9441,13 +9446,17 @@ class FfmAssistantInterpreter {
           'pasang alaram',
           'set alarm',
           'set alaram',
+          'bangunkan saya',
+          'bangunin saya',
+          'bangunkan aku',
+          'bangunin aku',
         ]) ||
         RegExp(
           r'\b(buat|buatkan|pasang|set|atur|tambah)\s+(?:kan\s+)?(?:saya\s+)?(?:sebuah\s+)?(?:pengingat|alarm|alaram)\b',
           caseSensitive: false,
         ).hasMatch(normalized) ||
         RegExp(
-          r'\b(ingatkan|ingatkanlah)\s+(?:saya|aku)\b',
+          r'\b(ingatkan|ingatkanlah|bangunkan|bangunkanlah|bangunin)\s+(?:saya|aku)\b',
           caseSensitive: false,
         ).hasMatch(normalized);
 
@@ -9480,17 +9489,25 @@ class FfmAssistantInterpreter {
     ]);
 
     if (createReminder || billReminder) {
-      final title = _draftTitle(normalized, const [
-        'buat pengingat',
-        'tambah pengingat',
-        'ingatkan saya',
-        'pasang pengingat',
-        'buat alarm',
-        'pasang alarm',
-        'tambah alarm',
-        'tagihan',
-        'bayar',
-      ]);
+      final isWakeUp = RegExp(
+        r'\b(bangunkan|bangunin|bangun tidur|sahur)\b',
+        caseSensitive: false,
+      ).hasMatch(normalized);
+      final hasAlarm = RegExp(
+        r'\b(alarm|alaram|bangunkan|bangunin|sahur|bangun tidur)\b',
+        caseSensitive: false,
+      ).hasMatch(normalized);
+      final reminderMode = hasAlarm
+          ? ReminderMode.alarm
+          : ReminderMode.notification;
+      final modeStr = reminderMode.name;
+
+      final title = _reminderDraftTitle(normalized, rawText) ??
+          (isWakeUp
+              ? 'Bangun Pagi'
+              : (hasAlarm
+                  ? 'Alarm'
+                  : (billReminder ? 'Pembayaran Tagihan' : 'Pengingat')));
 
       final note = billReminder
           ? '${rawText.trim()}\n\n[Sinkronisasi ke kalender dan smartwatch aktif]'
@@ -9499,15 +9516,6 @@ class FfmAssistantInterpreter {
       // Parse waktu yang diminta dari teks
       final hasExplicitTime = _hasExplicitTimeInText(normalized);
       final parsedTime = _parseTimeFromText(normalized, now);
-
-      final hasAlarm = RegExp(
-        r'\b(alarm|alaram)\b',
-        caseSensitive: false,
-      ).hasMatch(normalized);
-      final reminderMode = hasAlarm
-          ? ReminderMode.alarm
-          : ReminderMode.notification;
-      final modeStr = reminderMode.name;
 
       final isDaily = RegExp(
         r'\b(setiap hari|tiap hari|harian)\b',
@@ -10903,6 +10911,90 @@ class FfmAssistantInterpreter {
         final rest = text.substring(index + marker.length).trim();
         if (rest.isNotEmpty) return rest;
       }
+    }
+    return null;
+  }
+
+  /// Ekstraksi judul pengingat/alarm secara cerdas dengan membersihkan frasa tanggal,
+  /// jam, dan kata pemicu, sehingga tidak terpotong oleh angka jam (misal: "jam 6 pagi").
+  String? _reminderDraftTitle(String text, String rawText) {
+    const markers = [
+      'buat pengingat',
+      'tambah pengingat',
+      'pasang pengingat',
+      'ingatkan saya',
+      'ingatkan aku',
+      'ingatkanlah saya',
+      'ingatkanlah aku',
+      'ingatkan',
+      'buat alarm',
+      'buat alaram',
+      'buatkan alarm',
+      'buatkan alaram',
+      'pasang alarm',
+      'pasang alaram',
+      'tambah alarm',
+      'set alarm',
+      'set alaram',
+      'bangunkan saya',
+      'bangunin saya',
+      'bangunkan aku',
+      'bangunin aku',
+      'bangunkan',
+      'bangunin',
+    ];
+    String? extracted = _extractAfter(text, markers);
+    if (extracted == null || extracted.trim().isEmpty) {
+      extracted = text;
+    }
+
+    var cleaned = extracted
+        .replaceAll(
+          RegExp(
+            r'\b(besok|lusa|nanti|hari ini|subuh|pagi|siang|sore|malam)\b',
+            caseSensitive: false,
+          ),
+          ' ',
+        )
+        .replaceAll(
+          RegExp(
+            r'\b(setiap|tiap)\s+(hari|pekan|minggu|bulan|tahun)\b',
+            caseSensitive: false,
+          ),
+          ' ',
+        )
+        .replaceAll(
+          RegExp(
+            r'(?:jam|pukul|pk|pada)\s*\d{1,2}(?:[:.]\d{2})?\s*(?:pagi|siang|sore|malam)?',
+            caseSensitive: false,
+          ),
+          ' ',
+        )
+        .replaceAll(
+          RegExp(
+            r'\b(?:senilai|sebesar|harga|nilai|rp)\b.*$',
+            caseSensitive: false,
+          ),
+          ' ',
+        )
+        .trim();
+
+    cleaned = cleaned
+        .replaceFirst(
+          RegExp(
+            r'^(?:untuk|agar|mau|akan|tentang|bahwa|bisa)\s+',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .trim();
+
+    if (cleaned.isNotEmpty && cleaned.length >= 2) {
+      return cleaned
+          .split(' ')
+          .where((w) => w.isNotEmpty)
+          .map(_capitalize)
+          .join(' ');
     }
     return null;
   }

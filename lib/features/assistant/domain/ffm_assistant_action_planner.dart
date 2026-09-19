@@ -739,6 +739,10 @@ class FfmAssistantActionPlanner {
           draft.formValues['reminderMode']?.toString() ??
           draft.formValues['mode']?.toString() ??
           'notification',
+    if (draft.destinationRoute != null ||
+        draft.formValues['destinationRoute'] != null)
+      'destinationRoute':
+          draft.destinationRoute ?? draft.formValues['destinationRoute'],
     // Payload pembelajaran: tebakan awal + merchant agar adapter simpan
     // dapat merekam koreksi user terhadap nilai SLM/rule.
     if (draft.merchantName != null) 'merchant': draft.merchantName,
