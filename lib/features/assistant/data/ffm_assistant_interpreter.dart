@@ -523,7 +523,7 @@ class FfmAssistantInterpreter {
             householdId: AppContext.householdId,
           )
         : '';
-    final remindersContext =
+    final rawReminders =
         _containsAny(normalized, const [
           'pengingat',
           'ingatkan',
@@ -535,6 +535,9 @@ class FfmAssistantInterpreter {
         ? await _financialSnapshot.buildRemindersDigest(
             householdId: AppContext.householdId,
           )
+        : '';
+    final remindersContext = rawReminders.trim().isNotEmpty
+        ? '$rawReminders\n(Catatan: Data pengingat di atas sudah otoritatif dari database lokal. Jawab langsung pertanyaan pengguna tanpa memanggil read_data("read.reminders")).'
         : '';
     final assetsContext =
         _containsAny(normalized, const [

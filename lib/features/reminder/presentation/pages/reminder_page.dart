@@ -14,6 +14,7 @@ import '../../domain/entities/reminder_entity.dart';
 import '../../../transaction/domain/entities/transaction_entity.dart';
 import '../../../transaction/presentation/pages/transaction_form_page.dart';
 import '../bloc/reminder_bloc.dart';
+import '../widgets/alarm_ringing_dialog.dart';
 
 class ReminderPage extends StatelessWidget {
   const ReminderPage({
@@ -28,12 +29,15 @@ class ReminderPage extends StatelessWidget {
     this.initialSoundUri,
     this.initialSoundName,
     this.initialWeekdays,
+    this.initialDestinationRoute,
     this.focusReminderId,
     this.focusHistoryId,
+    this.onNavigateDestination,
   });
 
   final String? initialTitle;
   final String? initialNote;
+  final String? initialDestinationRoute;
 
   /// Pre-fill the scheduled date/time from an assistant draft (item 29).
   final DateTime? initialScheduledAt;
@@ -46,6 +50,7 @@ class ReminderPage extends StatelessWidget {
   final List<int>? initialWeekdays;
   final String? focusReminderId;
   final String? focusHistoryId;
+  final void Function(String route)? onNavigateDestination;
 
   @override
   Widget build(BuildContext context) {
@@ -72,8 +77,10 @@ class ReminderPage extends StatelessWidget {
               initialSoundUri: initialSoundUri,
               initialSoundName: initialSoundName,
               initialWeekdays: initialWeekdays,
+              initialDestinationRoute: initialDestinationRoute,
               focusReminderId: focusReminderId,
               focusHistoryId: focusHistoryId,
+              onNavigateDestination: onNavigateDestination,
             ),
           );
         },
@@ -94,8 +101,10 @@ class _ReminderView extends StatefulWidget {
     this.initialSoundUri,
     this.initialSoundName,
     this.initialWeekdays,
+    this.initialDestinationRoute,
     this.focusReminderId,
     this.focusHistoryId,
+    this.onNavigateDestination,
   });
 
   final String? initialTitle;
@@ -108,8 +117,10 @@ class _ReminderView extends StatefulWidget {
   final String? initialSoundUri;
   final String? initialSoundName;
   final List<int>? initialWeekdays;
+  final String? initialDestinationRoute;
   final String? focusReminderId;
   final String? focusHistoryId;
+  final void Function(String route)? onNavigateDestination;
 
   @override
   State<_ReminderView> createState() => _ReminderViewState();
@@ -142,6 +153,7 @@ class _ReminderViewState extends State<_ReminderView> {
             initialSoundUri: widget.initialSoundUri,
             initialSoundName: widget.initialSoundName,
             initialWeekdays: widget.initialWeekdays,
+            initialDestinationRoute: widget.initialDestinationRoute,
           );
         }
       });
@@ -161,6 +173,7 @@ class _ReminderViewState extends State<_ReminderView> {
     String? initialSoundUri,
     String? initialSoundName,
     List<int>? initialWeekdays,
+    String? initialDestinationRoute,
   }) async {
     final reminder = await showDialog<ReminderEntity>(
       context: context,
@@ -176,6 +189,7 @@ class _ReminderViewState extends State<_ReminderView> {
         initialSoundUri: initialSoundUri,
         initialSoundName: initialSoundName,
         initialWeekdays: initialWeekdays,
+        initialDestinationRoute: initialDestinationRoute,
       ),
     );
     if (reminder != null && context.mounted) {
@@ -199,16 +213,39 @@ class _ReminderViewState extends State<_ReminderView> {
     final isAlarm = pending.reminder?.mode == ReminderMode.alarm;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isAlarm
-                ? 'Alarm masuk ke riwayat. Pilih Selesai atau Tunda 10 menit.'
-                : 'Pengingat masuk ke riwayat. Pilih Selesai.',
+      if (isAlarm) {
+        final snoozeCount =
+            pending.history.status == ReminderHistoryStatus.snoozed ? 1 : 0;
+        AlarmRingingDialog.show(
+          context,
+          title: pending.history.title,
+          note: pending.reminder?.note,
+          destinationRoute: pending.reminder?.destinationRoute,
+          mode: pending.reminder?.mode ?? ReminderMode.alarm,
+          snoozeCount: snoozeCount,
+          onNavigateDestination: widget.onNavigateDestination,
+          onComplete: () => context.read<ReminderBloc>().add(
+            ReminderHistoryStatusChanged(
+              history: pending.history,
+              status: ReminderHistoryStatus.completed,
+            ),
           ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+          onSnooze: () => context.read<ReminderBloc>().add(
+            ReminderHistoryStatusChanged(
+              history: pending.history,
+              status: ReminderHistoryStatus.snoozed,
+              snoozedUntil: DateTime.now().add(const Duration(minutes: 10)),
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pengingat masuk ke riwayat. Pilih Selesai.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     });
   }
 
@@ -415,6 +452,7 @@ class _ReminderViewState extends State<_ReminderView> {
                     ...reminders.map(
                       (reminder) => ReminderScheduleCard(
                         reminder: reminder,
+                        onNavigateDestination: widget.onNavigateDestination,
                         onTap: () => _openDialog(context, initial: reminder),
                         onActiveChanged: (value) => context
                             .read<ReminderBloc>()
@@ -965,6 +1003,7 @@ class ReminderScheduleCard extends StatelessWidget {
     required this.onActiveChanged,
     required this.onEdit,
     required this.onDelete,
+    this.onNavigateDestination,
     super.key,
   });
 
@@ -973,6 +1012,7 @@ class ReminderScheduleCard extends StatelessWidget {
   final ValueChanged<bool> onActiveChanged;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final void Function(String route)? onNavigateDestination;
 
   @override
   Widget build(BuildContext context) {
@@ -1219,6 +1259,17 @@ class ReminderScheduleCard extends StatelessWidget {
                     onEdit();
                   } else if (value == 'hapus') {
                     onDelete();
+                  } else if (value == 'tes_suara') {
+                    AlarmRingingDialog.show(
+                      context,
+                      title: reminder.title,
+                      note: reminder.note,
+                      destinationRoute: reminder.destinationRoute,
+                      mode: reminder.mode,
+                      onNavigateDestination: onNavigateDestination,
+                      onComplete: () {},
+                      onSnooze: () {},
+                    );
                   } else if (value == 'catat_transaksi') {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -1232,6 +1283,16 @@ class ReminderScheduleCard extends StatelessWidget {
                   }
                 },
                 itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'tes_suara',
+                    child: Row(
+                      children: [
+                        Icon(Icons.record_voice_over_rounded, size: 18),
+                        SizedBox(width: 8),
+                        Text('Tes Suara Alarm'),
+                      ],
+                    ),
+                  ),
                   PopupMenuItem(
                     value: 'catat_transaksi',
                     child: Row(
@@ -1398,6 +1459,7 @@ class _ReminderDialog extends StatefulWidget {
     this.initialSoundUri,
     this.initialSoundName,
     this.initialWeekdays,
+    this.initialDestinationRoute,
   });
 
   final ReminderEntity? initial;
@@ -1413,6 +1475,7 @@ class _ReminderDialog extends StatefulWidget {
   final String? initialSoundUri;
   final String? initialSoundName;
   final List<int>? initialWeekdays;
+  final String? initialDestinationRoute;
 
   @override
   State<_ReminderDialog> createState() => _ReminderDialogState();
@@ -1427,11 +1490,14 @@ class _ReminderDialogState extends State<_ReminderDialog> {
   late List<int> _weekday;
   String? _soundUri;
   String? _soundName;
+  String? _destinationRoute;
 
   @override
   void initState() {
     super.initState();
     final initial = widget.initial;
+    _destinationRoute =
+        initial?.destinationRoute ?? widget.initialDestinationRoute;
     _titleController = TextEditingController(
       text: initial?.title ?? widget.initialTitle ?? '',
     );
@@ -1585,6 +1651,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
         sourceId: initial?.sourceId ?? widget.initialSourceId,
         origin: initial?.origin ?? ReminderOrigin.user,
         mode: _mode,
+        destinationRoute: _destinationRoute,
       ),
     );
   }
@@ -1742,6 +1809,47 @@ class _ReminderDialogState extends State<_ReminderDialog> {
                 );
               }),
             ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String?>(
+            initialValue: _destinationRoute,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Halaman Terkait (Deep-Link)',
+              helperText:
+                  'Otomatis membuka halaman ini saat notifikasi pengingat diklik',
+            ),
+            items: const [
+              DropdownMenuItem(
+                value: null,
+                child: Text('Pengingat / Alarm (Bawaan)'),
+              ),
+              DropdownMenuItem(
+                value: 'liabilities',
+                child: Text('Hutang & Cicilan'),
+              ),
+              DropdownMenuItem(
+                value: 'goals',
+                child: Text('Target Tabungan'),
+              ),
+              DropdownMenuItem(
+                value: 'budget',
+                child: Text('Anggaran Belanja'),
+              ),
+              DropdownMenuItem(
+                value: 'transactions',
+                child: Text('Transaksi'),
+              ),
+              DropdownMenuItem(
+                value: 'activity',
+                child: Text('Aktivitas & Rutinitas'),
+              ),
+              DropdownMenuItem(
+                value: 'familyProfile',
+                child: Text('Profil Keluarga'),
+              ),
+            ],
+            onChanged: (val) => setState(() => _destinationRoute = val),
+          ),
         ],
       ),
     ),

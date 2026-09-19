@@ -520,12 +520,21 @@ class ReminderSuggestionDetector {
         final featureName = latestError.feature.isNotEmpty
             ? latestError.feature
             : 'layanan aplikasi';
-        final friendlySummary = latestError.summary
-            .split('\n')
-            .first
-            .replaceAll(RegExp(r'SqliteException\(\d+\):\s*'), '')
-            .replaceAll('database is locked', 'antrean data sempat padat')
-            .trim();
+        final rawSummary = latestError.summary.split('\n').first;
+        String friendlySummary;
+        if (rawSummary.contains('FLUTTER_') ||
+            rawSummary.contains('Unhandled exception') ||
+            rawSummary.contains('Invalid argument') ||
+            rawSummary.contains('UTF-16') ||
+            rawSummary.contains('FormatException') ||
+            rawSummary.contains('NoSuchMethodError')) {
+          friendlySummary = 'sinkronisasi data internal';
+        } else {
+          friendlySummary = rawSummary
+              .replaceAll(RegExp(r'SqliteException\(\d+\):\s*'), '')
+              .replaceAll('database is locked', 'antrean data sempat padat')
+              .trim();
+        }
         final noteText =
             'Terdeteksi catatan pada $featureName: $friendlySummary. Sistem telah memulihkan proses dengan aman.';
 
@@ -573,14 +582,22 @@ class ReminderSuggestionDetector {
     ]..sort((left, right) => right.at.compareTo(left.at));
     if (latestIssue.isNotEmpty &&
         !linkedSources.contains('assistant_log:${latestIssue.first.id}')) {
+      String? cleanIssueNote = latestIssue.first.note?.trim();
+      if (cleanIssueNote != null &&
+          (cleanIssueNote.contains('FLUTTER_') ||
+              cleanIssueNote.contains('Unhandled exception') ||
+              cleanIssueNote.contains('UTF-16') ||
+              cleanIssueNote.contains('Invalid argument'))) {
+        cleanIssueNote = 'Tinjauan catatan interaksi asisten keluarga.';
+      }
       candidates.add(
         _Candidate(
           sourceType: ReminderSourceType.assistantLog,
           sourceId: latestIssue.first.id,
           sourceName: 'Asisten Log',
           title: 'Tinjau masalah di Asisten Log',
-          note: latestIssue.first.note?.trim().isNotEmpty == true
-              ? latestIssue.first.note!
+          note: cleanIssueNote?.isNotEmpty == true
+              ? cleanIssueNote!
               : 'Ada feedback atau pertanyaan yang belum ditinjau di Asisten Log.',
           at: setupAt,
           priority: 86,

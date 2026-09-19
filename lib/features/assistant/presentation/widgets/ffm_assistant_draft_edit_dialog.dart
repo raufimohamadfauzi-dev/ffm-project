@@ -81,6 +81,7 @@ class _FfmAssistantDraftEditDialogState
   late List<int> _weekday;
   late ActivityMode _activityMode;
   late FfmAssistantDraftKind _selectedKind;
+  String? _destinationRoute;
   String? _saveError;
 
   void _showSaveError(String message) {
@@ -92,6 +93,8 @@ class _FfmAssistantDraftEditDialogState
   void initState() {
     super.initState();
     _selectedKind = widget.draft.kind;
+    _destinationRoute = widget.draft.destinationRoute ??
+        widget.draft.formValues['destinationRoute']?.toString();
     _amountController = TextEditingController(
       text: widget.draft.amount?.toString() ?? '',
     );
@@ -809,6 +812,11 @@ class _FfmAssistantDraftEditDialogState
       } else {
         newFormValues.remove('soundName');
       }
+      if (_destinationRoute != null && _destinationRoute!.trim().isNotEmpty) {
+        newFormValues['destinationRoute'] = _destinationRoute!.trim();
+      } else {
+        newFormValues.remove('destinationRoute');
+      }
     }
 
     final existingDraftTags = (widget.draft.tags ?? '')
@@ -907,6 +915,9 @@ class _FfmAssistantDraftEditDialogState
       weekdays: _selectedKind == FfmAssistantDraftKind.reminder
           ? _weekday
           : widget.draft.weekdays,
+      destinationRoute: _selectedKind == FfmAssistantDraftKind.reminder
+          ? _destinationRoute
+          : widget.draft.destinationRoute,
     );
 
     if (_isTransaction) {
@@ -1378,6 +1389,59 @@ class _FfmAssistantDraftEditDialogState
                         ),
                       ],
                     ],
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String?>(
+                    initialValue: _destinationRoute,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Halaman Terkait (Deep-Link)',
+                      helperText:
+                          'Otomatis membuka halaman ini saat notifikasi pengingat diklik',
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: null,
+                        child: Text('Pengingat / Alarm (Bawaan)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'summary',
+                        child: Text('Ringkasan Finansial'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'transactions',
+                        child: Text('Daftar Transaksi'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'budget',
+                        child: Text('Anggaran (Budget)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'liabilities',
+                        child: Text('Hutang & Piutang'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'goals',
+                        child: Text('Target Keuangan (Goals)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'assets',
+                        child: Text('Daftar Aset'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'activity',
+                        child: Text('Catatan Harian / Sesi'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'monthlyReport',
+                        child: Text('Laporan Bulanan'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'familyProfile',
+                        child: Text('Profil Keluarga'),
+                      ),
+                    ],
+                    onChanged: (val) => setState(() => _destinationRoute = val),
                   ),
                 ],
               ),

@@ -16,15 +16,27 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 subprojects {
-    project.evaluationDependsOn(":app")
-}
-
-// Plugin pihak ketiga masih mengompilasi dengan source/target 8; ini menyembunyikan
-// peringatan javac "source value 8 is obsolete" tanpa mengubah perilaku build.
-subprojects {
+    plugins.withId("com.android.library") {
+        the<com.android.build.gradle.LibraryExtension>().compileOptions {
+            sourceCompatibility = JavaVersion.VERSION_11
+            targetCompatibility = JavaVersion.VERSION_11
+        }
+    }
+    plugins.withId("com.android.application") {
+        the<com.android.build.gradle.AppExtension>().compileOptions {
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
+        }
+    }
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+    }
     tasks.withType<JavaCompile>().configureEach {
         options.compilerArgs.add("-Xlint:-options")
     }
+}
+subprojects {
+    project.evaluationDependsOn(":app")
 }
 
 tasks.register<Delete>("clean") {

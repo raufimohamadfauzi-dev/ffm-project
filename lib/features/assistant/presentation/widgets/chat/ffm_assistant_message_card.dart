@@ -82,9 +82,11 @@ class FfmAssistantMessageCard extends StatelessWidget {
     this.onConfirmBudgetHabitProposal,
     this.onCancelBudgetHabitProposal,
     this.budgetHabitProposalCancelled = false,
+    this.onOpenMemoryViewer,
   });
 
   final FfmAssistantChatEntry entry;
+  final VoidCallback? onOpenMemoryViewer;
   final String? statusMessage;
   final VoidCallback? onSpeak;
   final bool isSpeaking;
@@ -413,6 +415,59 @@ class FfmAssistantMessageCard extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ],
+        if (entry.usedMemories.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              for (final mem in entry.usedMemories)
+                InkWell(
+                  onTap: () => onOpenMemoryViewer?.call(),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF1E1B4B)
+                          : const Color(0xFFEEF2FF),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFF6366F1).withValues(alpha: 0.4),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.psychology_rounded,
+                          size: 14,
+                          color: Color(0xFF6366F1),
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            '🧠 Memori: $mem',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: isDark
+                                  ? const Color(0xFFA5B4FC)
+                                  : const Color(0xFF4338CA),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
         if (entry.isCorrected) ...[

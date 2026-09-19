@@ -654,6 +654,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       receivedAt: entry.isUser ? null : (entry.receivedAt ?? now),
       modelUsed: entry.modelUsed ?? _modelLabelFor(entry),
       absorbedMemory: entry.absorbedMemory,
+      usedMemories: entry.usedMemories,
       suggestedQuestions: suggestedQuestions,
     );
     _entries.add(enriched);
@@ -1419,6 +1420,17 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       context,
       MaterialPageRoute(builder: (_) => const SupabaseSetupPage()),
     ).then((_) => _refreshCloudStatus());
+  }
+
+  void _openMemoryViewer() {
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => const FfmMemoryViewerPage(),
+            fullscreenDialog: true,
+          ),
+        )
+        .then((_) => _refreshMemoryCount());
   }
 
   Future<void> _refreshMemoryCount() async {
@@ -2616,6 +2628,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         tagSuggestions = await _loadActiveTagSuggestions();
       }
 
+      final detectedMemories = await _personalMemoryService.findRelevantMemories(
+        '$text ${intents.map((i) => i.response ?? i.clarification ?? '').join(' ')}',
+      );
+
       final readPlanIds = <String>[];
       final traceSnapshots = <(FfmAssistantProcessTrace, int)>[];
       void applyTurnChanges() {
@@ -2698,6 +2714,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               ((response.toLowerCase().contains('tag')) ||
                   (intent.clarification?.toLowerCase().contains('tag') ==
                       true));
+          final usedMemories = <String>{
+            ...?((intent.pluginMetadata?['usedMemories'] as List<dynamic>?)
+                ?.map((e) => e.toString())),
+            ...detectedMemories,
+          }.toList();
           _appendEntry(
             FfmAssistantChatEntry(
               isUser: false,
@@ -2707,6 +2728,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               processTrace: processTrace,
               verifiedFacts: intent.verifiedFacts,
               analysisResults: intent.analysisResults,
+              usedMemories: usedMemories,
               suggestedQuestions: isThisTagClarification
                   ? tagSuggestions
                   : intent.suggestedQuestions,
@@ -6117,14 +6139,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                       }
                     }),
                 memoryCount: _memoryCount,
-                onOpenMemory: () => Navigator.of(context)
-                    .push(
-                      MaterialPageRoute(
-                        builder: (_) => const FfmMemoryViewerPage(),
-                        fullscreenDialog: true,
-                      ),
-                    )
-                    .then((_) => _refreshMemoryCount()),
+                onOpenMemory: _openMemoryViewer,
                 inboxCount: _inboxCount,
                 onOpenInbox: () => Navigator.of(context)
                     .push(
@@ -6184,6 +6199,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                             _streamingController.isStreaming;
                         return FfmAssistantMessageCard(
                           entry: entry,
+                          onOpenMemoryViewer: _openMemoryViewer,
                           visibleText: isStreamingThis
                               ? _streamingVisibleText
                               : null,

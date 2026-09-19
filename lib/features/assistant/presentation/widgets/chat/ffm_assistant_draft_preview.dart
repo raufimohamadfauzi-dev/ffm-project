@@ -315,6 +315,18 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
             'Nada Notifikasi',
             draft.soundName ?? draft.formValues['soundName'].toString(),
           ),
+        if ((draft.destinationRoute != null &&
+                draft.destinationRoute!.trim().isNotEmpty) ||
+            (draft.formValues['destinationRoute'] != null &&
+                draft.formValues['destinationRoute']
+                    .toString()
+                    .trim()
+                    .isNotEmpty))
+          MapEntry(
+            'Halaman Terkait',
+            draft.destinationRoute ??
+                draft.formValues['destinationRoute'].toString(),
+          ),
       ],
       if (draft.tags?.trim().isNotEmpty == true)
         MapEntry('Tag transaksi', draft.tags!.trim()),

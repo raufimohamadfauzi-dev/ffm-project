@@ -63,6 +63,12 @@ Future<void> reminderNotificationBackgroundResponse(
         payload['mode'] != ReminderMode.alarm.storageValue) {
       return;
     }
+    final currentSnoozeCount =
+        int.tryParse('${payload['snoozeCount'] ?? ''}') ?? 0;
+    if (currentSnoozeCount >= 3) {
+      // Batas tunda 3x sudah tercapai, senyap dan jangan jadwalkan ulang
+      return;
+    }
     final minutes = _boundedSnoozeMinutes(payload['defaultSnoozeMinutes']);
     final snoozedUntil = receivedAt.add(Duration(minutes: minutes));
     payload['snoozedUntil'] = snoozedUntil.toIso8601String();
@@ -209,6 +215,10 @@ Future<void> _scheduleBackgroundSnooze(
         ),
       );
   final isAlarmSnooze = payload['mode'] == ReminderMode.alarm.storageValue;
+  final currentSnoozeCount =
+      (int.tryParse('${payload['snoozeCount'] ?? ''}') ?? 0) + 1;
+  final canStillSnooze = isAlarmSnooze && currentSnoozeCount < 3;
+
   await plugin.zonedSchedule(
     id: snoozeNotifId,
     title: 'Pengingat Ditunda',
@@ -244,7 +254,7 @@ Future<void> _scheduleBackgroundSnooze(
             'Selesai',
             cancelNotification: true,
           ),
-          if (payload['mode'] == ReminderMode.alarm.storageValue)
+          if (canStillSnooze)
             const AndroidNotificationAction(
               'snooze_10',
               'Tunda 10 menit',
@@ -257,6 +267,7 @@ Future<void> _scheduleBackgroundSnooze(
     payload: jsonEncode({
       ...payload,
       'isSnooze': true,
+      'snoozeCount': currentSnoozeCount,
       'rootOccurrenceKey': occurrenceKey,
       'notificationId': snoozeNotifId,
       'snoozedUntil': snoozedUntil.toIso8601String(),
@@ -281,10 +292,16 @@ class ReminderNotificationOpenTarget {
   const ReminderNotificationOpenTarget({
     required this.reminderId,
     required this.historyId,
+    this.destinationRoute,
+    this.snoozeCount = 0,
+    this.mode,
   });
 
   final String reminderId;
   final String historyId;
+  final String? destinationRoute;
+  final int snoozeCount;
+  final String? mode;
 }
 
 class ReminderPermissionState {
@@ -723,6 +740,8 @@ class ReminderNotificationService
         'seriesScheduledAt': reminder.scheduledAt.toIso8601String(),
         'isNativeSeries': false,
         'defaultSnoozeMinutes': reminder.defaultSnoozeMinutes,
+        'destinationRoute': reminder.destinationRoute ?? '',
+        'snoozeCount': 0,
         'scheduledAt': occurrence.scheduledAt.toIso8601String(),
         'notificationId': occurrence.notificationId,
       }),
@@ -805,6 +824,7 @@ class ReminderNotificationService
         'isNativeSeries': false,
         'isSnooze': true,
         'defaultSnoozeMinutes': reminder.defaultSnoozeMinutes,
+        'destinationRoute': reminder.destinationRoute ?? '',
         'scheduledAt': history.scheduledAt.toIso8601String(),
         'snoozedUntil': scheduledAt.toIso8601String(),
         'snoozeScheduled': true,
@@ -960,10 +980,16 @@ class ReminderNotificationService
     }
     final reminderId = '${payload['reminderId'] ?? ''}'.trim();
     final historyId = '${payload['historyId'] ?? ''}'.trim();
+    final destinationRoute = '${payload['destinationRoute'] ?? ''}'.trim();
+    final snoozeCount = int.tryParse('${payload['snoozeCount'] ?? ''}') ?? 0;
+    final mode = '${payload['mode'] ?? ''}'.trim();
     if (reminderId.isEmpty || historyId.isEmpty) return;
     _openTarget.value = ReminderNotificationOpenTarget(
       reminderId: reminderId,
       historyId: historyId,
+      destinationRoute: destinationRoute.isNotEmpty ? destinationRoute : null,
+      snoozeCount: snoozeCount,
+      mode: mode.isNotEmpty ? mode : null,
     );
   }
 }

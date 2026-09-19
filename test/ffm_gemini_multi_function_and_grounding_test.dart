@@ -371,6 +371,46 @@ void main() {
       expect(result.text, isNot(contains('read_capability_request')));
       expect(result.text, contains('Panen 100kg apel pada 14 September'));
     });
+
+    test('Anti-loop atau fallback reminder digest membersihkan karakter pipa dan kode error Flutter', () async {
+      final loopingGemini = _CustomStepGeminiService((_) {
+        return const GeminiResult(
+          model: 'gemini-2.5-flash',
+          statusCode: 200,
+          message: 'OK',
+          functionCalls: [
+            GeminiFunctionCall(
+              name: 'read_data',
+              args: {'capabilityId': 'read.reminders'},
+            ),
+          ],
+        );
+      });
+
+      const rawEvidence =
+          'Reminders digest (pengingat aktif): Pengingat Panen Pepaya & Cek Keuangan|waktu=18/09/2026 08:00|ulang=sekali|catatan=FLUTTER_UNHANDLED_ERROR: Invalid argument(s): string is not well-formed UTF-16; Beli Token Listrik|waktu=19/09/2026 10:00|ulang=bulanan|catatan=Token PLN.';
+
+      final orchestrator = FfmGeminiCloudOrchestrator(
+        gemini: loopingGemini,
+        config: _TestConfig(),
+        readCapabilities: _MockReadCapabilityService(rawEvidence),
+        clock: () => DateTime(2026, 9, 18),
+      );
+
+      final result = await orchestrator.run(
+        userText: 'sekarang di halaman pengingat ada berapa alaram aktif?',
+        boundedContext: 'konteks dummy',
+        householdId: 'test-household',
+      );
+
+      expect(result.ok, isTrue);
+      expect(result.text, isNot(contains('|waktu=')));
+      expect(result.text, isNot(contains('|ulang=')));
+      expect(result.text, isNot(contains('FLUTTER_UNHANDLED_ERROR')));
+      expect(result.text, contains('Pengingat Panen Pepaya & Cek Keuangan'));
+      expect(result.text, contains('Beli Token Listrik'));
+      expect(result.text, contains('18/09/2026 08:00'));
+    });
   });
 }
 

@@ -77,7 +77,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 67;
+  int get schemaVersion => 68;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -178,6 +178,12 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(budgetAutonomyDelegations);
         await m.createTable(budgetAutonomyExecutionLedgers);
         await _createBudgetAutonomyProtection();
+      }
+      if (from < 68) {
+        if (await _hasTable('reminders') &&
+            !await _hasColumns('reminders', const ['destination_route'])) {
+          await m.addColumn(reminders, reminders.destinationRoute);
+        }
       }
       if (from < 56 && await _hasTable('reminders')) {
         if (!await _hasColumns('reminders', const ['source_type'])) {

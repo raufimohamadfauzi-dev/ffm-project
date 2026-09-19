@@ -504,6 +504,7 @@ class FfmAssistantDraft {
     this.reminderMode,
     this.recurrenceType,
     this.weekdays = const <int>[],
+    this.destinationRoute,
   });
 
   final FfmAssistantDraftKind kind;
@@ -562,6 +563,7 @@ class FfmAssistantDraft {
   final ReminderMode? reminderMode;
   final ReminderRecurrenceType? recurrenceType;
   final List<int> weekdays;
+  final String? destinationRoute;
 
   bool get hasAmount => amount != null && amount! > 0;
 
@@ -612,6 +614,7 @@ class FfmAssistantDraft {
     ReminderMode? reminderMode,
     ReminderRecurrenceType? recurrenceType,
     List<int>? weekdays,
+    String? destinationRoute,
     bool clearFromAccountName = false,
     bool clearToAccountName = false,
   }) => FfmAssistantDraft(
@@ -669,6 +672,7 @@ class FfmAssistantDraft {
     reminderMode: reminderMode ?? this.reminderMode,
     recurrenceType: recurrenceType ?? this.recurrenceType,
     weekdays: weekdays ?? this.weekdays,
+    destinationRoute: destinationRoute ?? this.destinationRoute,
   );
 }
 
@@ -692,6 +696,7 @@ class FfmAssistantChatEntry {
     this.receivedAt,
     this.modelUsed,
     this.absorbedMemory,
+    this.usedMemories = const [],
     this.suggestedQuestions = const [],
     this.isCorrected = false,
     this.correctionText,
@@ -725,6 +730,9 @@ class FfmAssistantChatEntry {
   /// Fakta/pola memori personal yang diserap asisten dari pesan ini.
   final String? absorbedMemory;
 
+  /// Memori personal yang digunakan atau relevan untuk menjawab pesan ini.
+  final List<String> usedMemories;
+
   /// 3 saran pertanyaan lanjutan kontekstual untuk dipilih pengguna (indikator lampu 💡).
   final List<String> suggestedQuestions;
 
@@ -753,6 +761,7 @@ class FfmAssistantChatEntry {
     DateTime? receivedAt,
     String? modelUsed,
     String? absorbedMemory,
+    List<String>? usedMemories,
     List<String>? suggestedQuestions,
     bool? isCorrected,
     String? correctionText,
@@ -776,6 +785,7 @@ class FfmAssistantChatEntry {
       receivedAt: receivedAt ?? this.receivedAt,
       modelUsed: modelUsed ?? this.modelUsed,
       absorbedMemory: absorbedMemory ?? this.absorbedMemory,
+      usedMemories: usedMemories ?? this.usedMemories,
       suggestedQuestions: suggestedQuestions ?? this.suggestedQuestions,
       isCorrected: isCorrected ?? this.isCorrected,
       correctionText: correctionText ?? this.correctionText,

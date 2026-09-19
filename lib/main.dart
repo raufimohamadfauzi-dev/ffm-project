@@ -680,15 +680,59 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  void _navigateToDestinationRoute(String routeName) {
+    if (routeName.trim().isEmpty) return;
+    final destination = FfmAssistantDestination.values
+        .cast<FfmAssistantDestination?>()
+        .firstWhere(
+          (d) => d?.name.toLowerCase() == routeName.trim().toLowerCase(),
+          orElse: () => null,
+        );
+    if (destination != null) {
+      _handleAssistantIntent(
+        FfmAssistantIntent(
+          rawText: 'buka ${destination.name}',
+          normalizedText: 'buka ${destination.name}',
+          type: FfmAssistantIntentType.openPage,
+          destination: destination,
+        ),
+      );
+    }
+  }
+
   void _openReminderFromNotification() {
     if (!mounted) return;
     final target = _reminderNotifications.takeOpenTarget();
     if (target == null) return;
+
+    if (target.destinationRoute != null &&
+        target.destinationRoute!.trim().isNotEmpty) {
+      final route = target.destinationRoute!.trim();
+      final destination = FfmAssistantDestination.values
+          .cast<FfmAssistantDestination?>()
+          .firstWhere(
+            (d) => d?.name.toLowerCase() == route.toLowerCase(),
+            orElse: () => null,
+          );
+      if (destination != null) {
+        _handleAssistantIntent(
+          FfmAssistantIntent(
+            rawText: 'buka ${destination.name}',
+            normalizedText: 'buka ${destination.name}',
+            type: FfmAssistantIntentType.openPage,
+            destination: destination,
+          ),
+        );
+        return;
+      }
+    }
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ReminderPage(
           focusReminderId: target.reminderId,
           focusHistoryId: target.historyId,
+          onNavigateDestination: _navigateToDestinationRoute,
         ),
       ),
     );
@@ -1128,6 +1172,11 @@ class _AppShellState extends State<AppShell> {
                         ? draft?.weekdays
                         : _parseWeekdaysFromDraft(draft!))
                   : null,
+              initialDestinationRoute:
+                  draft?.kind == FfmAssistantDraftKind.reminder
+                  ? draft?.formValues['destinationRoute']?.toString()
+                  : null,
+              onNavigateDestination: _navigateToDestinationRoute,
             ),
           ),
         );

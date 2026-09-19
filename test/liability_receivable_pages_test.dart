@@ -83,9 +83,9 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: ReceivableListPage()));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Semua'), findsOneWidget);
-      expect(find.textContaining('Aktif'), findsOneWidget);
-      expect(find.textContaining('Terlambat'), findsOneWidget);
+      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Semua')), findsOneWidget);
+      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Aktif')), findsOneWidget);
+      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Terlambat')), findsOneWidget);
       expect(
         find.descendant(
           of: find.byType(TabBar),
@@ -100,8 +100,8 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.textContaining('> 30 hari'), findsOneWidget);
-      expect(find.textContaining('Lunas'), findsOneWidget);
+      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('> 30 hari')), findsOneWidget);
+      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Lunas')), findsOneWidget);
 
       expect(find.text('Piutang Mitra'), findsOneWidget);
     },

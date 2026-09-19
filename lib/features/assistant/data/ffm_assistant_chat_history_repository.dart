@@ -370,6 +370,7 @@ class FfmAssistantChatHistoryRepository {
     'receivedAt': entry.receivedAt?.toIso8601String(),
     'modelUsed': entry.modelUsed,
     'absorbedMemory': entry.absorbedMemory,
+    if (entry.usedMemories.isNotEmpty) 'usedMemories': entry.usedMemories,
     if (entry.suggestedQuestions.isNotEmpty)
       'suggestedQuestions': entry.suggestedQuestions,
   };
@@ -390,6 +391,10 @@ class FfmAssistantChatHistoryRepository {
     final feedbackType = raw['feedbackType'];
     final feedbackCategory = raw['feedbackCategory'];
     final absorbedMemory = raw['absorbedMemory'];
+    final rawUsed = raw['usedMemories'];
+    final usedMemories = rawUsed is List
+        ? rawUsed.map((e) => e.toString()).toList()
+        : const <String>[];
     final rawSuggested = raw['suggestedQuestions'];
     final suggestedQuestions = rawSuggested is List
         ? rawSuggested.map((e) => e.toString()).toList()
@@ -406,6 +411,7 @@ class FfmAssistantChatHistoryRepository {
       feedbackType: feedbackType is String ? feedbackType : null,
       feedbackCategory: feedbackCategory is String ? feedbackCategory : null,
       absorbedMemory: absorbedMemory is String ? absorbedMemory : null,
+      usedMemories: usedMemories,
       suggestedQuestions: suggestedQuestions,
     );
   }
@@ -437,6 +443,7 @@ class FfmAssistantChatHistoryRepository {
         receivedAt: entry.receivedAt,
         modelUsed: entry.modelUsed,
         absorbedMemory: entry.absorbedMemory,
+        usedMemories: entry.usedMemories,
         suggestedQuestions: entry.suggestedQuestions,
       );
       await save(entries);

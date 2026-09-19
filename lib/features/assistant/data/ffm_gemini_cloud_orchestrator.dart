@@ -206,7 +206,7 @@ class FfmGeminiCloudOrchestrator {
       // Anti-loop: jika permintaan identik sudah dibaca pada giliran ini, hentikan perulangan.
       if (seenRequests.contains(reqSignature)) {
         if (accumulatedEvidence.isNotEmpty) {
-          finalText = accumulatedEvidence.join('\n\n');
+          finalText = _friendlyFallback(accumulatedEvidence.join('\n\n'));
         }
         break;
       }
@@ -286,7 +286,7 @@ class FfmGeminiCloudOrchestrator {
         FfmAssistantProposalJsonService.parseReadCapabilityRequest(finalText);
     if (remainingRequest.request != null) {
       if (accumulatedEvidence.isNotEmpty) {
-        finalText = accumulatedEvidence.join('\n\n');
+        finalText = _friendlyFallback(accumulatedEvidence.join('\n\n'));
       } else {
         try {
           final facts = await readCapabilities.execute(
@@ -295,16 +295,23 @@ class FfmGeminiCloudOrchestrator {
             now: clock(),
           );
           accumulatedEvidence.add(facts);
-          finalText = facts;
+          finalText = _friendlyFallback(facts);
         } catch (_) {
           finalText = 'Data yang diminta sudah diperiksa pada database lokal.';
         }
       }
     }
-    if (finalText.contains('read_capability_request')) {
+    if (finalText.contains('read_capability_request') ||
+        finalText.contains('formatVersion":"ffm-assistant-capability-request')) {
       finalText = accumulatedEvidence.isNotEmpty
-          ? accumulatedEvidence.join('\n\n')
+          ? _friendlyFallback(accumulatedEvidence.join('\n\n'))
           : 'Data yang diminta sudah diperiksa pada database lokal.';
+    } else if (finalText.contains('Reminders digest') ||
+        (finalText.contains('|waktu=') && finalText.contains('|ulang='))) {
+      // Jika model mengembalikan raw digest pipe string, ubah menjadi bahasa manusia
+      finalText = _friendlyFallback(finalText);
+    } else if (finalText.trim().isEmpty && accumulatedEvidence.isNotEmpty) {
+      finalText = _friendlyFallback(accumulatedEvidence.join('\n\n'));
     }
 
     return FfmGeminiCloudTurnResult.success(
@@ -382,6 +389,96 @@ class FfmGeminiCloudOrchestrator {
     } on Object {
       // Diagnostics must not alter the conversation result.
     }
+  }
+
+  String _friendlyFallback(String rawEvidence) {
+    if (rawEvidence.trim().isEmpty) {
+      return 'Data sudah diperiksa pada database lokal.';
+    }
+
+    var cleaned = rawEvidence
+        .replaceAll(
+          RegExp(r'FLUTTER_[A-Z_]+:?[^;\n|]*', caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'Unhandled exception:[^;\n|]*', caseSensitive: false),
+          '',
+        )
+        .replaceAll(RegExp(r'#\d+\s+[^;\n|]*'), '')
+        .replaceAll(
+          RegExp(
+            r'string is not well-formed UTF-16[^;\n|]*',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .trim();
+
+    if (cleaned.isEmpty) {
+      return 'Data sudah diperiksa pada database lokal.';
+    }
+
+    if (cleaned.contains('Reminders digest') || cleaned.contains('|waktu=')) {
+      if (cleaned.contains('belum ada pengingat aktif')) {
+        return 'Saat ini belum ada pengingat atau alarm aktif yang tersimpan.';
+      }
+      cleaned = cleaned.replaceFirst(
+        RegExp(r'^Reminders digest\s*(\([^)]*\))?:\s*', caseSensitive: false),
+        '',
+      );
+      final items = cleaned.split(RegExp(r';\s*|\n+'));
+      final buffer = StringBuffer('Berikut daftar pengingat aktif yang terdaftar:\n');
+      var validCount = 0;
+      for (final item in items) {
+        final trimmed = item.trim();
+        if (trimmed.isEmpty || trimmed.startsWith('… (+') || trimmed.startsWith('(+')) continue;
+        final parts = trimmed.split('|');
+        final title = parts.first.replaceAll(RegExp(r'^\s*-\s*'), '').trim();
+        if (title.isEmpty) continue;
+
+        String? waktu;
+        String? ulang;
+        String? catatan;
+        for (var i = 1; i < parts.length; i++) {
+          final p = parts[i];
+          if (p.startsWith('waktu=')) {
+            waktu = p.substring('waktu='.length).trim();
+          } else if (p.startsWith('ulang=')) {
+            ulang = p.substring('ulang='.length).trim();
+          } else if (p.startsWith('catatan=')) {
+            catatan = p.substring('catatan='.length).trim();
+          }
+        }
+
+        buffer.write('- **$title**');
+        final details = <String>[];
+        if (waktu != null && waktu.isNotEmpty) details.add('Waktu: $waktu');
+        if (ulang != null && ulang.isNotEmpty && ulang != 'sekali') {
+          details.add('Ulang: $ulang');
+        }
+        if (details.isNotEmpty) {
+          buffer.write(' (${details.join(', ')})');
+        }
+        if (catatan != null &&
+            catatan.isNotEmpty &&
+            !catatan.contains('FLUTTER_') &&
+            catatan != '<NOMINAL>') {
+          buffer.write('\n  Catatan: $catatan');
+        }
+        buffer.writeln();
+        validCount++;
+      }
+      if (validCount > 0) {
+        return buffer.toString().trim();
+      }
+    }
+
+    cleaned = cleaned
+        .replaceAll(RegExp(r'\s*\|\s*'), ' • ')
+        .replaceAll(RegExp(r'[{}[\]"]'), '');
+
+    return cleaned;
   }
 
   List<Map<String, dynamic>> _buildTools() {
@@ -541,6 +638,10 @@ class FfmGeminiCloudOrchestrator {
                   'type': 'STRING',
                   'description': 'Mode pengingat: "notification" (notifikasi biasa) atau "alarm" (alarm nyaring berdering). Default "notification" kecuali jika pengguna secara eksplisit meminta alarm/jam weker/bunyi nyaring.',
                 },
+                'destinationRoute': {
+                  'type': 'STRING',
+                  'description': 'Kunci halaman tujuan yang dibuka saat notifikasi/alarm diklik (contoh: "liabilities" untuk hutang/cicilan, "goals" untuk target, "budget" untuk anggaran, "transactions" untuk transaksi, "activity" untuk aktivitas/tugas).',
+                },
                 'recurrence': {
                   'type': 'STRING',
                   'description': 'Pengulangan pengingat: "once" (sekali), "daily" (setiap hari), atau "weekly" (setiap pekan). Default "once".',
@@ -638,6 +739,7 @@ ATURAN WAJIB JAWABAN & CAKUPAN TANYA JAWAB:
 - Jawab PERTANYAAN USER secara natural, cerdas, dan mengalir dalam Bahasa Indonesia.
 - Jangan membatasi diri hanya pada perintah catat data: jawab setiap pertanyaan umum, konsultasi, edukasi keuangan, tips hemat, perbandingan, perhitungan, atau obrolan santai keluarga dengan ramah dan solutif.
 - JANGAN meminta tool `read_data` jika pertanyaan bersifat umum, tanya-jawab santai, edukasi, definisi, saran umum, atau mengulas apa yang sudah dibahas di riwayat obrolan.
+- Jika data yang dibutuhkan (seperti daftar pengingat, transaksi, atau saldo) SUDAH TERSEDIA di KONTEKS TERARAH di bawah atau HASIL CAPABILITY LOKAL, LANGSUNG gunakan data tersebut untuk menjawab. JANGAN memanggil tool `read_data` untuk data yang sudah ada di konteks!
 - Gunakan bahasa yang personal dan sesuaikan dengan profil user jika ada.
 
 ATURAN MEMORI PERCAKAPAN & DAYA TANGGAP:

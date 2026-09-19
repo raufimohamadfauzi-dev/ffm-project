@@ -189,6 +189,7 @@ class ReminderEntity {
     this.sourceId,
     this.origin = ReminderOrigin.user,
     this.mode = ReminderMode.notification,
+    this.destinationRoute,
   });
 
   final String id;
@@ -212,6 +213,7 @@ class ReminderEntity {
   final String? sourceId;
   final ReminderOrigin origin;
   final ReminderMode mode;
+  final String? destinationRoute;
 }
 
 class ReminderHistoryEntity {

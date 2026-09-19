@@ -97,6 +97,7 @@ import '../../features/reminder/data/repositories/reminder_repository.dart';
 import '../../features/reminder/data/services/reminder_notification_service.dart';
 import '../../features/reminder/data/services/reminder_schedule_replenisher.dart';
 import '../../features/reminder/data/services/reminder_sound_picker.dart';
+import '../../features/reminder/data/services/reminder_tts_service.dart';
 import '../../features/reminder/domain/usecases/reminder_usecases.dart';
 import '../../features/reminder/presentation/bloc/reminder_bloc.dart';
 import '../../features/settings/data/category_repository.dart';
@@ -256,6 +257,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<ReminderSoundPicker>(
     AndroidReminderSoundPicker.new,
   );
+  getIt.registerLazySingleton<ReminderTtsService>(ReminderTtsService.new);
   getIt.registerLazySingleton<ReminderBloc>(
     () => ReminderBloc(
       repository: getIt<ReminderRepository>(),

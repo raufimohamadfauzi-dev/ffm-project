@@ -498,6 +498,7 @@ class Reminders extends Table {
   BoolColumn get isSyncedToCalendar =>
       boolean().withDefault(const Constant(false))();
   DateTimeColumn get syncedAt => dateTime().nullable()();
+  TextColumn get destinationRoute => text().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};

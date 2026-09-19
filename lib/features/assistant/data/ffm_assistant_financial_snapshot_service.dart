@@ -984,13 +984,32 @@ class FfmAssistantFinancialSnapshotService {
     int maxItems = 10,
     int maxCharacters = 800,
   }) async {
-    final reminders =
+    final allReminders =
         await (_database.select(_database.reminders)..where(
               (row) =>
                   row.householdId.equals(householdId) &
                   row.isActive.equals(true),
             ))
             .get();
+
+    // Filter pengingat internal sistem/diagnostik agar tidak mengotori daftar alarm pengguna
+    const internalSourceTypes = <String>{
+      'diagnostics',
+      'assistant_log',
+      'cloud_setup',
+      'account_setup',
+      'goal_setup',
+      'budget_setup',
+      'cash_flow_profile',
+      'family_profile',
+    };
+    final reminders = allReminders
+        .where(
+          (r) =>
+              r.sourceType == null || !internalSourceTypes.contains(r.sourceType),
+        )
+        .toList();
+
     if (reminders.isEmpty) {
       return 'Reminders digest: belum ada pengingat aktif.';
     }

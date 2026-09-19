@@ -824,6 +824,13 @@ class FfmAssistantProposalJsonService {
     if (soundName != null) {
       formValues['soundName'] = soundName;
     }
+    final destinationRoute = _boundedText(
+      proposal['destinationRoute'] ?? proposal['destination'],
+      100,
+    );
+    if (destinationRoute != null) {
+      formValues['destinationRoute'] = destinationRoute;
+    }
 
     final isAlarm = modeValue == 'alarm';
     final reminderMode = isAlarm

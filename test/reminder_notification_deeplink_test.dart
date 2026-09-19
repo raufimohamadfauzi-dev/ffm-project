@@ -43,6 +43,33 @@ void main() {
     },
   );
 
+  test(
+    'ketukan notifikasi dengan destinationRoute menerbitkan deep-link route halaman terkait',
+    () async {
+      final payload = {
+        'reminderId': 'reminder-hutang',
+        'historyId': 'reminder-hutang-2026-09-20T10:00:00',
+        'occurrenceKey': '2026-09-20T10:00:00',
+        'householdId': 'local-household',
+        'destinationRoute': 'liabilities',
+      };
+      SharedPreferences.setMockInitialValues({
+        pendingKey: [
+          jsonEncode({'actionId': 'open', 'payload': jsonEncode(payload)}),
+        ],
+      });
+      final service = ReminderNotificationService();
+
+      final actions = await service.consumePendingActions();
+
+      expect(actions, hasLength(1));
+      expect(service.openTarget.value?.destinationRoute, 'liabilities');
+      final target = service.takeOpenTarget();
+      expect(target?.destinationRoute, 'liabilities');
+      expect(service.openTarget.value, isNull);
+    },
+  );
+
   test('aksi selesai tidak menerbitkan deep-link ketukan biasa', () async {
     SharedPreferences.setMockInitialValues({
       pendingKey: [

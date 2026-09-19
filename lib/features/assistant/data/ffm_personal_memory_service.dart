@@ -532,6 +532,57 @@ class FfmPersonalMemoryService {
     return bounded.map((i) => '• ${i.humanLabel}').join('\n');
   }
 
+  /// Mengambil label memori personal yang cocok dengan kata kunci atau isi percakapan.
+  Future<List<String>> findRelevantMemories(String text) async {
+    final all = await readAll();
+    if (all.isEmpty || text.trim().isEmpty) return const [];
+    final lower = text.toLowerCase();
+    final matched = <String>[];
+    for (final m in all) {
+      final keyLower = m.key.toLowerCase();
+      final valLower = m.value.toLowerCase().trim();
+
+      bool isMatch = false;
+      if (valLower.isNotEmpty && valLower.length >= 3 && lower.contains(valLower)) {
+        isMatch = true;
+      } else if (keyLower.length >= 4 && lower.contains(keyLower)) {
+        isMatch = true;
+      } else {
+        switch (m.key) {
+          case 'payday':
+            isMatch = lower.contains('gaji') || lower.contains('gajian');
+            break;
+          case 'commodity':
+            isMatch = lower.contains('komoditas') ||
+                lower.contains('panen') ||
+                lower.contains('tanam');
+            break;
+          case 'monthly_income':
+            isMatch = lower.contains('penghasilan') || lower.contains('pendapatan');
+            break;
+          case 'location':
+            isMatch = lower.contains('domisili') || lower.contains('tinggal di');
+            break;
+          case 'agriculture_field':
+            isMatch = lower.contains('lahan') ||
+                lower.contains('kebun') ||
+                lower.contains('sawah');
+            break;
+          case 'electricity_meter':
+            isMatch = lower.contains('meteran') ||
+                lower.contains('idpel') ||
+                lower.contains('token pln');
+            break;
+        }
+      }
+
+      if (isMatch && !matched.contains(m.humanLabel)) {
+        matched.add(m.humanLabel);
+      }
+    }
+    return matched;
+  }
+
   /// Belajar otonom dari koreksi draft pengguna (Modul 3A).
   /// Menyimpan aturan personal otomatis agar transaksi/tindakan serupa berikutnya tepat.
   Future<FfmPersonalMemoryInsight?> learnCorrectionRule({
