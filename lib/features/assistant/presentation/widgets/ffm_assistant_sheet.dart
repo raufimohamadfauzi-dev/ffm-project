@@ -77,7 +77,6 @@ import '../../../../core/network/supabase_config.dart';
 import '../../../../core/network/supabase_service.dart';
 import 'chat/ffm_assistant_draft_preview.dart';
 import '../../../reminder/domain/entities/reminder_entity.dart';
-import '../../../reminder/data/repositories/reminder_repository.dart';
 
 import 'chat/ffm_assistant_message_card.dart';
 import 'chat/ffm_streaming_text_controller.dart';
@@ -5407,29 +5406,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   ) async {
     final existingTargetId = original.formValues['targetId']?.toString().trim();
     if (edited.kind != FfmAssistantDraftKind.reminder) return null;
-    if (existingTargetId != null && existingTargetId.isNotEmpty) {
-      return existingTargetId;
-    }
-    try {
-      final reminders = await ReminderRepository(getIt<AppDatabase>())
-          .getReminders(AppContext.householdId);
-      final title = original.title?.trim().toLowerCase();
-      if (title == null || title.isEmpty) return null;
-      final titleMatches = reminders
-          .where(
-            (item) => item.isActive && item.title.trim().toLowerCase() == title,
-          )
-          .toList();
-      final exactMatches = original.date == null
-          ? titleMatches
-          : titleMatches
-            .where((item) => item.scheduledAt == original.date)
-                .toList();
-      final matches = exactMatches.isNotEmpty ? exactMatches : titleMatches;
-      return matches.length == 1 ? matches.single.id : null;
-    } on Object {
-      return null;
-    }
+    // A newly-created reminder must stay a create operation even when its
+    // title and schedule happen to match an existing reminder. Existing
+    // reminder drafts already carry targetId; do not infer identity here.
+    if (existingTargetId == null || existingTargetId.isEmpty) return null;
+    return existingTargetId;
   }
 
   void _cancelActiveDraft([FfmAssistantIntent? intent]) {

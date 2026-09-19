@@ -1824,6 +1824,10 @@ class _ReminderDialogState extends State<_ReminderDialog> {
                 child: Text('Pengingat / Alarm (Bawaan)'),
               ),
               DropdownMenuItem(
+                value: 'summary',
+                child: Text('Ringkasan Finansial'),
+              ),
+              DropdownMenuItem(
                 value: 'liabilities',
                 child: Text('Hutang & Cicilan'),
               ),
@@ -1840,8 +1844,16 @@ class _ReminderDialogState extends State<_ReminderDialog> {
                 child: Text('Transaksi'),
               ),
               DropdownMenuItem(
+                value: 'assets',
+                child: Text('Daftar Aset'),
+              ),
+              DropdownMenuItem(
                 value: 'activity',
                 child: Text('Aktivitas & Rutinitas'),
+              ),
+              DropdownMenuItem(
+                value: 'monthlyReport',
+                child: Text('Laporan Bulanan'),
               ),
               DropdownMenuItem(
                 value: 'familyProfile',

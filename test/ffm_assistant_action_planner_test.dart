@@ -83,6 +83,33 @@ void main() {
     expect(save.parameters['operation'], 'update');
   });
 
+  test('planner menjaga reminder baru tetap berada di jalur create', () {
+    final intent = FfmAssistantIntent(
+      rawText: 'buat pengingat alarm pagi',
+      normalizedText: 'buat pengingat alarm pagi',
+      type: FfmAssistantIntentType.createReminder,
+      draft: FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.reminder,
+        title: 'Alarm Pagi',
+        date: DateTime(2026, 9, 20, 6),
+        createdAt: DateTime(2026, 9, 19),
+      ),
+    );
+
+    final plan = const FfmAssistantActionPlanner().planFor(intent)!;
+
+    expect(
+      plan.steps.map((step) => step.capabilityId),
+      [
+        'read.reminders',
+        'draft.reminder',
+        'mutate.save_draft',
+        'verify.saved_draft',
+      ],
+    );
+    expect(plan.steps.every((step) => step.parameters['targetId'] == null), isTrue);
+  });
+
   test('canonical draft fields tidak dapat ditimpa formValues', () {
     final intent = FfmAssistantIntent(
       rawText: 'transfer 100000',
