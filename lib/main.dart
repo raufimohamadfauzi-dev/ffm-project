@@ -50,6 +50,7 @@ import 'features/reminder/presentation/pages/reminder_page.dart';
 import 'features/settings/presentation/pages/master_data_page.dart';
 import 'features/settings/presentation/pages/family_profile_page.dart';
 import 'features/activity/presentation/pages/activity_page.dart';
+import 'features/activity/domain/entities/activity_entity.dart';
 import 'features/advisor/presentation/pages/summary_page.dart';
 import 'features/advisor/presentation/pages/analysis_page.dart';
 import 'features/budget/presentation/pages/budget_page.dart';
@@ -1129,8 +1130,25 @@ class _AppShellState extends State<AppShell> {
               initialNotes: draft?.kind == FfmAssistantDraftKind.activity
                   ? draft?.note
                   : null,
-              initialStartDate: intent.periodStart,
+              initialStartDate: draft?.kind == FfmAssistantDraftKind.activity
+                  ? draft?.date ?? intent.periodStart
+                  : intent.periodStart,
               initialEndDate: intent.periodEnd,
+              initialMode: draft?.kind == FfmAssistantDraftKind.activity
+                  ? draft?.activityMode ??
+                        ActivityMode.tryParse(
+                          draft?.formValues['activityMode']?.toString() ??
+                              draft?.formValues['mode']?.toString(),
+                        )
+                  : null,
+              initialScheduledAt: draft?.kind == FfmAssistantDraftKind.activity
+                  ? draft?.scheduledAt
+                  : null,
+              initialParentSessionId:
+                  draft?.kind == FfmAssistantDraftKind.activity
+                  ? draft?.parentSessionId ??
+                        draft?.formValues['parentSessionId']?.toString()
+                  : null,
             ),
           ),
         );

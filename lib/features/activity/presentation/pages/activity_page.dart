@@ -34,6 +34,9 @@ class ActivityPage extends StatelessWidget {
     this.initialNotes,
     this.initialStartDate,
     this.initialEndDate,
+    this.initialMode,
+    this.initialScheduledAt,
+    this.initialParentSessionId,
   });
 
   final String? initialTitle;
@@ -41,6 +44,9 @@ class ActivityPage extends StatelessWidget {
   final String? initialNotes;
   final DateTime? initialStartDate;
   final DateTime? initialEndDate;
+  final ActivityMode? initialMode;
+  final DateTime? initialScheduledAt;
+  final String? initialParentSessionId;
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +61,9 @@ class ActivityPage extends StatelessWidget {
           initialNotes: initialNotes,
           initialStartDate: initialStartDate,
           initialEndDate: initialEndDate,
+          initialMode: initialMode,
+          initialScheduledAt: initialScheduledAt,
+          initialParentSessionId: initialParentSessionId,
         ),
       ),
     );
@@ -68,6 +77,9 @@ class _ActivityView extends StatefulWidget {
     this.initialNotes,
     this.initialStartDate,
     this.initialEndDate,
+    this.initialMode,
+    this.initialScheduledAt,
+    this.initialParentSessionId,
   });
 
   final String? initialTitle;
@@ -75,6 +87,9 @@ class _ActivityView extends StatefulWidget {
   final String? initialNotes;
   final DateTime? initialStartDate;
   final DateTime? initialEndDate;
+  final ActivityMode? initialMode;
+  final DateTime? initialScheduledAt;
+  final String? initialParentSessionId;
 
   @override
   State<_ActivityView> createState() => _ActivityViewState();
@@ -126,6 +141,9 @@ class _ActivityViewState extends State<_ActivityView>
             initialTitle: widget.initialTitle,
             initialCategory: widget.initialCategory,
             initialNotes: widget.initialNotes,
+            initialMode: widget.initialMode,
+            initialScheduledAt: widget.initialScheduledAt,
+            parentSessionId: widget.initialParentSessionId,
           );
         }
       });
@@ -477,6 +495,7 @@ class _ActivityViewState extends State<_ActivityView>
     String? initialNotes,
     DateTime? initialStartedAt,
     ActivityMode? initialMode,
+    DateTime? initialScheduledAt,
   }) async {
     if (initialMode == ActivityMode.history) {
       await _startDailyNote(
@@ -500,7 +519,8 @@ class _ActivityViewState extends State<_ActivityView>
         initialCategory: initialCategory,
         initialNotes: initialNotes,
         initialStartedAt: initialStartedAt,
-        initialMode: ActivityMode.timeTracking,
+        initialMode: initialMode ?? ActivityMode.timeTracking,
+        initialScheduledAt: initialScheduledAt,
       ),
     );
     if (result == null || !mounted) return;
@@ -512,6 +532,7 @@ class _ActivityViewState extends State<_ActivityView>
       mode: result.mode,
       notes: result.notes,
       startedAt: result.startedAt,
+      scheduledAt: result.scheduledAt,
       parentSessionId: parentSessionId,
     );
   }
@@ -3714,6 +3735,7 @@ class _SessionDraft {
     this.notes,
     this.startedAt,
     this.tagIds,
+    this.scheduledAt,
   );
   final String title;
   final String category;
@@ -3723,6 +3745,7 @@ class _SessionDraft {
   final String? notes;
   final DateTime startedAt;
   final List<String> tagIds;
+  final DateTime? scheduledAt;
 }
 
 class _SessionForm extends StatefulWidget {
@@ -3733,6 +3756,7 @@ class _SessionForm extends StatefulWidget {
     this.initialNotes,
     this.initialStartedAt,
     this.initialMode,
+    this.initialScheduledAt,
   });
 
   final String? parentSessionTitle;
@@ -3741,6 +3765,7 @@ class _SessionForm extends StatefulWidget {
   final String? initialNotes;
   final DateTime? initialStartedAt;
   final ActivityMode? initialMode;
+  final DateTime? initialScheduledAt;
 
   @override
   State<_SessionForm> createState() => _SessionFormState();
@@ -3751,6 +3776,7 @@ class _SessionFormState extends State<_SessionForm> {
   late final TextEditingController _category;
   late final TextEditingController _notes;
   DateTime _startedAt = DateTime.now();
+  DateTime? _scheduledAt;
   ActivityMode _mode = ActivityMode.timeTracking;
   final _categoryRepository = getIt<CategoryRepository>();
   final _formSpeechService = ActivitySpeechService();
@@ -3774,6 +3800,7 @@ class _SessionFormState extends State<_SessionForm> {
         : null;
     _notes = TextEditingController(text: widget.initialNotes ?? '');
     if (widget.initialStartedAt != null) _startedAt = widget.initialStartedAt!;
+    _scheduledAt = widget.initialScheduledAt;
     if (widget.initialMode != null) _mode = widget.initialMode!;
     _loadActivityCategories();
   }
@@ -4275,6 +4302,7 @@ class _SessionFormState extends State<_SessionForm> {
                       _notes.text.trim().isEmpty ? null : _notes.text.trim(),
                       _startedAt,
                       const [],
+                      _scheduledAt,
                     ),
                   );
                 },

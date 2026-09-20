@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/core/di/injection.dart';
+import 'package:ffm_manager/features/activity/domain/entities/activity_entity.dart';
 import 'package:ffm_manager/features/activity/presentation/pages/activity_page.dart';
 
 void main() {
@@ -54,6 +55,28 @@ void main() {
     expect(find.byIcon(Icons.directions_run_outlined), findsNothing);
     expect(find.text('⏱️ Pakai Timer'), findsNothing);
     expect(find.text('Tambah tag baru'), findsOneWidget);
+  });
+
+  testWidgets('assistant history draft opens Daily Note with initial fields', (
+    tester,
+  ) async {
+    final initialDate = DateTime(2026, 9, 20, 8, 30);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ActivityPage(
+          initialTitle: 'Panen selesai',
+          initialNotes: 'Catatan dari Asisten',
+          initialStartDate: initialDate,
+          initialMode: ActivityMode.history,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Catat Kejadian'), findsOneWidget);
+    expect(find.text('Panen selesai'), findsOneWidget);
+    expect(find.text('Catatan dari Asisten'), findsOneWidget);
+    expect(find.text('Tanggal kejadian: 20/09/2026'), findsOneWidget);
   });
 
   testWidgets('tag baru dibuat inline dan langsung tersedia di form catatan', (
