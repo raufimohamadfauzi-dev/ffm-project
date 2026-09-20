@@ -75,6 +75,10 @@ class FfmAssistantActionPlanner {
         'targetTimeMinutes',
       ],
       FfmAssistantDraftKind.masterData => const ['title', 'category'],
+      FfmAssistantDraftKind.createUtilityMeter => const ['name', 'meterNumber'],
+      FfmAssistantDraftKind.updateUtilityMeter => const ['meterId'],
+      FfmAssistantDraftKind.deleteUtilityMeter => const ['meterId'],
+      FfmAssistantDraftKind.analyzeElectricityConsumption => const [],
       _ => const <String>[],
     };
     return [
@@ -152,10 +156,10 @@ class FfmAssistantActionPlanner {
         ),
       );
       final parameters = draftParameters;
-        final mutationCapability = existingReminder
+      final mutationCapability = existingReminder
           ? 'mutate.update'
           : _mutationCapabilityFor(draft.kind);
-        final verifyCapability = existingReminder
+      final verifyCapability = existingReminder
           ? 'verify.reminder_mutation'
           : _verifyCapabilityFor(draft.kind);
       final idempotencyKey = '$planId:save';
@@ -232,20 +236,20 @@ class FfmAssistantActionPlanner {
     for (var i = 0; i < drafts.length; i++) {
       final draft = drafts[i];
       final stepSuffix = drafts.length == 1 ? '' : '_${i + 1}';
-        final existingReminder = _isExistingReminder(draft);
-        final draftCapability = existingReminder
+      final existingReminder = _isExistingReminder(draft);
+      final draftCapability = existingReminder
           ? 'draft.reminder_update'
           : _draftCapabilityFor(draft.kind);
-        final mutationCapability = existingReminder
+      final mutationCapability = existingReminder
           ? 'mutate.update'
           : _mutationCapabilityFor(draft.kind);
-        final verifyCapability = existingReminder
+      final verifyCapability = existingReminder
           ? 'verify.reminder_mutation'
           : _verifyCapabilityFor(draft.kind);
-        final parameters = {
-          ..._draftParameters(draft),
-          if (existingReminder) 'operation': 'update',
-        };
+      final parameters = {
+        ..._draftParameters(draft),
+        if (existingReminder) 'operation': 'update',
+      };
       final idempotencyKey = '$planId:save$stepSuffix';
 
       steps.add(
@@ -406,6 +410,7 @@ class FfmAssistantActionPlanner {
     FfmAssistantDraftKind.budget => 'draft.budget',
     FfmAssistantDraftKind.budgetUpdate => 'draft.budget_update',
     FfmAssistantDraftKind.budgetArchive => 'draft.budget_archive',
+    FfmAssistantDraftKind.budgetTransfer => 'draft.budget_transfer',
     FfmAssistantDraftKind.masterData => 'draft.master_data',
     FfmAssistantDraftKind.merchantUpdate => 'draft.merchant_update',
     FfmAssistantDraftKind.merchantArchive => 'draft.merchant_archive',
@@ -466,6 +471,12 @@ class FfmAssistantActionPlanner {
     FfmAssistantDraftKind.cashFlowProfile => 'draft.cash_flow_profile',
     FfmAssistantDraftKind.monitoringJob => 'draft.monitoring_job',
     FfmAssistantDraftKind.meterReading => 'draft.meter_reading',
+    FfmAssistantDraftKind.createUtilityMeter => 'draft.create_utility_meter',
+    FfmAssistantDraftKind.updateTokenCode => 'draft.update_token_code',
+    FfmAssistantDraftKind.updateUtilityMeter => 'draft.update_utility_meter',
+    FfmAssistantDraftKind.deleteUtilityMeter => 'draft.delete_utility_meter',
+    FfmAssistantDraftKind.analyzeElectricityConsumption =>
+      'draft.analyze_electricity_consumption',
   };
 
   static bool _isExistingReminder(FfmAssistantDraft draft) =>
@@ -528,6 +539,7 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.accountUpdate => 'mutate.update',
         FfmAssistantDraftKind.accountArchive => 'mutate.archive',
         FfmAssistantDraftKind.accountDelete => 'sensitive.delete',
+        FfmAssistantDraftKind.budgetTransfer => 'mutate.budget_transfer',
         FfmAssistantDraftKind.budgetUpdate => 'mutate.update',
         FfmAssistantDraftKind.budgetArchive => 'mutate.archive',
         _ => 'mutate.save_draft',
@@ -601,6 +613,11 @@ class FfmAssistantActionPlanner {
     FfmAssistantDraftKind.reminderComplete => 'verify.reminder_mutation',
     FfmAssistantDraftKind.reminderUpdate => 'verify.reminder_mutation',
     FfmAssistantDraftKind.monitoringJob => 'verify.monitoring_job',
+    FfmAssistantDraftKind.createUtilityMeter => 'verify.saved_draft',
+    FfmAssistantDraftKind.updateUtilityMeter => 'verify.saved_draft',
+    FfmAssistantDraftKind.deleteUtilityMeter => 'verify.saved_draft',
+    FfmAssistantDraftKind.updateTokenCode => 'verify.saved_draft',
+    FfmAssistantDraftKind.analyzeElectricityConsumption => 'verify.saved_draft',
     _ => 'verify.saved_draft',
   };
 

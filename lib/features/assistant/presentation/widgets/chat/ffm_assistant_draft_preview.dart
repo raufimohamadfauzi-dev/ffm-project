@@ -37,6 +37,7 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     FfmAssistantDraftKind.budget => 'Draft Anggaran',
     FfmAssistantDraftKind.budgetUpdate => 'Preview Perubahan Batas Anggaran',
     FfmAssistantDraftKind.budgetArchive => 'Preview Arsip Anggaran',
+    FfmAssistantDraftKind.budgetTransfer => 'Draft Transfer Anggaran',
     FfmAssistantDraftKind.masterData => 'Draft Data Utama',
     FfmAssistantDraftKind.merchantUpdate => 'Preview Perubahan Toko/Tempat',
     FfmAssistantDraftKind.merchantArchive => 'Preview Arsip Toko/Tempat',
@@ -101,13 +102,23 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     FfmAssistantDraftKind.cashFlowProfile => 'Draft Siklus Kas / AgroTrack',
     FfmAssistantDraftKind.monitoringJob => 'Draft Jadwal Pemantauan',
     FfmAssistantDraftKind.meterReading => 'Draft Pembacaan Meter',
+    FfmAssistantDraftKind.createUtilityMeter =>
+      'Draft Daftarkan Meteran Listrik',
+    FfmAssistantDraftKind.updateTokenCode => 'Draft Update Token Listrik',
+    FfmAssistantDraftKind.updateUtilityMeter =>
+      'Draft Ubah Data Meteran Listrik',
+    FfmAssistantDraftKind.deleteUtilityMeter => 'Draft Hapus Meteran Listrik',
+    FfmAssistantDraftKind.analyzeElectricityConsumption =>
+      'Draft Analisis Konsumsi Listrik',
   };
 
   static String rupiah(int amount) =>
       'Rp${amount.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => '.')}';
 
   static String friendlyDestinationName(String? route) {
-    if (route == null || route.trim().isEmpty) return 'Pengingat / Alarm (Bawaan)';
+    if (route == null || route.trim().isEmpty) {
+      return 'Pengingat / Alarm (Bawaan)';
+    }
     return switch (route.trim().toLowerCase()) {
       'reminders' || 'reminder' => 'Pengingat / Alarm (Bawaan)',
       'transactions' => 'Daftar Transaksi',
@@ -208,6 +219,12 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
       FfmAssistantDraftKind.income ||
       FfmAssistantDraftKind.expense ||
       FfmAssistantDraftKind.transfer => true,
+      FfmAssistantDraftKind.createUtilityMeter ||
+      FfmAssistantDraftKind.updateUtilityMeter ||
+      FfmAssistantDraftKind.deleteUtilityMeter ||
+      FfmAssistantDraftKind.updateTokenCode ||
+      FfmAssistantDraftKind.meterReading ||
+      FfmAssistantDraftKind.analyzeElectricityConsumption => false,
       _ => false,
     };
     final itemSubtotal = draft.items.fold<int>(
@@ -274,7 +291,8 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
         ),
       if (draft.kind == FfmAssistantDraftKind.reminder) ...[
         () {
-          final recurrenceType = draft.recurrenceType ??
+          final recurrenceType =
+              draft.recurrenceType ??
               (draft.formValues['recurrence'] != null ||
                       draft.formValues['recurrenceType'] != null
                   ? ReminderRecurrenceTypeX.fromStorage(
@@ -290,17 +308,17 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
               final days = draft.weekdays.isNotEmpty
                   ? draft.weekdays
                   : (draft.formValues['weekdays'] is List
-                      ? (draft.formValues['weekdays'] as List)
-                          .map((e) => int.tryParse(e.toString()))
-                          .whereType<int>()
-                          .toList()
-                      : draft.formValues['weekdays'] is String
-                          ? (draft.formValues['weekdays'] as String)
+                        ? (draft.formValues['weekdays'] as List)
+                              .map((e) => int.tryParse(e.toString()))
+                              .whereType<int>()
+                              .toList()
+                        : draft.formValues['weekdays'] is String
+                        ? (draft.formValues['weekdays'] as String)
                               .split(',')
                               .map((e) => int.tryParse(e.trim()))
                               .whereType<int>()
                               .toList()
-                          : <int>[]);
+                        : <int>[]);
               if (days.isEmpty) return 'Hari tertentu';
               const dayNames = {
                 1: 'Senin',
@@ -348,7 +366,12 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
           ),
       ],
       if (draft.tags?.trim().isNotEmpty == true)
-        MapEntry('Tag transaksi', draft.tags!.trim()),
+        MapEntry(
+          draft.kind == FfmAssistantDraftKind.dailyNote
+              ? 'Tag Catatan Harian'
+              : 'Tag transaksi',
+          draft.tags!.trim(),
+        ),
       if (draft.newTags?.trim().isNotEmpty == true)
         MapEntry('Tag baru', draft.newTags!.trim()),
       if (draft.newMerchant?.trim().isNotEmpty == true)

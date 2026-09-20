@@ -75,6 +75,31 @@ import 'ffm_agent_plugins.dart';
 import 'ffm_category_suggestion_service.dart';
 import '../../../shared/ffm_date_period.dart';
 
+/// Helper class untuk analisis konsumsi meteran listrik
+class _MeterAnalysis {
+  final String name;
+  final String idpel;
+  final String tariffPower;
+  final int purchaseCount;
+  final int totalCost;
+  final double totalKwh;
+  final double avgCostPerKwh;
+  final double dailyKwh;
+  final double monthlyEstimate;
+
+  _MeterAnalysis({
+    required this.name,
+    required this.idpel,
+    required this.tariffPower,
+    required this.purchaseCount,
+    required this.totalCost,
+    required this.totalKwh,
+    required this.avgCostPerKwh,
+    required this.dailyKwh,
+    required this.monthlyEstimate,
+  });
+}
+
 class FfmAssistantInterpreter {
   FfmAssistantInterpreter(
     this._database, {
@@ -728,13 +753,13 @@ class FfmAssistantInterpreter {
       draftFeedback: draftFeedbackText,
       conversationHistory: _boundedConversationHistory(
         conversationHistory,
-        maxLines: 35,
+        maxLines: 60,
       ),
       cloudMemoryContext: cloudContext,
     ).toBoundedPrompt();
   }
 
-  String _boundedConversationHistory(String? history, {int maxLines = 35}) {
+  String _boundedConversationHistory(String? history, {int maxLines = 60}) {
     if (history == null || history.trim().isEmpty) return '';
     final lines = history
         .split('\n')
@@ -782,6 +807,7 @@ class FfmAssistantInterpreter {
       userText: rawText,
       boundedContext: geminiContext,
       householdId: AppContext.householdId,
+      conversationHistory: conversationHistory,
     );
     onProgress?.call('🛡️ Memverifikasi jawaban dengan konteks lokal...');
     await Future<void>.delayed(const Duration(milliseconds: 120));
@@ -1060,6 +1086,26 @@ class FfmAssistantInterpreter {
       );
     }
 
+    final budgetTransferDraft = _tryExtractBudgetTransferDraftFromText(rawText);
+    if (budgetTransferDraft != null) {
+      final issues = FfmAssistantDraftValidator.validate(budgetTransferDraft);
+      final budgetTransferReview = FfmAssistantDraftReview(
+        draft: budgetTransferDraft,
+        version: 1,
+        issues: issues,
+      );
+      return _InterpretResult.single(
+        _intentForDraft(rawText, normalized, budgetTransferDraft).copyWith(
+          response: turn.text,
+          responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
+          pluginName: 'gemini_cloud',
+          pluginCategory: 'gemini_cloud',
+          pluginMetadata: geminiMetadata,
+          review: budgetTransferReview,
+        ),
+      );
+    }
+
     return _InterpretResult.single(
       FfmAssistantIntent(
         rawText: rawText,
@@ -1116,6 +1162,25 @@ class FfmAssistantInterpreter {
     }
 
     if (amount != null && amount > 0) {
+      // Deteksi period type dari normalized text
+      String periodType = 'monthly'; // default
+      if (normalized.contains('mingguan') ||
+          normalized.contains('per minggu') ||
+          normalized.contains('weekly') ||
+          normalized.contains('setiap minggu')) {
+        periodType = 'weekly';
+      } else if (normalized.contains('bulanan') ||
+          normalized.contains('per bulan') ||
+          normalized.contains('monthly') ||
+          normalized.contains('setiap bulan')) {
+        periodType = 'monthly';
+      } else if (normalized.contains('sekali') ||
+          normalized.contains('nonrecurring') ||
+          normalized.contains('tidak berulang') ||
+          normalized.contains('one-time')) {
+        periodType = 'nonrecurring';
+      }
+
       final titleCategory = (categoryName != null && categoryName.isNotEmpty)
           ? categoryName
                 .split(' ')
@@ -1131,10 +1196,63 @@ class FfmAssistantInterpreter {
         createdAt: _clock(),
         amount: amount,
         categoryName: titleCategory,
-        formValues: const <String, dynamic>{'periodType': 'monthly'},
+        formValues: <String, dynamic>{'periodType': periodType},
       );
     }
     return null;
+  }
+
+  FfmAssistantDraft? _tryExtractBudgetTransferDraftFromText(String rawText) {
+    final normalized = rawText.toLowerCase();
+    final hasTransferKeyword = RegExp(
+      r'(?:transfer|pindah|realokasi)\s+(?:\d+(?:[\.,]\d+)?|\d+rb|\d+jt|\d+ribu|\d+juta)',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    if (!hasTransferKeyword) return null;
+
+    // Extract amount
+    int? amount;
+    final parsedDigits = FfmAssistantGroundingValidator.expandTextNumbers(
+      normalized,
+    );
+    if (parsedDigits.isNotEmpty) {
+      amount = int.tryParse(parsedDigits.first);
+    } else {
+      final numbers = RegExp(r'\d+')
+          .allMatches(normalized)
+          .map((m) => m.group(0)!)
+          .toList();
+      if (numbers.isNotEmpty) {
+        amount = int.tryParse(numbers.first);
+      }
+    }
+
+    if (amount == null || amount <= 0) return null;
+
+    // Extract envelope names (simplified pattern matching)
+    final transferPattern = RegExp(
+      r'(?:transfer|pindah|realokasi)\s+(?:\d+(?:[\.,]\d+)?|\d+rb|\d+jt|\d+ribu|\d+juta)\s+(?:dari|dri)\s+([a-zA-Z0-9\s]+?)\s+(?:ke|k)\s+([a-zA-Z0-9\s]+?)(?:\s|$)',
+      caseSensitive: false,
+    );
+    final match = transferPattern.firstMatch(normalized);
+
+    if (match == null) return null;
+
+    final fromEnvelopeName = match.group(1)?.trim();
+    final toEnvelopeName = match.group(2)?.trim();
+
+    if (fromEnvelopeName == null || toEnvelopeName == null) return null;
+
+    return FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.budgetTransfer,
+      createdAt: _clock(),
+      amount: amount,
+      formValues: <String, dynamic>{
+        'fromEnvelopeName': fromEnvelopeName,
+        'toEnvelopeName': toEnvelopeName,
+      },
+    );
   }
 
   Future<FfmAssistantUnderstandingResult> interpretMany(
@@ -1640,22 +1758,43 @@ class FfmAssistantInterpreter {
         caseSensitive: false,
       ).firstMatch(normalized);
       if (tokenMatch != null) {
-        currentProposal['tokenCode'] =
-            tokenMatch.group(1)!.replaceAll(RegExp(r'\D'), '');
+        currentProposal['tokenCode'] = tokenMatch
+            .group(1)!
+            .replaceAll(RegExp(r'\D'), '');
         changes.add('Kode token diperbarui');
       }
       if (meterMatch != null) {
-        currentProposal['meterNumber'] = meterMatch.group(1);
-        changes.add('Nomor meter diperbarui');
+        final meterNumber = meterMatch.group(1);
+        currentProposal['meterNumber'] = meterNumber;
+
+        // Auto-populate field dari database jika IDPEL sudah terdaftar
+        final existingMeter = await _utilityMeters.findMeterByNumber(
+          AppContext.householdId,
+          meterNumber!,
+        );
+
+        if (existingMeter != null) {
+          currentProposal['meterName'] = existingMeter.name;
+          currentProposal['meterId'] = existingMeter.id;
+          currentProposal['customerName'] = existingMeter.customerName;
+          currentProposal['tariffPower'] = existingMeter.tariffPower;
+          currentProposal['location'] = existingMeter.location;
+          changes.add(
+            'Data meteran auto-terisi dari database (${existingMeter.name})',
+          );
+        } else {
+          changes.add('Nomor meter diperbarui');
+        }
       }
       if (referenceMatch != null) {
-        final referenceProposal = <String, Object?>{
-          ...currentProposal,
-          'meterReference': referenceMatch.group(1)!.trim(),
-        }
-          ..remove('meterId')
-          ..remove('meterNumber')
-          ..remove('meterName');
+        final referenceProposal =
+            <String, Object?>{
+                ...currentProposal,
+                'meterReference': referenceMatch.group(1)!.trim(),
+              }
+              ..remove('meterId')
+              ..remove('meterNumber')
+              ..remove('meterName');
         final target = await _utilityMeters.resolveMeterTarget(
           householdId: AppContext.householdId,
           proposal: referenceProposal,
@@ -3015,6 +3154,13 @@ class FfmAssistantInterpreter {
       );
     }
 
+    final dailyNoteWithNewTag = _parseDailyNoteCreateWithNewTag(rawText);
+    if (dailyNoteWithNewTag != null) {
+      return _intentForDraft(rawText, normalized, dailyNoteWithNewTag).copyWith(
+        response: 'Aku siapkan satu draft Catatan Harian sekaligus pembuatan tag baru. Cek isi dan tag-nya, lalu konfirmasi sekali untuk menyimpan keduanya.',
+      );
+    }
+
     final dailyNoteMutation = await _parseDailyNoteMutation(
       rawText,
       normalized,
@@ -3086,6 +3232,12 @@ class FfmAssistantInterpreter {
 
     final budgetMutation = await _parseBudgetMutation(rawText, normalized);
     if (budgetMutation != null) return budgetMutation;
+
+    final budgetTransferMutation = await _parseBudgetTransferMutation(
+      rawText,
+      normalized,
+    );
+    if (budgetTransferMutation != null) return budgetTransferMutation;
 
     final goalMutation = await _parseGoalMutation(rawText, normalized);
     if (goalMutation != null) return goalMutation;
@@ -3363,6 +3515,16 @@ class FfmAssistantInterpreter {
       'mulai kegiatan',
       'catat aktivitas',
       'buat aktivitas',
+      'mulai timer',
+      'mulai stopwatch',
+      'mulai penghitung waktu',
+      'catat durasi',
+      'lacak durasi',
+      'rekam durasi',
+      'catat kejadian',
+      'buat kejadian',
+      'catat jurnal',
+      'buat jurnal',
     ])) {
       final activityDraft = _parseFinancialDraft(
         rawText,
@@ -3464,6 +3626,11 @@ class FfmAssistantInterpreter {
         amount: FfmAssistantAmountParser.parse(normalized),
       );
       if (electricityIntent != null) return electricityIntent;
+      final electricityQueryIntent = await _resolveElectricityQuery(
+        rawText: rawText,
+        normalized: normalized,
+      );
+      if (electricityQueryIntent != null) return electricityQueryIntent;
       final draft = _parseFinancialDraft(
         rawText,
         normalized,
@@ -5462,6 +5629,11 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.transactions,
         action: 'transfer',
       ),
+      FfmAssistantDraftKind.budgetTransfer => (
+        type: FfmAssistantIntentType.createBudget,
+        destination: FfmAssistantDestination.budget,
+        action: 'transfer anggaran',
+      ),
       FfmAssistantDraftKind.income => (
         type: FfmAssistantIntentType.createIncome,
         destination: FfmAssistantDestination.transactions,
@@ -5842,6 +6014,31 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.utilityMeter,
         action: 'pembacaan meter',
       ),
+      FfmAssistantDraftKind.createUtilityMeter => (
+        type: FfmAssistantIntentType.createMasterData,
+        destination: FfmAssistantDestination.utilityMeter,
+        action: 'daftarkan meteran listrik',
+      ),
+      FfmAssistantDraftKind.updateTokenCode => (
+        type: FfmAssistantIntentType.updateMasterData,
+        destination: FfmAssistantDestination.utilityMeter,
+        action: 'update token listrik',
+      ),
+      FfmAssistantDraftKind.updateUtilityMeter => (
+        type: FfmAssistantIntentType.updateMasterData,
+        destination: FfmAssistantDestination.utilityMeter,
+        action: 'ubah data meteran listrik',
+      ),
+      FfmAssistantDraftKind.deleteUtilityMeter => (
+        type: FfmAssistantIntentType.updateMasterData,
+        destination: FfmAssistantDestination.utilityMeter,
+        action: 'hapus meteran listrik',
+      ),
+      FfmAssistantDraftKind.analyzeElectricityConsumption => (
+        type: FfmAssistantIntentType.queryData,
+        destination: FfmAssistantDestination.utilityMeter,
+        action: 'analisis konsumsi listrik',
+      ),
     };
     if (draft.kind == FfmAssistantDraftKind.masterData) {
       final target = _masterDataTargetName(draft.categoryName);
@@ -6036,7 +6233,7 @@ class FfmAssistantInterpreter {
       r'^(?:ubah|edit)\s+checkpoint\s+(.+?)\s+aktivitas\s+(.+?)\s+(?:jadi|ke)\s+(.+)$',
     ).firstMatch(normalized);
     final priority = RegExp(
-      r'^(prioritaskan|hapus prioritas dari)\s+aktivitas\s+(.+)$',
+      r'^(prioritaskan|prioritasin|jadikan prioritas|hapus prioritas dari|hapus prioritas)\s+aktivitas\s+(.+)$',
     ).firstMatch(normalized);
     if (priority != null) {
       final candidates = await _findActivityCandidates(
@@ -6059,7 +6256,14 @@ class FfmAssistantInterpreter {
           'entity': 'activity_session',
           'targetId': candidates.single.id,
           'operation': 'priority',
-          'priority': priority.group(1) == 'prioritaskan' ? '1' : '0',
+          'priority':
+              const {
+                'prioritaskan',
+                'prioritasin',
+                'jadikan prioritas',
+              }.contains(priority.group(1))
+              ? '1'
+              : '0',
         },
       );
       return _intentForDraft(rawText, normalized, draft).copyWith(
@@ -6132,15 +6336,24 @@ class FfmAssistantInterpreter {
             : 'Aku menemukan checkpoint yang akan diubah. Cek preview dulu; belum ada data yang diubah.',
       );
     }
-    final archive = RegExp(r'^(?:arsip|arsipkan)\s+aktivitas\s+(.+)$')
-        .firstMatch(normalized);
+    final activeFinish = RegExp(
+      r'^(?:selesai(?:kan)?|tutup|hentikan|stop)\s+(?:timer|stopwatch|aktivitas aktif|kegiatan aktif|aktivitas yang aktif|kegiatan yang sedang berjalan)$',
+    ).hasMatch(normalized);
+    final archive = RegExp(
+      r'^(?:arsip|arsipkan|simpan ke arsip|nonaktifkan)\s+aktivitas\s+(.+)$',
+    ).firstMatch(normalized);
     final delete = RegExp(r'^hapus\s+aktivitas\s+(.+)$').firstMatch(normalized);
-    final finish = RegExp(r'^(?:selesai(?:kan)?|tutup)\s+aktivitas\s+(.+)$')
-        .firstMatch(normalized);
-    final reopen = RegExp(r'^(?:buka\s+kembali|lanjutkan)\s+aktivitas\s+(.+)$')
-        .firstMatch(normalized);
+    final finish = RegExp(
+      r'^(?:selesai(?:kan)?|tutup|hentikan|stop)\s+aktivitas\s+(.+)$',
+    ).firstMatch(normalized);
+    final reopen = RegExp(
+      r'^(?:buka\s+kembali|lanjutkan|pulihkan|kembalikan)\s+aktivitas\s+(.+)$',
+    ).firstMatch(normalized);
+    final checkpointAt = RegExp(
+      r'^(?:checkpoint|update|catat checkpoint)\s+aktivitas\s+(.+?)\s+(?:sudah\s+sampai|sampai|tiba)\s+(.+)$',
+    ).firstMatch(normalized);
     final update = RegExp(
-      r'^(?:update|tambah\s+(?:catatan|checkpoint))\s+aktivitas\s+(.+?)(?:\s*:\s*(.+))?$',
+      r'^(?:update|catat update|tambah\s+(?:catatan|checkpoint)|catat checkpoint)\s+aktivitas\s+(.+?)(?:\s*:\s*(.+))?$',
     ).firstMatch(normalized);
     final categoryEdit = RegExp(
       r'^(?:edit|ubah|ganti)\s+kategori\s+aktivitas\s+(.+?)\s+(?:jadi|ke)\s+(.+)$',
@@ -6149,10 +6362,12 @@ class FfmAssistantInterpreter {
       r'^(?:edit|ubah|ganti)\s+aktivitas\s+(.+?)(?:\s+jadi\s+|\s+ke\s+)(.+)$',
     ).firstMatch(normalized);
 
-    if (archive == null &&
+    if (!activeFinish &&
+        archive == null &&
         delete == null &&
         finish == null &&
         reopen == null &&
+        checkpointAt == null &&
         update == null &&
         categoryEdit == null &&
         edit == null) {
@@ -6163,7 +6378,11 @@ class FfmAssistantInterpreter {
     String? extraText;
     var isCategoryEdit = false;
 
-    if (finish != null) {
+    if (activeFinish) {
+      operation = 'finish';
+      targetText = '';
+      extraText = null;
+    } else if (finish != null) {
       operation = 'finish';
       targetText = finish.group(1)!.trim();
       extraText = null;
@@ -6171,6 +6390,10 @@ class FfmAssistantInterpreter {
       operation = 'reopen';
       targetText = reopen.group(1)!.trim();
       extraText = null;
+    } else if (checkpointAt != null) {
+      operation = 'update';
+      targetText = checkpointAt.group(1)!.trim();
+      extraText = checkpointAt.group(2)!.trim();
     } else if (update != null) {
       operation = 'update';
       targetText = update.group(1)!.trim();
@@ -6201,6 +6424,7 @@ class FfmAssistantInterpreter {
       targetText,
       activeOnly: operation == 'finish' || operation == 'update',
       includeArchived: operation == 'reopen',
+      allActiveFallback: activeFinish,
     );
     if (candidates.isEmpty) {
       return FfmAssistantIntent(
@@ -6305,6 +6529,7 @@ class FfmAssistantInterpreter {
     String targetText, {
     bool activeOnly = false,
     bool includeArchived = false,
+    bool allActiveFallback = false,
   }) async {
     final terms = targetText
         .toLowerCase()
@@ -6317,7 +6542,6 @@ class FfmAssistantInterpreter {
               !RegExp(r'^\d+$').hasMatch(term),
         )
         .toSet();
-    if (terms.isEmpty) return const [];
     final rows =
         await (_database.select(_database.activitySessions)
               ..where(
@@ -6332,6 +6556,8 @@ class FfmAssistantInterpreter {
               )
               ..orderBy([(row) => OrderingTerm.desc(row.startedAt)]))
             .get();
+    if (allActiveFallback) return rows.take(4).toList(growable: false);
+    if (terms.isEmpty) return const [];
     return rows
         .where((row) {
           final haystack = '${row.title} ${row.category} ${row.notes ?? ''}'
@@ -6469,6 +6695,32 @@ class FfmAssistantInterpreter {
         'restore' => 'Aku menemukan satu Catatan Harian untuk dipulihkan. Cek preview dulu; belum ada data yang diubah.',
         'delete' => 'Aku menemukan satu Catatan Harian untuk dihapus permanen. Cek preview dampaknya dulu; belum ada data yang diubah.',
         _ => 'Aku menemukan satu Catatan Harian untuk diedit. Cek preview dulu; belum ada data yang diubah.',
+      },
+    );
+  }
+
+  FfmAssistantDraft? _parseDailyNoteCreateWithNewTag(String rawText) {
+    final match = RegExp(
+      r'^(?:tolong\s+)?catat(?:\s+sekarang)?\s+(.+?)\s+(?:dan\s+)?buat(?:kan)?\s+tag\s+baru(?:\s+terkait)?(?:\s+tag)?\s+(.+?)[.!]?$',
+      caseSensitive: false,
+    ).firstMatch(rawText.trim());
+    if (match == null) return null;
+    final body = match.group(1)?.trim() ?? '';
+    final tagName = match.group(2)?.trim() ?? '';
+    if (body.isEmpty || tagName.isEmpty) return null;
+    return FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.dailyNote,
+      createdAt: _clock(),
+      title: body,
+      note: body,
+      date: _clock(),
+      tags: tagName,
+      newTags: tagName,
+      formValues: {
+        'entity': 'daily_note',
+        'body': body,
+        'tags': tagName,
+        'newTags': tagName,
       },
     );
   }
@@ -8678,6 +8930,104 @@ class FfmAssistantInterpreter {
     );
   }
 
+  Future<FfmAssistantIntent?> _parseBudgetTransferMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final transferPattern = RegExp(
+      r'(?:transfer|pindah|realokasi)\s+(?:\d+(?:[\.,]\d+)?|\d+rb|\d+jt|\d+ribu|\d+juta)\s+(?:dari|dri)\s+([a-zA-Z0-9\s]+?)\s+(?:ke|k)\s+([a-zA-Z0-9\s]+?)(?:\s|$)',
+      caseSensitive: false,
+    );
+    final match = transferPattern.firstMatch(normalized);
+    if (match == null) return null;
+
+    final amount = FfmAssistantAmountParser.parse(normalized);
+    if (amount == null || amount <= 0) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.createBudget,
+        confidence: .7,
+        destination: FfmAssistantDestination.budget,
+        clarification: 'Sebut nominal transfer yang valid, misalnya: "transfer 100 ribu dari makanan ke transport". Belum ada data yang diubah.',
+      );
+    }
+
+    final fromEnvelopeName = match.group(1)?.trim();
+    final toEnvelopeName = match.group(2)?.trim();
+
+    if (fromEnvelopeName == null || toEnvelopeName == null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.createBudget,
+        confidence: .7,
+        destination: FfmAssistantDestination.budget,
+        clarification: 'Sebut envelope asal dan tujuan, misalnya: "transfer 100 ribu dari makanan ke transport". Belum ada data yang diubah.',
+      );
+    }
+
+    final envelopes =
+        await (_database.select(_database.envelopeBudgets)..where(
+              (row) =>
+                  row.householdId.equals(AppContext.householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+
+    final fromCandidates = envelopes
+        .where(
+          (row) => row.name.trim().toLowerCase().contains(
+            fromEnvelopeName.toLowerCase(),
+          ),
+        )
+        .toList(growable: false);
+    final toCandidates = envelopes
+        .where(
+          (row) => row.name.trim().toLowerCase().contains(
+            toEnvelopeName.toLowerCase(),
+          ),
+        )
+        .toList(growable: false);
+
+    if (fromCandidates.length != 1 || toCandidates.length != 1) {
+      final detail = fromCandidates.isEmpty
+          ? 'Aku tidak menemukan envelope asal yang cocok dengan "$fromEnvelopeName".'
+          : toCandidates.isEmpty
+          ? 'Aku tidak menemukan envelope tujuan yang cocok dengan "$toEnvelopeName".'
+          : 'Aku menemukan ${fromCandidates.length} envelope asal dan ${toCandidates.length} envelope tujuan yang cocok.';
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.createBudget,
+        confidence: .7,
+        destination: FfmAssistantDestination.budget,
+        clarification:
+            '$detail Sebut nama envelope yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+
+    final fromEnvelope = fromCandidates.single;
+    final toEnvelope = toCandidates.single;
+
+    final draft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.budgetTransfer,
+      createdAt: _clock(),
+      amount: amount,
+      formValues: {
+        'fromEnvelopeId': fromEnvelope.id,
+        'toEnvelopeId': toEnvelope.id,
+        'fromEnvelopeName': fromEnvelope.name,
+        'toEnvelopeName': toEnvelope.name,
+      },
+    );
+
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response:
+          'Aku menyiapkan transfer ${_money(amount)} dari "${fromEnvelope.name}" ke "${toEnvelope.name}". Cek preview dulu sebelum mengonfirmasi.',
+    );
+  }
+
   Future<List<EnvelopeBudget>> _findBudgetCandidates(String targetText) async {
     final terms = targetText
         .toLowerCase()
@@ -9336,6 +9686,8 @@ class FfmAssistantInterpreter {
         date: now,
       );
     }
+    final dailyNoteWithNewTag = _parseDailyNoteCreateWithNewTag(rawText);
+    if (dailyNoteWithNewTag != null) return dailyNoteWithNewTag;
     final dailyNote = RegExp(
       r'^(?:catat|tulis|buat)(?:kan)?\s+(?:catatan harian|catatan)\s*[:\-]?\s*(.+)$',
       caseSensitive: false,
@@ -9350,12 +9702,26 @@ class FfmAssistantInterpreter {
         formValues: {'body': body},
       );
     }
-    final explicitCreateActivity = _containsAny(normalized, const [
+    final activityCreatePhrases = const [
       'mulai aktivitas',
       'mulai kegiatan',
       'catat aktivitas',
       'buat aktivitas',
-    ]);
+      'mulai timer',
+      'mulai stopwatch',
+      'mulai penghitung waktu',
+      'catat durasi',
+      'lacak durasi',
+      'rekam durasi',
+      'catat kejadian',
+      'buat kejadian',
+      'catat jurnal',
+      'buat jurnal',
+    ];
+    final explicitCreateActivity = _containsAny(
+      normalized,
+      activityCreatePhrases,
+    );
     // Intent finansial eksplisit (pemasukan/pengeluaran/transfer) tetap menang
     // meskipun user berada di halaman Aktivitas. Page context hanya untuk
     // tie-breaker ketika maksud benar-benar ambigu, bukan untuk mengubah
@@ -9399,12 +9765,7 @@ class FfmAssistantInterpreter {
     if (createActivity) {
       final parsedActivityDate = _weekdayDateFromText(rawText);
       final title = explicitCreateActivity
-          ? _draftTitle(normalized, const [
-              'mulai aktivitas',
-              'mulai kegiatan',
-              'catat aktivitas',
-              'buat aktivitas',
-            ])
+          ? _draftTitle(normalized, activityCreatePhrases)
           : rawText
                 .replaceAll(
                   RegExp(
@@ -9502,12 +9863,13 @@ class FfmAssistantInterpreter {
           : ReminderMode.notification;
       final modeStr = reminderMode.name;
 
-      final title = _reminderDraftTitle(normalized, rawText) ??
+      final title =
+          _reminderDraftTitle(normalized, rawText) ??
           (isWakeUp
               ? 'Bangun Pagi'
               : (hasAlarm
-                  ? 'Alarm'
-                  : (billReminder ? 'Pembayaran Tagihan' : 'Pengingat')));
+                    ? 'Alarm'
+                    : (billReminder ? 'Pembayaran Tagihan' : 'Pengingat')));
 
       final note = billReminder
           ? '${rawText.trim()}\n\n[Sinkronisasi ke kalender dan smartwatch aktif]'
@@ -9860,6 +10222,16 @@ class FfmAssistantInterpreter {
       amount,
     );
 
+    // Extract proposals untuk semua data utama
+    final accountProposal = _accountProposalFromText(rawText, normalized);
+    final categoryProposal = _categoryProposalFromText(rawText, normalized);
+    final merchantProposal = _merchantProposalFromText(rawText, normalized);
+    final tagProposal = _tagProposalFromText(rawText, normalized);
+    final incomeSourceProposal = _incomeSourceProposalFromText(
+      rawText,
+      normalized,
+    );
+
     var categoryName = category?.name;
     if (categoryName == null && merchantName != null) {
       categoryName = _personalMemoryService.feedbackService
@@ -9904,12 +10276,32 @@ class FfmAssistantInterpreter {
       slmFieldValues: slmFieldValues,
       linkedActivityId: activitySnapshot?.activeSessions.lastOrNull?.id,
       date: now,
-      metadata: (utilityProposal != null || forexConversion != null)
+      metadata:
+          (utilityProposal != null ||
+              forexConversion != null ||
+              accountProposal != null ||
+              categoryProposal != null ||
+              merchantProposal != null ||
+              tagProposal != null ||
+              incomeSourceProposal != null)
           ? {
               ...?utilityProposal == null
                   ? null
                   : {'utilityProposal': utilityProposal},
               ...?forexConversion?.metadata,
+              ...?accountProposal == null
+                  ? null
+                  : {'newAccountProposal': accountProposal},
+              ...?categoryProposal == null
+                  ? null
+                  : {'newCategoryProposal': categoryProposal},
+              ...?merchantProposal == null
+                  ? null
+                  : {'newMerchantProposal': merchantProposal},
+              ...?tagProposal == null ? null : {'newTagProposal': tagProposal},
+              ...?incomeSourceProposal == null
+                  ? null
+                  : {'newIncomeSourceProposal': incomeSourceProposal},
             }
           : null,
     );
@@ -9929,6 +10321,808 @@ class FfmAssistantInterpreter {
         ).hasMatch(normalized);
   }
 
+  /// Handler untuk query meteran listrik dan analisis konsumsi
+  Future<FfmAssistantIntent?> _resolveElectricityQuery({
+    required String rawText,
+    required String normalized,
+  }) async {
+    // Detect query types
+    final showAllMeters = RegExp(
+      r'\b(tampilkan|lihat|cek|daftar|list|semua)\s+(meteran|meter|idpel|token\s*listrik)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    final showHistory = RegExp(
+      r'\b(riwayat|history)\s+(token|listrik)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    final showBurnRate = RegExp(
+      r'\b(konsumsi|pemakaian|boros|rata-rata|per\s+hari)\s+(listrik|token)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    final compareMeters = RegExp(
+      r'\b(boros|mahal|paling|terbanyak|mana)\s+(meteran|rumah|token\s*listrik)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    final hasRegistrationIntent = RegExp(
+      r'\b(daftar|tambah|buat|registrasi|register)\s+(meteran|meter|idpel|token\s*listrik)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    final hasUpdateTokenIntent = RegExp(
+      r'\b(update|ubah|ganti|simpan|tambah)\s+(token\s*code|token\s*20\s*digit|kodenya)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    final hasEditMeterIntent = RegExp(
+      r'\b(ubah|edit|ganti|update)\s+(nama|tarif|lokasi|data)\s+(meteran|idpel|token\s*listrik)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    final hasDeleteMeterIntent = RegExp(
+      r'\b(hapus|arsipkan|nonaktifkan|remove)\s+(meteran|idpel|token\s*listrik)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    final hasCopyTokenIntent = RegExp(
+      r'\b(copy|salin|tampilkan|lihat)\s+(token|kode)\s+(terakhir|terbaru|terakhirnya)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    if (!showAllMeters &&
+        !showHistory &&
+        !showBurnRate &&
+        !compareMeters &&
+        !hasRegistrationIntent &&
+        !hasUpdateTokenIntent &&
+        !hasEditMeterIntent &&
+        !hasDeleteMeterIntent &&
+        !hasCopyTokenIntent) {
+      return null;
+    }
+
+    // Don't interfere with purchase intent - if it has purchase keywords, let purchase handler take priority
+    if (RegExp(
+      r'\b(beli|catat|belanja|bayar|pembelian)\s+(token|listrik)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized)) {
+      return null;
+    }
+
+    // Handle registration intent
+    if (hasRegistrationIntent) {
+      // Extract data from text
+      final nameMatch = RegExp(
+        r'\b(?:untuk|nama)\s+([a-z][a-z0-9 _-]{2,30})',
+        caseSensitive: false,
+      ).firstMatch(normalized);
+      final name = nameMatch?.group(1)?.trim();
+
+      final idpelMatch = RegExp(
+        r'\b(?:idpel|id\s*pelanggan|id\s*pel)\s*[:#-]?\s*(\d{11,12})',
+        caseSensitive: false,
+      ).firstMatch(rawText);
+      final idpel = idpelMatch?.group(1);
+
+      final customerMatch = RegExp(
+        r'\b(?:nama\s*pelanggan|atas\s*nama)\s*[:#-]?\s*([a-z][a-z0-9 _-]{2,50})',
+        caseSensitive: false,
+      ).firstMatch(rawText);
+      final customerName = customerMatch?.group(1)?.trim();
+
+      final tariffMatch = RegExp(
+        r'\b(?:tarif|daya|va|golongan)\s*[:#-]?\s*([a-z0-9/ _-]{2,20})',
+        caseSensitive: false,
+      ).firstMatch(rawText);
+      final tariffPower = tariffMatch?.group(1)?.trim();
+
+      final locationMatch = RegExp(
+        r'\b(?:lokasi|alamat)\s*[:#-]?\s*([a-z][a-z0-9 _-]{2,50})',
+        caseSensitive: false,
+      ).firstMatch(rawText);
+      final location = locationMatch?.group(1)?.trim();
+
+      final tokenMatch = RegExp(
+        r'\b(?:token|kode)\s*[:#-]?\s*(\d{20})',
+        caseSensitive: false,
+      ).firstMatch(rawText);
+      final tokenCode = tokenMatch?.group(1);
+
+      // Check if IDPEL already exists
+      if (idpel != null) {
+        final existing = await _utilityMeters.findMeterByNumber(
+          AppContext.householdId,
+          idpel,
+        );
+        if (existing != null) {
+          return FfmAssistantIntent(
+            rawText: rawText,
+            normalizedText: normalized,
+            type: FfmAssistantIntentType.unknown,
+            confidence: 0.9,
+            response:
+                'IDPEL $idpel sudah terdaftar dengan nama "${existing.name}". '
+                'Jika ingin mengubah data, silakan buka halaman Token Listrik.',
+          );
+        }
+      }
+
+      final parameters = <String, Object?>{
+        'kind': 'createUtilityMeter',
+        'name': name,
+        'meterNumber': idpel,
+        'customerName': customerName,
+        'tariffPower': tariffPower,
+        'location': location,
+        'notes': null,
+        'tokenCode': tokenCode,
+      };
+
+      // If we have enough data, create action plan
+      if (name != null && idpel != null) {
+        final draft = FfmAssistantDraft(
+          kind: FfmAssistantDraftKind.createUtilityMeter,
+          createdAt: _clock(),
+          title: 'Daftarkan meteran listrik: $name',
+          note: rawText.trim(),
+          date: _clock(),
+          metadata: parameters,
+        );
+        return _intentForDraft(rawText, normalized, draft).copyWith(
+          response:
+              'Saya menyiapkan pendaftaran meteran listrik untuk **$name** dengan IDPEL **$idpel**. '
+              'Data akan disimpan ke halaman Token Listrik setelah konfirmasi.',
+        );
+      }
+
+      // Otherwise, ask for missing data
+      final missingFields = <String>[];
+      if (name == null) missingFields.add('nama meteran');
+      if (idpel == null) missingFields.add('IDPEL (11-12 digit)');
+
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.unknown,
+        confidence: 0.9,
+        response:
+            'Untuk mendaftarkan meteran listrik, saya butuh data berikut: ${missingFields.join(", ")}. '
+            'Contoh: "daftarkan meteran listrik untuk rumah kontrakan dengan IDPEL 12345678901"',
+      );
+    }
+
+    // Handle update token code intent
+    if (hasUpdateTokenIntent) {
+      final meters = await _utilityMeters.getAllMeters(AppContext.householdId);
+      if (meters.isEmpty) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.unknown,
+          confidence: 0.9,
+          response: 'Belum ada meteran listrik yang terdaftar. Silakan daftarkan meteran terlebih dahulu.',
+        );
+      }
+
+      // Extract meter reference
+      final meterRefMatch = RegExp(
+        r'\b(?:untuk|di|meteran|rumah)\s+([a-z][a-z0-9 _-]{2,30})',
+        caseSensitive: false,
+      ).firstMatch(normalized);
+      final meterRef = meterRefMatch?.group(1)?.trim();
+
+      // Extract token code
+      final tokenMatch = RegExp(
+        r'\b(?:token|kode)\s*[:#-]?\s*(\d{20})',
+        caseSensitive: false,
+      ).firstMatch(rawText);
+      final tokenCode = tokenMatch?.group(1);
+
+      if (tokenCode == null) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.unknown,
+          confidence: 0.9,
+          response:
+              'Saya butuh kode token 20 digit untuk diupdate. '
+              'Contoh: "update token rumah A jadi 1234-5678-9012-3456-7890"',
+        );
+      }
+
+      // Resolve meter
+      String? meterId;
+      String? meterName;
+
+      if (meterRef != null) {
+        final matching = meters
+            .where((m) => m.name.toLowerCase().contains(meterRef.toLowerCase()))
+            .toList();
+
+        if (matching.length == 1) {
+          meterId = matching.first.id;
+          meterName = matching.first.name;
+        } else if (matching.length > 1) {
+          return FfmAssistantIntent(
+            rawText: rawText,
+            normalizedText: normalized,
+            type: FfmAssistantIntentType.unknown,
+            confidence: 0.9,
+            clarification: 'Meteran mana yang ingin diupdate?',
+            suggestedQuestions: UtilityMeterRepository.friendlyMeterChips(
+              matching,
+              0,
+            ),
+          );
+        }
+      }
+
+      if (meterId == null && meters.length == 1) {
+        meterId = meters.first.id;
+        meterName = meters.first.name;
+      }
+
+      if (meterId == null) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.unknown,
+          confidence: 0.9,
+          clarification: 'Meteran mana yang ingin diupdate?',
+          suggestedQuestions: UtilityMeterRepository.friendlyMeterChips(
+            meters,
+            0,
+          ),
+        );
+      }
+
+      final parameters = <String, Object?>{
+        'meterId': meterId,
+        'tokenCode': tokenCode,
+      };
+
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.updateTokenCode,
+        createdAt: _clock(),
+        title: 'Update token: $meterName',
+        note: rawText.trim(),
+        date: _clock(),
+        metadata: parameters,
+      );
+
+      return _intentForDraft(rawText, normalized, draft).copyWith(
+        response:
+            'Saya menyiapkan update token untuk **$meterName** menjadi **$tokenCode**. '
+            'Data akan disimpan ke halaman Token Listrik setelah konfirmasi.',
+      );
+    }
+
+    // Handle edit meter intent
+    if (hasEditMeterIntent) {
+      final meters = await _utilityMeters.getAllMeters(AppContext.householdId);
+      if (meters.isEmpty) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.unknown,
+          confidence: 0.9,
+          response: 'Belum ada meteran listrik yang terdaftar.',
+        );
+      }
+
+      // Extract meter reference
+      final meterRefMatch = RegExp(
+        r'\b(?:untuk|di|meteran|rumah)\s+([a-z][a-z0-9 _-]{2,30})',
+        caseSensitive: false,
+      ).firstMatch(normalized);
+      final meterRef = meterRefMatch?.group(1)?.trim();
+
+      // Extract new data
+      final nameMatch = RegExp(
+        r'\b(?:nama)\s+([a-z][a-z0-9 _-]{2,30})',
+        caseSensitive: false,
+      ).firstMatch(normalized);
+      final newName = nameMatch?.group(1)?.trim();
+
+      final customerMatch = RegExp(
+        r'\b(?:nama\s*pelanggan|atas\s*nama)\s*[:#-]?\s*([a-z][a-z0-9 _-]{2,50})',
+        caseSensitive: false,
+      ).firstMatch(rawText);
+      final newCustomerName = customerMatch?.group(1)?.trim();
+
+      final tariffMatch = RegExp(
+        r'\b(?:tarif|daya|va|golongan)\s*[:#-]?\s*([a-z0-9/ _-]{2,20})',
+        caseSensitive: false,
+      ).firstMatch(rawText);
+      final newTariffPower = tariffMatch?.group(1)?.trim();
+
+      final locationMatch = RegExp(
+        r'\b(?:lokasi|alamat)\s*[:#-]?\s*([a-z][a-z0-9 _-]{2,50})',
+        caseSensitive: false,
+      ).firstMatch(rawText);
+      final newLocation = locationMatch?.group(1)?.trim();
+
+      // Resolve meter
+      String? meterId;
+      String? meterName;
+
+      if (meterRef != null) {
+        final matching = meters
+            .where((m) => m.name.toLowerCase().contains(meterRef.toLowerCase()))
+            .toList();
+
+        if (matching.length == 1) {
+          meterId = matching.first.id;
+          meterName = matching.first.name;
+        } else if (matching.length > 1) {
+          return FfmAssistantIntent(
+            rawText: rawText,
+            normalizedText: normalized,
+            type: FfmAssistantIntentType.unknown,
+            confidence: 0.9,
+            clarification: 'Meteran mana yang ingin diubah?',
+            suggestedQuestions: UtilityMeterRepository.friendlyMeterChips(
+              matching,
+              0,
+            ),
+          );
+        }
+      }
+
+      if (meterId == null && meters.length == 1) {
+        meterId = meters.first.id;
+        meterName = meters.first.name;
+      }
+
+      if (meterId == null) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.unknown,
+          confidence: 0.9,
+          clarification: 'Meteran mana yang ingin diubah?',
+          suggestedQuestions: UtilityMeterRepository.friendlyMeterChips(
+            meters,
+            0,
+          ),
+        );
+      }
+
+      final parameters = <String, Object?>{
+        'meterId': meterId,
+        'name': newName,
+        'customerName': newCustomerName,
+        'tariffPower': newTariffPower,
+        'location': newLocation,
+        'notes': null,
+      };
+
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.updateUtilityMeter,
+        createdAt: _clock(),
+        title: 'Ubah data meteran: $meterName',
+        note: rawText.trim(),
+        date: _clock(),
+        metadata: parameters,
+      );
+
+      return _intentForDraft(rawText, normalized, draft).copyWith(
+        response:
+            'Saya menyiapkan perubahan data meteran **$meterName**. '
+            'Data akan disimpan ke halaman Token Listrik setelah konfirmasi.',
+      );
+    }
+
+    // Handle delete meter intent
+    if (hasDeleteMeterIntent) {
+      final meters = await _utilityMeters.getAllMeters(AppContext.householdId);
+      if (meters.isEmpty) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.unknown,
+          confidence: 0.9,
+          response: 'Belum ada meteran listrik yang terdaftar.',
+        );
+      }
+
+      // Extract meter reference
+      final meterRefMatch = RegExp(
+        r'\b(?:untuk|di|meteran|rumah)\s+([a-z][a-z0-9 _-]{2,30})',
+        caseSensitive: false,
+      ).firstMatch(normalized);
+      final meterRef = meterRefMatch?.group(1)?.trim();
+
+      // Resolve meter
+      String? meterId;
+      String? meterName;
+
+      if (meterRef != null) {
+        final matching = meters
+            .where((m) => m.name.toLowerCase().contains(meterRef.toLowerCase()))
+            .toList();
+
+        if (matching.length == 1) {
+          meterId = matching.first.id;
+          meterName = matching.first.name;
+        } else if (matching.length > 1) {
+          return FfmAssistantIntent(
+            rawText: rawText,
+            normalizedText: normalized,
+            type: FfmAssistantIntentType.unknown,
+            confidence: 0.9,
+            clarification: 'Meteran mana yang ingin dihapus?',
+            suggestedQuestions: UtilityMeterRepository.friendlyMeterChips(
+              matching,
+              0,
+            ),
+          );
+        }
+      }
+
+      if (meterId == null && meters.length == 1) {
+        meterId = meters.first.id;
+        meterName = meters.first.name;
+      }
+
+      if (meterId == null) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.unknown,
+          confidence: 0.9,
+          clarification: 'Meteran mana yang ingin dihapus?',
+          suggestedQuestions: UtilityMeterRepository.friendlyMeterChips(
+            meters,
+            0,
+          ),
+        );
+      }
+
+      final parameters = <String, Object?>{'meterId': meterId};
+
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.deleteUtilityMeter,
+        createdAt: _clock(),
+        title: 'Hapus meteran: $meterName',
+        note: rawText.trim(),
+        date: _clock(),
+        metadata: parameters,
+      );
+
+      return _intentForDraft(rawText, normalized, draft).copyWith(
+        response:
+            '⚠️ **Peringatan**: Menghapus meteran **$meterName** akan menghapus riwayat pembelian token juga. '
+            'Data akan dihapus dari halaman Token Listrik setelah konfirmasi.',
+      );
+    }
+
+    // Handle copy token intent
+    if (hasCopyTokenIntent) {
+      final meters = await _utilityMeters.getAllMeters(AppContext.householdId);
+      if (meters.isEmpty) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.unknown,
+          confidence: 0.9,
+          response: 'Belum ada meteran listrik yang terdaftar.',
+        );
+      }
+
+      // Extract meter reference
+      final meterRefMatch = RegExp(
+        r'\b(?:untuk|di|meteran|rumah)\s+([a-z][a-z0-9 _-]{2,30})',
+        caseSensitive: false,
+      ).firstMatch(normalized);
+      final meterRef = meterRefMatch?.group(1)?.trim();
+
+      String? meterName;
+      String? tokenCode;
+
+      if (meterRef != null) {
+        final matching = meters
+            .where((m) => m.name.toLowerCase().contains(meterRef.toLowerCase()))
+            .toList();
+
+        if (matching.length == 1) {
+          meterName = matching.first.name;
+          tokenCode = matching.first.lastTokenNumber;
+        } else if (matching.length > 1) {
+          return FfmAssistantIntent(
+            rawText: rawText,
+            normalizedText: normalized,
+            type: FfmAssistantIntentType.unknown,
+            confidence: 0.9,
+            clarification: 'Meteran mana yang ingin ditampilkan token-nya?',
+            suggestedQuestions: UtilityMeterRepository.friendlyMeterChips(
+              matching,
+              0,
+            ),
+          );
+        }
+      } else if (meters.length == 1) {
+        meterName = meters.first.name;
+        tokenCode = meters.first.lastTokenNumber;
+      } else {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.unknown,
+          confidence: 0.9,
+          clarification: 'Meteran mana yang ingin ditampilkan token-nya?',
+          suggestedQuestions: UtilityMeterRepository.friendlyMeterChips(
+            meters,
+            0,
+          ),
+        );
+      }
+
+      if (tokenCode == null || tokenCode.isEmpty) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.unknown,
+          confidence: 0.9,
+          response:
+              'Token terakhir untuk **$meterName** belum tersedia. Silakan beli token listrik terlebih dahulu atau update token code secara manual.',
+        );
+      }
+
+      // Format token code for display
+      final formattedToken = tokenCode
+          .replaceAllMapped(RegExp(r'.{4}'), (match) => '${match.group(0)}-')
+          .replaceFirst(RegExp(r'-$'), '');
+
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.unknown,
+        confidence: 0.9,
+        response:
+            'Token terakhir untuk **$meterName**:\n\n**$formattedToken**\n\n'
+            'Anda bisa langsung memasukkan kode ini ke meteran listrik Anda.',
+      );
+    }
+
+    final meters = await _utilityMeters.getAllMeters(AppContext.householdId);
+    if (meters.isEmpty) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.unknown,
+        confidence: 0.9,
+        response: 'Belum ada meteran listrik yang terdaftar. Silakan daftarkan meteran terlebih dahulu di halaman Token Listrik.',
+      );
+    }
+
+    if (showAllMeters) {
+      final buffer = StringBuffer();
+      buffer.writeln('Meteran Listrik Terdaftar (${meters.length}):');
+      for (final meter in meters) {
+        final summary = await _utilityMeters.summarizeUsage(
+          AppContext.householdId,
+          meterId: meter.id,
+        );
+        buffer.writeln(
+          '• ${meter.name} (IDPEL: ${meter.formattedMeterNumber}, '
+          '${meter.tariffPower.isNotEmpty ? meter.tariffPower : "-"})',
+        );
+        if (summary.purchaseCount > 0) {
+          buffer.writeln(
+            '  Pembelian: ${summary.purchaseCount}x, '
+            'Total: Rp${(summary.totalCost / 1000).toStringAsFixed(1)}rb, '
+            'kWh: ${summary.totalCreditedKwh.toStringAsFixed(1)}',
+          );
+        }
+      }
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.unknown,
+        confidence: 0.9,
+        response: buffer.toString(),
+      );
+    }
+
+    if (showHistory) {
+      // Extract specific meter name if mentioned
+      final meterNameMatch = RegExp(
+        r'\b(rumah|meteran|meter)\s+([a-z][a-z0-9 _-]{2,30})',
+        caseSensitive: false,
+      ).firstMatch(normalized);
+      final targetMeterName = meterNameMatch?.group(2)?.trim();
+
+      if (targetMeterName != null) {
+        final matching = meters
+            .where(
+              (m) =>
+                  m.name.toLowerCase().contains(targetMeterName.toLowerCase()),
+            )
+            .toList();
+        if (matching.length == 1) {
+          final meter = matching.first;
+          final history = await _utilityMeters.getPurchaseHistory(
+            AppContext.householdId,
+            meterId: meter.id,
+            limit: 10,
+          );
+          final buffer = StringBuffer();
+          buffer.writeln('Riwayat Pembelian Token: ${meter.name}');
+          buffer.writeln('IDPEL: ${meter.formattedMeterNumber}');
+          buffer.writeln('-----------------------------------');
+          for (final purchase in history) {
+            buffer.writeln(
+              '• ${purchase.purchasedAt.toLocal().toString().substring(0, 10)}: '
+              'Rp${(purchase.amount / 1000).toStringAsFixed(1)}rb '
+              '(${purchase.creditedKwh?.toStringAsFixed(1) ?? "?"} kWh)',
+            );
+          }
+          return FfmAssistantIntent(
+            rawText: rawText,
+            normalizedText: normalized,
+            type: FfmAssistantIntentType.unknown,
+            confidence: 0.9,
+            response: buffer.toString(),
+          );
+        }
+      }
+
+      // Show history for all meters
+      final buffer = StringBuffer();
+      buffer.writeln('Riwayat Pembelian Token (Semua Meteran):');
+      for (final meter in meters) {
+        final history = await _utilityMeters.getPurchaseHistory(
+          AppContext.householdId,
+          meterId: meter.id,
+          limit: 5,
+        );
+        if (history.isNotEmpty) {
+          buffer.writeln('${meter.name}: ${history.length}x pembelian');
+        }
+      }
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.unknown,
+        confidence: 0.9,
+        response: buffer.toString(),
+      );
+    }
+
+    if (showBurnRate || compareMeters) {
+      final buffer = StringBuffer();
+      buffer.writeln('Analisis Konsumsi Token Listrik:');
+      buffer.writeln('-----------------------------------');
+
+      final meterSummaries = <String, _MeterAnalysis>{};
+      for (final meter in meters) {
+        final summary = await _utilityMeters.summarizeUsage(
+          AppContext.householdId,
+          meterId: meter.id,
+        );
+        final burnRate = await _utilityMeters.calculateBurnRate(
+          AppContext.householdId,
+          meter.id,
+        );
+
+        // Calculate normalized cost per kWh (accounting for VA)
+        final avgCostPerKwh = summary.averageCostPerKwh ?? 0;
+        final dailyKwh = burnRate?.dailyKwh ?? 0;
+        final monthlyEstimate = dailyKwh * 30;
+
+        meterSummaries[meter.name] = _MeterAnalysis(
+          name: meter.name,
+          idpel: meter.formattedMeterNumber,
+          tariffPower: meter.tariffPower,
+          purchaseCount: summary.purchaseCount,
+          totalCost: summary.totalCost,
+          totalKwh: summary.totalCreditedKwh,
+          avgCostPerKwh: avgCostPerKwh,
+          dailyKwh: dailyKwh,
+          monthlyEstimate: monthlyEstimate,
+        );
+      }
+
+      if (showBurnRate) {
+        for (final analysis in meterSummaries.values) {
+          buffer.writeln(
+            '• ${analysis.name} (${analysis.idpel}): '
+            '${analysis.tariffPower.isNotEmpty ? analysis.tariffPower : "-"}',
+          );
+          buffer.writeln(
+            '  Rata-rata: ${analysis.dailyKwh.toStringAsFixed(2)} kWh/hari',
+          );
+          buffer.writeln(
+            '  Estimasi bulanan: ${analysis.monthlyEstimate.toStringAsFixed(1)} kWh',
+          );
+          final monthlyCostEstimate =
+              analysis.avgCostPerKwh * analysis.monthlyEstimate;
+          buffer.writeln(
+            '  Biaya bulanan: Rp${(monthlyCostEstimate / 1000).toStringAsFixed(1)}rb',
+          );
+        }
+      }
+
+      if (compareMeters) {
+        // Multi-dimension comparison for fair analysis
+        buffer.writeln('Analisis Perbandingan Konsumsi:');
+        buffer.writeln('-----------------------------------');
+
+        // Sort by daily kWh consumption (actual usage)
+        final sortedByDailyKwh = meterSummaries.values.toList()
+          ..sort((a, b) => b.dailyKwh.compareTo(a.dailyKwh));
+
+        buffer.writeln('📊 Peringkat Konsumsi Harian (kWh):');
+        for (int i = 0; i < sortedByDailyKwh.length; i++) {
+          final analysis = sortedByDailyKwh[i];
+          buffer.writeln(
+            '${i + 1}. ${analysis.name} (${analysis.tariffPower}): '
+            '${analysis.dailyKwh.toStringAsFixed(2)} kWh/hari',
+          );
+        }
+
+        buffer.writeln('');
+        buffer.writeln('💰 Peringkat Biaya Normalisasi (per kWh):');
+        final sortedByCost = meterSummaries.values.toList()
+          ..sort((a, b) => b.avgCostPerKwh.compareTo(a.avgCostPerKwh));
+        for (int i = 0; i < sortedByCost.length; i++) {
+          final analysis = sortedByCost[i];
+          buffer.writeln(
+            '${i + 1}. ${analysis.name} (${analysis.tariffPower}): '
+            'Rp${(analysis.avgCostPerKwh).toStringAsFixed(0)}/kWh',
+          );
+        }
+
+        buffer.writeln('');
+        buffer.writeln('📈 Peringkat Total Biaya Bulanan:');
+        final sortedByMonthlyCost = meterSummaries.values.toList()
+          ..sort(
+            (a, b) => (b.avgCostPerKwh * b.monthlyEstimate).compareTo(
+              a.avgCostPerKwh * a.monthlyEstimate,
+            ),
+          );
+        for (int i = 0; i < sortedByMonthlyCost.length; i++) {
+          final analysis = sortedByMonthlyCost[i];
+          final monthlyCost = analysis.avgCostPerKwh * analysis.monthlyEstimate;
+          buffer.writeln(
+            '${i + 1}. ${analysis.name}: '
+            'Rp${(monthlyCost / 1000).toStringAsFixed(1)}rb/bulan',
+          );
+        }
+
+        buffer.writeln('');
+        buffer.writeln('⚠️ Catatan Analisis:');
+        buffer.writeln(
+          '- Konsumsi harian: kWh yang dipakai per hari (berdasarkan pembacaan meter atau frekuensi pembelian)',
+        );
+        buffer.writeln(
+          '- Biaya normalisasi: Rp per kWh (memperhitungkan tarif/VA)',
+        );
+        buffer.writeln('- Total biaya bulanan: Estimasi pengeluaran per bulan');
+        buffer.writeln(
+          '- Rumah dengan tarif lebih tinggi mungkin kelihatan lebih boros dalam biaya, tapi konsumsi kWh sebenarnya bisa lebih rendah',
+        );
+        buffer.writeln(
+          '- Analisis ini perkiraan; untuk akurasi penuh, rutin catat pembacaan meter di halaman Token Listrik.',
+        );
+      }
+
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.unknown,
+        confidence: 0.9,
+        response: buffer.toString(),
+      );
+    }
+
+    return null;
+  }
+
   Future<FfmAssistantIntent?> _resolveMeterReading({
     required String rawText,
     required String normalized,
@@ -9942,13 +11136,15 @@ class FfmAssistantInterpreter {
       return null;
     }
 
-    final valueMatch = RegExp(
-      r'([\d]+(?:[.,]\d+)?)\s*kwh',
-      caseSensitive: false,
-    ).firstMatch(rawText) ?? RegExp(
-      r'(?:pembacaan|baca|bacaan|catat)\s+(?:angka\s+)?meter(?:an)?\s*[:=-]?\s*([\d]+(?:[.,]\d+)?)',
-      caseSensitive: false,
-    ).firstMatch(rawText);
+    final valueMatch =
+        RegExp(
+          r'([\d]+(?:[.,]\d+)?)\s*kwh',
+          caseSensitive: false,
+        ).firstMatch(rawText) ??
+        RegExp(
+          r'(?:pembacaan|baca|bacaan|catat)\s+(?:angka\s+)?meter(?:an)?\s*[:=-]?\s*([\d]+(?:[.,]\d+)?)',
+          caseSensitive: false,
+        ).firstMatch(rawText);
     final reading = double.tryParse(
       valueMatch?.group(1)?.replaceAll('.', '').replaceAll(',', '.') ?? '',
     );
@@ -9968,7 +11164,8 @@ class FfmAssistantInterpreter {
       ).firstMatch(normalized);
       if (inlineRefMatch != null) {
         final candidate = inlineRefMatch.group(1)!.trim();
-        if (!candidate.contains('angka') && !RegExp(r'^\d+$').hasMatch(candidate)) {
+        if (!candidate.contains('angka') &&
+            !RegExp(r'^\d+$').hasMatch(candidate)) {
           meterRef = candidate;
         }
       }
@@ -10172,7 +11369,11 @@ class FfmAssistantInterpreter {
     }
     final tokenMatch = RegExp(r'\b(?:token\s*)?((?:\d[\s-]?){20})\b')
         .firstMatch(rawText);
-    final meterMatch = RegExp(r'\b(\d{9,13})\b').firstMatch(rawText);
+    // HANYA gunakan IDPEL dengan label eksplisit untuk mencegah false positive
+    final idpelMatch = RegExp(
+      r'(?:idpel|id\s*pelanggan|id\s*pel)\s*[:#-]?\s*(\d{11,12})',
+      caseSensitive: false,
+    ).firstMatch(rawText);
     final kwhMatch = RegExp(
       r'(?:jumlah\s*)?(?:kwh|stroom)\s*[:#-]?\s*(\d+(?:[.,]\d+)?)|'
       r'(\d+(?:[.,]\d+)?)\s*kwh\b',
@@ -10183,7 +11384,7 @@ class FfmAssistantInterpreter {
       caseSensitive: false,
     ).firstMatch(normalized);
     final tokenCode = tokenMatch?.group(1)?.replaceAll(RegExp(r'\D'), '');
-    final meterNumber = meterMatch?.group(1);
+    final meterNumber = idpelMatch?.group(1);
     final meterReference = referenceMatch?.group(1)?.trim();
     final creditedKwhValue = kwhMatch == null
         ? null
@@ -10206,6 +11407,164 @@ class FfmAssistantInterpreter {
       ...?amount == null ? null : {'amount': amount},
       'timestamp': DateTime.now().toIso8601String(),
     };
+  }
+
+  /// Auto-detect tipe rekening dari nama
+  String _detectAccountType(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('gopay') ||
+        lower.contains('ovo') ||
+        lower.contains('dana') ||
+        lower.contains('shopeepay') ||
+        lower.contains('linkaja') ||
+        lower.contains('flip') ||
+        lower.contains('jakone')) {
+      return 'ewallet';
+    }
+    if (lower.contains('bca') ||
+        lower.contains('mandiri') ||
+        lower.contains('bri') ||
+        lower.contains('btn') ||
+        lower.contains('bni') ||
+        lower.contains('bsi') ||
+        lower.contains('jago') ||
+        lower.contains('digibank')) {
+      return 'bank';
+    }
+    if (lower.contains('tunai') || lower.contains('cash')) {
+      return 'cash';
+    }
+    return 'wallet';
+  }
+
+  /// Auto-detect tipe kategori dari nama
+  String _detectCategoryType(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('makan') ||
+        lower.contains('food') ||
+        lower.contains('minum') ||
+        lower.contains('jajan')) {
+      return 'makanan';
+    }
+    if (lower.contains('transport') ||
+        lower.contains('kendaraan') ||
+        lower.contains('bensin') ||
+        lower.contains('bbm') ||
+        lower.contains('parkir')) {
+      return 'transport';
+    }
+    if (lower.contains('belanja') ||
+        lower.contains('shopping') ||
+        lower.contains('toko')) {
+      return 'belanja';
+    }
+    if (lower.contains('tagihan') ||
+        lower.contains('pbb') ||
+        lower.contains('listrik') ||
+        lower.contains('air') ||
+        lower.contains('internet')) {
+      return 'tagihan';
+    }
+    return 'umum';
+  }
+
+  /// Extract proposal untuk rekening baru dari teks
+  Map<String, Object?>? _accountProposalFromText(
+    String rawText,
+    String normalized,
+  ) {
+    // Cek apakah ada nama rekening yang belum ada
+    final accountMatch = RegExp(
+      r'(?:rekening|akun|account)\s+([a-z][a-z0-9 _-]{2,40})',
+      caseSensitive: false,
+    ).firstMatch(normalized);
+
+    if (accountMatch == null) return null;
+
+    final accountName = accountMatch.group(1)?.trim();
+    if (accountName == null || accountName.isEmpty) return null;
+
+    return {
+      'name': accountName,
+      'type': _detectAccountType(accountName),
+      'source': 'assistant_chat',
+    };
+  }
+
+  /// Extract proposal untuk kategori baru dari teks
+  Map<String, Object?>? _categoryProposalFromText(
+    String rawText,
+    String normalized,
+  ) {
+    final categoryMatch = RegExp(
+      r'(?:kategori|category)\s+([a-z][a-z0-9 _-]{2,40})',
+      caseSensitive: false,
+    ).firstMatch(normalized);
+
+    if (categoryMatch == null) return null;
+
+    final categoryName = categoryMatch.group(1)?.trim();
+    if (categoryName == null || categoryName.isEmpty) return null;
+
+    return {
+      'name': categoryName,
+      'type': _detectCategoryType(categoryName),
+      'source': 'assistant_chat',
+    };
+  }
+
+  /// Extract proposal untuk merchant baru dari teks
+  Map<String, Object?>? _merchantProposalFromText(
+    String rawText,
+    String normalized,
+  ) {
+    final merchantMatch = RegExp(
+      r'(?:di|ke|toko|tempat)\s+([a-z][a-z0-9 _-]{2,40})',
+      caseSensitive: false,
+    ).firstMatch(normalized);
+
+    if (merchantMatch == null) return null;
+
+    final merchantName = merchantMatch.group(1)?.trim();
+    if (merchantName == null || merchantName.isEmpty) return null;
+
+    return {'name': merchantName, 'source': 'assistant_chat'};
+  }
+
+  /// Extract proposal untuk tag baru dari teks
+  Map<String, Object?>? _tagProposalFromText(
+    String rawText,
+    String normalized,
+  ) {
+    final tagMatch = RegExp(
+      r'(?:tag|label)\s+([a-z][a-z0-9 _-]{2,30})',
+      caseSensitive: false,
+    ).firstMatch(normalized);
+
+    if (tagMatch == null) return null;
+
+    final tagName = tagMatch.group(1)?.trim();
+    if (tagName == null || tagName.isEmpty) return null;
+
+    return {'name': tagName, 'source': 'assistant_chat'};
+  }
+
+  /// Extract proposal untuk sumber pemasukan baru dari teks
+  Map<String, Object?>? _incomeSourceProposalFromText(
+    String rawText,
+    String normalized,
+  ) {
+    final sourceMatch = RegExp(
+      r'(?:sumber|dari)\s+(?:pemasukan|gaji|upah|bonus)\s+([a-z][a-z0-9 _-]{2,40})',
+      caseSensitive: false,
+    ).firstMatch(normalized);
+
+    if (sourceMatch == null) return null;
+
+    final sourceName = sourceMatch.group(1)?.trim();
+    if (sourceName == null || sourceName.isEmpty) return null;
+
+    return {'name': sourceName, 'source': 'assistant_chat'};
   }
 
   FfmAssistantIntent? _parseCorrection(String rawText, String normalized) {
@@ -10544,8 +11903,11 @@ class FfmAssistantInterpreter {
   }
 
   int? _parseAdminFee(String text) {
-    final match = RegExp(r'(?:admin|biaya admin|fee)\s+(?:rp\s*)?([\w. ,]+)')
-        .firstMatch(text);
+    // Pattern: "biaya admin", "admin fee", "biaya layanan", "admin", "fee", "biaya"
+    final match = RegExp(
+      r'(?:biaya\s+admin|admin\s+fee|biaya\s+layanan|admin|fee|biaya)\s+(?:rp\s*)?([\w. ,]+)',
+      caseSensitive: false,
+    ).firstMatch(text);
     return match == null
         ? null
         : FfmAssistantAmountParser.parse(match.group(1)!);
@@ -11148,6 +12510,18 @@ class FfmAssistantInterpreter {
           'buatkan rekening',
           'bikin rekening',
           'rekening baru',
+          'tambah akun',
+          'buat akun',
+          'akun baru',
+          'tambah dompet',
+          'buat dompet',
+          'dompet baru',
+          'tambah e-wallet',
+          'buat e-wallet',
+          'e-wallet baru',
+          'tambah bank',
+          'buat bank',
+          'bank baru',
         ],
       ),
       (
@@ -11171,6 +12545,15 @@ class FfmAssistantInterpreter {
           'buatkan toko',
           'bikin toko',
           'toko baru',
+          'tambah lapak',
+          'buat lapak',
+          'lapak baru',
+          'tambah warung',
+          'buat warung',
+          'warung baru',
+          'tambah kios',
+          'buat kios',
+          'kios baru',
         ],
       ),
       (
@@ -11204,8 +12587,8 @@ class FfmAssistantInterpreter {
 
   String _masterDataTargetName(String? target) => switch (target) {
     'profil' => 'Profil keluarga',
-    'rekening' => 'Tambah rekening',
-    'toko' => 'Tambah toko atau tempat',
+    'rekening' => 'Tambah rekening atau akun',
+    'toko' => 'Tambah toko, tempat, lapak, atau warung',
     'tag' => 'Tambah tag',
     'sumber_pemasukan' => 'Tambah sumber pemasukan',
     _ => 'Tambah kategori',
@@ -11214,6 +12597,7 @@ class FfmAssistantInterpreter {
   String? _extractMerchant(String text) {
     final match = RegExp(
       r'\b(?:di|pada)\s+([a-z0-9][a-z0-9 .&-]{1,80}?)(?=\s+(?:sebesar|senilai|rp|harga|untuk|dengan|hari ini|kemarin|besok)\b|\s+[0-9]|$)',
+      caseSensitive: false,
     ).firstMatch(text);
     final value = match?.group(1)?.trim();
     return value == null || value.isEmpty
@@ -11670,7 +13054,23 @@ class FfmAssistantInterpreter {
         .replaceAll(RegExp(r'[^a-z0-9.,\s]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    return FfmAssistantTypoNormalizer.correct(cleaned);
+    var normalized = FfmAssistantTypoNormalizer.correct(cleaned);
+    // Activity vocabulary is normalized only when it is unambiguously about
+    // elapsed time, so timer words do not become reminder or money intents.
+    normalized = normalized
+        .replaceAll(RegExp(r'\b(stop\s*watch|stopwatch)\b'), 'timer')
+        .replaceAll(RegExp(r'\b(penghitung|pencatat)\s+waktu\b'), 'timer')
+        .replaceAll(
+          RegExp(r'\b(?:berapa lama|sudah berapa lama)\s+timer\b'),
+          'durasi aktivitas',
+        )
+        .replaceAll(
+          RegExp(r'\bdurasi\s+(?:timer|kegiatan)\b'),
+          'durasi aktivitas',
+        )
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return normalized;
   }
 
   static final RegExp _greetingPattern = RegExp(
@@ -11804,19 +13204,10 @@ abstract final class FfmAssistantAmountParser {
           ' ',
         )
         .replaceAll(
-          RegExp(
-            r'\b(?:tanggal|tgl)\s+\d{1,2}\b',
-            caseSensitive: false,
-          ),
+          RegExp(r'\b(?:tanggal|tgl)\s+\d{1,2}\b', caseSensitive: false),
           ' ',
         )
-        .replaceAll(
-          RegExp(
-            r'\btahun\s+\d{4}\b',
-            caseSensitive: false,
-          ),
-          ' ',
-        );
+        .replaceAll(RegExp(r'\btahun\s+\d{4}\b', caseSensitive: false), ' ');
     final numeric = RegExp(
       r'(?:rp\s*)?(\d[\d.,]*)(?:\s*(ribu|rb|k|jt|juta|m|miliar)\b)?',
     ).allMatches(cleanedText);

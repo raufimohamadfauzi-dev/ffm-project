@@ -29,6 +29,7 @@ import '../../settings/data/tag_repository.dart';
 import '../../settings/data/utility_meter_repository.dart';
 import '../../settings/data/vehicle_repository.dart';
 import '../../settings/domain/entities/vehicle_models.dart';
+import '../../settings/domain/entities/utility_meter_models.dart';
 // ...
 import '../../goal/domain/entities/goal_entity.dart';
 import '../../goal/domain/usecases/goal_crud_usecases.dart';
@@ -228,9 +229,12 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.receivable_archive': _prepareReceivableMutation,
     'draft.recurring_transaction_update': _prepareRecurringTransactionMutation,
     'draft.recurring_transaction_archive': _prepareRecurringTransactionMutation,
-    'draft.budget': _prepareDraft,
+    'draft.budget': _prepareBudgetCreation,
     'draft.budget_update': _prepareBudgetMutation,
     'draft.budget_archive': _prepareBudgetMutation,
+    'draft.budget_transfer': _prepareBudgetTransfer,
+    'mutate.budget_transfer': _executeBudgetTransfer,
+    'verify.budget_transfer': _verifyBudgetTransfer,
     'draft.goal_deposit': _prepareDraft,
     'draft.goal_usage': _prepareDraft,
     'draft.goal_update': _prepareGoalMutation,
@@ -914,10 +918,13 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
     final repository = ActivityRepository(_database, AuditLogger(_database));
-    final note = await (_database.select(_database.dailyNotes)..where(
-          (row) => row.householdId.equals(_householdId) & row.id.equals(targetId),
-        ))
-        .getSingleOrNull();
+    final note =
+        await (_database.select(_database.dailyNotes)..where(
+              (row) =>
+                  row.householdId.equals(_householdId) &
+                  row.id.equals(targetId),
+            ))
+            .getSingleOrNull();
     if (note == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Catatan Harian tidak ditemukan.',
@@ -935,9 +942,11 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
     if (operation == 'priority') {
-      final priority = int.tryParse(step.parameters['priority']?.toString() ?? '0') ?? 0;
+      final priority =
+          int.tryParse(step.parameters['priority']?.toString() ?? '0') ?? 0;
       await (_database.update(_database.dailyNotes)..where(
-            (row) => row.householdId.equals(_householdId) & row.id.equals(targetId),
+            (row) =>
+                row.householdId.equals(_householdId) & row.id.equals(targetId),
           ))
           .write(
             DailyNotesCompanion(
@@ -954,17 +963,17 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Operasi Catatan Harian tidak dikenal.',
       );
     }
-    final tags = await (_database.select(_database.dailyNoteTags)..where(
-          (row) => row.dailyNoteId.equals(targetId),
-        ))
-        .get();
+    final tags = await (_database.select(
+      _database.dailyNoteTags,
+    )..where((row) => row.dailyNoteId.equals(targetId))).get();
     await repository.saveDailyNote(
       id: targetId,
       householdId: _householdId,
       noteDate: _dateParameter(step.parameters['date']) ?? note.noteDate,
       title: step.parameters['title']?.toString() ?? note.title,
       body: step.parameters['body']?.toString() ?? note.body,
-      treatmentType: step.parameters['treatmentType']?.toString() ?? note.treatmentType,
+      treatmentType:
+          step.parameters['treatmentType']?.toString() ?? note.treatmentType,
       priority: note.priority,
       tagIds: tags.map((item) => item.tagId).toList(growable: false),
       createdAt: note.createdAt,
@@ -2252,9 +2261,19 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
     if (archive) {
-      await ArchiveTransaction(_database)(_householdId, targetId);
+      await ArchiveTransaction(
+        _database,
+        utilityMeterRepository: getIt.isRegistered<UtilityMeterRepository>()
+            ? getIt<UtilityMeterRepository>()
+            : UtilityMeterRepository(_database),
+      )(_householdId, targetId);
     } else {
-      await DeleteTransaction(_database)(_householdId, targetId);
+      await DeleteTransaction(
+        _database,
+        utilityMeterRepository: getIt.isRegistered<UtilityMeterRepository>()
+            ? getIt<UtilityMeterRepository>()
+            : UtilityMeterRepository(_database),
+      )(_householdId, targetId);
     }
     await AuditLogger(_database).record(
       action: archive ? 'arsip' : 'hapus',
@@ -2318,10 +2337,13 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Target Catatan Harian belum valid.',
       );
     }
-    final note = await (_database.select(_database.dailyNotes)..where(
-          (row) => row.householdId.equals(_householdId) & row.id.equals(targetId),
-        ))
-        .getSingleOrNull();
+    final note =
+        await (_database.select(_database.dailyNotes)..where(
+              (row) =>
+                  row.householdId.equals(_householdId) &
+                  row.id.equals(targetId),
+            ))
+            .getSingleOrNull();
     if (note == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Catatan Harian target tidak ditemukan.',
@@ -2363,7 +2385,8 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
 
-    if (operation == 'reopen' && current.status != ActivitySessionStatus.completed) {
+    if (operation == 'reopen' &&
+        current.status != ActivitySessionStatus.completed) {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Hanya aktivitas selesai yang dapat dibuka kembali.',
       );
@@ -2404,7 +2427,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
 
     if (operation == 'priority') {
-      final priority = int.tryParse(step.parameters['priority']?.toString() ?? '0') ?? 0;
+      final priority =
+          int.tryParse(step.parameters['priority']?.toString() ?? '0') ?? 0;
       await repository.saveSession(
         current.copyWith(priority: priority.clamp(0, 1), updatedAt: now),
       );
@@ -2445,7 +2469,9 @@ class FfmAssistantCapabilityAdapterRegistry {
         );
       }
       final checkpoints = await repository.getCheckpoints(targetId);
-      final checkpoint = checkpoints.where((item) => item.id == checkpointId).firstOrNull;
+      final checkpoint = checkpoints
+          .where((item) => item.id == checkpointId)
+          .firstOrNull;
       if (checkpoint == null) {
         return const FfmAssistantCapabilityExecutionResult.failure(
           'Checkpoint target tidak ditemukan pada aktivitas tersebut.',
@@ -2561,10 +2587,13 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
     final repository = ActivityRepository(_database, AuditLogger(_database));
-    final note = await (_database.select(_database.dailyNotes)..where(
-          (row) => row.householdId.equals(_householdId) & row.id.equals(targetId),
-        ))
-        .getSingleOrNull();
+    final note =
+        await (_database.select(_database.dailyNotes)..where(
+              (row) =>
+                  row.householdId.equals(_householdId) &
+                  row.id.equals(targetId),
+            ))
+            .getSingleOrNull();
     if (note == null || note.isArchived) {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Catatan Harian tidak ditemukan atau sudah diarsipkan.',
@@ -2585,17 +2614,22 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Target Catatan Harian belum valid.',
       );
     }
-    final note = await (_database.select(_database.dailyNotes)..where(
-          (row) => row.householdId.equals(_householdId) & row.id.equals(targetId),
-        ))
-        .getSingleOrNull();
+    final note =
+        await (_database.select(_database.dailyNotes)..where(
+              (row) =>
+                  row.householdId.equals(_householdId) &
+                  row.id.equals(targetId),
+            ))
+            .getSingleOrNull();
     if (note == null || note.isArchived) {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Catatan Harian tidak ditemukan atau sudah diarsipkan.',
       );
     }
-    await ActivityRepository(_database, AuditLogger(_database))
-        .deleteDailyNotePermanently(_householdId, targetId);
+    await ActivityRepository(
+      _database,
+      AuditLogger(_database),
+    ).deleteDailyNotePermanently(_householdId, targetId);
     return const FfmAssistantCapabilityExecutionResult.success(
       'Catatan Harian dihapus permanen. Hasilnya akan dibaca kembali untuk verifikasi.',
     );
@@ -2822,16 +2856,17 @@ class FfmAssistantCapabilityAdapterRegistry {
               'Verifikasi gagal: aktivitas belum kembali aktif.',
             );
     }
-        if (operation == 'priority') {
-          final priority = int.tryParse(step.parameters['priority']?.toString() ?? '0') ?? 0;
-          return session != null && session.priority == priority
-              ? const FfmAssistantCapabilityExecutionResult.success(
-                  'verified: prioritas aktivitas sudah diperbarui.',
-                )
-              : const FfmAssistantCapabilityExecutionResult.failure(
-                  'Verifikasi gagal: prioritas aktivitas belum sesuai.',
-                );
-        }
+    if (operation == 'priority') {
+      final priority =
+          int.tryParse(step.parameters['priority']?.toString() ?? '0') ?? 0;
+      return session != null && session.priority == priority
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: prioritas aktivitas sudah diperbarui.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: prioritas aktivitas belum sesuai.',
+            );
+    }
     if (operation == 'update' || operation == 'checkpoint') {
       final label = step.parameters['label']?.toString().trim();
       if (session == null ||
@@ -2869,7 +2904,9 @@ class FfmAssistantCapabilityAdapterRegistry {
       final label = step.parameters['label']?.toString().trim();
       return exists &&
               label != null &&
-              checkpoints.any((item) => item.id == checkpointId && item.label == label)
+              checkpoints.any(
+                (item) => item.id == checkpointId && item.label == label,
+              )
           ? const FfmAssistantCapabilityExecutionResult.success(
               'verified: checkpoint sudah diperbarui.',
             )
@@ -2909,14 +2946,17 @@ class FfmAssistantCapabilityAdapterRegistry {
     final targetId = _targetId(step);
     final operation = step.parameters['operation']?.toString();
     if (targetId != null &&
-      (operation == 'restore' ||
-        operation == 'edit' ||
-        operation == 'delete' ||
-        operation == 'priority')) {
-      final note = await (_database.select(_database.dailyNotes)..where(
-            (row) => row.householdId.equals(_householdId) & row.id.equals(targetId),
-          ))
-          .getSingleOrNull();
+        (operation == 'restore' ||
+            operation == 'edit' ||
+            operation == 'delete' ||
+            operation == 'priority')) {
+      final note =
+          await (_database.select(_database.dailyNotes)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.id.equals(targetId),
+              ))
+              .getSingleOrNull();
       if (operation == 'delete') {
         return note == null
             ? const FfmAssistantCapabilityExecutionResult.success(
@@ -2936,7 +2976,8 @@ class FfmAssistantCapabilityAdapterRegistry {
               );
       }
       if (operation == 'priority') {
-        final priority = int.tryParse(step.parameters['priority']?.toString() ?? '0') ?? 0;
+        final priority =
+            int.tryParse(step.parameters['priority']?.toString() ?? '0') ?? 0;
         return note != null && note.priority == priority
             ? const FfmAssistantCapabilityExecutionResult.success(
                 'verified: prioritas Catatan Harian sudah diperbarui.',
@@ -2959,10 +3000,13 @@ class FfmAssistantCapabilityAdapterRegistry {
             );
     }
     if (targetId != null && operation == 'archive') {
-      final note = await (_database.select(_database.dailyNotes)..where(
-            (row) => row.householdId.equals(_householdId) & row.id.equals(targetId),
-          ))
-          .getSingleOrNull();
+      final note =
+          await (_database.select(_database.dailyNotes)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.id.equals(targetId),
+              ))
+              .getSingleOrNull();
       return note?.isArchived == true
           ? const FfmAssistantCapabilityExecutionResult.success(
               'verified: Catatan Harian sudah diarsipkan.',
@@ -3184,7 +3228,8 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
     if (operation == 'complete') {
-      final isRecurring = reminder.recurrenceType != ReminderRecurrenceType.once;
+      final isRecurring =
+          reminder.recurrenceType != ReminderRecurrenceType.once;
       final extra = isRecurring
           ? 'Occurrence periode ini akan ditandai selesai dan jadwal berikutnya tetap aktif.'
           : 'Pengingat akan ditandai selesai.';
@@ -3343,7 +3388,8 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Pengingat belum dapat diselesaikan karena status jadwal belum siap.',
       );
     }
-    final recurrenceInfo = reminder.recurrenceType != ReminderRecurrenceType.once
+    final recurrenceInfo =
+        reminder.recurrenceType != ReminderRecurrenceType.once
         ? ' Jadwal occurrence berikutnya tetap aktif.'
         : '';
     return FfmAssistantCapabilityExecutionResult.success(
@@ -3403,6 +3449,42 @@ class FfmAssistantCapabilityAdapterRegistry {
         : const FfmAssistantCapabilityExecutionResult.failure(
             'Verifikasi gagal: perubahan pengingat belum sesuai draft.',
           );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _prepareBudgetCreation(
+    FfmAssistantActionStep step,
+  ) async {
+    final title = step.parameters['title']?.toString().trim();
+    final amount = _positiveInt(step.parameters['amount']);
+    final periodType = step.parameters['periodType']?.toString() ?? 'monthly';
+    final categoryIds = _budgetCategoryIds(step.parameters);
+
+    if (title == null || title.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Nama pos anggaran belum diisi.',
+      );
+    }
+    if (amount == null || amount <= 0) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Batas anggaran belum valid.',
+      );
+    }
+    if (categoryIds == null || categoryIds.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Kategori belum dipilih.',
+      );
+    }
+
+    // Validasi period type
+    if (!['weekly', 'monthly', 'nonrecurring'].contains(periodType)) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Tipe periode tidak valid. Gunakan weekly, monthly, atau nonrecurring.',
+      );
+    }
+
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview pembuatan pos anggaran "$title": batas ${_money(amount)}, periode $periodType, kategori terpilih. Konfirmasi untuk menyimpan.',
+    );
   }
 
   Future<FfmAssistantCapabilityExecutionResult> _prepareBudgetMutation(
@@ -3528,6 +3610,132 @@ class FfmAssistantCapabilityAdapterRegistry {
     } on StateError catch (error) {
       return FfmAssistantCapabilityExecutionResult.failure(error.message);
     }
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _prepareBudgetTransfer(
+    FfmAssistantActionStep step,
+  ) async {
+    final fromEnvelopeId = step.parameters['fromEnvelopeId']?.toString();
+    final toEnvelopeId = step.parameters['toEnvelopeId']?.toString();
+    final amount = _positiveInt(step.parameters['amount']);
+
+    if (fromEnvelopeId == null || toEnvelopeId == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Envelope asal dan tujuan harus dipilih.',
+      );
+    }
+    if (amount == null || amount <= 0) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Nominal transfer belum valid.',
+      );
+    }
+
+    final repository = BudgetRepository(
+      _database,
+      AuditLogger(_database),
+      clock: _clock,
+    );
+    final fromSnapshot = await repository.snapshot(
+      householdId: _householdId,
+      id: fromEnvelopeId,
+    );
+    final toSnapshot = await repository.snapshot(
+      householdId: _householdId,
+      id: toEnvelopeId,
+    );
+
+    if (fromSnapshot == null || toSnapshot == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Envelope tidak ditemukan.',
+      );
+    }
+
+    if (fromSnapshot.remaining < amount) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Dana tidak cukup. Sisa envelope asal: ${_money(fromSnapshot.remaining)}.',
+      );
+    }
+
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview transfer ${_money(amount)} dari "${fromSnapshot.budget.name}" ke "${toSnapshot.budget.name}". Konfirmasi untuk eksekusi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _executeBudgetTransfer(
+    FfmAssistantActionStep step,
+  ) async {
+    final fromEnvelopeId = step.parameters['fromEnvelopeId']?.toString();
+    final toEnvelopeId = step.parameters['toEnvelopeId']?.toString();
+    final amount = _positiveInt(step.parameters['amount']);
+    final note = step.parameters['note']?.toString().trim();
+
+    if (fromEnvelopeId == null || toEnvelopeId == null || amount == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Parameter transfer tidak lengkap.',
+      );
+    }
+
+    try {
+      // Create transfer record
+      final transferId = const Uuid().v4();
+      await _database
+          .into(_database.envelopeTransfers)
+          .insert(
+            EnvelopeTransfersCompanion(
+              id: Value(transferId),
+              householdId: Value(_householdId),
+              fromEnvelopeId: Value(fromEnvelopeId),
+              toEnvelopeId: Value(toEnvelopeId),
+              amount: Value(amount),
+              note: Value(note?.isEmpty == true ? null : note),
+              createdAt: Value(_clock()),
+            ),
+          );
+
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Transfer ${_money(amount)} berhasil dieksekusi. Envelope tujuan akan diperbarui.',
+      );
+    } on StateError catch (error) {
+      return FfmAssistantCapabilityExecutionResult.failure(error.message);
+    }
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyBudgetTransfer(
+    FfmAssistantActionStep step,
+  ) async {
+    final fromEnvelopeId = step.parameters['fromEnvelopeId']?.toString();
+    final toEnvelopeId = step.parameters['toEnvelopeId']?.toString();
+    final amount = _positiveInt(step.parameters['amount']);
+
+    if (fromEnvelopeId == null || toEnvelopeId == null || amount == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Parameter verifikasi tidak lengkap.',
+      );
+    }
+
+    // Verify the transfer was created by checking the most recent transfer
+    final recentTransfer =
+        await (_database.select(_database.envelopeTransfers)
+              ..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.fromEnvelopeId.equals(fromEnvelopeId) &
+                    row.toEnvelopeId.equals(toEnvelopeId) &
+                    row.amount.equals(amount),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.createdAt)])
+              ..limit(1))
+            .getSingleOrNull();
+
+    if (recentTransfer == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Verifikasi gagal: Transfer tidak ditemukan.',
+      );
+    }
+
+    return const FfmAssistantCapabilityExecutionResult.success(
+      'verified: Transfer anggaran berhasil dieksekusi dan tercatat.',
+    );
   }
 
   Future<FfmAssistantCapabilityExecutionResult> _verifyBudgetMutation(
@@ -3817,7 +4025,8 @@ class FfmAssistantCapabilityAdapterRegistry {
           ? null
           : await GetGoal(_database)(_householdId, targetId);
       final amount = _positiveInt(step.parameters['amount']);
-      final date = _dateParameter(step.parameters['date']) ??
+      final date =
+          _dateParameter(step.parameters['date']) ??
           _clock().add(const Duration(days: 30));
       final categoryId = step.parameters['categoryId']?.toString();
       final note = step.parameters['note']?.toString().trim();
@@ -3966,7 +4175,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (kind == 'transfer') return _saveTransfer(step, idempotencyKey);
     if (kind == 'profile') return _saveProfile(step, idempotencyKey);
     if (kind == 'activity') return _saveActivity(step, idempotencyKey);
-    if (kind == 'dailyNote') return _saveDailyNote(step, idempotencyKey);
+    if (kind == 'dailyNote' || kind == 'daily_note') {
+      return _saveDailyNote(step, idempotencyKey);
+    }
     if (kind == 'task') return _saveActivity(step, idempotencyKey);
     if (kind == 'routine') return _saveActivity(step, idempotencyKey);
     if (kind == 'schedule') return _saveActivity(step, idempotencyKey);
@@ -3989,6 +4200,21 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     if (kind == 'meterReading') {
       return _saveMeterReading(step, idempotencyKey);
+    }
+    if (kind == 'createUtilityMeter') {
+      return executeCreateUtilityMeter(step.parameters);
+    }
+    if (kind == 'updateTokenCode') {
+      return executeUpdateTokenCode(step.parameters);
+    }
+    if (kind == 'updateUtilityMeter') {
+      return executeUpdateUtilityMeter(step.parameters);
+    }
+    if (kind == 'deleteUtilityMeter') {
+      return executeDeleteUtilityMeter(step.parameters);
+    }
+    if (kind == 'analyzeElectricityConsumption') {
+      return executeAnalyzeElectricityConsumption(step.parameters);
     }
     if (kind == 'goal_deposit') {
       return _saveGoalTransaction(step, idempotencyKey, isDeposit: true);
@@ -4266,6 +4492,9 @@ class FfmAssistantCapabilityAdapterRegistry {
         // Eksekusi proposal utility meter (PLN) setelah transaksi berhasil disimpan
         await _executeUtilityProposal(step.parameters, transactionId: id);
 
+        // Eksekusi proposal data utama baru (account, category, merchant, tag)
+        await _executeMasterDataProposal(step.parameters, transactionId: id);
+
         // Eksekusi proposal fuel log (BBM) setelah transaksi berhasil disimpan
         await _executeFuelProposal(step.parameters);
       });
@@ -4294,10 +4523,10 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
 
     final metadata = step.parameters['metadata'];
-    final isUtilityPurchase = metadata is Map &&
-        metadata['utilityProposal'] is Map;
+    final isUtilityPurchase =
+        metadata is Map && metadata['utilityProposal'] is Map;
     final utilityNote = isUtilityPurchase
-        ? ' ⚡ Pembelian token listrik berhasil dicatat ke Token Listrik.'
+        ? ' ⚡ Token listrik berhasil dicatat ke halaman Token Listrik. Data akan muncul di riwayat pembelian meteran terkait.'
         : '';
 
     return FfmAssistantCapabilityExecutionResult.success(
@@ -4316,25 +4545,47 @@ class FfmAssistantCapabilityAdapterRegistry {
     final reminderMutations = _reminderMutations;
     if (reminderMutations == null) return null;
 
-    final keywords = <String>{
-      if (note != null) ...note.toLowerCase().split(RegExp(r'\s+')),
-      if (categoryName != null) ...categoryName.toLowerCase().split(RegExp(r'\s+')),
-      if (merchantName != null) ...merchantName.toLowerCase().split(RegExp(r'\s+')),
-      if (partyName != null) ...partyName.toLowerCase().split(RegExp(r'\s+')),
-    }.where((k) => k.length >= 3 && !const {'pengeluaran', 'bayar', 'beli', 'transaksi', 'biaya', 'pada', 'untuk'}.contains(k)).toSet();
+    final keywords =
+        <String>{
+              if (note != null) ...note.toLowerCase().split(RegExp(r'\s+')),
+              if (categoryName != null)
+                ...categoryName.toLowerCase().split(RegExp(r'\s+')),
+              if (merchantName != null)
+                ...merchantName.toLowerCase().split(RegExp(r'\s+')),
+              if (partyName != null)
+                ...partyName.toLowerCase().split(RegExp(r'\s+')),
+            }
+            .where(
+              (k) =>
+                  k.length >= 3 &&
+                  !const {
+                    'pengeluaran',
+                    'bayar',
+                    'beli',
+                    'transaksi',
+                    'biaya',
+                    'pada',
+                    'untuk',
+                  }.contains(k),
+            )
+            .toSet();
 
     if (keywords.isEmpty) return null;
 
     final now = _clock();
     final lookAheadLimit = now.add(const Duration(days: 14));
 
-    final activeReminders = await (_database.select(_database.reminders)
-          ..where((row) =>
-              row.householdId.equals(_householdId) &
-              row.isActive.equals(true) &
-              row.scheduledAt.isBiggerOrEqualValue(now.subtract(const Duration(days: 1))) &
-              row.scheduledAt.isSmallerOrEqualValue(lookAheadLimit)))
-        .get();
+    final activeReminders =
+        await (_database.select(_database.reminders)..where(
+              (row) =>
+                  row.householdId.equals(_householdId) &
+                  row.isActive.equals(true) &
+                  row.scheduledAt.isBiggerOrEqualValue(
+                    now.subtract(const Duration(days: 1)),
+                  ) &
+                  row.scheduledAt.isSmallerOrEqualValue(lookAheadLimit),
+            ))
+            .get();
 
     for (final reminder in activeReminders) {
       final titleLower = reminder.title.toLowerCase();
@@ -4364,7 +4615,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     final readingKwh = (proposal is Map && proposal['readingKwh'] is num)
         ? (proposal['readingKwh'] as num).toDouble()
         : double.tryParse(step.parameters['readingKwh']?.toString() ?? '');
-    final meterId = (proposal is Map ? proposal['meterId']?.toString() : null) ??
+    final meterId =
+        (proposal is Map ? proposal['meterId']?.toString() : null) ??
         step.parameters['meterId']?.toString();
 
     if (readingKwh == null || readingKwh < 0) {
@@ -4379,12 +4631,16 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
 
     final repo = UtilityMeterRepository(_database);
-    final recordedAt = _dateParameter(proposal is Map ? proposal['recordedAt'] : null) ??
+    final recordedAt =
+        _dateParameter(proposal is Map ? proposal['recordedAt'] : null) ??
         _dateParameter(step.parameters['date']) ??
         _clock();
-    final note = (proposal is Map ? proposal['note']?.toString() : null) ??
+    final note =
+        (proposal is Map ? proposal['note']?.toString() : null) ??
         step.parameters['note']?.toString();
-    final meterName = proposal is Map ? proposal['meterName']?.toString() ?? 'meteran' : 'meteran';
+    final meterName = proposal is Map
+        ? proposal['meterName']?.toString() ?? 'meteran'
+        : 'meteran';
 
     await repo.recordMeterReading(
       householdId: _householdId,
@@ -4419,6 +4675,406 @@ class FfmAssistantCapabilityAdapterRegistry {
       householdId: _householdId,
       transactionId: transactionId,
       proposal: proposal,
+    );
+  }
+
+  /// Eksekusi proposal data utama baru (account, category, merchant, tag)
+  Future<void> _executeMasterDataProposal(
+    Map<String, Object?> parameters, {
+    String? transactionId,
+  }) async {
+    final metadataRaw = parameters['metadata'];
+    if (metadataRaw is! Map) return;
+
+    // Execute newAccountProposal
+    final accountProposal = metadataRaw['newAccountProposal'];
+    if (accountProposal is Map) {
+      await _executeCreateAccount(Map<String, Object?>.from(accountProposal));
+    }
+
+    // Execute newCategoryProposal
+    final categoryProposal = metadataRaw['newCategoryProposal'];
+    if (categoryProposal is Map) {
+      await _executeCreateCategory(Map<String, Object?>.from(categoryProposal));
+    }
+
+    // Execute newMerchantProposal
+    final merchantProposal = metadataRaw['newMerchantProposal'];
+    if (merchantProposal is Map) {
+      await _executeCreateMerchant(Map<String, Object?>.from(merchantProposal));
+    }
+
+    // Execute newTagProposal
+    final tagProposal = metadataRaw['newTagProposal'];
+    if (tagProposal is Map) {
+      await _executeCreateTag(Map<String, Object?>.from(tagProposal));
+    }
+
+    // Execute newIncomeSourceProposal (tidak ada table terpisah, hanya log)
+    final incomeSourceProposal = metadataRaw['newIncomeSourceProposal'];
+    if (incomeSourceProposal is Map) {
+      // Income source disimpan sebagai partyName di transaksi, tidak perlu create terpisah
+    }
+  }
+
+  /// Executor untuk create account baru
+  Future<void> _executeCreateAccount(Map<String, Object?> proposal) async {
+    final name = proposal['name']?.toString();
+    final type = proposal['type']?.toString() ?? 'wallet';
+
+    if (name == null || name.isEmpty) {
+      throw StateError('Nama rekening wajib diisi.');
+    }
+
+    final id = const Uuid().v4();
+    final now = DateTime.now();
+
+    await _database
+        .into(_database.accounts)
+        .insert(
+          AccountsCompanion(
+            id: Value(id),
+            householdId: Value(_householdId),
+            name: Value(name),
+            type: Value(type),
+            isActive: const Value(true),
+            isArchived: const Value(false),
+            openingBalance: const Value(0),
+            createdAt: Value(now),
+          ),
+        );
+  }
+
+  /// Executor untuk create category baru
+  Future<void> _executeCreateCategory(Map<String, Object?> proposal) async {
+    final name = proposal['name']?.toString();
+    final type = proposal['type']?.toString() ?? 'umum';
+
+    if (name == null || name.isEmpty) {
+      throw StateError('Nama kategori wajib diisi.');
+    }
+
+    final id = const Uuid().v4();
+    final now = DateTime.now();
+
+    await _database
+        .into(_database.categories)
+        .insert(
+          CategoriesCompanion(
+            id: Value(id),
+            householdId: Value(_householdId),
+            name: Value(name),
+            type: Value(type),
+            defaultBudgetPeriod: const Value('monthly'),
+            isActive: const Value(true),
+            createdAt: Value(now),
+          ),
+        );
+  }
+
+  /// Executor untuk create merchant baru
+  Future<void> _executeCreateMerchant(Map<String, Object?> proposal) async {
+    final name = proposal['name']?.toString();
+
+    if (name == null || name.isEmpty) {
+      throw StateError('Nama merchant wajib diisi.');
+    }
+
+    final id = const Uuid().v4();
+    final now = DateTime.now();
+
+    await _database
+        .into(_database.merchants)
+        .insert(
+          MerchantsCompanion(
+            id: Value(id),
+            householdId: Value(_householdId),
+            name: Value(name),
+            createdAt: Value(now),
+          ),
+        );
+  }
+
+  /// Executor untuk create tag baru
+  Future<void> _executeCreateTag(Map<String, Object?> proposal) async {
+    final name = proposal['name']?.toString();
+
+    if (name == null || name.isEmpty) {
+      throw StateError('Nama tag wajib diisi.');
+    }
+
+    final id = const Uuid().v4();
+    final now = DateTime.now();
+
+    await _database
+        .into(_database.tags)
+        .insert(
+          TagsCompanion(
+            id: Value(id),
+            householdId: Value(_householdId),
+            name: Value(name),
+            isArchived: const Value(false),
+            createdAt: Value(now),
+          ),
+        );
+  }
+
+  /// Executor untuk registrasi meteran listrik baru
+  Future<FfmAssistantCapabilityExecutionResult> executeCreateUtilityMeter(
+    Map<String, Object?> parameters,
+  ) async {
+    if (!getIt.isRegistered<UtilityMeterRepository>()) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Penyimpanan listrik belum tersedia.',
+      );
+    }
+    final repo = getIt<UtilityMeterRepository>();
+
+    final name = parameters['name']?.toString();
+    final meterNumber = parameters['meterNumber']?.toString();
+    final customerName = parameters['customerName']?.toString();
+    final tariffPower = parameters['tariffPower']?.toString();
+    final location = parameters['location']?.toString();
+    final notes = parameters['notes']?.toString();
+    final tokenCode = parameters['tokenCode']?.toString();
+
+    if (name == null || name.isEmpty) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Nama meteran wajib diisi.',
+      );
+    }
+    if (meterNumber == null || meterNumber.isEmpty) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'IDPEL wajib diisi.',
+      );
+    }
+
+    // Validate IDPEL length (11-12 digits)
+    final idpelDigits = meterNumber.replaceAll(RegExp(r'\D'), '');
+    if (idpelDigits.length < 11 || idpelDigits.length > 12) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'IDPEL harus 11-12 digit.',
+      );
+    }
+
+    // Check if meter already exists
+    final existing = await repo.findMeterByNumber(_householdId, meterNumber);
+    if (existing != null) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'IDPEL $meterNumber sudah terdaftar dengan nama "${existing.name}".',
+      );
+    }
+
+    try {
+      await repo.saveMeter(
+        UtilityMeter(
+          id: Uuid().v4(),
+          householdId: _householdId,
+          name: name,
+          meterNumber: meterNumber,
+          customerName: customerName ?? '',
+          tariffPower: tariffPower ?? '',
+          location: location ?? '',
+          notes: notes ?? '',
+          lastTokenNumber: tokenCode,
+          lastPurchasedAt: null,
+          lastAmount: null,
+          createdAt: _clock(),
+        ),
+      );
+
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Meteran listrik "$name" berhasil didaftarkan dengan IDPEL $meterNumber. '
+        'Data akan muncul di halaman Token Listrik.',
+      );
+    } catch (e) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Gagal mendaftarkan meteran: ${e.toString()}',
+      );
+    }
+  }
+
+  /// Executor untuk update token code meteran listrik (tanpa transaksi)
+  Future<FfmAssistantCapabilityExecutionResult> executeUpdateTokenCode(
+    Map<String, Object?> parameters,
+  ) async {
+    if (!getIt.isRegistered<UtilityMeterRepository>()) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Penyimpanan listrik belum tersedia.',
+      );
+    }
+    final repo = getIt<UtilityMeterRepository>();
+
+    final meterId = parameters['meterId']?.toString();
+    final meterNumber = parameters['meterNumber']?.toString();
+    final tokenCode = parameters['tokenCode']?.toString();
+
+    if (tokenCode == null || tokenCode.isEmpty) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Kode token wajib diisi.',
+      );
+    }
+
+    // Validate token code (20 digits)
+    final tokenDigits = tokenCode.replaceAll(RegExp(r'\D'), '');
+    if (tokenDigits.length != 20) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Kode token harus 20 digit.',
+      );
+    }
+
+    // Resolve meter
+    String? meterName;
+    String? resolvedMeterNumber;
+
+    if (meterId != null && meterId.isNotEmpty) {
+      final meters = await repo.getAllMeters(_householdId);
+      final meter = meters.where((m) => m.id == meterId).firstOrNull;
+      if (meter == null) {
+        return FfmAssistantCapabilityExecutionResult.failure(
+          'Meteran tidak ditemukan.',
+        );
+      }
+      meterName = meter.name;
+      resolvedMeterNumber = meter.meterNumber;
+    } else if (meterNumber != null && meterNumber.isNotEmpty) {
+      final meter = await repo.findMeterByNumber(_householdId, meterNumber);
+      if (meter == null) {
+        return FfmAssistantCapabilityExecutionResult.failure(
+          'IDPEL tidak ditemukan.',
+        );
+      }
+      meterName = meter.name;
+      resolvedMeterNumber = meter.meterNumber;
+    } else {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Meter ID atau IDPEL wajib diisi.',
+      );
+    }
+
+    try {
+      await repo.updateLastToken(
+        householdId: _householdId,
+        meterNumber: resolvedMeterNumber,
+        tokenCode: tokenCode,
+      );
+
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Kode token untuk "$meterName" berhasil diupdate menjadi $tokenCode.',
+      );
+    } catch (e) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Gagal update token: ${e.toString()}',
+      );
+    }
+  }
+
+  /// Executor untuk update data meteran listrik
+  Future<FfmAssistantCapabilityExecutionResult> executeUpdateUtilityMeter(
+    Map<String, Object?> parameters,
+  ) async {
+    if (!getIt.isRegistered<UtilityMeterRepository>()) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Penyimpanan listrik belum tersedia.',
+      );
+    }
+    final repo = getIt<UtilityMeterRepository>();
+
+    final meterId = parameters['meterId']?.toString();
+    final name = parameters['name']?.toString();
+    final customerName = parameters['customerName']?.toString();
+    final tariffPower = parameters['tariffPower']?.toString();
+    final location = parameters['location']?.toString();
+    final notes = parameters['notes']?.toString();
+
+    if (meterId == null || meterId.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'ID meteran wajib diisi.',
+      );
+    }
+
+    try {
+      final meters = await repo.getAllMeters(_householdId);
+      final meter = meters.where((m) => m.id == meterId).firstOrNull;
+      if (meter == null) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Meteran tidak ditemukan.',
+        );
+      }
+
+      final updatedMeter = meter.copyWith(
+        name: name ?? meter.name,
+        customerName: customerName ?? meter.customerName,
+        tariffPower: tariffPower ?? meter.tariffPower,
+        location: location ?? meter.location,
+        notes: notes ?? meter.notes,
+      );
+
+      await repo.saveMeter(updatedMeter);
+
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Data meteran "${meter.name}" berhasil diupdate.',
+      );
+    } catch (e) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Gagal update meteran: ${e.toString()}',
+      );
+    }
+  }
+
+  /// Executor untuk hapus meteran listrik
+  Future<FfmAssistantCapabilityExecutionResult> executeDeleteUtilityMeter(
+    Map<String, Object?> parameters,
+  ) async {
+    if (!getIt.isRegistered<UtilityMeterRepository>()) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Penyimpanan listrik belum tersedia.',
+      );
+    }
+    final repo = getIt<UtilityMeterRepository>();
+
+    final meterId = parameters['meterId']?.toString();
+
+    if (meterId == null || meterId.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'ID meteran wajib diisi.',
+      );
+    }
+
+    try {
+      final meters = await repo.getAllMeters(_householdId);
+      final meter = meters.where((m) => m.id == meterId).firstOrNull;
+      if (meter == null) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Meteran tidak ditemukan.',
+        );
+      }
+
+      await repo.deleteMeter(_householdId, meterId);
+
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Meteran "${meter.name}" berhasil dihapus. Riwayat pembelian token juga dihapus.',
+      );
+    } catch (e) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Gagal hapus meteran: ${e.toString()}',
+      );
+    }
+  }
+
+  /// Executor untuk analisis konsumsi listrik (redirect ke halaman)
+  Future<FfmAssistantCapabilityExecutionResult>
+  executeAnalyzeElectricityConsumption(Map<String, Object?> parameters) async {
+    // Ini hanya redirect ke halaman Token Listrik
+    // Assistant tidak bisa membuka halaman secara langsung, jadi return guidance
+    return const FfmAssistantCapabilityExecutionResult.success(
+      'Buka halaman Token Listrik untuk melihat analisis konsumsi listrik secara detail:\n\n'
+      '- Ringkasan total semua meteran\n'
+      '- Grafik komparatif antar rumah\n'
+      '- Alert jika token hampir habis\n'
+      '- Trend konsumsi (naik/turun)\n'
+      '- Filter dan sort meteran\n\n'
+      'Untuk membuka halaman, ketuk menu Token Listrik di aplikasi.',
     );
   }
 
@@ -5119,9 +5775,13 @@ class FfmAssistantCapabilityAdapterRegistry {
 
   List<String> _csvValues(Object? value) {
     if (value is! String) return const [];
-    return value
+    final raw = value.trim();
+    final normalized = raw.startsWith('[') && raw.endsWith(']')
+        ? raw.substring(1, raw.length - 1)
+        : raw;
+    return normalized
         .split(',')
-        .map((item) => item.trim())
+        .map((item) => item.trim().replaceAll(RegExp(r'''^['"]|['"]$'''), ''))
         .where((item) => item.isNotEmpty)
         .toSet()
         .toList(growable: false);
@@ -5378,46 +6038,166 @@ class FfmAssistantCapabilityAdapterRegistry {
   Future<FfmAssistantCapabilityExecutionResult> _readActivity(
     FfmAssistantActionStep step,
   ) async {
-    final rows =
-        await (_database.select(_database.activitySessions)
-              ..where(
-                (row) =>
-                  row.householdId.equals(_householdId),
-              )
-              ..orderBy([(row) => OrderingTerm.desc(row.startedAt)]))
-            .get();
-
     final includeArchived = step.parameters['archived']?.toString() == 'true';
+    final mode = step.parameters['mode']?.toString().toLowerCase();
     final status = step.parameters['status']?.toString();
     final kind = step.parameters['kind']?.toString();
     final category = step.parameters['category']?.toString().toLowerCase();
     final query = step.parameters['query']?.toString().toLowerCase();
-    final dateFrom = DateTime.tryParse(step.parameters['dateFrom']?.toString() ?? '');
-    final dateTo = DateTime.tryParse(step.parameters['dateTo']?.toString() ?? '');
-    final filtered = rows.where((row) {
-      if (!includeArchived && row.isArchived) return false;
-      if (status != null && status.isNotEmpty && row.status != status) return false;
-      if (kind != null && kind.isNotEmpty && row.kind != kind) return false;
-      if (category != null && category.isNotEmpty && row.category.toLowerCase() != category) return false;
-      if (query != null && query.isNotEmpty &&
-          !'${row.title} ${row.notes ?? ''}'.toLowerCase().contains(query)) {
-        return false;
+    final dateFrom = DateTime.tryParse(
+      step.parameters['dateFrom']?.toString() ?? '',
+    );
+    final dateTo = DateTime.tryParse(
+      step.parameters['dateTo']?.toString() ?? '',
+    );
+    final limit =
+        (int.tryParse(step.parameters['limit']?.toString() ?? '') ?? 10).clamp(
+          1,
+          50,
+        );
+    final isDailyNote =
+        mode == 'daily_note' || mode == 'daily note' || mode == 'history';
+    if (isDailyNote) {
+      final tag = step.parameters['tag']?.toString().trim().toLowerCase();
+      final tagIds = tag == null || tag.isEmpty
+          ? null
+          : await _dailyNoteIdsForTag(tag);
+      final notes =
+          await (_database.select(_database.dailyNotes)
+                ..where((row) {
+                  var filter =
+                      row.householdId.equals(_householdId) &
+                      (includeArchived
+                          ? const Constant(true)
+                          : row.isArchived.equals(false));
+                  if (dateFrom != null) {
+                    filter =
+                        filter & row.noteDate.isBiggerOrEqualValue(dateFrom);
+                  }
+                  if (dateTo != null) {
+                    filter = filter & row.noteDate.isSmallerThanValue(dateTo);
+                  }
+                  if (query != null && query.isNotEmpty) {
+                    filter =
+                        filter &
+                        (row.title.lower().contains(query) |
+                            row.body.lower().contains(query));
+                  }
+                  if (tagIds != null) {
+                    filter = filter & row.id.isIn(tagIds);
+                  }
+                  return filter;
+                })
+                ..orderBy([
+                  (row) => OrderingTerm.desc(row.noteDate),
+                  (row) => OrderingTerm.desc(row.id),
+                ])
+                ..limit(limit))
+              .get();
+      if (notes.isEmpty) {
+        return const FfmAssistantCapabilityExecutionResult.success(
+          'Belum ada Catatan Harian yang cocok dengan filter.',
+        );
       }
-      if (dateFrom != null && row.startedAt.isBefore(dateFrom)) return false;
-      if (dateTo != null && row.startedAt.isAfter(dateTo)) return false;
-      return true;
-    }).toList(growable: false);
-    final limit = (int.tryParse(step.parameters['limit']?.toString() ?? '') ?? 10)
-        .clamp(1, 50);
-    final visible = filtered.take(limit).toList(growable: false);
-    if (visible.isEmpty) {
+      final lines = notes
+          .map((row) {
+            final title = row.title?.trim();
+            return '- ${row.noteDate.toIso8601String().substring(0, 10)} '
+                '${title == null || title.isEmpty ? row.body : '$title: ${row.body}'}';
+          })
+          .join('\n');
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Catatan Harian (${notes.length}, maksimal $limit):\n$lines',
+      );
+    }
+
+    final requestedMode = mode == 'timer' || mode == 'time_tracking'
+        ? 'timeTracking'
+        : mode == 'note' || mode == 'catatan'
+        ? 'history'
+        : null;
+    final includeChildren =
+        step.parameters['includeChildren']?.toString() == 'true';
+    final parentId = step.parameters['parentId']?.toString();
+    final rows =
+        await (_database.select(_database.activitySessions)
+              ..where((row) {
+                var filter =
+                    row.householdId.equals(_householdId) &
+                    (includeArchived
+                        ? const Constant(true)
+                        : row.isArchived.equals(false));
+                if (status != null && status.isNotEmpty) {
+                  filter = filter & row.status.equals(status);
+                }
+                if (kind != null && kind.isNotEmpty) {
+                  filter = filter & row.kind.equals(kind);
+                }
+                if (requestedMode != null) {
+                  filter =
+                      filter &
+                      (row.mode.equals(requestedMode) |
+                          (row.mode.isNull() &
+                              (requestedMode == 'timeTracking'
+                                  ? row.kind.isIn(const ['timer', 'task'])
+                                  : row.kind.isIn(const ['note', 'event']))));
+                }
+                if (category != null && category.isNotEmpty) {
+                  filter = filter & row.category.lower().equals(category);
+                }
+                if (query != null && query.isNotEmpty) {
+                  filter =
+                      filter &
+                      (row.title.lower().contains(query) |
+                          row.category.lower().contains(query) |
+                          row.notes.lower().contains(query));
+                }
+                if (dateFrom != null) {
+                  filter =
+                      filter & row.startedAt.isBiggerOrEqualValue(dateFrom);
+                }
+                if (dateTo != null) {
+                  filter = filter & row.startedAt.isSmallerThanValue(dateTo);
+                }
+                if (parentId != null && parentId.isNotEmpty) {
+                  filter =
+                      filter &
+                      (row.id.equals(parentId) |
+                          (includeChildren
+                              ? row.parentSessionId.equals(parentId)
+                              : const Constant(false)));
+                }
+                return filter;
+              })
+              ..orderBy([
+                (row) => OrderingTerm.desc(row.startedAt),
+                (row) => OrderingTerm.desc(row.id),
+              ])
+              ..limit(limit))
+            .get();
+    if (rows.isEmpty) {
       return const FfmAssistantCapabilityExecutionResult.success(
         'Belum ada aktivitas, tugas, atau catatan yang tercatat.',
       );
     }
 
-    final active = visible.where((r) => r.status == 'active').toList();
-    final recent = visible.where((r) => r.status != 'active').toList();
+    final includeCheckpoints =
+        step.parameters['includeCheckpoints']?.toString() == 'true';
+    final checkpoints = includeCheckpoints
+        ? await (_database.select(_database.activityCheckpoints)..where(
+                (row) => row.sessionId.isIn(rows.map((item) => item.id)),
+              ))
+              .get()
+        : const <ActivityCheckpoint>[];
+    final checkpointCount = <String, int>{};
+    for (final checkpoint in checkpoints) {
+      checkpointCount[checkpoint.sessionId] =
+          (checkpointCount[checkpoint.sessionId] ?? 0) + 1;
+    }
+    final durationSummary =
+        step.parameters['durationSummary']?.toString() == 'true';
+    final active = rows.where((r) => r.status == 'active').toList();
+    final recent = rows.where((r) => r.status != 'active').toList();
 
     final buffer = StringBuffer();
     if (active.isNotEmpty) {
@@ -5429,12 +6209,10 @@ class FfmAssistantCapabilityAdapterRegistry {
         buffer.writeln(
           '  - ${row.title} [${row.kind}] dimulai ${_dateTime(row.startedAt)}$parentText',
         );
-        if (step.parameters['includeCheckpoints']?.toString() == 'true') {
-          final checkpoints = await ActivityRepository(
-            _database,
-            AuditLogger(_database),
-          ).getCheckpoints(row.id);
-          for (final checkpoint in checkpoints) {
+        if (includeCheckpoints) {
+          for (final checkpoint in checkpoints.where(
+            (item) => item.sessionId == row.id,
+          )) {
             buffer.writeln('    checkpoint: ${checkpoint.label}');
           }
         }
@@ -5448,12 +6226,45 @@ class FfmAssistantCapabilityAdapterRegistry {
             ? 'Selesai ${_dateTime(row.endedAt ?? row.startedAt)}'
             : 'Tercatat ${_dateTime(row.startedAt)}';
         buffer.writeln('  - ${row.title} [${row.kind}]: $timeText');
+        if (includeCheckpoints) {
+          for (final checkpoint in checkpoints.where(
+            (item) => item.sessionId == row.id,
+          )) {
+            buffer.writeln('    checkpoint: ${checkpoint.label}');
+          }
+        }
       }
     }
 
+    if (durationSummary) {
+      final total = rows.fold<Duration>(Duration.zero, (sum, row) {
+        final duration = (row.endedAt ?? _clock()).difference(row.startedAt);
+        return sum + (duration.isNegative ? Duration.zero : duration);
+      });
+      buffer.writeln();
+      buffer.writeln(
+        'Total durasi hasil filter: ${total.inHours}j ${total.inMinutes.remainder(60)}m.',
+      );
+    }
     return FfmAssistantCapabilityExecutionResult.success(
       buffer.toString().trim(),
     );
+  }
+
+  Future<Set<String>?> _dailyNoteIdsForTag(String tag) async {
+    final tags =
+        await (_database.select(_database.tags)..where(
+              (row) =>
+                  row.householdId.equals(_householdId) &
+                  row.isArchived.equals(false) &
+                  row.name.lower().equals(tag),
+            ))
+            .get();
+    if (tags.isEmpty) return null;
+    final links = await (_database.select(
+      _database.dailyNoteTags,
+    )..where((row) => row.tagId.isIn(tags.map((item) => item.id)))).get();
+    return links.map((row) => row.dailyNoteId).toSet();
   }
 
   Future<FfmAssistantCapabilityExecutionResult> _readDailyNotes(
@@ -5461,39 +6272,51 @@ class FfmAssistantCapabilityAdapterRegistry {
   ) async {
     final rows =
         await (_database.select(_database.dailyNotes)
-              ..where(
-                (row) =>
-                    row.householdId.equals(_householdId),
-              )
+              ..where((row) => row.householdId.equals(_householdId))
               ..orderBy([(row) => OrderingTerm.desc(row.noteDate)])
               ..limit(50))
             .get();
     final includeArchived = step.parameters['archived']?.toString() == 'true';
     final query = step.parameters['query']?.toString().toLowerCase();
-    final dateFrom = DateTime.tryParse(step.parameters['dateFrom']?.toString() ?? '');
-    final dateTo = DateTime.tryParse(step.parameters['dateTo']?.toString() ?? '');
-    final limit = (int.tryParse(step.parameters['limit']?.toString() ?? '') ?? 10)
-        .clamp(1, 50);
-    final visible = rows.where((row) {
-      if (!includeArchived && row.isArchived) return false;
-      if (dateFrom != null && row.noteDate.isBefore(dateFrom)) return false;
-      if (dateTo != null && row.noteDate.isAfter(dateTo)) return false;
-      if (query != null && query.isNotEmpty &&
-          !'${row.title ?? ''} ${row.body}'.toLowerCase().contains(query)) {
-        return false;
-      }
-      return true;
-    }).take(limit).toList(growable: false);
+    final dateFrom = DateTime.tryParse(
+      step.parameters['dateFrom']?.toString() ?? '',
+    );
+    final dateTo = DateTime.tryParse(
+      step.parameters['dateTo']?.toString() ?? '',
+    );
+    final limit =
+        (int.tryParse(step.parameters['limit']?.toString() ?? '') ?? 10).clamp(
+          1,
+          50,
+        );
+    final visible = rows
+        .where((row) {
+          if (!includeArchived && row.isArchived) return false;
+          if (dateFrom != null && row.noteDate.isBefore(dateFrom)) return false;
+          if (dateTo != null && row.noteDate.isAfter(dateTo)) return false;
+          if (query != null &&
+              query.isNotEmpty &&
+              !'${row.title ?? ''} ${row.body}'.toLowerCase().contains(query)) {
+            return false;
+          }
+          return true;
+        })
+        .take(limit)
+        .toList(growable: false);
     if (visible.isEmpty) {
       return const FfmAssistantCapabilityExecutionResult.success(
         'Belum ada Catatan Harian yang tersimpan.',
       );
     }
-    final lines = visible.map((row) {
-      final title = row.title?.trim();
-      final label = title == null || title.isEmpty ? row.body : '$title: ${row.body}';
-      return '- ${row.noteDate.toIso8601String().substring(0, 10)} $label';
-    }).join('\n');
+    final lines = visible
+        .map((row) {
+          final title = row.title?.trim();
+          final label = title == null || title.isEmpty
+              ? row.body
+              : '$title: ${row.body}';
+          return '- ${row.noteDate.toIso8601String().substring(0, 10)} $label';
+        })
+        .join('\n');
     return FfmAssistantCapabilityExecutionResult.success(
       'Catatan Harian terbaru:\n$lines',
     );
@@ -5505,9 +6328,13 @@ class FfmAssistantCapabilityAdapterRegistry {
     final action = step.parameters['action']?.toString();
     final entity = step.parameters['entity']?.toString();
     final search = step.parameters['search']?.toString();
-    final limit = int.tryParse(step.parameters['limit']?.toString() ?? '') ?? 20;
-    final offset = int.tryParse(step.parameters['offset']?.toString() ?? '') ?? 0;
-    final from = DateTime.tryParse(step.parameters['dateFrom']?.toString() ?? '');
+    final limit =
+        int.tryParse(step.parameters['limit']?.toString() ?? '') ?? 20;
+    final offset =
+        int.tryParse(step.parameters['offset']?.toString() ?? '') ?? 0;
+    final from = DateTime.tryParse(
+      step.parameters['dateFrom']?.toString() ?? '',
+    );
     final to = DateTime.tryParse(step.parameters['dateTo']?.toString() ?? '');
     final logs = await SqliteAuditLogRepository(_database).getLogs(
       householdId: _householdId,
@@ -5524,10 +6351,12 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Belum ada log aktivitas yang cocok.',
       );
     }
-    final lines = logs.map((log) {
-      final date = log.timestamp.toIso8601String().replaceFirst('T', ' ');
-      return '- $date: ${log.action} ${log.entity}';
-    }).join('\n');
+    final lines = logs
+        .map((log) {
+          final date = log.timestamp.toIso8601String().replaceFirst('T', ' ');
+          return '- $date: ${log.action} ${log.entity}';
+        })
+        .join('\n');
     return FfmAssistantCapabilityExecutionResult.success(
       'Log Aktivitas terbaru:\n$lines',
     );
@@ -5552,9 +6381,15 @@ class FfmAssistantCapabilityAdapterRegistry {
       String? highestSpenderName;
       int highestCost = 0;
       for (final meter in meters) {
-        final summary = await repo.summarizeUsage(_householdId, meterId: meter.id);
+        final summary = await repo.summarizeUsage(
+          _householdId,
+          meterId: meter.id,
+        );
         final burnRate = await repo.calculateBurnRate(_householdId, meter.id);
-        final latestReading = await repo.getLatestReading(_householdId, meter.id);
+        final latestReading = await repo.getLatestReading(
+          _householdId,
+          meter.id,
+        );
         if (summary.totalCost > highestCost) {
           highestCost = summary.totalCost;
           highestSpenderName = meter.name;
@@ -5562,12 +6397,13 @@ class FfmAssistantCapabilityAdapterRegistry {
 
         final burnRateStr = burnRate != null
             ? '; konsumsi: ~${burnRate.dailyKwh.toStringAsFixed(2)} kWh/hari'
-              '${burnRate.daysRemaining != null ? " (sisa ~${burnRate.daysRemaining} hari)" : ""}'
+                  '${burnRate.daysRemaining != null ? " (sisa ~${burnRate.daysRemaining} hari)" : ""}'
             : '';
         final readingStr = latestReading != null
             ? '; pembacaan fisik: ${latestReading.readingKwh.toStringAsFixed(2)} kWh'
             : '';
-        final lastToken = meter.lastTokenNumber != null && meter.lastTokenNumber!.isNotEmpty
+        final lastToken =
+            meter.lastTokenNumber != null && meter.lastTokenNumber!.isNotEmpty
             ? meter.lastTokenNumber!
             : 'belum ada';
 
@@ -5590,7 +6426,11 @@ class FfmAssistantCapabilityAdapterRegistry {
         final kwh = row.creditedKwh == null
             ? ''
             : ' • ${row.creditedKwh!.toStringAsFixed(2)} kWh';
-        final meterObj = meters.where((m) => m.id == row.meterId || m.meterNumber == row.meterNumber).firstOrNull;
+        final meterObj = meters
+            .where(
+              (m) => m.id == row.meterId || m.meterNumber == row.meterNumber,
+            )
+            .firstOrNull;
         final nameLabel = meterObj != null ? ' (${meterObj.name})' : '';
         buffer.writeln(
           '• ${row.meterNumber}$nameLabel — Rp${row.amount}$kwh • ${_dateTime(row.purchasedAt)}',
@@ -6068,20 +6908,21 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (category == null) {
       category = await _findCategory('Lainnya', 'activity');
       if (category == null) {
-        final allActivityCategories = await (_database.select(_database.categories)
-              ..where(
-                (row) =>
-                    row.householdId.equals(_householdId) &
-                    row.type.equals('activity') &
-                    row.isActive.equals(true),
-              ))
-            .get();
+        final allActivityCategories =
+            await (_database.select(_database.categories)..where(
+                  (row) =>
+                      row.householdId.equals(_householdId) &
+                      row.type.equals('activity') &
+                      row.isActive.equals(true),
+                ))
+                .get();
         category = allActivityCategories.firstOrNull;
       }
     }
     final categoryId = category?.id as String?;
-    final resolvedCategoryName =
-        directCategory != null ? (directCategory.name as String) : categoryName;
+    final resolvedCategoryName = directCategory != null
+        ? (directCategory.name as String)
+        : categoryName;
     final parentId = step.parameters['parentSessionId']?.toString();
     if (parentId != null && parentId.trim().isNotEmpty) {
       final parentResolution = await _references.activity(parentId);
@@ -6196,12 +7037,59 @@ class FfmAssistantCapabilityAdapterRegistry {
           step.parameters['tag'] ??
           step.parameters['lahan'],
     );
-    final tags = tagNames.isEmpty
-        ? const <dynamic>[]
-        : await _findTags(tagNames);
-    // Relax validation: allow proceeding even if some tags don't exist
-    // The editor should handle tag creation, but we should not block execution
-    // if tags are missing from master data
+    final newTagNames = _csvValues(step.parameters['newTags']);
+    final normalizedTagNames = {
+      for (final name in tagNames) name.toLowerCase(): name,
+    };
+    final normalizedNewTagNames = {
+      for (final name in newTagNames) name.toLowerCase(): name,
+    };
+    if (!normalizedTagNames.keys.toSet().containsAll(
+      normalizedNewTagNames.keys,
+    )) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Tag baru harus termasuk dalam daftar tag Catatan Harian.',
+      );
+    }
+    final activeTags = tagNames.isEmpty
+        ? const <Tag>[]
+        : await (_database.select(_database.tags)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.isArchived.equals(false),
+              ))
+              .get();
+    final tagIds = <String>{};
+    final tagsToCreate = <String, String>{};
+    for (final entry in normalizedTagNames.entries) {
+      final matches = activeTags
+          .where((tag) => tag.name.trim().toLowerCase() == entry.key)
+          .toList(growable: false);
+      if (matches.length > 1) {
+        return FfmAssistantCapabilityExecutionResult.failure(
+          'Tag “${entry.value}” ambigu karena ada lebih dari satu tag aktif dengan nama yang sama.',
+        );
+      }
+      final generatedId = _stableId(
+        '$idempotencyKey:daily-note-tag:${entry.value}',
+      );
+      if (matches.isNotEmpty) {
+        if (normalizedNewTagNames.containsKey(entry.key) &&
+            matches.single.id != generatedId) {
+          return FfmAssistantCapabilityExecutionResult.failure(
+            'Tag “${entry.value}” sudah ada di Data Utama; gunakan sebagai tag yang sudah ada, bukan tag baru.',
+          );
+        }
+        tagIds.add(matches.single.id);
+      } else if (normalizedNewTagNames.containsKey(entry.key)) {
+        tagsToCreate[generatedId] = entry.value;
+        tagIds.add(generatedId);
+      } else {
+        return FfmAssistantCapabilityExecutionResult.failure(
+          'Tag “${entry.value}” belum ada di Data Utama. Tandai sebagai tag baru agar dapat dibuat bersama Catatan Harian.',
+        );
+      }
+    }
     final id = _stableId(idempotencyKey);
     final existing = await (_database.select(
       _database.dailyNotes,
@@ -6212,7 +7100,11 @@ class FfmAssistantCapabilityAdapterRegistry {
           'Idempotency key sudah terikat pada household lain.',
         );
       }
-      return existing.body == body
+      final existingTagIds = await (_database.select(
+        _database.dailyNoteTags,
+      )..where((row) => row.dailyNoteId.equals(id))).get();
+      return existing.body == body &&
+              _sameNames(existingTagIds.map((row) => row.tagId).toSet(), tagIds)
           ? const FfmAssistantCapabilityExecutionResult.success(
               'alreadyApplied: Catatan Harian sudah tersimpan.',
             )
@@ -6223,6 +7115,18 @@ class FfmAssistantCapabilityAdapterRegistry {
     final now = _clock();
     final noteDate = _dateParameter(step.parameters['date']) ?? now;
     await _database.transaction(() async {
+      for (final entry in tagsToCreate.entries) {
+        await _database
+            .into(_database.tags)
+            .insert(
+              TagsCompanion.insert(
+                id: entry.key,
+                householdId: _householdId,
+                name: entry.value,
+                createdAt: now,
+              ),
+            );
+      }
       await _database
           .into(_database.dailyNotes)
           .insert(
@@ -6245,11 +7149,11 @@ class FfmAssistantCapabilityAdapterRegistry {
       await _database.batch((batch) {
         batch.insertAll(
           _database.dailyNoteTags,
-          tags
+          tagIds
               .map(
-                (tag) => DailyNoteTagsCompanion.insert(
+                (tagId) => DailyNoteTagsCompanion.insert(
                   dailyNoteId: id,
-                  tagId: tag.id as String,
+                  tagId: tagId,
                 ),
               )
               .toList(growable: false),
@@ -6397,8 +7301,8 @@ class FfmAssistantCapabilityAdapterRegistry {
           mode: mode,
           destinationRoute:
               (destinationRoute != null && destinationRoute.trim().isNotEmpty)
-                  ? destinationRoute.trim()
-                  : null,
+              ? destinationRoute.trim()
+              : null,
           createdAt: now,
         ),
       );

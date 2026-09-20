@@ -1,6 +1,8 @@
 import 'dart:convert';
+
 import '../../../core/database/app_database.dart';
 import '../../../core/database/ffm_database_structure_service.dart';
+import '../../../core/di/injection.dart';
 import '../../advisor/domain/services/smart_budget_engine.dart';
 import '../../asset/data/repositories/market_news_cache_repository.dart';
 import '../../hijri/domain/hijri_calendar_service.dart';
@@ -80,6 +82,7 @@ class FfmAssistantQueryRegistry {
          _DataCompletenessQueryTool(database),
          _PersonalProfileQueryTool(database),
          _SmartBudgetQueryTool(database),
+         _BudgetDetailQueryTool(database),
          _UpcomingRemindersQueryTool(database),
          if (marketCache != null) _MarketPriceQueryTool(marketCache),
          if (marketCache != null) _AssetCalculationQueryTool(marketCache),
@@ -757,8 +760,14 @@ class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
 
   @override
   bool canHandle(String normalizedText) =>
-      (RegExp(r'\b(?:catatan|jurnal)\b', caseSensitive: false).hasMatch(normalizedText) &&
-        RegExp(r'\b(?:tag|label)\b', caseSensitive: false).hasMatch(normalizedText)) ||
+      (RegExp(
+            r'\b(?:catatan|jurnal)\b',
+            caseSensitive: false,
+          ).hasMatch(normalizedText) &&
+          RegExp(
+            r'\b(?:tag|label)\b',
+            caseSensitive: false,
+          ).hasMatch(normalizedText)) ||
       RegExp(
         r'\b(?:catatan\s+(?:terbaru|terakhir|hari\s+ini|kemarin)|jurnal\s+(?:terbaru|terakhir)|apa\s+yang\s+aku\s+catat)\b',
         caseSensitive: false,
@@ -774,8 +783,9 @@ class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
     FfmAssistantQueryRequest request,
   ) async {
     final period = _activityPeriodBounds(request.normalizedText, request.now);
-    final rawTagName = _requestedTag(request.normalizedText) ??
-      _tagFromConversation(request.conversationHistory);
+    final rawTagName =
+        _requestedTag(request.normalizedText) ??
+        _tagFromConversation(request.conversationHistory);
     final tagName = rawTagName == null ? null : _cleanTagName(rawTagName);
     final limit = tagName == null ? (period == null ? 5 : 20) : 50;
     final taggedNoteIds = tagName == null
@@ -793,10 +803,10 @@ class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
               ..where((row) {
                 final filter =
                     row.householdId.equals(request.householdId) &
-                  row.isArchived.equals(false) &
-                  (taggedNoteIds == null
-                    ? const Constant(true)
-                    : row.id.isIn(taggedNoteIds));
+                    row.isArchived.equals(false) &
+                    (taggedNoteIds == null
+                        ? const Constant(true)
+                        : row.id.isIn(taggedNoteIds));
                 if (period == null || period.isAllTime) return filter;
                 return filter &
                     row.noteDate.isBiggerOrEqualValue(period.startOrEpoch) &
@@ -808,10 +818,12 @@ class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
     if (notes.isEmpty) {
       final periodSuffix = period == null ? '' : ' (${period.label})';
       return FfmAssistantQueryAnswer(
-        title: tagName == null ? 'Catatan terbaru' : 'Catatan Kejadian berdasarkan tag',
+        title: tagName == null
+            ? 'Catatan terbaru'
+            : 'Catatan Kejadian berdasarkan tag',
         message: tagName == null
-          ? 'Belum ada catatan harian yang tersimpan di FFM$periodSuffix.'
-          : 'Belum ada Catatan Kejadian dengan tag "$tagName"$periodSuffix.',
+            ? 'Belum ada catatan harian yang tersimpan di FFM$periodSuffix.'
+            : 'Belum ada Catatan Kejadian dengan tag "$tagName"$periodSuffix.',
         capabilityId: 'read.dailyNotes',
       );
     }
@@ -823,33 +835,43 @@ class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
       return '- $date: $title${note.body.trim()}';
     });
     return FfmAssistantQueryAnswer(
-      title: tagName == null ? 'Catatan terbaru' : 'Catatan Kejadian berdasarkan tag',
+      title: tagName == null
+          ? 'Catatan terbaru'
+          : 'Catatan Kejadian berdasarkan tag',
       message:
           '${tagName == null ? 'Ini catatan harian' : 'Sumber: Catatan Kejadian; Tag: $tagName'} ${period?.label ?? 'terbaru'} yang tersimpan:\n${lines.join('\n')}',
       capabilityId: 'read.dailyNotes',
     );
   }
 
-  Future<Set<String>?> _noteIdsForTag(String householdId, String tagName) async {
-    final tags = await (_database.select(_database.tags)..where(
-          (row) =>
-              row.householdId.equals(householdId) &
-              row.isArchived.equals(false) &
-              row.name.lower().equals(tagName.toLowerCase()),
-        ))
-        .get();
+  Future<Set<String>?> _noteIdsForTag(
+    String householdId,
+    String tagName,
+  ) async {
+    final tags =
+        await (_database.select(_database.tags)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false) &
+                  row.name.lower().equals(tagName.toLowerCase()),
+            ))
+            .get();
     if (tags.isEmpty) return null;
-    final relations = await (_database.select(_database.dailyNoteTags)..where(
-          (row) => row.tagId.isIn(tags.map((tag) => tag.id).toList()),
-        ))
-        .get();
+    final relations =
+        await (_database.select(_database.dailyNoteTags)..where(
+              (row) => row.tagId.isIn(tags.map((tag) => tag.id).toList()),
+            ))
+            .get();
     return relations.map((row) => row.dailyNoteId).toSet();
   }
 
   String? _requestedTag(String text) {
-    final match = RegExp(r'\b(?:tag|label)\s+(.+)$', caseSensitive: false)
-        .firstMatch(text);
-    final value = match?.group(1)
+    final match = RegExp(
+      r'\b(?:tag|label)\s+(.+)$',
+      caseSensitive: false,
+    ).firstMatch(text);
+    final value = match
+        ?.group(1)
         ?.trim()
         .replaceFirst(RegExp(r'\b(?:terbaru|terakhir)\b.*$'), '')
         .replaceFirst(RegExp(r'\byang\s+tersimpan\b.*$'), '')
@@ -860,14 +882,22 @@ class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
   }
 
   String? _tagFromConversation(String history) {
-    final match = RegExp(r'\btag:\s*([^\n;]+)', caseSensitive: false)
-        .firstMatch(history);
+    final match = RegExp(
+      r'\btag:\s*([^\n;]+)',
+      caseSensitive: false,
+    ).firstMatch(history);
     return match?.group(1)?.trim();
   }
 
   String _cleanTagName(String value) => value
-      .replaceFirst(RegExp(r'\b(?:terbaru|terakhir)\b.*$', caseSensitive: false), '')
-      .replaceFirst(RegExp(r'\byang\s+tersimpan\b.*$', caseSensitive: false), '')
+      .replaceFirst(
+        RegExp(r'\b(?:terbaru|terakhir)\b.*$', caseSensitive: false),
+        '',
+      )
+      .replaceFirst(
+        RegExp(r'\byang\s+tersimpan\b.*$', caseSensitive: false),
+        '',
+      )
       .replaceFirst(RegExp(r'[?.!,:#]+$'), '')
       .trim();
 
@@ -2497,6 +2527,546 @@ class _SmartBudgetQueryTool implements FfmAssistantQueryTool {
   }
 }
 
+class _BudgetDetailQueryTool implements FfmAssistantQueryTool {
+  const _BudgetDetailQueryTool(this._database);
+  final AppDatabase _database;
+
+  @override
+  bool canHandle(String normalizedText) {
+    // Budget status queries
+    final asksStatus = RegExp(
+      r'\b(?:pos anggaran|envelope|budget)\s+(?:yang\s+)?(?:hampir\s+habis|melewati\s+batas|aman|pemakaian\s+cepat|perlu\s+perhatian|status)\b',
+      caseSensitive: false,
+    ).hasMatch(normalizedText);
+
+    // Budget progress/remaining/spent queries
+    final asksProgress = RegExp(
+      r'\b(?:sisa\s+anggaran|sisa\s+pos|berapa\s+sisa|sudah\s+keluar|total\s+spent|progress\s+anggaran)\b',
+      caseSensitive: false,
+    ).hasMatch(normalizedText);
+
+    // Budget period queries
+    final asksPeriod = RegExp(
+      r'\b(?:anggaran|budget)\s+(?:minggu\s+ini|bulan\s+ini|bulan\s+lalu|tahun\s+ini|mingguan|bulanan|per\s+minggu|per\s+bulan)\b',
+      caseSensitive: false,
+    ).hasMatch(normalizedText);
+
+    // Budget transfer queries
+    final asksTransfer = RegExp(
+      r'\b(?:riwayat\s+transfer|transfer\s+anggaran|pindah\s+dana|realokasi|atur\s+ulang\s+alokasi)\b',
+      caseSensitive: false,
+    ).hasMatch(normalizedText);
+
+    // Budget category queries
+    final asksCategory = RegExp(
+      r'\b(?:anggaran|budget)\s+(?:per\s+kategori|untuk|by\s+category)\b',
+      caseSensitive: false,
+    ).hasMatch(normalizedText);
+
+    // Budget comparison queries
+    final asksComparison = RegExp(
+      r'\b(?:bandingkan|perbandingan|lebih\s+boros|lebih\s+hemat|vs|versus)\b',
+      caseSensitive: false,
+    ).hasMatch(normalizedText);
+
+    // Budget burn rate queries
+    final asksBurnRate = RegExp(
+      r'\b(?:kapan\s+anggaran\s+habis|estimasi\s+habis|sisa\s+hari|hari\s+tersisa|days\s+remaining)\b',
+      caseSensitive: false,
+    ).hasMatch(normalizedText);
+
+    return asksStatus ||
+        asksProgress ||
+        asksPeriod ||
+        asksTransfer ||
+        asksCategory ||
+        asksComparison ||
+        asksBurnRate;
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final normalizedText = request.normalizedText.toLowerCase();
+    final householdId = request.householdId;
+    final now = request.now;
+
+    // Query envelopes
+    final envelopes =
+        await (_database.select(_database.envelopeBudgets)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isActive.equals(true),
+              )
+              ..orderBy([(row) => OrderingTerm.asc(row.name)]))
+            .get();
+
+    if (envelopes.isEmpty) {
+      return const FfmAssistantQueryAnswer(
+        title: 'Data Anggaran',
+        message: 'Belum ada pos anggaran aktif. Anda bisa menambahkannya di halaman Anggaran.',
+      );
+    }
+
+    // Determine which query type
+    if (normalizedText.contains('status') ||
+        normalizedText.contains('hampir habis') ||
+        normalizedText.contains('melewati batas') ||
+        normalizedText.contains('aman') ||
+        normalizedText.contains('pemakaian cepat') ||
+        normalizedText.contains('perlu perhatian')) {
+      return await _answerBudgetStatus(envelopes, householdId, now);
+    } else if (normalizedText.contains('sisa') ||
+        normalizedText.contains('sudah keluar') ||
+        normalizedText.contains('total spent') ||
+        normalizedText.contains('progress')) {
+      return await _answerBudgetProgress(envelopes, householdId, now);
+    } else if (normalizedText.contains('minggu ini') ||
+        normalizedText.contains('bulan ini') ||
+        normalizedText.contains('bulan lalu') ||
+        normalizedText.contains('tahun ini') ||
+        normalizedText.contains('mingguan') ||
+        normalizedText.contains('bulanan')) {
+      return await _answerBudgetByPeriod(
+        envelopes,
+        householdId,
+        now,
+        normalizedText,
+      );
+    } else if (normalizedText.contains('transfer') ||
+        normalizedText.contains('pindah dana') ||
+        normalizedText.contains('realokasi') ||
+        normalizedText.contains('atur ulang')) {
+      return await _answerBudgetTransfers(envelopes, householdId, now);
+    } else if (normalizedText.contains('per kategori') ||
+        normalizedText.contains('untuk') ||
+        normalizedText.contains('by category')) {
+      return await _answerBudgetByCategory(envelopes, householdId, now);
+    } else if (normalizedText.contains('bandingkan') ||
+        normalizedText.contains('perbandingan') ||
+        normalizedText.contains('lebih boros') ||
+        normalizedText.contains('lebih hemat')) {
+      return await _answerBudgetComparison(
+        envelopes,
+        householdId,
+        now,
+        normalizedText,
+      );
+    } else if (normalizedText.contains('kapan habis') ||
+        normalizedText.contains('estimasi habis') ||
+        normalizedText.contains('sisa hari') ||
+        normalizedText.contains('days remaining')) {
+      return await _answerBudgetBurnRate(envelopes, householdId, now);
+    }
+
+    // Default: summary
+    return await _answerBudgetSummary(envelopes, householdId, now);
+  }
+
+  Future<FfmAssistantQueryAnswer> _answerBudgetStatus(
+    List<EnvelopeBudget> envelopes,
+    String householdId,
+    DateTime now,
+  ) async {
+    final transactions = await getIt<GetTransactions>()(householdId);
+
+    final buffer = StringBuffer();
+    buffer.writeln('📊 **Status Pos Anggaran:**');
+
+    for (final envelope in envelopes) {
+      final categoryIds = jsonDecode(envelope.categoryIdsJson) as List<dynamic>;
+      final isOverall = envelope.id.startsWith('overall-');
+
+      final spent = transactions
+          .where(
+            (t) =>
+                t.transaction.amount < 0 &&
+                t.transaction.source != 'transfer' &&
+                _isInPeriod(t.transaction.date, envelope) &&
+                (isOverall || categoryIds.contains(t.transaction.categoryId)),
+          )
+          .fold<int>(0, (sum, t) => sum + t.transaction.amount.abs());
+
+      final progress = envelope.allocated > 0
+          ? spent / envelope.allocated
+          : 0.0;
+
+      String status;
+      if (envelope.allocated <= 0) {
+        status = 'Tanpa target';
+      } else if (progress >= 1) {
+        status = 'Melewati batas';
+      } else if (progress * 100 >= envelope.alertPercent) {
+        status = 'Mendekati batas';
+      } else if (progress > 0.65) {
+        status = 'Pemakaian cepat';
+      } else {
+        status = 'Aman';
+      }
+
+      buffer.writeln(
+        '• ${envelope.name}: $status (Rp${_formatNumInt(spent)}/Rp${_formatNumInt(envelope.allocated)})',
+      );
+    }
+
+    return FfmAssistantQueryAnswer(
+      title: 'Status Anggaran',
+      message: buffer.toString(),
+    );
+  }
+
+  Future<FfmAssistantQueryAnswer> _answerBudgetProgress(
+    List<EnvelopeBudget> envelopes,
+    String householdId,
+    DateTime now,
+  ) async {
+    final transactions = await getIt<GetTransactions>()(householdId);
+
+    final buffer = StringBuffer();
+    buffer.writeln('📊 **Progress Anggaran:**');
+
+    for (final envelope in envelopes) {
+      final categoryIds = jsonDecode(envelope.categoryIdsJson) as List<dynamic>;
+      final isOverall = envelope.id.startsWith('overall-');
+
+      if (isOverall) continue;
+
+      final spent = transactions
+          .where(
+            (t) =>
+                t.transaction.amount < 0 &&
+                t.transaction.source != 'transfer' &&
+                _isInPeriod(t.transaction.date, envelope) &&
+                categoryIds.contains(t.transaction.categoryId),
+          )
+          .fold<int>(0, (sum, t) => sum + t.transaction.amount.abs());
+
+      final progress = envelope.allocated > 0
+          ? (spent / envelope.allocated * 100).toStringAsFixed(1)
+          : '0.0';
+
+      final remaining = envelope.allocated + envelope.rollover - spent;
+
+      buffer.writeln(
+        '• ${envelope.name}: Rp${_formatNumInt(spent)} dari Rp${_formatNumInt(envelope.allocated)} ($progress%): Sisa Rp${_formatNumInt(remaining)}',
+      );
+    }
+
+    return FfmAssistantQueryAnswer(
+      title: 'Progress Anggaran',
+      message: buffer.toString(),
+    );
+  }
+
+  Future<FfmAssistantQueryAnswer> _answerBudgetByPeriod(
+    List<EnvelopeBudget> envelopes,
+    String householdId,
+    DateTime now,
+    String normalizedText,
+  ) async {
+    String periodType;
+    String periodLabel;
+
+    if (normalizedText.contains('mingguan') ||
+        normalizedText.contains('minggu ini')) {
+      periodType = 'weekly';
+      periodLabel = 'minggu ini';
+    } else if (normalizedText.contains('bulanan') ||
+        normalizedText.contains('bulan ini')) {
+      periodType = 'monthly';
+      periodLabel = 'bulan ini';
+    } else if (normalizedText.contains('bulan lalu')) {
+      periodType = 'monthly';
+      periodLabel = 'bulan lalu';
+    } else if (normalizedText.contains('tahun ini')) {
+      periodType = 'yearly';
+      periodLabel = 'tahun ini';
+    } else {
+      periodType = 'monthly';
+      periodLabel = 'bulanan';
+    }
+
+    final filtered = envelopes
+        .where((e) => e.periodType == periodType)
+        .toList();
+
+    if (filtered.isEmpty) {
+      return FfmAssistantQueryAnswer(
+        title: 'Anggaran $periodLabel',
+        message:
+            'Belum ada anggaran $periodLabel. Anda bisa menambahkannya di halaman Anggaran.',
+      );
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('📊 **Anggaran $periodLabel:**');
+
+    for (final envelope in filtered) {
+      buffer.writeln(
+        '• ${envelope.name}: Rp${_formatNumInt(envelope.allocated)}',
+      );
+    }
+
+    return FfmAssistantQueryAnswer(
+      title: 'Anggaran $periodLabel',
+      message: buffer.toString(),
+    );
+  }
+
+  Future<FfmAssistantQueryAnswer> _answerBudgetTransfers(
+    List<EnvelopeBudget> envelopes,
+    String householdId,
+    DateTime now,
+  ) async {
+    final transfers =
+        await (_database.select(_database.envelopeTransfers)
+              ..where((row) => row.householdId.equals(householdId))
+              ..orderBy([(row) => OrderingTerm.desc(row.createdAt)])
+              ..limit(20))
+            .get();
+
+    if (transfers.isEmpty) {
+      return const FfmAssistantQueryAnswer(
+        title: 'Riwayat Transfer Anggaran',
+        message: 'Belum ada riwayat transfer antar pos anggaran.',
+      );
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('📊 **Riwayat Transfer Antara Pos Anggaran:**');
+
+    for (final transfer in transfers) {
+      final fromName = envelopes
+          .firstWhere(
+            (e) => e.id == transfer.fromEnvelopeId,
+            orElse: () => envelopes.first,
+          )
+          .name;
+      final toName = envelopes
+          .firstWhere(
+            (e) => e.id == transfer.toEnvelopeId,
+            orElse: () => envelopes.first,
+          )
+          .name;
+      buffer.writeln(
+        '• $fromName → $toName: Rp${_formatNumInt(transfer.amount)}${transfer.note != null ? ' (${transfer.note})' : ''}',
+      );
+    }
+
+    return FfmAssistantQueryAnswer(
+      title: 'Riwayat Transfer Anggaran',
+      message: buffer.toString(),
+    );
+  }
+
+  Future<FfmAssistantQueryAnswer> _answerBudgetByCategory(
+    List<EnvelopeBudget> envelopes,
+    String householdId,
+    DateTime now,
+  ) async {
+    final categories =
+        await (_database.select(_database.categories)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isActive.equals(true),
+              )
+              ..orderBy([(row) => OrderingTerm.asc(row.name)]))
+            .get();
+
+    final buffer = StringBuffer();
+    buffer.writeln('📊 **Anggaran per Kategori:**');
+
+    for (final envelope in envelopes) {
+      final categoryIds = jsonDecode(envelope.categoryIdsJson) as List<dynamic>;
+      final isOverall = envelope.id.startsWith('overall-');
+
+      if (isOverall) continue;
+
+      final categoryNames = categoryIds
+          .map(
+            (id) => categories
+                .firstWhere((c) => c.id == id, orElse: () => categories.first)
+                .name,
+          )
+          .join(', ');
+
+      buffer.writeln(
+        '• ${envelope.name}: Rp${_formatNumInt(envelope.allocated)} ($categoryNames)',
+      );
+    }
+
+    return FfmAssistantQueryAnswer(
+      title: 'Anggaran per Kategori',
+      message: buffer.toString(),
+    );
+  }
+
+  Future<FfmAssistantQueryAnswer> _answerBudgetComparison(
+    List<EnvelopeBudget> envelopes,
+    String householdId,
+    DateTime now,
+    String normalizedText,
+  ) async {
+    final transactions = await getIt<GetTransactions>()(householdId);
+
+    // Simple comparison: this month vs last month
+    final thisMonth = DateTime(now.year, now.month, 1);
+    final lastMonth = DateTime(now.year, now.month - 1, 1);
+
+    final thisMonthSpent = transactions
+        .where(
+          (t) =>
+              t.transaction.amount < 0 &&
+              t.transaction.date.year == thisMonth.year &&
+              t.transaction.date.month == thisMonth.month,
+        )
+        .fold<int>(0, (sum, t) => sum + t.transaction.amount.abs());
+
+    final lastMonthSpent = transactions
+        .where(
+          (t) =>
+              t.transaction.amount < 0 &&
+              t.transaction.date.year == lastMonth.year &&
+              t.transaction.date.month == lastMonth.month,
+        )
+        .fold<int>(0, (sum, t) => sum + t.transaction.amount.abs());
+
+    final difference = thisMonthSpent - lastMonthSpent;
+    final percentChange = lastMonthSpent > 0
+        ? (difference / lastMonthSpent * 100).toStringAsFixed(1)
+        : '0.0';
+
+    final trend = difference > 0 ? 'lebih boros' : 'lebih hemat';
+
+    final buffer = StringBuffer();
+    buffer.writeln('📊 **Perbandingan Anggaran:**');
+    buffer.writeln('Bulan ini vs Bulan lalu:');
+    buffer.writeln(
+      '• Pengeluaran bulan ini: Rp${_formatNumInt(thisMonthSpent)}',
+    );
+    buffer.writeln(
+      '• Pengeluaran bulan lalu: Rp${_formatNumInt(lastMonthSpent)}',
+    );
+    buffer.writeln(
+      '• Selisih: Rp${_formatNumInt(difference.abs())} ($percentChange% $trend)',
+    );
+
+    return FfmAssistantQueryAnswer(
+      title: 'Perbandingan Anggaran',
+      message: buffer.toString(),
+    );
+  }
+
+  Future<FfmAssistantQueryAnswer> _answerBudgetBurnRate(
+    List<EnvelopeBudget> envelopes,
+    String householdId,
+    DateTime now,
+  ) async {
+    final transactions = await getIt<GetTransactions>()(householdId);
+
+    final buffer = StringBuffer();
+    buffer.writeln('📊 **Estimasi Habis Anggaran:**');
+
+    for (final envelope in envelopes) {
+      final categoryIds = jsonDecode(envelope.categoryIdsJson) as List<dynamic>;
+      final isOverall = envelope.id.startsWith('overall-');
+
+      if (isOverall || envelope.allocated <= 0) continue;
+
+      final spent = transactions
+          .where(
+            (t) =>
+                t.transaction.amount < 0 &&
+                t.transaction.source != 'transfer' &&
+                _isInPeriod(t.transaction.date, envelope) &&
+                categoryIds.contains(t.transaction.categoryId),
+          )
+          .fold<int>(0, (sum, t) => sum + t.transaction.amount.abs());
+
+      // Calculate daily average (simple estimate)
+      final daysInPeriod = _daysInPeriod(envelope.startDate, envelope.endDate);
+      final dailyAverage = daysInPeriod > 0 ? spent / daysInPeriod : 0;
+
+      if (dailyAverage <= 0) {
+        buffer.writeln(
+          '• ${envelope.name}: Belum ada data pemakaian atau period belum berjalan',
+        );
+        continue;
+      }
+
+      final remaining = envelope.allocated + envelope.rollover - spent;
+      final daysRemaining = dailyAverage > 0
+          ? (remaining / dailyAverage).floor()
+          : 999;
+
+      if (daysRemaining <= 0) {
+        buffer.writeln('• ${envelope.name}: SUDAH MELEWATI BATAS!');
+      } else if (daysRemaining <= 5) {
+        buffer.writeln(
+          '• ${envelope.name}: HAMPIR HABIS ($daysRemaining hari tersisa)',
+        );
+      } else {
+        buffer.writeln(
+          '• ${envelope.name}: Estimasi habis dalam $daysRemaining hari',
+        );
+      }
+    }
+
+    return FfmAssistantQueryAnswer(
+      title: 'Estimasi Habis Anggaran',
+      message: buffer.toString(),
+    );
+  }
+
+  Future<FfmAssistantQueryAnswer> _answerBudgetSummary(
+    List<EnvelopeBudget> envelopes,
+    String householdId,
+    DateTime now,
+  ) async {
+    final buffer = StringBuffer();
+    buffer.writeln('📊 **Ringkasan Anggaran:**');
+    buffer.writeln('Total pos anggaran aktif: ${envelopes.length}');
+
+    final totalAllocated = envelopes.fold<int>(
+      0,
+      (sum, e) => sum + e.allocated,
+    );
+    buffer.writeln('Total alokasi: Rp${_formatNumInt(totalAllocated)}');
+
+    return FfmAssistantQueryAnswer(
+      title: 'Ringkasan Anggaran',
+      message: buffer.toString(),
+    );
+  }
+
+  bool _isInPeriod(DateTime date, EnvelopeBudget envelope) {
+    final value = date.toLocal();
+    final start = envelope.startDate.toLocal();
+    final end = envelope.endDate.toLocal();
+    return !value.isBefore(DateTime(start.year, start.month, start.day)) &&
+        !value.isAfter(DateTime(end.year, end.month, end.day, 23, 59, 59));
+  }
+
+  int _daysInPeriod(DateTime start, DateTime end) {
+    return end.difference(start).inDays + 1;
+  }
+
+  String _formatNumInt(int n) {
+    final str = n.abs().toString();
+    final buf = StringBuffer();
+    int count = 0;
+    for (int i = str.length - 1; i >= 0; i--) {
+      if (count > 0 && count % 3 == 0) buf.write('.');
+      buf.write(str[i]);
+      count++;
+    }
+    return '${n < 0 ? '-' : ''}Rp${buf.toString().split('').reversed.join()}';
+  }
+}
+
 class _UpcomingRemindersQueryTool implements FfmAssistantQueryTool {
   const _UpcomingRemindersQueryTool(this._database);
 
@@ -2542,13 +3112,13 @@ class _UpcomingRemindersQueryTool implements FfmAssistantQueryTool {
   Future<FfmAssistantQueryAnswer?> answer(
     FfmAssistantQueryRequest request,
   ) async {
-    final rows = await (_database.select(_database.reminders)
-          ..where(
-            (tbl) =>
-                tbl.householdId.equals(request.householdId) &
-                tbl.isActive.equals(true),
-          ))
-        .get();
+    final rows =
+        await (_database.select(_database.reminders)..where(
+              (tbl) =>
+                  tbl.householdId.equals(request.householdId) &
+                  tbl.isActive.equals(true),
+            ))
+            .get();
 
     if (rows.isEmpty) {
       return const FfmAssistantQueryAnswer(
@@ -2561,8 +3131,8 @@ class _UpcomingRemindersQueryTool implements FfmAssistantQueryTool {
     final reminders = rows.map((r) {
       final weekdays = r.weekdaysJson.isNotEmpty && r.weekdaysJson != '[]'
           ? (jsonDecode(r.weekdaysJson) as List)
-              .map((e) => (e as num).toInt())
-              .toList()
+                .map((e) => (e as num).toInt())
+                .toList()
           : <int>[];
       return ReminderEntity(
         id: r.id,
@@ -2598,12 +3168,12 @@ class _UpcomingRemindersQueryTool implements FfmAssistantQueryTool {
     final horizon = isTodayOnly
         ? const Duration(days: 1)
         : isTomorrowOnly
-            ? const Duration(days: 2)
-            : isThisWeek
-                ? const Duration(days: 7)
-                : isThisMonth
-                    ? const Duration(days: 31)
-                    : const Duration(days: 14);
+        ? const Duration(days: 2)
+        : isThisWeek
+        ? const Duration(days: 7)
+        : isThisMonth
+        ? const Duration(days: 31)
+        : const Duration(days: 14);
 
     final startBoundary = isTomorrowOnly
         ? DateTime(now.year, now.month, now.day + 1)
@@ -2611,8 +3181,8 @@ class _UpcomingRemindersQueryTool implements FfmAssistantQueryTool {
     final endBoundary = isTodayOnly
         ? DateTime(now.year, now.month, now.day, 23, 59, 59)
         : isTomorrowOnly
-            ? DateTime(now.year, now.month, now.day + 1, 23, 59, 59)
-            : now.add(horizon);
+        ? DateTime(now.year, now.month, now.day + 1, 23, 59, 59)
+        : now.add(horizon);
 
     final upcomingItems =
         <({ReminderEntity reminder, ReminderOccurrence occurrence})>[];
@@ -2638,12 +3208,12 @@ class _UpcomingRemindersQueryTool implements FfmAssistantQueryTool {
     final timeLabel = isTodayOnly
         ? 'hari ini'
         : isTomorrowOnly
-            ? 'besok'
-            : isThisWeek
-                ? 'pekan ini'
-                : isThisMonth
-                    ? 'bulan ini'
-                    : 'waktu dekat';
+        ? 'besok'
+        : isThisWeek
+        ? 'pekan ini'
+        : isThisMonth
+        ? 'bulan ini'
+        : 'waktu dekat';
 
     if (upcomingItems.isEmpty) {
       return FfmAssistantQueryAnswer(
@@ -2693,13 +3263,12 @@ class _UpcomingRemindersQueryTool implements FfmAssistantQueryTool {
           : '🔔 Notifikasi';
       final recurrenceStr =
           item.reminder.recurrenceType == ReminderRecurrenceType.once
-              ? ''
-              : ' (${item.reminder.recurrenceType.label})';
+          ? ''
+          : ' (${item.reminder.recurrenceType.label})';
 
       buf.writeln('• **${item.reminder.title}**$recurrenceStr');
       buf.writeln('  └ 📅 $dateStr jam $timeStr • $modeIcon');
-      if (item.reminder.note != null &&
-          item.reminder.note!.trim().isNotEmpty) {
+      if (item.reminder.note != null && item.reminder.note!.trim().isNotEmpty) {
         final shortNote = item.reminder.note!.trim().replaceAll('\n', ' ');
         final clippedNote = shortNote.length > 50
             ? '${shortNote.substring(0, 47)}…'

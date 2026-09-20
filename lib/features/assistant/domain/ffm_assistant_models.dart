@@ -93,6 +93,7 @@ enum FfmAssistantIntentType {
   createBudget,
   createCashFlowProfile,
   createMasterData,
+  updateMasterData,
   createTag,
   editDraft,
   reviseDraft,
@@ -226,6 +227,7 @@ enum FfmAssistantDraftKind {
   budget,
   budgetUpdate,
   budgetArchive,
+  budgetTransfer,
   cashFlowProfile,
   masterData,
   merchantUpdate,
@@ -283,6 +285,11 @@ enum FfmAssistantDraftKind {
   activityEdit,
   monitoringJob,
   meterReading,
+  createUtilityMeter,
+  updateTokenCode,
+  updateUtilityMeter,
+  deleteUtilityMeter,
+  analyzeElectricityConsumption,
 }
 
 /// Tingkat masalah draft. Hanya [required] dan [conflict] yang menahan
@@ -686,6 +693,7 @@ class FfmAssistantChatEntry {
     this.review,
     this.filePath,
     this.fileFormat,
+    this.filePaths = const <String>[],
     this.processTrace,
     this.createdAt,
     this.verifiedFacts,
@@ -710,7 +718,15 @@ class FfmAssistantChatEntry {
   final FfmAssistantDraftReview? review;
   final String? filePath;
   final String? fileFormat;
+  final List<String> filePaths;
   final FfmAssistantProcessTrace? processTrace;
+
+  List<String> get allFilePaths {
+    if (filePaths.isNotEmpty) return filePaths;
+    if (filePath == null || filePath!.trim().isEmpty) return const <String>[];
+    return [filePath!];
+  }
+
   final DateTime? createdAt;
   final String? verifiedFacts;
   final String? analysisResults;
@@ -751,6 +767,7 @@ class FfmAssistantChatEntry {
     FfmAssistantDraftReview? review,
     String? filePath,
     String? fileFormat,
+    List<String>? filePaths,
     FfmAssistantProcessTrace? processTrace,
     DateTime? createdAt,
     String? verifiedFacts,
@@ -775,6 +792,7 @@ class FfmAssistantChatEntry {
       review: review ?? this.review,
       filePath: filePath ?? this.filePath,
       fileFormat: fileFormat ?? this.fileFormat,
+      filePaths: filePaths ?? this.filePaths,
       processTrace: processTrace ?? this.processTrace,
       createdAt: createdAt ?? this.createdAt,
       verifiedFacts: verifiedFacts ?? this.verifiedFacts,

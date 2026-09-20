@@ -28,7 +28,13 @@ enum _BudgetSort {
   tanggalTerlama,
 }
 
-enum _BudgetMenuAction { habitRecommendations, transferFunds, weekStart }
+enum _BudgetMenuAction {
+  habitRecommendations,
+  transferFunds,
+  weekStart,
+  budgetComparison,
+  budgetHistory,
+}
 
 /// Progres pemakaian anggaran dari **dana tersedia** (batas − transfer
 /// keluar), konsisten dengan sisa dana (`allocated + rollover + masuk −
@@ -88,6 +94,8 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   var _periodTypeFilter = 'weekly';
   var _weekStartDay = DateTime.monday;
   var _assistantDraftHandled = false;
+  String? _statusFilter;
+  bool _showQuickSetup = false;
 
   DateTime _startOfWeek(DateTime value) {
     final date = DateTime(value.year, value.month, value.day);
@@ -230,6 +238,13 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
     // yang sedang dibuka, bukan hanya kategori yang sudah punya transaksi.
     final activeCategoryIds = categories.map((category) => category.id).toSet();
     final configuredIds = rows.expand((row) => row.categoryIds).toSet();
+
+    // Detect new user with no budgets configured
+    final isNewUser = stored.isEmpty && !isNonRecurring;
+    if (isNewUser && !_showQuickSetup) {
+      _showQuickSetup = true;
+    }
+
     if (!isNonRecurring && !rows.any((row) => row.isOverall)) {
       rows.insert(
         0,
@@ -438,6 +453,79 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
     return 'Aman';
   }
 
+  ({String label, String? trend, Color? trendColor}) _trendFor(
+    EnvelopeBudgetRow envelope,
+  ) {
+    if (envelope.isNonRecurring) {
+      return (label: 'Sesuai kebutuhan', trend: null, trendColor: null);
+    }
+
+    final now = DateTime.now();
+    final currentPeriodStart = _periodStart(now, envelope.periodType);
+
+    // Calculate previous period
+    final previousPeriodStart = _periodStart(
+      currentPeriodStart.subtract(const Duration(days: 1)),
+      envelope.periodType,
+    );
+    final previousPeriodEnd = _periodEnd(
+      previousPeriodStart,
+      envelope.periodType,
+    );
+
+    // Get spent for current period
+    final currentSpent = _transactions
+        .where(
+          (t) =>
+              t.transaction.amount < 0 &&
+              t.transaction.source != 'transfer' &&
+              _isInPeriod(t.transaction.date, envelope) &&
+              (envelope.isOverall ||
+                  _categoryMatches(t.transaction.categoryId, envelope)),
+        )
+        .fold<int>(0, (sum, t) => sum + t.transaction.amount.abs());
+
+    // Get spent for previous period
+    final previousSpent = _transactions
+        .where(
+          (t) =>
+              t.transaction.amount < 0 &&
+              t.transaction.source != 'transfer' &&
+              !t.transaction.date.isBefore(previousPeriodStart) &&
+              !t.transaction.date.isAfter(previousPeriodEnd) &&
+              (envelope.isOverall ||
+                  _categoryMatches(t.transaction.categoryId, envelope)),
+        )
+        .fold<int>(0, (sum, t) => sum + t.transaction.amount.abs());
+
+    if (previousSpent == 0) {
+      return (
+        label: 'Tidak ada data sebelumnya',
+        trend: null,
+        trendColor: null,
+      );
+    }
+
+    final difference = currentSpent - previousSpent;
+    final percentChange = (difference / previousSpent * 100).abs();
+
+    if (difference > 0) {
+      return (
+        label: 'Naik',
+        trend: '+${percentChange.toStringAsFixed(1)}%',
+        trendColor: AppColors.negative,
+      );
+    } else if (difference < 0) {
+      return (
+        label: 'Turun',
+        trend: '-${percentChange.toStringAsFixed(1)}%',
+        trendColor: AppColors.positive,
+      );
+    } else {
+      return (label: 'Stabil', trend: '0%', trendColor: AppColors.inkMuted);
+    }
+  }
+
   Color _statusColor(String status) {
     switch (status) {
       case 'Aman':
@@ -554,6 +642,39 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showBudgetComparison() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _BudgetComparisonDialog(
+        envelopes: _envelopes,
+        transactions: _transactions,
+        periodType: _periodTypeFilter,
+        weekStartDay: _weekStartDay,
+        money: _money,
+        spentFor: _spentFor,
+        periodStart: _periodStart,
+        periodEnd: _periodEnd,
+      ),
+    );
+  }
+
+  Future<void> _showBudgetHistory() async {
+    final history =
+        await (_database.select(_database.envelopeBudgets)
+              ..where(
+                (table) => table.householdId.equals(AppContext.householdId),
+              )
+              ..orderBy([(table) => OrderingTerm.desc(table.updatedAt)]))
+            .get();
+
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _BudgetHistoryDialog(history: history, money: _money),
     );
   }
 
@@ -831,6 +952,10 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
         await _transferFunds();
       case _BudgetMenuAction.weekStart:
         await _showWeekStartPicker();
+      case _BudgetMenuAction.budgetComparison:
+        await _showBudgetComparison();
+      case _BudgetMenuAction.budgetHistory:
+        await _showBudgetHistory();
     }
   }
 
@@ -865,6 +990,78 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
     );
   }
 
+  Future<void> _showQuickCreateDialog() async {
+    final unconfigured = _envelopes
+        .where((item) => !item.isOverall && item.allocated <= 0)
+        .toList();
+
+    if (unconfigured.isEmpty) {
+      await _showMessage(
+        'Semua pos sudah diatur',
+        'Semua kategori pengeluaran sudah punya target anggaran.',
+      );
+      return;
+    }
+
+    final result = await showDialog<EnvelopeBudgetRow>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Atur anggaran cepat'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: unconfigured.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (_, index) {
+              final envelope = unconfigured[index];
+              return ListTile(
+                title: Text(envelope.name),
+                subtitle: Text(
+                  'Kategori: ${_categoryNames(envelope.categoryIds)}',
+                ),
+                onTap: () => Navigator.of(context).pop(envelope),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Batal'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      await _editEnvelope(result);
+    }
+  }
+
+  Future<void> _showQuickSetupDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => _QuickSetupDialog(
+        categories: _categories,
+        periodType: _periodTypeFilter,
+        weekStartDay: _weekStartDay,
+      ),
+    );
+
+    if (result == true) {
+      setState(() => _showQuickSetup = false);
+      await _load();
+    }
+  }
+
+  String _categoryNames(List<String> ids) {
+    final names = {
+      for (final category in _categories) category.id: category.name,
+    };
+    return ids.map((id) => names[id] ?? 'Kategori lain').join(', ');
+  }
+
   List<EnvelopeBudgetRow> _sortEnvelopes(List<EnvelopeBudgetRow> envelopes) {
     final sorted = List<EnvelopeBudgetRow>.of(envelopes);
     sorted.sort((a, b) {
@@ -880,21 +1077,34 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   }
 
   List<EnvelopeBudgetRow> _filterEnvelopes(List<EnvelopeBudgetRow> envelopes) {
+    var filtered = envelopes;
+
+    // Apply search filter
     final query = _searchQuery.trim().toLowerCase();
-    if (query.isEmpty) return envelopes;
-    final categoryNames = {
-      for (final category in _categories)
-        category.id: category.name.toLowerCase(),
-    };
-    return envelopes
-        .where(
-          (envelope) =>
-              envelope.name.toLowerCase().contains(query) ||
-              envelope.categoryIds.any(
-                (id) => categoryNames[id]?.contains(query) ?? false,
-              ),
-        )
-        .toList(growable: false);
+    if (query.isNotEmpty) {
+      final categoryNames = {
+        for (final category in _categories)
+          category.id: category.name.toLowerCase(),
+      };
+      filtered = filtered
+          .where(
+            (envelope) =>
+                envelope.name.toLowerCase().contains(query) ||
+                envelope.categoryIds.any(
+                  (id) => categoryNames[id]?.contains(query) ?? false,
+                ),
+          )
+          .toList(growable: false);
+    }
+
+    // Apply status filter
+    if (_statusFilter != null) {
+      filtered = filtered
+          .where((envelope) => _statusFor(envelope) == _statusFilter)
+          .toList(growable: false);
+    }
+
+    return filtered;
   }
 
   @override
@@ -952,6 +1162,15 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                     value: _BudgetMenuAction.weekStart,
                     child: Text('Hari mulai: ${_weekdayName(_weekStartDay)}'),
                   ),
+                if (_periodTypeFilter != 'nonrecurring')
+                  const PopupMenuItem(
+                    value: _BudgetMenuAction.budgetComparison,
+                    child: Text('Bandingkan periode'),
+                  ),
+                const PopupMenuItem(
+                  value: _BudgetMenuAction.budgetHistory,
+                  child: Text('Riwayat perubahan anggaran'),
+                ),
               ],
             ),
             if (_periodTypeFilter != 'nonrecurring')
@@ -1037,6 +1256,40 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                                 ),
                             ],
                           ),
+                          const SizedBox(height: 12),
+                          _QuickActionsWidget(
+                            onQuickCreate: _showQuickCreateDialog,
+                            onTransferFunds: _transferFunds,
+                            onCheckStatus: _showPeriodSummary,
+                            onRecommendations: _showHabitRecommendations,
+                            isNonRecurring: _periodTypeFilter == 'nonrecurring',
+                          ),
+                          const SizedBox(height: 12),
+                          if (_showQuickSetup)
+                            _QuickSetupBudgetWidget(
+                              categories: _categories,
+                              onStartSetup: _showQuickSetupDialog,
+                              onSkip: () {
+                                setState(() => _showQuickSetup = false);
+                              },
+                            ),
+                          const SizedBox(height: 12),
+                          _BudgetProgressChart(
+                            envelopes: categoryEnvelopes,
+                            spentFor: _spentFor,
+                            remainingFor: _remainingFor,
+                            statusFor: _statusFor,
+                            statusColor: _statusColor,
+                            money: _money,
+                          ),
+                          const SizedBox(height: 12),
+                          _BudgetBurnRateWidget(
+                            envelopes: categoryEnvelopes,
+                            spentFor: _spentFor,
+                            remainingFor: _remainingFor,
+                            statusFor: _statusFor,
+                            money: _money,
+                          ),
                           const SizedBox(height: 8),
                         ],
                       ),
@@ -1063,6 +1316,13 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                           ),
                         ),
                       ),
+                    const SizedBox(height: 8),
+                    _StatusFilterChips(
+                      selectedFilter: _statusFilter,
+                      onFilterChanged: (filter) {
+                        setState(() => _statusFilter = filter);
+                      },
+                    ),
                     const SizedBox(height: 8),
                     TabBar(
                       isScrollable: true,
@@ -1131,6 +1391,7 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                 transferredIn: _transferredIn(envelope),
                 transferredOut: _transferredOut(envelope),
                 onTap: () => _editEnvelope(envelope),
+                trend: _trendFor(envelope),
               ),
             ),
           ),
@@ -1626,7 +1887,7 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
               Text(
                 widget.envelope.categoryIds.isEmpty
                     ? 'Kategori terkait: belum ada'
-                    : 'Kategori terkait: ${_categoryNames(widget.envelope.categoryIds)}',
+                    : 'Kategori terkait: ${_envelopeCategoryNames(widget.envelope.categoryIds)}',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 24),
@@ -1644,7 +1905,7 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
     );
   }
 
-  String _categoryNames(List<String> ids) {
+  String _envelopeCategoryNames(List<String> ids) {
     final names = {
       for (final category in widget.categories) category.id: category.name,
     };
@@ -1939,6 +2200,817 @@ class EnvelopeTransferRow {
   final DateTime createdAt;
 }
 
+class _QuickActionsWidget extends StatelessWidget {
+  const _QuickActionsWidget({
+    required this.onQuickCreate,
+    required this.onTransferFunds,
+    required this.onCheckStatus,
+    required this.onRecommendations,
+    required this.isNonRecurring,
+  });
+
+  final VoidCallback onQuickCreate;
+  final VoidCallback onTransferFunds;
+  final VoidCallback onCheckStatus;
+  final VoidCallback onRecommendations;
+  final bool isNonRecurring;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _QuickActionButton(
+            icon: Icons.add_circle_outline,
+            label: 'Atur anggaran cepat',
+            onTap: onQuickCreate,
+          ),
+        ),
+        const SizedBox(width: 8),
+        if (!isNonRecurring) ...[
+          Expanded(
+            child: _QuickActionButton(
+              icon: Icons.swap_horiz_outlined,
+              label: 'Transfer dana',
+              onTap: onTransferFunds,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        if (!isNonRecurring) ...[
+          Expanded(
+            child: _QuickActionButton(
+              icon: Icons.analytics_outlined,
+              label: 'Cek status',
+              onTap: onCheckStatus,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        Expanded(
+          child: _QuickActionButton(
+            icon: Icons.lightbulb_outline,
+            label: 'Rekomendasi',
+            onTap: onRecommendations,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickActionButton extends StatelessWidget {
+  const _QuickActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      ),
+    );
+  }
+}
+
+class _BudgetBurnRateWidget extends StatelessWidget {
+  const _BudgetBurnRateWidget({
+    required this.envelopes,
+    required this.spentFor,
+    required this.remainingFor,
+    required this.statusFor,
+    required this.money,
+  });
+
+  final List<EnvelopeBudgetRow> envelopes;
+  final int Function(EnvelopeBudgetRow) spentFor;
+  final int Function(EnvelopeBudgetRow) remainingFor;
+  final String Function(EnvelopeBudgetRow) statusFor;
+  final String Function(int) money;
+
+  @override
+  Widget build(BuildContext context) {
+    final configuredEnvelopes = envelopes
+        .where((e) => e.allocated > 0 && !e.isNonRecurring)
+        .toList();
+
+    if (configuredEnvelopes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return AppCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.access_time_outlined, size: 18),
+              const SizedBox(width: 8),
+              const Text(
+                'Estimasi Habis Anggaran',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...configuredEnvelopes.take(3).map((envelope) {
+            final spent = spentFor(envelope);
+            final remaining = remainingFor(envelope);
+
+            if (remaining <= 0) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        envelope.name,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Sudah habis',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.negative,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            // Calculate burn rate
+            final now = DateTime.now();
+            final periodStart = envelope.startDate;
+            final periodEnd = envelope.endDate;
+            final elapsedDays = now.difference(periodStart).inDays;
+            final remainingDays = periodEnd.difference(now).inDays;
+
+            if (elapsedDays <= 0 || remainingDays <= 0) {
+              return const SizedBox.shrink();
+            }
+
+            final dailyBurnRate = spent / elapsedDays;
+            final estimatedDaysRemaining = dailyBurnRate > 0
+                ? (remaining / dailyBurnRate).round()
+                : remainingDays;
+            final isFastBurn = estimatedDaysRemaining < remainingDays * 0.5;
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      envelope.name,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Est. habis dalam $estimatedDaysRemaining hari',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isFastBurn
+                          ? AppColors.warning
+                          : AppColors.positive,
+                      fontWeight: isFastBurn
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          if (configuredEnvelopes.length > 3)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'dan ${configuredEnvelopes.length - 3} kategori lainnya...',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickSetupBudgetWidget extends StatelessWidget {
+  const _QuickSetupBudgetWidget({
+    required this.categories,
+    required this.onStartSetup,
+    required this.onSkip,
+  });
+
+  final List<Category> categories;
+  final VoidCallback onStartSetup;
+  final VoidCallback onSkip;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.rocket_launch_outlined,
+                size: 18,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Setup Anggaran Pertama',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Selamat datang! Mari atur anggaran pertamamu untuk ${categories.length} kategori pengeluaran.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: onStartSetup,
+                  icon: const Icon(Icons.settings_outlined, size: 18),
+                  label: const Text('Mulai Setup'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton(onPressed: onSkip, child: const Text('Nanti')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickSetupDialog extends StatefulWidget {
+  const _QuickSetupDialog({
+    required this.categories,
+    required this.periodType,
+    required this.weekStartDay,
+  });
+
+  final List<Category> categories;
+  final String periodType;
+  final int weekStartDay;
+
+  @override
+  State<_QuickSetupDialog> createState() => _QuickSetupDialogState();
+}
+
+class _QuickSetupDialogState extends State<_QuickSetupDialog> {
+  final Map<String, TextEditingController> _amountControllers = {};
+  var _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final category in widget.categories) {
+      _amountControllers[category.id] = TextEditingController();
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _amountControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final database = getIt<AppDatabase>();
+    final now = DateTime.now();
+    final start = widget.periodType == 'weekly'
+        ? DateTime(now.year, now.month, now.day).subtract(
+            Duration(days: (now.weekday - widget.weekStartDay + 7) % 7),
+          )
+        : DateTime(now.year, now.month, 1);
+    final end = widget.periodType == 'weekly'
+        ? start.add(
+            const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
+          )
+        : DateTime(
+            start.year,
+            start.month + 1,
+            1,
+          ).subtract(const Duration(seconds: 1));
+    final month = '${start.year}-${start.month.toString().padLeft(2, '0')}';
+    final storageKey = widget.periodType == 'nonrecurring'
+        ? 'tidak-rutin'
+        : month;
+
+    setState(() => _saving = true);
+
+    try {
+      for (final category in widget.categories) {
+        final controller = _amountControllers[category.id];
+        final amount = parseRupiah(controller?.text ?? '');
+        if (amount > 0) {
+          await database
+              .into(database.envelopeBudgets)
+              .insert(
+                EnvelopeBudgetsCompanion.insert(
+                  id: 'envelope-${category.id}-$storageKey',
+                  householdId: AppContext.householdId,
+                  month: Value(storageKey),
+                  name: category.name,
+                  categoryIdsJson: Value(jsonEncode([category.id])),
+                  allocated: Value(amount),
+                  rollover: const Value(0),
+                  periodType: Value(widget.periodType),
+                  startDate: start,
+                  endDate: end,
+                  alertPercent: const Value(80),
+                  createdAt: now,
+                  updatedAt: Value(now),
+                ),
+              );
+        }
+      }
+
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Gagal menyimpan: $e')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Setup Anggaran Pertama'),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 400,
+        child: Column(
+          children: [
+            const Text(
+              'Atur batas anggaran untuk kategori yang ingin kamu pantau.',
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.separated(
+                itemCount: widget.categories.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (_, index) {
+                  final category = widget.categories[index];
+                  return ListTile(
+                    title: Text(category.name),
+                    subtitle: TextField(
+                      controller: _amountControllers[category.id],
+                      keyboardType: TextInputType.number,
+                      inputFormatters: const [RupiahInputFormatter()],
+                      decoration: const InputDecoration(
+                        labelText: 'Batas anggaran',
+                        prefixText: 'Rp ',
+                        isDense: true,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Batal'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: Text(_saving ? 'Menyimpan...' : 'Simpan'),
+        ),
+      ],
+    );
+  }
+}
+
+class _BudgetComparisonDialog extends StatelessWidget {
+  const _BudgetComparisonDialog({
+    required this.envelopes,
+    required this.transactions,
+    required this.periodType,
+    required this.weekStartDay,
+    required this.money,
+    required this.spentFor,
+    required this.periodStart,
+    required this.periodEnd,
+  });
+
+  final List<EnvelopeBudgetRow> envelopes;
+  final List<TransactionWithItems> transactions;
+  final String periodType;
+  final int weekStartDay;
+  final String Function(int) money;
+  final int Function(EnvelopeBudgetRow) spentFor;
+  final DateTime Function(DateTime, String) periodStart;
+  final DateTime Function(DateTime, String) periodEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final currentPeriodStart = periodStart(now, periodType);
+    final currentPeriodEnd = periodEnd(currentPeriodStart, periodType);
+
+    // Calculate previous period
+    final previousPeriodStart = periodStart(
+      currentPeriodStart.subtract(const Duration(days: 1)),
+      periodType,
+    );
+    final previousPeriodEnd = periodEnd(previousPeriodStart, periodType);
+
+    final configuredEnvelopes = envelopes
+        .where((e) => e.allocated > 0 && !e.isNonRecurring)
+        .toList();
+
+    return AlertDialog(
+      title: const Text('Bandingkan Periode'),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 400,
+        child: Column(
+          children: [
+            Text(
+              'Periode ini vs Periode lalu',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${formatTanggalLengkap(currentPeriodStart, includeSeconds: false)} - ${formatTanggalLengkap(currentPeriodEnd, includeSeconds: false)}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: configuredEnvelopes.isEmpty
+                  ? const Center(
+                      child: Text('Belum ada pos anggaran untuk dibandingkan.'),
+                    )
+                  : ListView.separated(
+                      itemCount: configuredEnvelopes.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (_, index) {
+                        final envelope = configuredEnvelopes[index];
+
+                        // Current period spent
+                        final currentSpent = transactions
+                            .where(
+                              (t) =>
+                                  t.transaction.amount < 0 &&
+                                  t.transaction.source != 'transfer' &&
+                                  !t.transaction.date.isBefore(
+                                    currentPeriodStart,
+                                  ) &&
+                                  !t.transaction.date.isAfter(
+                                    currentPeriodEnd,
+                                  ) &&
+                                  (envelope.isOverall ||
+                                      _categoryMatches(
+                                        t.transaction.categoryId,
+                                        envelope,
+                                      )),
+                            )
+                            .fold<int>(
+                              0,
+                              (sum, t) => sum + t.transaction.amount.abs(),
+                            );
+
+                        // Previous period spent
+                        final previousSpent = transactions
+                            .where(
+                              (t) =>
+                                  t.transaction.amount < 0 &&
+                                  t.transaction.source != 'transfer' &&
+                                  !t.transaction.date.isBefore(
+                                    previousPeriodStart,
+                                  ) &&
+                                  !t.transaction.date.isAfter(
+                                    previousPeriodEnd,
+                                  ) &&
+                                  (envelope.isOverall ||
+                                      _categoryMatches(
+                                        t.transaction.categoryId,
+                                        envelope,
+                                      )),
+                            )
+                            .fold<int>(
+                              0,
+                              (sum, t) => sum + t.transaction.amount.abs(),
+                            );
+
+                        final difference = currentSpent - previousSpent;
+                        final percentChange = previousSpent > 0
+                            ? (difference / previousSpent * 100)
+                                  .toStringAsFixed(1)
+                            : '0.0';
+
+                        final trend = difference > 0
+                            ? 'lebih boros'
+                            : 'lebih hemat';
+                        final trendColor = difference > 0
+                            ? AppColors.negative
+                            : AppColors.positive;
+
+                        return ListTile(
+                          title: Text(envelope.name),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Periode ini: ${money(currentSpent)}'),
+                              Text('Periode lalu: ${money(previousSpent)}'),
+                              Text(
+                                'Selisih: ${money(difference.abs())} ($percentChange% $trend)',
+                                style: TextStyle(
+                                  color: trendColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Tutup'),
+        ),
+      ],
+    );
+  }
+
+  bool _categoryMatches(String? categoryId, EnvelopeBudgetRow envelope) {
+    if (categoryId == null) return false;
+    if (envelope.categoryIds.contains(categoryId)) return true;
+    return false;
+  }
+}
+
+class _BudgetHistoryDialog extends StatelessWidget {
+  const _BudgetHistoryDialog({required this.history, required this.money});
+
+  final List<EnvelopeBudget> history;
+  final String Function(int) money;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Riwayat Perubahan Anggaran'),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 400,
+        child: history.isEmpty
+            ? const Center(child: Text('Belum ada riwayat perubahan anggaran.'))
+            : ListView.separated(
+                itemCount: history.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (_, index) {
+                  final budget = history[index];
+                  final createdAt = budget.createdAt;
+                  final DateTime updatedAt = budget.updatedAt ?? createdAt;
+
+                  return ListTile(
+                    title: Text(budget.name),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Dibuat: ${formatTanggalLengkap(createdAt, includeSeconds: false)}',
+                        ),
+                        Text(
+                          'Terakhir diubah: ${formatTanggalLengkap(updatedAt, includeSeconds: false)}',
+                        ),
+                        Text('Alokasi: ${money(budget.allocated)}'),
+                        Text('Periode: ${budget.periodType}'),
+                      ],
+                    ),
+                  );
+                },
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Tutup'),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusFilterChips extends StatelessWidget {
+  const _StatusFilterChips({
+    required this.selectedFilter,
+    required this.onFilterChanged,
+  });
+
+  final String? selectedFilter;
+  final void Function(String?) onFilterChanged;
+
+  static const _filters = [
+    'Aman',
+    'Mendekati batas',
+    'Melewati batas',
+    'Pemakaian cepat',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          FilterChip(
+            label: const Text('Semua'),
+            selected: selectedFilter == null,
+            onSelected: (selected) {
+              onFilterChanged(selected ? null : 'Aman');
+            },
+          ),
+          const SizedBox(width: 8),
+          ..._filters.map((filter) {
+            final color = switch (filter) {
+              'Aman' => AppColors.positive,
+              'Mendekati batas' => AppColors.warning,
+              'Melewati batas' => AppColors.negative,
+              'Pemakaian cepat' => AppColors.warning,
+              _ => AppColors.inkMuted,
+            };
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilterChip(
+                label: Text(filter),
+                selected: selectedFilter == filter,
+                selectedColor: color.withValues(alpha: 0.2),
+                checkmarkColor: color,
+                onSelected: (selected) {
+                  onFilterChanged(selected ? filter : null);
+                },
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _BudgetProgressChart extends StatelessWidget {
+  const _BudgetProgressChart({
+    required this.envelopes,
+    required this.spentFor,
+    required this.remainingFor,
+    required this.statusFor,
+    required this.statusColor,
+    required this.money,
+  });
+
+  final List<EnvelopeBudgetRow> envelopes;
+  final int Function(EnvelopeBudgetRow) spentFor;
+  final int Function(EnvelopeBudgetRow) remainingFor;
+  final String Function(EnvelopeBudgetRow) statusFor;
+  final Color Function(String) statusColor;
+  final String Function(int) money;
+
+  @override
+  Widget build(BuildContext context) {
+    final configuredEnvelopes = envelopes
+        .where((e) => e.allocated > 0)
+        .toList();
+
+    if (configuredEnvelopes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return AppCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.bar_chart_outlined, size: 18),
+              const SizedBox(width: 8),
+              const Text(
+                'Progress Anggaran per Kategori',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...configuredEnvelopes.take(5).map((envelope) {
+            final spent = spentFor(envelope);
+            final remaining = remainingFor(envelope);
+            final total = envelope.allocated + envelope.rollover;
+            final progress = total > 0 ? spent / total : 0.0;
+            final status = statusFor(envelope);
+            final color = statusColor(status);
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          envelope.name,
+                          style: const TextStyle(fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        '${money(spent)} / ${money(total)}',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: progress.clamp(0.0, 1.0),
+                      minHeight: 6,
+                      backgroundColor: AppColors.surfaceContainer,
+                      valueColor: AlwaysStoppedAnimation<Color>(color),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        status,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: color,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        'Sisa: ${money(remaining)}',
+                        style: const TextStyle(fontSize: 10),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }),
+          if (configuredEnvelopes.length > 5)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'dan ${configuredEnvelopes.length - 5} kategori lainnya...',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SummaryValue extends StatelessWidget {
   const _SummaryValue({required this.label, required this.value, this.color});
 
@@ -1973,6 +3045,7 @@ class _EnvelopeCard extends StatelessWidget {
     required this.transferredIn,
     required this.transferredOut,
     required this.onTap,
+    this.trend,
   });
 
   final EnvelopeBudgetRow envelope;
@@ -1983,6 +3056,7 @@ class _EnvelopeCard extends StatelessWidget {
   final int transferredIn;
   final int transferredOut;
   final VoidCallback onTap;
+  final ({String label, String? trend, Color? trendColor})? trend;
 
   String _money(int value) {
     final digits = value.abs().toString();
@@ -2028,6 +3102,42 @@ class _EnvelopeCard extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
+              if (trend != null && trend!.trend != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: trend!.trendColor?.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        trend!.label == 'Naik'
+                            ? Icons.trending_up
+                            : trend!.label == 'Turun'
+                            ? Icons.trending_down
+                            : Icons.trending_flat,
+                        size: 12,
+                        color: trend!.trendColor,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        trend!.trend!,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: trend!.trendColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 4),
+              ],
               AppStatusChip(
                 label: status,
                 color: statusColor,
