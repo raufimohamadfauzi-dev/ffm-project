@@ -261,26 +261,23 @@ class _PendingPaymentDraftsCardState extends State<PendingPaymentDraftsCard>
                     ),
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedType,
-                    decoration: const InputDecoration(
-                      labelText: 'Tipe transaksi',
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
                     ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'debit',
-                        child: Text('Pengeluaran'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'credit',
-                        child: Text('Pemasukan'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        selectedType = value;
-                      }
-                    },
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Tipe: ${selectedType == 'credit' ? 'Pemasukan' : 'Pengeluaran'} (Otomatis)',
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),
@@ -328,7 +325,7 @@ class _PendingPaymentDraftsCardState extends State<PendingPaymentDraftsCard>
     if (edited == null) return;
 
     await _draftRepo.updateDraft(edited);
-    await _loadPendingDrafts();
+    await _confirmDraft(edited);
   }
 
   Future<void> _dismissDraft(PaymentDraft draft) async {

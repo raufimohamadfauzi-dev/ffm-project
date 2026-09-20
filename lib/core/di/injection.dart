@@ -154,7 +154,12 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       telegramDeliveryProcessor: getIt<TelegramDeliveryProcessor>(),
     ),
   );
-  getIt.registerLazySingleton<DeleteTransaction>(() => DeleteTransaction(db));
+  getIt.registerLazySingleton<DeleteTransaction>(
+    () => DeleteTransaction(
+      db,
+      utilityMeterRepository: getIt<UtilityMeterRepository>(),
+    ),
+  );
   getIt.registerLazySingleton<GetAssets>(() => GetAssets(db));
   getIt.registerLazySingleton<SaveAsset>(() => SaveAsset(db));
   getIt.registerLazySingleton<ArchiveAsset>(() => ArchiveAsset(db));

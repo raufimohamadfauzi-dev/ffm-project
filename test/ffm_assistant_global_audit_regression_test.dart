@@ -39,6 +39,7 @@ class _FakeGemini extends GeminiService {
     String? model,
     List<Map<String, dynamic>>? tools,
     GeminiImageInput? image,
+    List<GeminiImageInput>? images,
     int? maxOutputTokens,
   }) async {
     calls++;

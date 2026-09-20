@@ -12,6 +12,8 @@ import '../../../transaction/data/services/receipt_import_models.dart';
 import '../../data/ffm_assistant_draft_feedback_service.dart';
 import '../../domain/ffm_assistant_draft_validator.dart';
 import '../../domain/ffm_assistant_models.dart';
+import '../../../settings/data/utility_meter_repository.dart';
+import '../../../settings/domain/entities/utility_meter_models.dart';
 
 /// Dialog mandiri untuk memperbaiki draft yang masih berada di sesi chat.
 /// Tidak menyimpan data; caller wajib memvalidasi lalu meneruskan ke form.
@@ -63,6 +65,9 @@ class _FfmAssistantDraftEditDialogState
   late final TextEditingController _discountController;
   late final TextEditingController _meterNameController;
   late final TextEditingController _meterNumberController;
+  late final TextEditingController _customerNameController;
+  late final TextEditingController _tariffPowerController;
+  late final TextEditingController _tokenCodeController;
   late List<ReceiptOcrItem> _items;
   late String _budgetPeriod;
   late final List<String> _tags;
@@ -83,17 +88,135 @@ class _FfmAssistantDraftEditDialogState
   late FfmAssistantDraftKind _selectedKind;
   String? _destinationRoute;
   String? _saveError;
+  UtilityMeterRepository? _utilityMeterRepository;
+  UtilityMeter? _existingMeter;
+
+  /// Format angka dengan titik ribuan (contoh: 100000 → 100.000)
+  String _formatNumber(int value) {
+    return value.toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]}.${m[2]}',
+    );
+  }
+
+  /// Parse angka dari text dengan/tanpa separator
+  int _parseNumber(String text) {
+    return int.tryParse(text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+  }
+
+  /// Smart trigger detection untuk token listrik
+  /// Detect dari metadata utility proposal, kategori, title, note, atau meterNumber
+  bool get _isElectricityTokenPurchase {
+    final category = _categoryController.text.toLowerCase();
+    final title = _titleController.text.toLowerCase();
+    final note = _noteController.text.toLowerCase();
+    final meterNumber = _meterNumberController.text;
+    final hasUtilityProposal =
+        widget.draft.metadata?['utilityProposal'] != null;
+
+    // Trigger dari metadata utility proposal (chat manual/gambar)
+    if (hasUtilityProposal) return true;
+
+    // Trigger dari kategori/title/note
+    final hasKeyword =
+        category.contains('listrik') ||
+        category.contains('token') ||
+        category.contains('pln') ||
+        title.contains('listrik') ||
+        title.contains('token') ||
+        title.contains('pln') ||
+        note.contains('listrik') ||
+        note.contains('token') ||
+        note.contains('pln');
+
+    // Trigger dari meterNumber (IDPEL)
+    final hasMeterNumber = meterNumber.isNotEmpty;
+
+    return hasKeyword || hasMeterNumber;
+  }
 
   void _showSaveError(String message) {
     if (!mounted) return;
     setState(() => _saveError = message);
   }
 
+  /// Auto-populate field meteran dari database
+  /// Prioritas 1: cari berdasarkan meterNumber/IDPEL
+  /// Prioritas 2: cari berdasarkan meterReference (nama rumah) untuk chat manual
+  Future<void> _autoPopulateExistingMeter(
+    String? meterNumber,
+    String? meterReference,
+  ) async {
+    if (_utilityMeterRepository == null) return;
+
+    // Prioritas 1: cari berdasarkan meterNumber/IDPEL
+    if (meterNumber != null && meterNumber.isNotEmpty) {
+      final normalized = meterNumber.replaceAll(RegExp(r'\D'), '');
+      if (normalized.length >= 11 && normalized.length <= 12) {
+        final existing = await _utilityMeterRepository!.findMeterByNumber(
+          AppContext.householdId,
+          normalized,
+        );
+        if (existing != null && mounted) {
+          setState(() {
+            _existingMeter = existing;
+            _meterNameController.text = existing.name;
+            _customerNameController.text = existing.customerName;
+            _tariffPowerController.text = existing.tariffPower;
+            _locationController.text = existing.location;
+            _noteController.text = existing.notes;
+            final tokenNumber = existing.lastTokenNumber;
+            if (tokenNumber != null && tokenNumber.isNotEmpty) {
+              _tokenCodeController.text = tokenNumber;
+            }
+          });
+          return;
+        }
+      }
+    }
+
+    // Prioritas 2: cari berdasarkan meterReference (nama rumah) untuk chat manual
+    if (meterReference != null && meterReference.isNotEmpty) {
+      final allMeters = await _utilityMeterRepository!.getAllMeters(
+        AppContext.householdId,
+      );
+      final matching = allMeters
+          .where(
+            (m) => m.name.toLowerCase().contains(meterReference.toLowerCase()),
+          )
+          .toList();
+
+      if (matching.length == 1 && mounted) {
+        final existing = matching.first;
+        setState(() {
+          _existingMeter = existing;
+          _meterNameController.text = existing.name;
+          _meterNumberController.text = existing.meterNumber;
+          _customerNameController.text = existing.customerName;
+          _tariffPowerController.text = existing.tariffPower;
+          _locationController.text = existing.location;
+          _noteController.text = existing.notes;
+          final tokenNumber = existing.lastTokenNumber;
+          if (tokenNumber != null && tokenNumber.isNotEmpty) {
+            _tokenCodeController.text = tokenNumber;
+          }
+        });
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    try {
+      _utilityMeterRepository = getIt<UtilityMeterRepository>();
+    } catch (_) {
+      // Repository not registered (e.g., in tests)
+      _utilityMeterRepository = null;
+    }
     _selectedKind = widget.draft.kind;
-    _destinationRoute = widget.draft.destinationRoute ??
+    _destinationRoute =
+        widget.draft.destinationRoute ??
         widget.draft.formValues['destinationRoute']?.toString();
     _amountController = TextEditingController(
       text: widget.draft.amount?.toString() ?? '',
@@ -192,7 +315,8 @@ class _FfmAssistantDraftEditDialogState
 
     _fromAccount = widget.draft.fromAccountName?.trim();
     _toAccount = widget.draft.toAccountName?.trim();
-    _date = widget.draft.date ??
+    _date =
+        widget.draft.date ??
         (_selectedKind == FfmAssistantDraftKind.dailyNote
             ? widget.draft.createdAt
             : null);
@@ -312,7 +436,9 @@ class _FfmAssistantDraftEditDialogState
     final utilityMetadata = widget.draft.metadata?['utilityProposal'];
     final utilityMap = utilityMetadata is Map<String, dynamic>
         ? utilityMetadata
-        : (utilityMetadata is Map ? Map<String, dynamic>.from(utilityMetadata) : null);
+        : (utilityMetadata is Map
+              ? Map<String, dynamic>.from(utilityMetadata)
+              : null);
     _meterNameController = TextEditingController(
       text:
           widget.draft.formValues['proposedMeterName']?.toString() ??
@@ -333,6 +459,59 @@ class _FfmAssistantDraftEditDialogState
           widget.draft.metadata?['idpel']?.toString() ??
           '',
     );
+    _customerNameController = TextEditingController(
+      text:
+          widget.draft.formValues['customerName']?.toString() ??
+          utilityMap?['customerName']?.toString() ??
+          widget.draft.metadata?['customerName']?.toString() ??
+          '',
+    );
+    _tariffPowerController = TextEditingController(
+      text:
+          widget.draft.formValues['tariffPower']?.toString() ??
+          utilityMap?['tariffPower']?.toString() ??
+          widget.draft.metadata?['tariffPower']?.toString() ??
+          '',
+    );
+    _tokenCodeController = TextEditingController(
+      text:
+          widget.draft.formValues['tokenCode']?.toString() ??
+          utilityMap?['tokenCode']?.toString() ??
+          widget.draft.metadata?['tokenCode']?.toString() ??
+          '',
+    );
+
+    // Load dari utilityProposal metadata (chat manual/gambar)
+    if (utilityMetadata is Map) {
+      final meterNumber = utilityMetadata['meterNumber']?.toString();
+      final meterReference = utilityMetadata['meterReference']?.toString();
+      final customerName = utilityMetadata['customerName']?.toString();
+      final tariffPower = utilityMetadata['tariffPower']?.toString();
+      final tokenCode = utilityMetadata['tokenCode']?.toString();
+
+      _autoPopulateExistingMeter(meterNumber, meterReference);
+
+      // ADD: Jika meter tidak ada di database tapi ada di utilityProposal, populate manual
+      if (_existingMeter == null &&
+          customerName != null &&
+          customerName.isNotEmpty) {
+        setState(() {
+          _customerNameController.text = customerName;
+        });
+      }
+      if (_existingMeter == null &&
+          tariffPower != null &&
+          tariffPower.isNotEmpty) {
+        setState(() {
+          _tariffPowerController.text = tariffPower;
+        });
+      }
+      if (_existingMeter == null && tokenCode != null && tokenCode.isNotEmpty) {
+        setState(() {
+          _tokenCodeController.text = tokenCode;
+        });
+      }
+    }
   }
 
   @override
@@ -355,6 +534,9 @@ class _FfmAssistantDraftEditDialogState
     _discountController.dispose();
     _meterNameController.dispose();
     _meterNumberController.dispose();
+    _customerNameController.dispose();
+    _tariffPowerController.dispose();
+    _tokenCodeController.dispose();
     super.dispose();
   }
 
@@ -782,7 +964,8 @@ class _FfmAssistantDraftEditDialogState
         return;
       }
       if (effectiveDate != null && effectiveDate.isBefore(DateTime.now())) {
-        if (_recurrence == ReminderRecurrenceType.daily || _recurrence == ReminderRecurrenceType.once) {
+        if (_recurrence == ReminderRecurrenceType.daily ||
+            _recurrence == ReminderRecurrenceType.once) {
           effectiveDate = effectiveDate.add(const Duration(days: 1));
         } else {
           _showSaveError('Pilih waktu pengingat yang masih akan datang.');
@@ -845,9 +1028,9 @@ class _FfmAssistantDraftEditDialogState
     final effectiveNewTags = customNewTags.isNotEmpty
         ? customNewTags.join(', ')
         : (widget.draft.newTags != null &&
-                _tags.any((t) => initialNewTags.contains(t.toLowerCase()))
-            ? widget.draft.newTags
-            : null);
+                  _tags.any((t) => initialNewTags.contains(t.toLowerCase()))
+              ? widget.draft.newTags
+              : null);
     if (effectiveNewTags != null && effectiveNewTags.trim().isNotEmpty) {
       newFormValues['newTags'] = effectiveNewTags;
     } else {
@@ -863,9 +1046,7 @@ class _FfmAssistantDraftEditDialogState
       fromAccountName: fromAcc,
       toAccountName: toAcc,
       categoryName: _textOrNull(_categoryController),
-      adminFee: _selectedKind == FfmAssistantDraftKind.transfer
-          ? adminFee
-          : widget.draft.adminFee,
+      adminFee: adminFee ?? widget.draft.adminFee,
       goalName: goalName,
       note: _selectedKind == FfmAssistantDraftKind.dailyNote
           ? (_textOrNull(_noteController) ?? title)
@@ -895,8 +1076,30 @@ class _FfmAssistantDraftEditDialogState
       merchantName: merchantName,
       location: location,
       slmFieldValues: widget.draft.slmFieldValues,
-      // Preserve cycle-specific metadata that is not edited in this dialog
-      metadata: widget.draft.metadata,
+      // Preserve and synchronize cycle-specific metadata.
+      // Jika utilityProposal ada, update agar sinkron dengan perubahan di form
+      // (meterNumber, meterName, tokenCode, adminFee) sehingga _handleDraftConfirmation
+      // membaca data yang konsisten dari satu sumber kebenaran.
+      metadata: () {
+        final existing = widget.draft.metadata;
+        if (existing == null) return null;
+        final existingProposal = existing['utilityProposal'];
+        if (existingProposal is! Map) return existing;
+        final updated = Map<String, dynamic>.from(existing);
+        final updatedProposal = Map<String, dynamic>.from(existingProposal);
+        if (meterNumber != null) updatedProposal['meterNumber'] = meterNumber;
+        if (meterName != null) {
+          updatedProposal['proposedMeterName'] = meterName;
+        }
+        final editedTokenCode = newFormValues['tokenCode']?.toString();
+        if (editedTokenCode != null) {
+          updatedProposal['tokenCode'] = editedTokenCode;
+        }
+        if (adminFee != null) updatedProposal['adminFee'] = adminFee;
+        if (amount != null) updatedProposal['amount'] = amount;
+        updated['utilityProposal'] = updatedProposal;
+        return updated;
+      }(),
       commodityOrBusinessType: widget.draft.commodityOrBusinessType,
       targetHarvestDate: widget.draft.targetHarvestDate,
       initialCapital: widget.draft.initialCapital,
@@ -924,12 +1127,12 @@ class _FfmAssistantDraftEditDialogState
       const blockingCodes = {
         'transfer_same_account',
         'admin_fee_invalid',
-        'receipt_adjustment_invalid',
-        'receipt_payment_invalid',
-        'receipt_total_mismatch',
+        // 'receipt_adjustment_invalid', // Removed: allow save even if tax/discount negative
+        // 'receipt_payment_invalid', // Removed: allow save even if payment/return invalid
+        // 'receipt_total_mismatch', // Removed: allow save even if total doesn't match
         'receipt_item_invalid',
         'receipt_items_required',
-        'receipt_payment_mismatch',
+        // 'receipt_payment_mismatch', // Removed: allow save even if payment mismatch
       };
       final blockingIssue = FfmAssistantDraftValidator.validate(editedDraft)
           .where((issue) => blockingCodes.contains(issue.code))
@@ -1152,41 +1355,6 @@ class _FfmAssistantDraftEditDialogState
                     fontSize: 12,
                   ),
                 ),
-                if (widget.draft.kind == FfmAssistantDraftKind.expense ||
-                    widget.draft.kind == FfmAssistantDraftKind.income) ...[
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<FfmAssistantDraftKind>(
-                      segments: const [
-                        ButtonSegment(
-                          value: FfmAssistantDraftKind.expense,
-                          label: Text('Pengeluaran'),
-                          icon: Icon(Icons.arrow_upward, size: 16),
-                        ),
-                        ButtonSegment(
-                          value: FfmAssistantDraftKind.income,
-                          label: Text('Pemasukan'),
-                          icon: Icon(Icons.arrow_downward, size: 16),
-                        ),
-                      ],
-                      selected: {_selectedKind},
-                      onSelectionChanged: (newSelection) {
-                        setState(() {
-                          _selectedKind = newSelection.first;
-                          if (_selectedKind == FfmAssistantDraftKind.income &&
-                              _toAccount == null) {
-                            _toAccount = _fromAccount;
-                          } else if (_selectedKind ==
-                                  FfmAssistantDraftKind.expense &&
-                              _fromAccount == null) {
-                            _fromAccount = _toAccount;
-                          }
-                        });
-                      },
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -1396,8 +1564,7 @@ class _FfmAssistantDraftEditDialogState
                     isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Halaman Terkait (Deep-Link)',
-                      helperText:
-                          'Otomatis membuka halaman ini saat notifikasi pengingat diklik',
+                      helperText: 'Otomatis membuka halaman ini saat notifikasi pengingat diklik',
                     ),
                     items: const [
                       DropdownMenuItem(
@@ -1497,6 +1664,9 @@ class _FfmAssistantDraftEditDialogState
                     ? 'Target nominal (Rp)'
                     : 'Nominal (Rp)',
                 hintText: 'Contoh: 500000',
+                helperText: _amountController.text.isNotEmpty
+                    ? 'Format: ${_formatNumber(_parseNumber(_amountController.text))}'
+                    : null,
               ),
             ),
           if (_selectedKind == FfmAssistantDraftKind.expense ||
@@ -1557,126 +1727,251 @@ class _FfmAssistantDraftEditDialogState
               _selectedKind == FfmAssistantDraftKind.expense ||
               _selectedKind == FfmAssistantDraftKind.budget ||
               _isActivityDraft) ...[
-            Autocomplete<String>(
-              initialValue: TextEditingValue(
-                text: _categoryController.text,
-              ),
-              optionsBuilder: (value) {
-                final options = _categoriesForCurrentKind();
-                final query = value.text.trim().toLowerCase();
-                if (query.isEmpty) return options;
-                return options.where(
-                  (name) => name.toLowerCase().contains(query),
-                );
-              },
-              onSelected: (value) {
-                _categoryController.text = value;
-                setState(() {});
-              },
-              fieldViewBuilder:
-                  (context, controller, focusNode, onFieldSubmitted) {
-                    return TextField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      onChanged: (value) {
-                        _categoryController.text = value;
-                        setState(() {});
-                      },
-                      onSubmitted: (value) {
-                        _categoryController.text = value.trim();
-                        onFieldSubmitted();
-                      },
-                      decoration: const InputDecoration(
-                        labelText: 'Kategori',
-                        hintText: 'Ketik atau pilih kategori Data Utama',
-                      ),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              leading: const Icon(Icons.category_outlined),
+              title: const Text('Kategori'),
+              initiallyExpanded: false,
+              children: [
+                Autocomplete<String>(
+                  initialValue: TextEditingValue(
+                    text: _categoryController.text,
+                  ),
+                  optionsBuilder: (value) {
+                    final options = _categoriesForCurrentKind();
+                    final query = value.text.trim().toLowerCase();
+                    if (query.isEmpty) return options;
+                    return options.where(
+                      (name) => name.toLowerCase().contains(query),
                     );
                   },
-            ),
-            if (_categoriesForCurrentKind().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4, bottom: 6),
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [
-                    for (final catName in _categoriesForCurrentKind().take(8))
-                      ActionChip(
-                        avatar: Icon(
-                          _categoryController.text.trim().toLowerCase() ==
-                                  catName.toLowerCase()
-                              ? Icons.check
-                              : Icons.category_outlined,
-                          size: 14,
-                        ),
-                        label: Text(catName),
-                        onPressed: () {
-                          setState(() => _categoryController.text = catName);
-                        },
-                      ),
-                  ],
+                  onSelected: (value) {
+                    _categoryController.text = value;
+                    setState(() {});
+                  },
+                  fieldViewBuilder:
+                      (context, controller, focusNode, onFieldSubmitted) {
+                        return TextField(
+                          controller: controller,
+                          focusNode: focusNode,
+                          onChanged: (value) {
+                            _categoryController.text = value;
+                            setState(() {});
+                          },
+                          onSubmitted: (value) {
+                            _categoryController.text = value.trim();
+                            onFieldSubmitted();
+                          },
+                          decoration: const InputDecoration(
+                            labelText: 'Kategori',
+                            hintText: 'Ketik atau pilih kategori Data Utama',
+                          ),
+                        );
+                      },
                 ),
-              ),
+                if (_categoriesForCurrentKind().isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, bottom: 6),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        for (final catName in _categoriesForCurrentKind().take(
+                          8,
+                        ))
+                          ActionChip(
+                            avatar: Icon(
+                              _categoryController.text.trim().toLowerCase() ==
+                                      catName.toLowerCase()
+                                  ? Icons.check
+                                  : Icons.category_outlined,
+                              size: 14,
+                            ),
+                            label: Text(catName),
+                            onPressed: () {
+                              setState(
+                                () => _categoryController.text = catName,
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ],
           // Kolom transaksi disamakan dengan form resmi + database:
           // merchant, lokasi, tanggal, pihak, biaya admin (transfer).
           if (_selectedKind == FfmAssistantDraftKind.income ||
               _selectedKind == FfmAssistantDraftKind.expense) ...[
-            TextField(
-              controller: _merchantController,
-              decoration: const InputDecoration(
-                labelText: 'Toko / tempat (opsional)',
-                hintText: 'Contoh: Indomaret, Pasar',
-              ),
-            ),
-            if (_masterMerchants.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4, bottom: 6),
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [
-                    for (final mName in _masterMerchants.take(8))
-                      ActionChip(
-                        avatar: const Icon(Icons.storefront_outlined, size: 14),
-                        label: Text(mName),
-                        onPressed: () {
-                          setState(() => _merchantController.text = mName);
-                        },
-                      ),
-                  ],
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              leading: const Icon(Icons.storefront_outlined),
+              title: const Text('Toko / tempat (opsional)'),
+              initiallyExpanded: false,
+              children: [
+                TextField(
+                  controller: _merchantController,
+                  decoration: const InputDecoration(
+                    labelText: 'Toko / tempat',
+                    hintText: 'Contoh: Indomaret, Pasar',
+                  ),
                 ),
-              ),
+                if (_masterMerchants.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, bottom: 6),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        for (final mName in _masterMerchants.take(8))
+                          ActionChip(
+                            avatar: const Icon(
+                              Icons.storefront_outlined,
+                              size: 14,
+                            ),
+                            label: Text(mName),
+                            onPressed: () {
+                              setState(() => _merchantController.text = mName);
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ],
           if (_selectedKind == FfmAssistantDraftKind.income ||
               _selectedKind == FfmAssistantDraftKind.expense) ...[
-            TextField(
-              controller: _locationController,
-              decoration: const InputDecoration(
-                labelText: 'Lokasi (opsional)',
-                hintText: 'Misalnya pasar, rumah, atau kantor',
-              ),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              leading: const Icon(Icons.location_on_outlined),
+              title: const Text('Lokasi (opsional)'),
+              initiallyExpanded: false,
+              children: [
+                TextField(
+                  controller: _locationController,
+                  decoration: const InputDecoration(
+                    labelText: 'Lokasi',
+                    hintText: 'Misalnya pasar, rumah, atau kantor',
+                  ),
+                ),
+              ],
             ),
-            if (_meterNumberController.text.isNotEmpty ||
-                widget.draft.formValues['meterNumber'] != null ||
-                widget.draft.formValues['idpel'] != null ||
-                (_categoryController.text.toLowerCase().contains('listrik') ||
-                    (widget.draft.categoryName?.toLowerCase().contains('listrik') ?? false))) ...[
-              TextField(
-                controller: _meterNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nama / Label Rumah Meteran PLN (opsional)',
-                  hintText: 'Contoh: Rumah Utama, Kontrakan A, Ruko',
-                  helperText: 'Label lokasi meteran PLN di Token Listrik',
-                ),
-              ),
-              TextField(
-                controller: _meterNumberController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Nomor Meter / IDPEL PLN (opsional)',
-                  hintText: 'Contoh: 14123456789',
-                ),
+            if (_isElectricityTokenPurchase) ...[
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                leading: const Icon(Icons.electrical_services_outlined),
+                title: const Text('Data Meteran PLN'),
+                subtitle: _existingMeter != null
+                    ? const Text(
+                        'Data terisi otomatis dari database',
+                        style: TextStyle(fontSize: 12),
+                      )
+                    : const Text(
+                        'Data meteran belum lengkap - isi jika perlu',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                initiallyExpanded: _existingMeter == null,
+                children: [
+                  TextField(
+                    controller: _meterNameController,
+                    decoration: InputDecoration(
+                      labelText: 'Nama Properti / Meteran *',
+                      hintText: 'Misal: Rumah Utama, P...',
+                      helperText: _existingMeter != null
+                          ? '✓ Terisi otomatis'
+                          : null,
+                      filled: _existingMeter != null,
+                      fillColor: _existingMeter != null
+                          ? Colors.green.withAlpha(25)
+                          : null,
+                    ),
+                  ),
+                  TextField(
+                    controller: _meterNumberController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'IDPEL (11-12 Digit) *',
+                      hintText: 'Contoh: 532611821351',
+                      helperText: _existingMeter != null
+                          ? '✓ Terisi otomatis'
+                          : null,
+                      filled: _existingMeter != null,
+                      fillColor: _existingMeter != null
+                          ? Colors.green.withAlpha(25)
+                          : null,
+                    ),
+                    onChanged: (value) {
+                      final normalized = value.replaceAll(RegExp(r'\D'), '');
+                      if (normalized.length >= 11 && normalized.length <= 12) {
+                        _autoPopulateExistingMeter(normalized, null);
+                      }
+                    },
+                  ),
+                  TextField(
+                    controller: _customerNameController,
+                    decoration: InputDecoration(
+                      labelText: 'Nama Pelanggan Terdaftar (PLN)',
+                      hintText: 'Misal: Bpk Raufi',
+                      helperText: _existingMeter != null
+                          ? '✓ Terisi otomatis'
+                          : null,
+                      filled: _existingMeter != null,
+                      fillColor: _existingMeter != null
+                          ? Colors.green.withAlpha(25)
+                          : null,
+                    ),
+                  ),
+                  TextField(
+                    controller: _tariffPowerController,
+                    decoration: InputDecoration(
+                      labelText: 'Golongan Daya / Tarif',
+                      hintText: 'Misal: R1/900VA',
+                      helperText: _existingMeter != null
+                          ? '✓ Terisi otomatis'
+                          : null,
+                      filled: _existingMeter != null,
+                      fillColor: _existingMeter != null
+                          ? Colors.green.withAlpha(25)
+                          : null,
+                    ),
+                  ),
+                  TextField(
+                    controller: _locationController,
+                    decoration: InputDecoration(
+                      labelText: 'Lokasi / Alamat Fisik',
+                      hintText: 'Misal: Dusun Karanganyar RT 02',
+                      helperText: _existingMeter != null
+                          ? '✓ Terisi otomatis'
+                          : null,
+                      filled: _existingMeter != null,
+                      fillColor: _existingMeter != null
+                          ? Colors.green.withAlpha(25)
+                          : null,
+                    ),
+                  ),
+                  TextField(
+                    controller: _tokenCodeController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Kode Token 20 Digit Terakhir',
+                      hintText: 'xxxx-xxxx-xxxx-xxxx-xxxx',
+                      helperText: 'Isi jika ada di struk/chat',
+                    ),
+                  ),
+                  TextField(
+                    controller: _adminFeeController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Biaya Admin Bank/Loket (opsional, Rp)',
+                      hintText: 'Contoh: 2500',
+                      helperText:
+                          'Biaya layanan di luar nominal token listrik. Kosongkan jika tidak ada.'
+                          '${_adminFeeController.text.isNotEmpty ? " | Format: ${_formatNumber(_parseNumber(_adminFeeController.text))}" : ""}',
+                    ),
+                  ),
+                ],
               ),
             ],
           ],
@@ -1787,32 +2082,38 @@ class _FfmAssistantDraftEditDialogState
               ),
           ],
           if (_selectedKind == FfmAssistantDraftKind.expense) ...[
-            TextField(
-              controller: _partyController,
-              decoration: const InputDecoration(
-                labelText: 'Dipakai oleh (opsional)',
-                hintText: 'Contoh: Ayah, Ibu',
-                helperText: 'Penanda rincian pemakai keluarga',
-              ),
-            ),
-            if (_parties.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4, bottom: 6),
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [
-                    for (final p in _parties)
-                      ActionChip(
-                        avatar: const Icon(Icons.add, size: 14),
-                        label: Text(p),
-                        onPressed: () {
-                          setState(() => _partyController.text = p);
-                        },
-                      ),
-                  ],
+            ExpansionTile(
+              title: const Text('Dipakai oleh (opsional)'),
+              initiallyExpanded: false,
+              children: [
+                TextField(
+                  controller: _partyController,
+                  decoration: const InputDecoration(
+                    labelText: 'Dipakai oleh (opsional)',
+                    hintText: 'Contoh: Ayah, Ibu',
+                    helperText: 'Penanda rincian pemakai keluarga',
+                  ),
                 ),
-              ),
+                if (_parties.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, bottom: 6),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        for (final p in _parties)
+                          ActionChip(
+                            avatar: const Icon(Icons.add, size: 14),
+                            label: Text(p),
+                            onPressed: () {
+                              setState(() => _partyController.text = p);
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ],
           if (_selectedKind == FfmAssistantDraftKind.liability)
             TextField(
@@ -1865,86 +2166,94 @@ class _FfmAssistantDraftEditDialogState
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              _selectedKind == FfmAssistantDraftKind.expense
-                  ? 'Wajib: Pilih minimal satu penanda dari Data Utama atau tambahkan tag baru.'
-                  : _selectedKind == FfmAssistantDraftKind.dailyNote
-                  ? 'Opsional. Tag atau penanda lahan/kategori untuk catatan kejadian.'
-                  : 'Opsional. Tag untuk penanda pengelompokan transaksi.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
             const SizedBox(height: 8),
-            Autocomplete<String>(
-              optionsBuilder: (value) {
-                final query = value.text.trim().toLowerCase();
-                final options = _masterTags
-                    .where((tag) => !_tags.any(
-                          (selected) =>
-                              selected.toLowerCase() == tag.toLowerCase(),
-                        ))
-                    .toList();
-                if (query.isEmpty) return options;
-                return options.where(
-                  (tag) => tag.toLowerCase().contains(query),
-                );
-              },
-              onSelected: (value) {
-                _addTag(value);
-                _tagsController.clear();
-              },
-              fieldViewBuilder:
-                  (context, controller, focusNode, onFieldSubmitted) {
-                    return TextField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (value) {
-                        _addTag(value);
-                        controller.clear();
-                        onFieldSubmitted();
-                      },
-                      decoration: const InputDecoration(
-                        labelText: 'Tag',
-                        hintText: 'Ketik tag atau pilih dari Data Utama',
-                        prefixIcon: Icon(Icons.local_offer_outlined),
-                      ),
+            ExpansionTile(
+              title: const Text('Tag penanda'),
+              initiallyExpanded: false,
+              children: [
+                Text(
+                  _selectedKind == FfmAssistantDraftKind.expense
+                      ? 'Wajib: Pilih minimal satu penanda dari Data Utama atau tambahkan tag baru.'
+                      : _selectedKind == FfmAssistantDraftKind.dailyNote
+                      ? 'Opsional. Tag atau penanda lahan/kategori untuk catatan kejadian.'
+                      : 'Opsional. Tag untuk penanda pengelompokan transaksi.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+                Autocomplete<String>(
+                  optionsBuilder: (value) {
+                    final query = value.text.trim().toLowerCase();
+                    final options = _masterTags
+                        .where(
+                          (tag) => !_tags.any(
+                            (selected) =>
+                                selected.toLowerCase() == tag.toLowerCase(),
+                          ),
+                        )
+                        .toList();
+                    if (query.isEmpty) return options;
+                    return options.where(
+                      (tag) => tag.toLowerCase().contains(query),
                     );
                   },
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: [
-                for (final tagName in _masterTags)
-                  FilterChip(
-                    label: Text('#$tagName'),
-                    selected: _tags.any(
-                      (t) => t.toLowerCase() == tagName.toLowerCase(),
+                  onSelected: (value) {
+                    _addTag(value);
+                    _tagsController.clear();
+                  },
+                  fieldViewBuilder:
+                      (context, controller, focusNode, onFieldSubmitted) {
+                        return TextField(
+                          controller: controller,
+                          focusNode: focusNode,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (value) {
+                            _addTag(value);
+                            controller.clear();
+                            onFieldSubmitted();
+                          },
+                          decoration: const InputDecoration(
+                            labelText: 'Tag',
+                            hintText: 'Ketik tag atau pilih dari Data Utama',
+                            prefixIcon: Icon(Icons.local_offer_outlined),
+                          ),
+                        );
+                      },
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    for (final tagName in _masterTags)
+                      FilterChip(
+                        label: Text('#$tagName'),
+                        selected: _tags.any(
+                          (t) => t.toLowerCase() == tagName.toLowerCase(),
+                        ),
+                        onSelected: (selected) {
+                          if (selected) {
+                            _addTag(tagName);
+                          } else {
+                            _removeTag(tagName);
+                          }
+                        },
+                      ),
+                    for (final customTag in _tags.where(
+                      (t) => !_masterTags.any(
+                        (m) => m.toLowerCase() == t.toLowerCase(),
+                      ),
+                    ))
+                      InputChip(
+                        label: Text('#$customTag'),
+                        selected: true,
+                        onDeleted: () => _removeTag(customTag),
+                      ),
+                    ActionChip(
+                      avatar: const Icon(Icons.add_rounded, size: 18),
+                      label: const Text('Tag baru'),
+                      onPressed: _showAddNewTagDialog,
                     ),
-                    onSelected: (selected) {
-                      if (selected) {
-                        _addTag(tagName);
-                      } else {
-                        _removeTag(tagName);
-                      }
-                    },
-                  ),
-                for (final customTag in _tags.where(
-                  (t) => !_masterTags.any(
-                    (m) => m.toLowerCase() == t.toLowerCase(),
-                  ),
-                ))
-                  InputChip(
-                    label: Text('#$customTag'),
-                    selected: true,
-                    onDeleted: () => _removeTag(customTag),
-                  ),
-                ActionChip(
-                  avatar: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('Tag baru'),
-                  onPressed: _showAddNewTagDialog,
+                  ],
                 ),
               ],
             ),
@@ -2037,9 +2346,12 @@ class _FfmAssistantDraftEditDialogState
                         child: TextField(
                           controller: _taxController,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: 'Pajak / PPN (Rp)',
                             hintText: '0',
+                            helperText: _taxController.text.isNotEmpty
+                                ? 'Format: ${_formatNumber(_parseNumber(_taxController.text))}'
+                                : null,
                           ),
                           onChanged: (_) => _recalculateAmountFromItems(),
                         ),
@@ -2049,9 +2361,12 @@ class _FfmAssistantDraftEditDialogState
                         child: TextField(
                           controller: _discountController,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: 'Diskon (Rp)',
                             hintText: '0',
+                            helperText: _discountController.text.isNotEmpty
+                                ? 'Format: ${_formatNumber(_parseNumber(_discountController.text))}'
+                                : null,
                           ),
                           onChanged: (_) => _recalculateAmountFromItems(),
                         ),
@@ -2092,8 +2407,9 @@ class _FfmAssistantDraftEditDialogState
           if (_selectedKind != FfmAssistantDraftKind.reminder)
             TextField(
               controller: _noteController,
-              maxLines:
-                  _selectedKind == FfmAssistantDraftKind.dailyNote ? 4 : 2,
+              maxLines: _selectedKind == FfmAssistantDraftKind.dailyNote
+                  ? 4
+                  : 2,
               decoration: InputDecoration(
                 labelText: _selectedKind == FfmAssistantDraftKind.dailyNote
                     ? 'Isi Catatan / Kejadian (wajib)'

@@ -64,6 +64,28 @@ void main() {
   });
 
   test(
+    'parser mempertahankan alias perintah Aktivitas yang sudah didukung',
+    () {
+      final start = parser.parse('jalankan belanja');
+      final finish = parser.parse(
+        'beres perjalanan',
+        activeSessions: [_activeSession('perjalanan', 'Perjalanan')],
+      );
+      final checkpoint = parser.parse(
+        'tiba pasar',
+        activeSessions: [_activeSession('perjalanan', 'Perjalanan')],
+      );
+
+      expect(start.type, ActivityVoiceIntentType.start);
+      expect(start.targetTitle, 'Belanja');
+      expect(finish.type, ActivityVoiceIntentType.finish);
+      expect(finish.targetSessionId, 'perjalanan');
+      expect(checkpoint.type, ActivityVoiceIntentType.checkpoint);
+      expect(checkpoint.checkpointLabel, 'Pasar');
+    },
+  );
+
+  test(
     'entry chat dapat membawa proposal Aktivitas terpisah dari draft uang',
     () {
       final proposal = parser.parse('Mulai belanja pasar');

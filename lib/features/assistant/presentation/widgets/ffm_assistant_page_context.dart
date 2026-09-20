@@ -129,8 +129,7 @@ abstract final class FfmAssistantScreenContextPolicy {
     FfmAssistantDestination.intelligenceDashboard =>
       'Sedang melihat pengaturan Gemini Cloud dan memori Supabase.',
     FfmAssistantDestination.familyProfile => 'Sedang melihat profil keluarga.',
-    FfmAssistantDestination.utilityMeter =>
-      'Sedang melihat Token Listrik PLN.',
+    FfmAssistantDestination.utilityMeter => 'Sedang melihat Token Listrik PLN.',
     _ => 'Sedang melihat halaman fitur FFM.',
   };
 

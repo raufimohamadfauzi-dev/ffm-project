@@ -42,6 +42,7 @@ class _TwoCallFakeGemini extends GeminiService {
     String? model,
     List<Map<String, dynamic>>? tools,
     GeminiImageInput? image,
+    List<GeminiImageInput>? images,
     int? maxOutputTokens,
   }) async {
     calls++;
@@ -65,6 +66,7 @@ class _SingleFakeGemini extends GeminiService {
     String? model,
     List<Map<String, dynamic>>? tools,
     GeminiImageInput? image,
+    List<GeminiImageInput>? images,
     int? maxOutputTokens,
   }) async {
     calls++;
@@ -84,6 +86,7 @@ class _ThrowingFakeGemini extends GeminiService {
     String? model,
     List<Map<String, dynamic>>? tools,
     GeminiImageInput? image,
+    List<GeminiImageInput>? images,
     int? maxOutputTokens,
   }) async {
     calls++;

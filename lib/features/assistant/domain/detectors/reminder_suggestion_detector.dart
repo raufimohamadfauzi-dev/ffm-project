@@ -65,44 +65,47 @@ class ReminderSuggestionDetector {
       }
     }
 
-    return effectiveCandidates.map((candidate) {
-      final scheduledAt = candidate.at.isAfter(now)
-          ? candidate.at
-          : now.add(const Duration(hours: 1));
-      return FfmAssistantInsight(
-        id: const Uuid().v4(),
-        householdId: householdId,
-        type: FfmAssistantInsightType.reminderSuggestion,
-        severity: FfmAssistantInsightSeverity.info,
-        priority: candidate.priority,
-        confidence: 1,
-        title: 'Buat pengingat untuk ${candidate.sourceType.label}',
-        summary:
-            '${candidate.sourceName} dijadwalkan pada ${_dateLabel(candidate.at)} dan belum memiliki pengingat tertaut.',
-        evidence: {
-          'sourceType': candidate.sourceType.storageValue,
-          'sourceId': candidate.sourceId,
-          'scheduledAt': candidate.at.toIso8601String(),
-        },
-        suggestedAction: 'Tinjau draft pengingat',
-        destination: FfmAssistantDestination.reminders,
-        actionPayload: {
-          'type': 'reminder_suggestion',
-          'title': candidate.title,
-          'note': candidate.note,
-          'scheduledAt': scheduledAt.toIso8601String(),
-          'sourceType': candidate.sourceType.storageValue,
-          'sourceId': candidate.sourceId,
-          'reminderMode': candidate.sourceType == ReminderSourceType.liability
-              ? 'alarm'
-              : 'notification',
-        },
-        createdAt: now,
-        expiresAt: scheduledAt.add(const Duration(days: 7)),
-        dedupeKey:
-            'reminder-suggestion:${candidate.sourceType.storageValue}:${candidate.sourceId}:${scheduledAt.year}-${scheduledAt.month}',
-      );
-    }).toList(growable: false);
+    return effectiveCandidates
+        .map((candidate) {
+          final scheduledAt = candidate.at.isAfter(now)
+              ? candidate.at
+              : now.add(const Duration(hours: 1));
+          return FfmAssistantInsight(
+            id: const Uuid().v4(),
+            householdId: householdId,
+            type: FfmAssistantInsightType.reminderSuggestion,
+            severity: FfmAssistantInsightSeverity.info,
+            priority: candidate.priority,
+            confidence: 1,
+            title: 'Buat pengingat untuk ${candidate.sourceType.label}',
+            summary:
+                '${candidate.sourceName} dijadwalkan pada ${_dateLabel(candidate.at)} dan belum memiliki pengingat tertaut.',
+            evidence: {
+              'sourceType': candidate.sourceType.storageValue,
+              'sourceId': candidate.sourceId,
+              'scheduledAt': candidate.at.toIso8601String(),
+            },
+            suggestedAction: 'Tinjau draft pengingat',
+            destination: FfmAssistantDestination.reminders,
+            actionPayload: {
+              'type': 'reminder_suggestion',
+              'title': candidate.title,
+              'note': candidate.note,
+              'scheduledAt': scheduledAt.toIso8601String(),
+              'sourceType': candidate.sourceType.storageValue,
+              'sourceId': candidate.sourceId,
+              'reminderMode':
+                  candidate.sourceType == ReminderSourceType.liability
+                  ? 'alarm'
+                  : 'notification',
+            },
+            createdAt: now,
+            expiresAt: scheduledAt.add(const Duration(days: 7)),
+            dedupeKey:
+                'reminder-suggestion:${candidate.sourceType.storageValue}:${candidate.sourceId}:${scheduledAt.year}-${scheduledAt.month}',
+          );
+        })
+        .toList(growable: false);
   }
 
   Future<FfmAssistantInsight?> detect({
@@ -596,9 +599,7 @@ class ReminderSuggestionDetector {
           sourceId: latestIssue.first.id,
           sourceName: 'Asisten Log',
           title: 'Tinjau masalah di Asisten Log',
-          note: cleanIssueNote?.isNotEmpty == true
-              ? cleanIssueNote!
-              : 'Ada feedback atau pertanyaan yang belum ditinjau di Asisten Log.',
+          note: cleanIssueNote?.isNotEmpty == true ? cleanIssueNote! : 'Ada feedback atau pertanyaan yang belum ditinjau di Asisten Log.',
           at: setupAt,
           priority: 86,
           isCompleteness: true,

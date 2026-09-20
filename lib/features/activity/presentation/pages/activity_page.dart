@@ -37,6 +37,7 @@ class ActivityPage extends StatelessWidget {
     this.initialMode,
     this.initialScheduledAt,
     this.initialParentSessionId,
+    this.initialTags,
   });
 
   final String? initialTitle;
@@ -47,6 +48,7 @@ class ActivityPage extends StatelessWidget {
   final ActivityMode? initialMode;
   final DateTime? initialScheduledAt;
   final String? initialParentSessionId;
+  final String? initialTags;
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +66,7 @@ class ActivityPage extends StatelessWidget {
           initialMode: initialMode,
           initialScheduledAt: initialScheduledAt,
           initialParentSessionId: initialParentSessionId,
+          initialTags: initialTags,
         ),
       ),
     );
@@ -80,6 +83,7 @@ class _ActivityView extends StatefulWidget {
     this.initialMode,
     this.initialScheduledAt,
     this.initialParentSessionId,
+    this.initialTags,
   });
 
   final String? initialTitle;
@@ -90,6 +94,7 @@ class _ActivityView extends StatefulWidget {
   final ActivityMode? initialMode;
   final DateTime? initialScheduledAt;
   final String? initialParentSessionId;
+  final String? initialTags;
 
   @override
   State<_ActivityView> createState() => _ActivityViewState();
@@ -144,6 +149,7 @@ class _ActivityViewState extends State<_ActivityView>
             initialMode: widget.initialMode,
             initialScheduledAt: widget.initialScheduledAt,
             parentSessionId: widget.initialParentSessionId,
+            initialTagNames: widget.initialTags,
           );
         }
       });
@@ -496,12 +502,14 @@ class _ActivityViewState extends State<_ActivityView>
     DateTime? initialStartedAt,
     ActivityMode? initialMode,
     DateTime? initialScheduledAt,
+    String? initialTagNames,
   }) async {
     if (initialMode == ActivityMode.history) {
       await _startDailyNote(
         initialTitle: initialTitle,
         initialBody: initialNotes,
         initialDate: initialStartedAt,
+        initialTagNames: initialTagNames,
       );
       return;
     }
@@ -541,11 +549,23 @@ class _ActivityViewState extends State<_ActivityView>
     String? initialTitle,
     String? initialBody,
     DateTime? initialDate,
+    String? initialTagNames,
     DailyNote? existing,
   }) async {
     final existingTags = existing == null
         ? const <Tag>[]
         : stateTagsFor(existing.id);
+    final initialTags = initialTagNames == null
+        ? const <Tag>[]
+        : (await _tagRepository.readActive(AppContext.householdId))
+              .where(
+                (tag) => initialTagNames
+                    .split(',')
+                    .map((name) => name.trim().toLowerCase())
+                    .contains(tag.name.trim().toLowerCase()),
+              )
+              .toList(growable: false);
+    if (!mounted) return;
     final result = await showModalBottomSheet<_DailyNoteDraft>(
       context: context,
       isScrollControlled: true,
@@ -559,7 +579,10 @@ class _ActivityViewState extends State<_ActivityView>
         initialBody: initialBody ?? existing?.body,
         initialDate: initialDate ?? existing?.noteDate,
         initialTags: _voiceTags,
-        selectedTagIds: existingTags.map((tag) => tag.id).toSet(),
+        selectedTagIds: {
+          ...existingTags.map((tag) => tag.id),
+          ...initialTags.map((tag) => tag.id),
+        },
         tagRepository: _tagRepository,
       ),
     );

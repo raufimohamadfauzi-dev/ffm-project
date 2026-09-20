@@ -146,7 +146,12 @@ class PaymentNotificationParser {
   );
 
   static final _promoOnlyKeywords = RegExp(
-    r'\b(promo|promosi|diskon|cashback|voucher|kupon|reward|penawaran|hadiah)\b',
+    r'\b(promo|promosi|diskon|cashback|voucher|kupon|reward|penawaran|hadiah|diskon hingga|nikmati diskon|promo partner|dapatkan diskon)\b',
+    caseSensitive: false,
+  );
+
+  static final _adPromoPhraseRegex = RegExp(
+    r'\b(nikmati diskon|diskon hingga|promo partner|dapatkan cashback|dapatkan diskon|penawaran menarik|promo khusus)\b',
     caseSensitive: false,
   );
 
@@ -487,6 +492,10 @@ class PaymentNotificationParser {
       r'\b(?:berhasil|sukses|dibayar|terbayar|pembayaran|transfer\s+(?:ke|dari|masuk|keluar)|top.?up|isi ulang|qris|pesanan|order|checkout|bayar|membayar|paid|payment)\b',
       caseSensitive: false,
     ).hasMatch(lower);
+    final isAdPromo =
+        _adPromoPhraseRegex.hasMatch(lower) && !hasClearPaymentSignal;
+    if (isAdPromo) return null;
+
     final isPromoOnly =
         _promoOnlyKeywords.hasMatch(lower) &&
         !hasClearPaymentSignal &&

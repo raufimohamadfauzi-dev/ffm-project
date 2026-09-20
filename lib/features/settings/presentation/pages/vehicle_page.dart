@@ -51,7 +51,9 @@ class _VehiclePageState extends State<VehiclePage> {
         content: Row(
           children: [
             Icon(
-              isError ? Icons.error_outline_rounded : Icons.check_circle_rounded,
+              isError
+                  ? Icons.error_outline_rounded
+                  : Icons.check_circle_rounded,
               color: Colors.white,
               size: 20,
             ),
@@ -59,7 +61,9 @@ class _VehiclePageState extends State<VehiclePage> {
             Expanded(child: Text(message)),
           ],
         ),
-        backgroundColor: isError ? Colors.red.shade700 : const Color(0xFF059669),
+        backgroundColor: isError
+            ? Colors.red.shade700
+            : const Color(0xFF059669),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
@@ -117,7 +121,9 @@ class _VehiclePageState extends State<VehiclePage> {
           : '',
     );
     final odoCtrl = TextEditingController(
-      text: vehicle?.lastOdometer != null ? vehicle!.lastOdometer!.toStringAsFixed(0) : '',
+      text: vehicle?.lastOdometer != null
+          ? vehicle!.lastOdometer!.toStringAsFixed(0)
+          : '',
     );
     final notesCtrl = TextEditingController(text: vehicle?.notes ?? '');
 
@@ -142,7 +148,8 @@ class _VehiclePageState extends State<VehiclePage> {
                       controller: nameCtrl,
                       decoration: const InputDecoration(
                         labelText: 'Nama / Panggilan Kendaraan *',
-                        hintText: 'Misal: Vario Harian, Avanza Ayah, Traktor Sawah',
+                        hintText:
+                            'Misal: Vario Harian, Avanza Ayah, Traktor Sawah',
                         prefixIcon: Icon(Icons.label_outline_rounded),
                       ),
                       autofocus: !isEditing,
@@ -174,14 +181,28 @@ class _VehiclePageState extends State<VehiclePage> {
                         prefixIcon: Icon(Icons.category_outlined),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'motor', child: Text('Sepeda Motor')),
+                        DropdownMenuItem(
+                          value: 'motor',
+                          child: Text('Sepeda Motor'),
+                        ),
                         DropdownMenuItem(value: 'mobil', child: Text('Mobil')),
-                        DropdownMenuItem(value: 'truk', child: Text('Truk / Niaga')),
-                        DropdownMenuItem(value: 'traktor', child: Text('Traktor / Mesin Tani')),
-                        DropdownMenuItem(value: 'lainnya', child: Text('Lainnya')),
+                        DropdownMenuItem(
+                          value: 'truk',
+                          child: Text('Truk / Niaga'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'traktor',
+                          child: Text('Traktor / Mesin Tani'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'lainnya',
+                          child: Text('Lainnya'),
+                        ),
                       ],
                       onChanged: (val) {
-                        if (val != null) setDialogState(() => selectedType = val);
+                        if (val != null) {
+                          setDialogState(() => selectedType = val);
+                        }
                       },
                     ),
                     const SizedBox(height: 12),
@@ -192,15 +213,35 @@ class _VehiclePageState extends State<VehiclePage> {
                         prefixIcon: Icon(Icons.local_gas_station_outlined),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'Pertalite', child: Text('Pertalite (RON 90)')),
-                        DropdownMenuItem(value: 'Pertamax', child: Text('Pertamax (RON 92)')),
-                        DropdownMenuItem(value: 'Pertamax Turbo', child: Text('Pertamax Turbo (RON 98)')),
-                        DropdownMenuItem(value: 'Solar', child: Text('Solar / Biosolar (CN 48)')),
-                        DropdownMenuItem(value: 'Dexlite', child: Text('Dexlite (CN 51)')),
-                        DropdownMenuItem(value: 'Listrik/EV', child: Text('Listrik / Kendaraan Listrik (EV)')),
+                        DropdownMenuItem(
+                          value: 'Pertalite',
+                          child: Text('Pertalite (RON 90)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Pertamax',
+                          child: Text('Pertamax (RON 92)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Pertamax Turbo',
+                          child: Text('Pertamax Turbo (RON 98)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Solar',
+                          child: Text('Solar / Biosolar (CN 48)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Dexlite',
+                          child: Text('Dexlite (CN 51)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Listrik/EV',
+                          child: Text('Listrik / Kendaraan Listrik (EV)'),
+                        ),
                       ],
                       onChanged: (val) {
-                        if (val != null) setDialogState(() => selectedFuel = val);
+                        if (val != null) {
+                          setDialogState(() => selectedFuel = val);
+                        }
                       },
                     ),
                     const SizedBox(height: 12),
@@ -209,7 +250,9 @@ class _VehiclePageState extends State<VehiclePage> {
                         Expanded(
                           child: TextField(
                             controller: tankCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
                             decoration: const InputDecoration(
                               labelText: 'Kapasitas Tangki (L)',
                               hintText: 'Misal: 5.5',
@@ -251,13 +294,20 @@ class _VehiclePageState extends State<VehiclePage> {
                     final name = nameCtrl.text.trim();
                     final plate = plateCtrl.text.trim().toUpperCase();
                     if (name.isEmpty || plate.isEmpty) {
-                      _showNotice('Nama dan Nomor Polisi wajib diisi!', isError: true);
+                      _showNotice(
+                        'Nama dan Nomor Polisi wajib diisi!',
+                        isError: true,
+                      );
                       return;
                     }
 
                     final householdId = AppContext.householdId;
-                    final tankCap = double.tryParse(tankCtrl.text.replaceAll(',', '.')) ?? 0.0;
-                    final odo = double.tryParse(odoCtrl.text.replaceAll(',', '.'));
+                    final tankCap =
+                        double.tryParse(tankCtrl.text.replaceAll(',', '.')) ??
+                        0.0;
+                    final odo = double.tryParse(
+                      odoCtrl.text.replaceAll(',', '.'),
+                    );
 
                     final newVehicle = Vehicle(
                       id: vehicle?.id ?? const Uuid().v4(),
@@ -299,7 +349,9 @@ class _VehiclePageState extends State<VehiclePage> {
     final litersCtrl = TextEditingController();
     final amountCtrl = TextEditingController();
     final odoCtrl = TextEditingController(
-      text: vehicle.lastOdometer != null ? vehicle.lastOdometer!.toStringAsFixed(0) : '',
+      text: vehicle.lastOdometer != null
+          ? vehicle.lastOdometer!.toStringAsFixed(0)
+          : '',
     );
     final spbuCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
@@ -314,12 +366,18 @@ class _VehiclePageState extends State<VehiclePage> {
             return AlertDialog(
               title: Row(
                 children: [
-                  const Icon(Icons.local_gas_station_rounded, color: Color(0xFFD97706)),
+                  const Icon(
+                    Icons.local_gas_station_rounded,
+                    color: Color(0xFFD97706),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Catat BBM - ${vehicle.name}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -331,10 +389,16 @@ class _VehiclePageState extends State<VehiclePage> {
                   children: [
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.calendar_today_rounded, size: 20),
+                      leading: const Icon(
+                        Icons.calendar_today_rounded,
+                        size: 20,
+                      ),
                       title: Text(
                         '${fillDate.day}/${fillDate.month}/${fillDate.year} ${fillDate.hour.toString().padLeft(2, '0')}:${fillDate.minute.toString().padLeft(2, '0')}',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       trailing: TextButton(
                         onPressed: () async {
@@ -342,7 +406,9 @@ class _VehiclePageState extends State<VehiclePage> {
                             context: context,
                             initialDate: fillDate,
                             firstDate: DateTime(2020),
-                            lastDate: DateTime.now().add(const Duration(days: 1)),
+                            lastDate: DateTime.now().add(
+                              const Duration(days: 1),
+                            ),
                           );
                           if (pickedDate != null) {
                             setDialogState(() {
@@ -365,7 +431,9 @@ class _VehiclePageState extends State<VehiclePage> {
                         Expanded(
                           child: TextField(
                             controller: litersCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
                             decoration: const InputDecoration(
                               labelText: 'Jumlah Liter (L) *',
                               hintText: 'Misal: 4.2',
@@ -396,15 +464,35 @@ class _VehiclePageState extends State<VehiclePage> {
                         prefixIcon: Icon(Icons.local_gas_station_outlined),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'Pertalite', child: Text('Pertalite')),
-                        DropdownMenuItem(value: 'Pertamax', child: Text('Pertamax')),
-                        DropdownMenuItem(value: 'Pertamax Turbo', child: Text('Pertamax Turbo')),
-                        DropdownMenuItem(value: 'Solar', child: Text('Solar / Biosolar')),
-                        DropdownMenuItem(value: 'Dexlite', child: Text('Dexlite')),
-                        DropdownMenuItem(value: 'Listrik/EV', child: Text('Listrik / Charging EV')),
+                        DropdownMenuItem(
+                          value: 'Pertalite',
+                          child: Text('Pertalite'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Pertamax',
+                          child: Text('Pertamax'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Pertamax Turbo',
+                          child: Text('Pertamax Turbo'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Solar',
+                          child: Text('Solar / Biosolar'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Dexlite',
+                          child: Text('Dexlite'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Listrik/EV',
+                          child: Text('Listrik / Charging EV'),
+                        ),
                       ],
                       onChanged: (val) {
-                        if (val != null) setDialogState(() => selectedFuel = val);
+                        if (val != null) {
+                          setDialogState(() => selectedFuel = val);
+                        }
                       },
                     ),
                     const SizedBox(height: 12),
@@ -445,15 +533,26 @@ class _VehiclePageState extends State<VehiclePage> {
                 ),
                 FilledButton.icon(
                   onPressed: () async {
-                    final liters = double.tryParse(litersCtrl.text.replaceAll(',', '.')) ?? 0.0;
-                    final amount = double.tryParse(amountCtrl.text.replaceAll(RegExp(r'\D'), '')) ?? 0.0;
+                    final liters =
+                        double.tryParse(litersCtrl.text.replaceAll(',', '.')) ??
+                        0.0;
+                    final amount =
+                        double.tryParse(
+                          amountCtrl.text.replaceAll(RegExp(r'\D'), ''),
+                        ) ??
+                        0.0;
 
                     if (liters <= 0 || amount <= 0) {
-                      _showNotice('Liter dan Total Biaya harus diisi dengan benar!', isError: true);
+                      _showNotice(
+                        'Liter dan Total Biaya harus diisi dengan benar!',
+                        isError: true,
+                      );
                       return;
                     }
 
-                    final odo = double.tryParse(odoCtrl.text.replaceAll(',', '.'));
+                    final odo = double.tryParse(
+                      odoCtrl.text.replaceAll(',', '.'),
+                    );
                     final newLog = FuelLogEntry(
                       id: const Uuid().v4(),
                       date: fillDate,
@@ -473,7 +572,9 @@ class _VehiclePageState extends State<VehiclePage> {
 
                     if (ctx.mounted) Navigator.pop(ctx);
                     if (mounted) {
-                      _showNotice('Log BBM ${liters}L (${_formatRp(amount)}) berhasil dicatat!');
+                      _showNotice(
+                        'Log BBM ${liters}L (${_formatRp(amount)}) berhasil dicatat!',
+                      );
                       _loadVehicles();
                     }
                   },
@@ -515,10 +616,16 @@ class _VehiclePageState extends State<VehiclePage> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
-                      const Icon(Icons.history_rounded, color: Color(0xFF2563EB)),
+                      const Icon(
+                        Icons.history_rounded,
+                        color: Color(0xFF2563EB),
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
@@ -526,11 +633,17 @@ class _VehiclePageState extends State<VehiclePage> {
                           children: [
                             Text(
                               'Riwayat BBM - ${vehicle.name}',
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             Text(
                               '${vehicle.formattedPlateNumber} • ${logs.length} pengisian tercatat',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
                             ),
                           ],
                         ),
@@ -550,7 +663,11 @@ class _VehiclePageState extends State<VehiclePage> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.local_gas_station_outlined, size: 56, color: Colors.grey.shade400),
+                          Icon(
+                            Icons.local_gas_station_outlined,
+                            size: 56,
+                            color: Colors.grey.shade400,
+                          ),
                           const SizedBox(height: 12),
                           const Text('Belum ada riwayat pengisian BBM.'),
                           const SizedBox(height: 8),
@@ -572,22 +689,32 @@ class _VehiclePageState extends State<VehiclePage> {
                       controller: scrollController,
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                       itemCount: logs.length,
-                      separatorBuilder: (context, index) => const Divider(height: 1),
+                      separatorBuilder: (context, index) =>
+                          const Divider(height: 1),
                       itemBuilder: (context, idx) {
                         final item = logs[idx];
                         final dateStr =
                             '${item.date.day}/${item.date.month}/${item.date.year} ${item.date.hour.toString().padLeft(2, '0')}:${item.date.minute.toString().padLeft(2, '0')}';
                         return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 4,
+                          ),
                           leading: CircleAvatar(
                             backgroundColor: const Color(0xFFFEF3C7),
-                            child: const Icon(Icons.local_gas_station_rounded, color: Color(0xFFD97706), size: 20),
+                            child: const Icon(
+                              Icons.local_gas_station_rounded,
+                              color: Color(0xFFD97706),
+                              size: 20,
+                            ),
                           ),
                           title: Row(
                             children: [
                               Text(
                                 '${item.liters} L (${item.fuelType})',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
                               ),
                               const Spacer(),
                               Text(
@@ -606,32 +733,52 @@ class _VehiclePageState extends State<VehiclePage> {
                               Text(
                                 '$dateStr • @${_formatRp(item.effectivePricePerLiter)}/L'
                                 '${item.odometerKm != null ? ' • Odo: ${item.odometerKm!.toStringAsFixed(0)} KM' : ''}',
-                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade600,
+                                ),
                               ),
-                              if (item.spbuLocation.isNotEmpty || item.notes.isNotEmpty)
+                              if (item.spbuLocation.isNotEmpty ||
+                                  item.notes.isNotEmpty)
                                 Text(
                                   [
-                                    if (item.spbuLocation.isNotEmpty) item.spbuLocation,
+                                    if (item.spbuLocation.isNotEmpty)
+                                      item.spbuLocation,
                                     if (item.notes.isNotEmpty) item.notes,
                                   ].join(' - '),
-                                  style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey.shade700),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontStyle: FontStyle.italic,
+                                    color: Colors.grey.shade700,
+                                  ),
                                 ),
                             ],
                           ),
                           trailing: IconButton(
                             tooltip: 'Hapus Catatan',
-                            icon: Icon(Icons.delete_outline_rounded, color: Colors.red.shade400, size: 20),
+                            icon: Icon(
+                              Icons.delete_outline_rounded,
+                              color: Colors.red.shade400,
+                              size: 20,
+                            ),
                             onPressed: () async {
                               final confirm = await showDialog<bool>(
                                 context: context,
                                 builder: (c) => AlertDialog(
                                   title: const Text('Hapus Catatan BBM?'),
-                                  content: Text('Catatan pengisian ${item.liters}L (${_formatRp(item.totalAmount)}) akan dihapus.'),
+                                  content: Text(
+                                    'Catatan pengisian ${item.liters}L (${_formatRp(item.totalAmount)}) akan dihapus.',
+                                  ),
                                   actions: [
-                                    TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Batal')),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(c, false),
+                                      child: const Text('Batal'),
+                                    ),
                                     FilledButton(
                                       onPressed: () => Navigator.pop(c, true),
-                                      style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                      ),
                                       child: const Text('Hapus'),
                                     ),
                                   ],
@@ -673,7 +820,10 @@ class _VehiclePageState extends State<VehiclePage> {
           'beserta ${vehicle.fuelLogs.length} riwayat pengisian BBM akan dihapus.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
@@ -747,7 +897,9 @@ class _VehiclePageState extends State<VehiclePage> {
                     Card(
                       elevation: 0,
                       color: const Color(0xFF0F172A),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(
@@ -758,10 +910,15 @@ class _VehiclePageState extends State<VehiclePage> {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF059669).withValues(alpha: 0.2),
+                                    color: const Color(0xFF059669)
+                                        .withValues(alpha: 0.2),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
-                                  child: const Icon(Icons.speed_rounded, color: Color(0xFF34D399), size: 22),
+                                  child: const Icon(
+                                    Icons.speed_rounded,
+                                    color: Color(0xFF34D399),
+                                    size: 22,
+                                  ),
                                 ),
                                 const SizedBox(width: 10),
                                 const Text(
@@ -779,11 +936,15 @@ class _VehiclePageState extends State<VehiclePage> {
                               children: [
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Armada Aktif',
-                                        style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                                        style: TextStyle(
+                                          color: Colors.grey.shade400,
+                                          fontSize: 12,
+                                        ),
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
@@ -797,15 +958,23 @@ class _VehiclePageState extends State<VehiclePage> {
                                     ],
                                   ),
                                 ),
-                                Container(width: 1, height: 32, color: Colors.grey.shade800),
+                                Container(
+                                  width: 1,
+                                  height: 32,
+                                  color: Colors.grey.shade800,
+                                ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Liter Bulan Ini',
-                                        style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                                        style: TextStyle(
+                                          color: Colors.grey.shade400,
+                                          fontSize: 12,
+                                        ),
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
@@ -819,15 +988,23 @@ class _VehiclePageState extends State<VehiclePage> {
                                     ],
                                   ),
                                 ),
-                                Container(width: 1, height: 32, color: Colors.grey.shade800),
+                                Container(
+                                  width: 1,
+                                  height: 32,
+                                  color: Colors.grey.shade800,
+                                ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Biaya BBM Bln Ini',
-                                        style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                                        style: TextStyle(
+                                          color: Colors.grey.shade400,
+                                          fontSize: 12,
+                                        ),
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
@@ -872,15 +1049,23 @@ class _VehiclePageState extends State<VehiclePage> {
                             const SizedBox(height: 16),
                             const Text(
                               'Belum Ada Kendaraan Terdaftar',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 17,
+                              ),
                             ),
                             const SizedBox(height: 8),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 32),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                              ),
                               child: Text(
                                 'Daftarkan motor, mobil keluarga, atau kendaraan usaha/tani Anda untuk mencatat konsumsi BBM dan efisiensi harian.',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 20),
@@ -898,16 +1083,23 @@ class _VehiclePageState extends State<VehiclePage> {
                         children: [
                           const Text(
                             'Daftar Kendaraan',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
                           Text(
                             '${_vehicles.length} terdaftar',
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 13,
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 8),
-                      for (final vehicle in _vehicles) _buildVehicleCard(vehicle, now),
+                      for (final vehicle in _vehicles)
+                        _buildVehicleCard(vehicle, now),
                     ],
                   ],
                 ),
@@ -964,16 +1156,25 @@ class _VehiclePageState extends State<VehiclePage> {
                           Expanded(
                             child: Text(
                               vehicle.name,
-                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
                             ),
                           ),
                           // Plat nomor bergaya plat Indonesia
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFF1E293B),
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: Colors.grey.shade400, width: 0.8),
+                              border: Border.all(
+                                color: Colors.grey.shade400,
+                                width: 0.8,
+                              ),
                             ),
                             child: Text(
                               vehicle.formattedPlateNumber,
@@ -989,8 +1190,13 @@ class _VehiclePageState extends State<VehiclePage> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        vehicle.brandModel.isNotEmpty ? vehicle.brandModel : 'Merek belum diisi',
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                        vehicle.brandModel.isNotEmpty
+                            ? vehicle.brandModel
+                            : 'Merek belum diisi',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
@@ -1007,9 +1213,21 @@ class _VehiclePageState extends State<VehiclePage> {
                     }
                   },
                   itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'history', child: Text('Riwayat Pengisian BBM')),
-                    PopupMenuItem(value: 'edit', child: Text('Ubah Data Kendaraan')),
-                    PopupMenuItem(value: 'delete', child: Text('Hapus Kendaraan', style: TextStyle(color: Colors.red))),
+                    PopupMenuItem(
+                      value: 'history',
+                      child: Text('Riwayat Pengisian BBM'),
+                    ),
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Text('Ubah Data Kendaraan'),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text(
+                        'Hapus Kendaraan',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -1059,11 +1277,18 @@ class _VehiclePageState extends State<VehiclePage> {
                     children: [
                       Text(
                         'Bulan ini: ${monthLiters.toStringAsFixed(1)} L (${_formatRp(monthExpense)})',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade700,
+                        ),
                       ),
                       Text(
                         '${vehicle.fuelLogs.length} pengisian tercatat',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
                       ),
                     ],
                   ),
@@ -1074,17 +1299,26 @@ class _VehiclePageState extends State<VehiclePage> {
                   label: const Text('Riwayat', style: TextStyle(fontSize: 12)),
                   style: OutlinedButton.styleFrom(
                     visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 0,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 FilledButton.icon(
                   onPressed: () => _showAddFuelLogDialog(vehicle),
                   icon: const Icon(Icons.add_rounded, size: 16),
-                  label: const Text('Catat BBM', style: TextStyle(fontSize: 12)),
+                  label: const Text(
+                    'Catat BBM',
+                    style: TextStyle(fontSize: 12),
+                  ),
                   style: FilledButton.styleFrom(
                     visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 0,
+                    ),
                     backgroundColor: const Color(0xFFD97706),
                   ),
                 ),
@@ -1133,18 +1367,18 @@ class RoundedRectangleDynamicTopBorder extends ShapeBorder {
   EdgeInsetsGeometry get dimensions => EdgeInsets.zero;
 
   @override
-  Path getInnerPath(Rect rect, {TextDirection? textDirection}) => getOuterPath(rect, textDirection: textDirection);
+  Path getInnerPath(Rect rect, {TextDirection? textDirection}) =>
+      getOuterPath(rect, textDirection: textDirection);
 
   @override
   Path getOuterPath(Rect rect, {TextDirection? textDirection}) {
-    return Path()
-      ..addRRect(
-        RRect.fromRectAndCorners(
-          rect,
-          topLeft: const Radius.circular(20),
-          topRight: const Radius.circular(20),
-        ),
-      );
+    return Path()..addRRect(
+      RRect.fromRectAndCorners(
+        rect,
+        topLeft: const Radius.circular(20),
+        topRight: const Radius.circular(20),
+      ),
+    );
   }
 
   @override

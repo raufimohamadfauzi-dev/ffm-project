@@ -35,6 +35,9 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
   Map<String, ElectricityBurnRate?> _burnRateByMeter = const {};
   String _chartPeriod = 'monthly';
   bool _isLoading = true;
+  String _filterType = 'all'; // all, rumah, sawah, ruko, kontrakan
+  String _sortBy = 'cost'; // cost, consumption, name
+  List<UtilityMeter> _filteredMeters = [];
 
   @override
   void initState() {
@@ -66,7 +69,9 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
         householdId,
         meterId: meter.id,
         period: _chartPeriod,
-        limit: _chartPeriod == 'daily' ? 14 : (_chartPeriod == 'weekly' ? 8 : 6),
+        limit: _chartPeriod == 'daily'
+            ? 14
+            : (_chartPeriod == 'weekly' ? 8 : 6),
         includeReadings: true,
       );
       latestReadings[meter.id] = await _repository.getLatestReading(
@@ -87,7 +92,62 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
       _latestReadingByMeter = latestReadings;
       _burnRateByMeter = burnRates;
       _isLoading = false;
+      _applyFilterAndSort();
     });
+  }
+
+  void _applyFilterAndSort() {
+    var filtered = List<UtilityMeter>.from(_meters);
+
+    // Apply filter
+    if (_filterType != 'all') {
+      filtered = filtered.where((meter) {
+        final name = meter.name.toLowerCase();
+        switch (_filterType) {
+          case 'rumah':
+            return name.contains('rumah') ||
+                name.contains('utama') ||
+                name.contains('main');
+          case 'sawah':
+            return name.contains('sawah') ||
+                name.contains('ladang') ||
+                name.contains('pompa');
+          case 'ruko':
+            return name.contains('ruko') ||
+                name.contains('toko') ||
+                name.contains('usaha');
+          case 'kontrakan':
+            return name.contains('kontrakan') || name.contains('kos');
+          default:
+            return true;
+        }
+      }).toList();
+    }
+
+    // Apply sort
+    switch (_sortBy) {
+      case 'cost':
+        filtered.sort((a, b) {
+          final costA = _summaryByMeter[a.id]?.totalCost.round() ?? 0;
+          final costB = _summaryByMeter[b.id]?.totalCost.round() ?? 0;
+          return costB.compareTo(costA);
+        });
+        break;
+      case 'consumption':
+        filtered.sort((a, b) {
+          final kwhA = _burnRateByMeter[a.id]?.dailyKwh ?? 0.0;
+          final kwhB = _burnRateByMeter[b.id]?.dailyKwh ?? 0.0;
+          return kwhB.compareTo(kwhA);
+        });
+        break;
+      case 'name':
+        filtered.sort(
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        );
+        break;
+    }
+
+    setState(() => _filteredMeters = filtered);
   }
 
   Future<void> _changeChartPeriod(String period) async {
@@ -474,7 +534,8 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
           final parsedReading = double.tryParse(
             readingCtrl.text.trim().replaceAll(',', '.'),
           );
-          final isLower = latest != null &&
+          final isLower =
+              latest != null &&
               parsedReading != null &&
               parsedReading < latest.readingKwh;
           return AlertDialog(
@@ -550,9 +611,8 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                                 try {
                                   final gemini = GeminiService();
                                   final bytes = await file.readAsBytes();
-                                  final mimeType = file.path
-                                          .toLowerCase()
-                                          .endsWith('.png')
+                                  final mimeType =
+                                      file.path.toLowerCase().endsWith('.png')
                                       ? 'image/png'
                                       : 'image/jpeg';
                                   final result = await gemini.chat(
@@ -569,13 +629,15 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                                   );
                                   if (!ctx.mounted) return;
                                   if (result.ok && result.text != null) {
-                                    final match = RegExp(
-                                      r'\d+(?:[.,]\d+)*',
-                                    ).firstMatch(result.text!);
+                                    final match = RegExp(r'\d+(?:[.,]\d+)*')
+                                        .firstMatch(result.text!);
                                     if (match != null) {
                                       var raw = match.group(0)!;
-                                      if (raw.contains('.') && raw.contains(',')) {
-                                        raw = raw.replaceAll('.', '').replaceAll(',', '.');
+                                      if (raw.contains('.') &&
+                                          raw.contains(',')) {
+                                        raw = raw
+                                            .replaceAll('.', '')
+                                            .replaceAll(',', '.');
                                       } else if (raw.contains(',')) {
                                         raw = raw.replaceAll(',', '.');
                                       }
@@ -589,7 +651,9 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                                             content: Text(
                                               'Angka kWh ($raw) berhasil dibaca dari foto!',
                                             ),
-                                            duration: const Duration(seconds: 2),
+                                            duration: const Duration(
+                                              seconds: 2,
+                                            ),
                                           ),
                                         );
                                       }
@@ -615,8 +679,7 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                                       ),
                                     );
                                   }
-                                }
- finally {
+                                } finally {
                                   setDialogState(() => isScanningLcd = false);
                                 }
                               },
@@ -820,10 +883,94 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                     ),
                     const SizedBox(height: 16),
 
-                    if (_meters.isEmpty)
+                    // Summary Section: Total Semua Meteran
+                    if (_meters.isNotEmpty)
+                      _buildSummarySection(context, isDark),
+                    const SizedBox(height: 20),
+
+                    // Alert Banner: Token Hampir Habis
+                    _buildAlertBanner(context, isDark),
+                    const SizedBox(height: 12),
+
+                    // Quick Actions
+                    _buildQuickActions(context, isDark),
+                    const SizedBox(height: 12),
+
+                    // Grafik Komparatif Antar Rumah
+                    if (_meters.isNotEmpty)
+                      _buildComparisonChart(context, isDark),
+                    const SizedBox(height: 20),
+
+                    // Section Header: Daftar Rumah Terdaftar
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.home_work_rounded,
+                          size: 20,
+                          color: Color(0xFF2563EB),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Daftar Rumah Terdaftar (${_filteredMeters.length})',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1D4ED8),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Filter & Sort Chips
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        // Filter Chips
+                        _buildFilterChip('Semua', 'all', isDark),
+                        _buildFilterChip('Rumah', 'rumah', isDark),
+                        _buildFilterChip('Sawah', 'sawah', isDark),
+                        _buildFilterChip('Ruko', 'ruko', isDark),
+                        _buildFilterChip('Kontrakan', 'kontrakan', isDark),
+                        const SizedBox(width: 8),
+                        // Sort Button
+                        DropdownButton<String>(
+                          value: _sortBy,
+                          icon: const Icon(Icons.sort_rounded, size: 18),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: const Color(0xFF1D4ED8),
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'cost',
+                              child: Text('Biaya Tertinggi'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'consumption',
+                              child: Text('Konsumsi Tertinggi'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'name',
+                              child: Text('Nama A-Z'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _sortBy = value);
+                              _applyFilterAndSort();
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    if (_filteredMeters.isEmpty)
                       _buildEmptyState(context, isDark)
                     else
-                      ..._meters.map(
+                      ..._filteredMeters.map(
                         (meter) => _buildMeterCard(context, meter, isDark),
                       ),
                   ],
@@ -871,13 +1018,696 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                   .withValues(alpha: 0.65),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
+
+          // Tutorial Steps
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline_rounded,
+                      size: 18,
+                      color: Color(0xFF6366F1),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Cara Menggunakan',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF6366F1),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildTutorialStep(
+                  '1',
+                  'Daftarkan meteran listrik Anda',
+                  'Tekan tombol + di bawah untuk menambahkan IDPEL/ID meteran.',
+                  isDark,
+                ),
+                const SizedBox(height: 8),
+                _buildTutorialStep(
+                  '2',
+                  'Catat pembelian token di assistant',
+                  'Upload struk pembelian token ke assistant, otomatis tersimpan di riwayat.',
+                  isDark,
+                ),
+                const SizedBox(height: 8),
+                _buildTutorialStep(
+                  '3',
+                  'Catat pembacaan meter secara rutin',
+                  'Gunakan tombol "Catat Pembacaan" agar estimasi konsumsi lebih akurat.',
+                  isDark,
+                ),
+                const SizedBox(height: 8),
+                _buildTutorialStep(
+                  '4',
+                  'Lihat grafik konsumsi di sini',
+                  'Analisis tren dan perbandingan konsumsi antar rumah.',
+                  isDark,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: () => _showAddEditDialog(),
             icon: const Icon(Icons.add_rounded),
-            label: const Text('Daftarkan Meteran Pertama'),
+            label: const Text('Mulai Mendaftarkan'),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTutorialStep(
+    String number,
+    String title,
+    String description,
+    bool isDark,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: const Color(0xFF6366F1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Center(
+            child: Text(
+              number,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : const Color(0xFF1D4ED8),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                description,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDark
+                      ? Colors.white70
+                      : const Color(0xFF1D4ED8).withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummarySection(BuildContext context, bool isDark) {
+    // Calculate total across all meters
+    int totalPurchases = 0;
+    int totalCost = 0;
+    double totalKwh = 0;
+    UtilityMeter? mostExpensiveMeter;
+    int maxCost = 0;
+
+    for (final meter in _meters) {
+      final summary = _summaryByMeter[meter.id];
+      if (summary != null) {
+        totalPurchases += summary.purchaseCount;
+        totalCost += summary.totalCost.round();
+        totalKwh += summary.totalCreditedKwh;
+        if (summary.totalCost.round() > maxCost) {
+          maxCost = summary.totalCost.round();
+          mostExpensiveMeter = meter;
+        }
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF1E3A8A), const Color(0xFF172554)]
+              : [const Color(0xFFDBEAFE), const Color(0xFFBFDBFE)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.analytics_rounded,
+                color: Color(0xFF2563EB),
+                size: 22,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Ringkasan Semua Meteran',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1D4ED8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryMetric(
+                  'Total Pembelian',
+                  totalPurchases.toString(),
+                  'kali',
+                  isDark,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSummaryMetric(
+                  'Total Biaya',
+                  'Rp ${_formatNumber(totalCost.round())}',
+                  '',
+                  isDark,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryMetric(
+                  'Total kWh',
+                  totalKwh > 0 ? '${totalKwh.toStringAsFixed(1)} kWh' : '0 kWh',
+                  '',
+                  isDark,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSummaryMetric(
+                  'Rata-rata',
+                  totalKwh > 0 && totalCost > 0
+                      ? 'Rp ${(totalCost / totalKwh).round()}/kWh'
+                      : '-',
+                  '',
+                  isDark,
+                ),
+              ),
+            ],
+          ),
+          if (mostExpensiveMeter != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF0F172A).withValues(alpha: 0.5)
+                    : Colors.white.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    size: 16,
+                    color: Color(0xFF2563EB),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Rumah paling banyak biaya: ${mostExpensiveMeter.name}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark
+                            ? Colors.white70
+                            : const Color(0xFF1D4ED8),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryMetric(
+    String label,
+    String value,
+    String unit,
+    bool isDark,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark
+            ? const Color(0xFF0F172A).withValues(alpha: 0.5)
+            : Colors.white.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: isDark ? Colors.white60 : const Color(0xFF1D4ED8),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : const Color(0xFF1D4ED8),
+                ),
+              ),
+              if (unit.isNotEmpty) ...[
+                const SizedBox(width: 2),
+                Text(
+                  unit,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isDark ? Colors.white60 : const Color(0xFF1D4ED8),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActions(BuildContext context, bool isDark) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        ActionChip(
+          avatar: const Icon(Icons.add_rounded, size: 18),
+          label: const Text('Tambah Meteran'),
+          onPressed: () => _showAddEditDialog(),
+          backgroundColor: isDark
+              ? const Color(0xFF1E293B)
+              : const Color(0xFFF1F5F9),
+        ),
+        ActionChip(
+          avatar: const Icon(Icons.speed_rounded, size: 18),
+          label: const Text('Catat Pembacaan'),
+          onPressed: () {
+            if (_meters.isNotEmpty) {
+              _showMeterReadingDialog(_meters.first);
+            }
+          },
+          backgroundColor: isDark
+              ? const Color(0xFF1E293B)
+              : const Color(0xFFF1F5F9),
+        ),
+        ActionChip(
+          avatar: const Icon(Icons.analytics_rounded, size: 18),
+          label: const Text('Analisis Konsumsi'),
+          onPressed: () {
+            // Navigate to assistant with query
+            Navigator.of(context).pushNamed('/assistant');
+          },
+          backgroundColor: isDark
+              ? const Color(0xFF1E293B)
+              : const Color(0xFFF1F5F9),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAlertBanner(BuildContext context, bool isDark) {
+    // Find meters with remaining days < 5
+    final criticalMeters = _meters.where((meter) {
+      final burnRate = _burnRateByMeter[meter.id];
+      return burnRate != null &&
+          burnRate.daysRemaining != null &&
+          burnRate.daysRemaining! < 5;
+    }).toList();
+
+    if (criticalMeters.isEmpty) {
+      // Show info banner if no burn rate data available
+      final noDataMeters = _meters.where((meter) {
+        final burnRate = _burnRateByMeter[meter.id];
+        return burnRate == null || burnRate.daysRemaining == null;
+      }).toList();
+
+      if (noDataMeters.isNotEmpty) {
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.info_outline_rounded,
+                size: 16,
+                color: Colors.amber,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'ℹ️ Estimasi habis tidak tersedia. Catat pembacaan meter secara rutin agar estimasi lebih akurat.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? Colors.white70 : const Color(0xFF594A00),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return const SizedBox.shrink();
+    }
+
+    // Show warning banner for critical meters
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF7C2D12) : const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.warning_rounded,
+                size: 16,
+                color: Color(0xFFD97706),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '⚠️ Token listrik hampir habis!',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: isDark
+                        ? const Color(0xFFFDE68A)
+                        : const Color(0xFFB45309),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...criticalMeters.take(2).map((meter) {
+            final burnRate = _burnRateByMeter[meter.id]!;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                '• ${meter.name}: Estimasi habis dalam ~${burnRate.daysRemaining} hari (${_formatShortDate(burnRate.estimatedDepletedAt)})',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDark ? Colors.white70 : const Color(0xFF92400E),
+                ),
+              ),
+            );
+          }),
+          if (criticalMeters.length > 2)
+            Text(
+              '• Dan ${criticalMeters.length - 2} meteran lainnya...',
+              style: TextStyle(
+                fontSize: 11,
+                color: isDark ? Colors.white70 : const Color(0xFF92400E),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildComparisonChart(BuildContext context, bool isDark) {
+    final theme = Theme.of(context);
+
+    // Prepare data for comparison chart
+    final chartData = _meters.map((meter) {
+      final summary = _summaryByMeter[meter.id];
+      final burnRate = _burnRateByMeter[meter.id];
+      return {
+        'meter': meter,
+        'totalCost': summary?.totalCost.round() ?? 0,
+        'dailyKwh': burnRate?.dailyKwh ?? 0.0,
+      };
+    }).toList();
+
+    // Sort by total cost descending
+    chartData.sort(
+      (a, b) => (b['totalCost'] as int).compareTo(a['totalCost'] as int),
+    );
+
+    final maxCost = chartData.fold<int>(
+      0,
+      (max, item) =>
+          max > (item['totalCost'] as int) ? max : (item['totalCost'] as int),
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.bar_chart_rounded,
+                size: 20,
+                color: Color(0xFF6366F1),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Perbandingan Konsumsi Antar Rumah',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF6366F1),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (chartData.isEmpty)
+            const Text(
+              'Belum ada data untuk ditampilkan.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            )
+          else
+            ...chartData.map((item) {
+              final meter = item['meter'] as UtilityMeter;
+              final totalCost = item['totalCost'] as int;
+              final dailyKwh = item['dailyKwh'] as double;
+              final ratio = maxCost > 0 ? totalCost / maxCost : 0.0;
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 100,
+                          child: Text(
+                            meter.name,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: theme.colorScheme.onSurface,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: LinearProgressIndicator(
+                                      value: ratio,
+                                      backgroundColor: isDark
+                                          ? const Color(0xFF334155)
+                                          : const Color(0xFFE2E8F0),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        const Color(0xFF6366F1),
+                                      ),
+                                      minHeight: 8,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Rp ${_formatNumber(totalCost)}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.colorScheme.onSurface,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (dailyKwh > 0)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    '~${dailyKwh.toStringAsFixed(2)} kWh/hari',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: theme.colorScheme.onSurface
+                                          .withValues(alpha: 0.6),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrendIndicator(UtilityMeter meter, bool isDark) {
+    final periodData = _periodDataByMeter[meter.id] ?? [];
+    if (periodData.length < 2) {
+      return const SizedBox.shrink();
+    }
+
+    // Calculate trend from period data
+    final sortedData = periodData.toList()
+      ..sort((a, b) => a.dateFrom.compareTo(b.dateFrom));
+    final oldest = sortedData.first;
+    final newest = sortedData.last;
+
+    if (oldest.totalCost == 0 || newest.totalCost == 0) {
+      return const SizedBox.shrink();
+    }
+
+    final change = newest.totalCost - oldest.totalCost;
+    final percentage = (change / oldest.totalCost * 100).round();
+    final isUp = change > 0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isUp
+            ? (isDark
+                  ? const Color(0xFF14532D).withValues(alpha: 0.3)
+                  : const Color(0xFFDCFCE7).withValues(alpha: 0.5))
+            : (isDark
+                  ? const Color(0xFF7F1D1D).withValues(alpha: 0.3)
+                  : const Color(0xFFFEE2E2).withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isUp ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+            size: 14,
+            color: isUp ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '${isUp ? '+' : ''}$percentage%',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isUp ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, String value, bool isDark) {
+    final theme = Theme.of(context);
+    final isSelected = _filterType == value;
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        if (selected) {
+          setState(() => _filterType = value);
+          _applyFilterAndSort();
+        }
+      },
+      selectedColor: isDark ? const Color(0xFF2563EB) : const Color(0xFFBFDBFE),
+      checkmarkColor: isDark ? Colors.white : const Color(0xFF1D4ED8),
+      labelStyle: TextStyle(
+        fontSize: 11,
+        color: isSelected
+            ? (isDark ? Colors.white : const Color(0xFF1D4ED8))
+            : theme.colorScheme.onSurface.withValues(alpha: 0.7),
       ),
     );
   }
@@ -1000,6 +1830,11 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                 ],
               ),
             ),
+            const SizedBox(height: 8),
+
+            // Trend Indicators
+            _buildTrendIndicator(meter, isDark),
+
             const SizedBox(height: 8),
 
             // Detail pelanggan & lokasi
@@ -1182,10 +2017,13 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                   ),
                 ),
             ],
-              if (burnRate != null) ...[
+            if (burnRate != null) ...[
               Container(
                 margin: const EdgeInsets.only(top: 10, bottom: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: isDark
                       ? const Color(0xFF132A1C)
@@ -1226,8 +2064,8 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                                 fontWeight: FontWeight.w600,
                                 color: burnRate.daysRemaining! > 2
                                     ? (isDark
-                                        ? Colors.white70
-                                        : const Color(0xFF166534))
+                                          ? Colors.white70
+                                          : const Color(0xFF166534))
                                     : Colors.red[700],
                               ),
                             ),
@@ -1243,50 +2081,133 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
               period: _chartPeriod,
               onPeriodChanged: _changeChartPeriod,
             ),
-              if (latestReading != null) ...[
-                const SizedBox(height: 10),
-                Text(
-                  'Pembacaan terakhir: ${latestReading.readingKwh.toStringAsFixed(2)} kWh (${_formatDate(latestReading.recordedAt)})',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            const SizedBox(height: 12),
+
+            // Insight Section yang Lebih Jelas
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF1E293B)
+                    : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: 0.4,
                   ),
                 ),
-              ],
-              const SizedBox(height: 4),
-              Theme(
-                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                child: ExpansionTile(
-                  tilePadding: EdgeInsets.zero,
-                  childrenPadding: const EdgeInsets.only(bottom: 4),
-                  leading: Icon(
-                    Icons.lightbulb_outline_rounded,
-                    size: 18,
-                    color: theme.colorScheme.tertiary,
-                  ),
-                  title: const Text(
-                    'Cara membaca meter',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                  ),
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        '• Lihat angka kWh pada layar digital meter.\n'
-                        '• Biasanya 5-6 digit, contohnya 10.112 kWh.\n'
-                        '• Catat angka yang terlihat tanpa menekan tombol meter.\n'
-                        '• Catat setiap bulan agar grafik pemakaian makin akurat.',
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.lightbulb_rounded,
+                        size: 16,
+                        color: Color(0xFF6366F1),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'Analisis Singkat',
                         style: TextStyle(
                           fontSize: 11,
-                          height: 1.5,
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF6366F1),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (burnRate != null) ...[
+                    Text(
+                      '• Konsumsi rata-rata: ~${burnRate.dailyKwh.toStringAsFixed(2)} kWh/hari',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.8,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    if (burnRate.daysRemaining != null)
+                      Text(
+                        burnRate.daysRemaining! > 0
+                            ? '• Estimasi habis: ~${burnRate.daysRemaining} hari lagi (${_formatShortDate(burnRate.estimatedDepletedAt)})'
+                            : '• ⚠️ Token hampir habis! Segera beli token baru.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: burnRate.daysRemaining! > 2
+                              ? FontWeight.normal
+                              : FontWeight.bold,
+                          color: burnRate.daysRemaining! > 2
+                              ? theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.8,
+                                )
+                              : Colors.red[700],
+                        ),
+                      ),
+                  ] else ...[
+                    Text(
+                      '• Belum cukup data untuk analisis konsumsi.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.6,
                         ),
                       ),
                     ),
                   ],
+                ],
+              ),
+            ),
+            if (latestReading != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Pembacaan terakhir: ${latestReading.readingKwh.toStringAsFixed(2)} kWh (${_formatDate(latestReading.recordedAt)})',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
               ),
-              const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 4),
+            Theme(
+              data: Theme.of(context)
+                  .copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(bottom: 4),
+                leading: Icon(
+                  Icons.lightbulb_outline_rounded,
+                  size: 18,
+                  color: theme.colorScheme.tertiary,
+                ),
+                title: const Text(
+                  'Cara membaca meter',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '• Lihat angka kWh pada layar digital meter.\n'
+                      '• Biasanya 5-6 digit, contohnya 10.112 kWh.\n'
+                      '• Catat angka yang terlihat tanpa menekan tombol meter.\n'
+                      '• Catat setiap bulan agar grafik pemakaian makin akurat.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.5,
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.72,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
             if (history.isNotEmpty) ...[
               const SizedBox(height: 14),
               const Text(
@@ -1434,16 +2355,15 @@ class MiniMonthlyBarChart extends StatelessWidget {
     if (data.length < 2) return const SizedBox.shrink();
 
     final scheme = Theme.of(context).colorScheme;
-    final points = data.toList()..sort((a, b) => a.dateFrom.compareTo(b.dateFrom));
+    final points = data.toList()
+      ..sort((a, b) => a.dateFrom.compareTo(b.dateFrom));
     final maxCost = points.fold<int>(
       0,
       (max, point) => point.totalCost > max ? point.totalCost : max,
     );
     final maxActual = points.fold<double>(
       0,
-      (max, point) => (point.actualKwh ?? 0) > max
-          ? point.actualKwh!
-          : max,
+      (max, point) => (point.actualKwh ?? 0) > max ? point.actualKwh! : max,
     );
     if (maxCost <= 0 && maxActual <= 0) return const SizedBox.shrink();
 
@@ -1462,8 +2382,8 @@ class MiniMonthlyBarChart extends StatelessWidget {
                   period == 'daily'
                       ? 'Tren listrik harian'
                       : period == 'weekly'
-                          ? 'Tren listrik mingguan'
-                          : 'Tren listrik bulanan',
+                      ? 'Tren listrik mingguan'
+                      : 'Tren listrik bulanan',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -1502,10 +2422,7 @@ class MiniMonthlyBarChart extends StatelessWidget {
             children: [
               _LegendItem(color: scheme.primary, label: 'Estimasi beli'),
               if (maxActual > 0)
-                _LegendItem(
-                  color: scheme.tertiary,
-                  label: 'Aktual kWh',
-                ),
+                _LegendItem(color: scheme.tertiary, label: 'Aktual kWh'),
             ],
           ),
           const SizedBox(height: 10),
@@ -1513,95 +2430,107 @@ class MiniMonthlyBarChart extends StatelessWidget {
             height: 116,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
-              children: points.map((point) {
-                final ratio = point.totalCost / maxCost;
-                final actualRatio = maxActual <= 0
-                    ? 0.0
-                    : (point.actualKwh ?? 0) / maxActual;
-                final isCurrentMonth = period == 'monthly'
-                    ? (point.dateFrom.year == now.year && point.dateFrom.month == now.month)
-                    : period == 'weekly'
-                        ? (now.difference(point.dateFrom).inDays >= 0 && now.difference(point.dateFrom).inDays < 7)
-                        : (point.dateFrom.year == now.year && point.dateFrom.month == now.month && point.dateFrom.day == now.day);
-                final monthLabel = point.label.split(' ').first;
-                return Expanded(
-                  child: Semantics(
-                    label:
-                        '$monthLabel, Rp ${_formatCompact(point.totalCost)}, ${point.purchaseCount} pembelian',
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          SizedBox(
-                            height: 20,
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                _formatCompact(point.totalCost),
-                                maxLines: 1,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: scheme.onSurface,
+              children: points
+                  .map((point) {
+                    final ratio = point.totalCost / maxCost;
+                    final actualRatio = maxActual <= 0
+                        ? 0.0
+                        : (point.actualKwh ?? 0) / maxActual;
+                    final isCurrentMonth = period == 'monthly'
+                        ? (point.dateFrom.year == now.year &&
+                              point.dateFrom.month == now.month)
+                        : period == 'weekly'
+                        ? (now.difference(point.dateFrom).inDays >= 0 &&
+                              now.difference(point.dateFrom).inDays < 7)
+                        : (point.dateFrom.year == now.year &&
+                              point.dateFrom.month == now.month &&
+                              point.dateFrom.day == now.day);
+                    final monthLabel = point.label.split(' ').first;
+                    return Expanded(
+                      child: Semantics(
+                        label:
+                            '$monthLabel, Rp ${_formatCompact(point.totalCost)}, ${point.purchaseCount} pembelian',
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              SizedBox(
+                                height: 20,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    _formatCompact(point.totalCost),
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: scheme.onSurface,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                if (maxCost > 0)
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 220),
-                                    width: 8,
-                                    height: 8 + (54 * ratio),
-                                    decoration: BoxDecoration(
-                                      color: isCurrentMonth
-                                          ? scheme.primary
-                                          : scheme.primaryContainer,
-                                      borderRadius: const BorderRadius.vertical(
-                                        top: Radius.circular(7),
+                              Expanded(
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    if (maxCost > 0)
+                                      AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 220,
+                                        ),
+                                        width: 8,
+                                        height: 8 + (54 * ratio),
+                                        decoration: BoxDecoration(
+                                          color: isCurrentMonth
+                                              ? scheme.primary
+                                              : scheme.primaryContainer,
+                                          borderRadius:
+                                              const BorderRadius.vertical(
+                                                top: Radius.circular(7),
+                                              ),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                if (maxActual > 0) ...[
-                                  const SizedBox(width: 3),
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 220),
-                                    width: 8,
-                                    height: (point.actualKwh ?? 0) <= 0
-                                        ? 2
-                                        : 8 + (54 * actualRatio),
-                                    decoration: BoxDecoration(
-                                      color: scheme.tertiary,
-                                      borderRadius: const BorderRadius.vertical(
-                                        top: Radius.circular(7),
+                                    if (maxActual > 0) ...[
+                                      const SizedBox(width: 3),
+                                      AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 220,
+                                        ),
+                                        width: 8,
+                                        height: (point.actualKwh ?? 0) <= 0
+                                            ? 2
+                                            : 8 + (54 * actualRatio),
+                                        decoration: BoxDecoration(
+                                          color: scheme.tertiary,
+                                          borderRadius:
+                                              const BorderRadius.vertical(
+                                                top: Radius.circular(7),
+                                              ),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                monthLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            monthLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
-                );
-              }).toList(growable: false),
+                    );
+                  })
+                  .toList(growable: false),
             ),
           ),
         ],
@@ -1610,7 +2539,9 @@ class MiniMonthlyBarChart extends StatelessWidget {
   }
 
   String _formatCompact(int amount) {
-    if (amount >= 1000000) return 'Rp${(amount / 1000000).toStringAsFixed(1)}jt';
+    if (amount >= 1000000) {
+      return 'Rp${(amount / 1000000).toStringAsFixed(1)}jt';
+    }
     if (amount >= 1000) return 'Rp${(amount / 1000).toStringAsFixed(0)}rb';
     return 'Rp$amount';
   }
@@ -1659,7 +2590,9 @@ class _PeriodChoiceChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected
               ? theme.colorScheme.primary
-              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+              : theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.6,
+                ),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
@@ -1676,4 +2609,3 @@ class _PeriodChoiceChip extends StatelessWidget {
     );
   }
 }
-

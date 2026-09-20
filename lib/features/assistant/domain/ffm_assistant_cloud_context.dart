@@ -292,7 +292,7 @@ class FfmAssistantCloudContextEnvelope {
   final String cloudMemoryContext;
   final List<FfmAssistantCloudCapabilityEvidence> capabilityEvidences;
 
-  String toBoundedPrompt({int maxCharacters = 8000}) {
+  String toBoundedPrompt({int maxCharacters = 12000}) {
     final metadata = jsonEncode({
       'schemaVersion': schemaVersion,
       'capturedAt': capturedAt.toIso8601String(),
@@ -311,6 +311,8 @@ class FfmAssistantCloudContextEnvelope {
       'CLOUD CONTEXT METADATA:\n${_clip(metadata, 500)}',
       'AUTHORITATIVE DATA POLICY:\nAngka dan status hanya boleh berasal dari VERIFIED FACTS, ANALYSIS FACTS, atau hasil capability lokal. Memory dan riwayat hanya context. Draft belum tersimpan sampai FFM memverifikasi eksekusi.',
       if (activeDraft != null) activeDraft!.toBoundedPrompt(),
+      if (conversationHistory.trim().isNotEmpty)
+        'BOUNDED CONVERSATION HISTORY:\n${_clip(conversationHistory, 4000)}',
       'VERIFIED FACTS:\n${_clip(verifiedFacts.toLLMContext(), 1800)}',
       if (analysisFacts != null)
         'ANALYSIS FACTS:\n${_clip(analysisFacts!.toLLMContext(), 1400)}',
@@ -321,8 +323,6 @@ class FfmAssistantCloudContextEnvelope {
         'APPROVED PERSONAL MEMORY:\n${_clip(personalMemoryContext, 700)}',
       if (draftFeedback.trim().isNotEmpty)
         'DRAFT REVISION FEEDBACK:\n${_clip(draftFeedback, 500)}',
-      if (conversationHistory.trim().isNotEmpty)
-        'BOUNDED CONVERSATION HISTORY:\n${_clip(conversationHistory, 2500)}',
       if (cloudMemoryContext.trim().isNotEmpty)
         'BOUNDED CLOUD MEMORY:\n${_clip(cloudMemoryContext, 500)}',
     ];

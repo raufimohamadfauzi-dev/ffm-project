@@ -60,9 +60,7 @@ class ReminderTtsService {
     String? note,
     bool isUrgentAlarm = false,
   }) async {
-    final prefix = isUrgentAlarm
-        ? 'Perhatian, alarm pengingat:'
-        : 'Pengingat:';
+    final prefix = isUrgentAlarm ? 'Perhatian, alarm pengingat:' : 'Pengingat:';
     final buffer = StringBuffer('$prefix ${_cleanTextForSpeech(title)}.');
     if (note != null && note.trim().isNotEmpty) {
       final cleanNote = _cleanTextForSpeech(note);

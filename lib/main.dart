@@ -1149,6 +1149,9 @@ class _AppShellState extends State<AppShell> {
                   ? draft?.parentSessionId ??
                         draft?.formValues['parentSessionId']?.toString()
                   : null,
+              initialTags: draft?.kind == FfmAssistantDraftKind.activity
+                  ? draft?.tags ?? draft?.formValues['tags']?.toString()
+                  : null,
             ),
           ),
         );

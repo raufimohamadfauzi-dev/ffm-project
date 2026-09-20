@@ -11,6 +11,7 @@ import '../../../assistant/data/telegram_delivery_processor.dart';
 import '../../../assistant/data/telegram_delivery_repository.dart';
 import '../../../assistant/data/telegram_message_formatter.dart';
 import '../../../liability/domain/usecases/process_debt_payment.dart';
+import '../../../settings/data/utility_meter_repository.dart';
 import '../entities/transaction_entity.dart';
 
 class TransactionEntity {
@@ -37,6 +38,8 @@ class TransactionEntity {
     this.receiptChangeAmount,
     this.tax,
     this.discount,
+    this.adminFee,
+    this.metadataJson,
     required this.recordedAt,
     this.updatedAt,
   });
@@ -63,6 +66,8 @@ class TransactionEntity {
   final int? receiptChangeAmount;
   final int? tax;
   final int? discount;
+  final int? adminFee;
+  final String? metadataJson;
   final DateTime recordedAt;
   final DateTime? updatedAt;
 
@@ -93,6 +98,8 @@ class TransactionEntity {
     int? receiptChangeAmount,
     int? tax,
     int? discount,
+    int? adminFee,
+    String? metadataJson,
     DateTime? recordedAt,
     DateTime? updatedAt,
   }) {
@@ -120,6 +127,8 @@ class TransactionEntity {
       receiptChangeAmount: receiptChangeAmount ?? this.receiptChangeAmount,
       tax: tax ?? this.tax,
       discount: discount ?? this.discount,
+      adminFee: adminFee ?? this.adminFee,
+      metadataJson: metadataJson ?? this.metadataJson,
       recordedAt: recordedAt ?? this.recordedAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -401,6 +410,8 @@ class SaveTransaction {
               receiptChangeAmount: Value(effectiveEntity.receiptChangeAmount),
               tax: Value(effectiveEntity.tax),
               discount: Value(effectiveEntity.discount),
+              adminFee: Value(effectiveEntity.adminFee),
+              metadataJson: Value(effectiveEntity.metadataJson),
               createdAt: effectiveEntity.recordedAt,
               updatedAt: Value(effectiveEntity.updatedAt ?? DateTime.now()),
             ),
@@ -869,8 +880,9 @@ Future<void> _processTelegramAfterCommit(
 }
 
 class ArchiveTransaction {
-  ArchiveTransaction(this.database);
+  ArchiveTransaction(this.database, {this.utilityMeterRepository});
   final AppDatabase database;
+  final UtilityMeterRepository? utilityMeterRepository;
 
   Future<void> call(String householdId, String id) async {
     final now = DateTime.now();
@@ -881,6 +893,13 @@ class ArchiveTransaction {
           .call(householdId: householdId, transactionId: id);
     } catch (_) {
       // Ignore rollback errors (not a payment transaction or other issues)
+    }
+
+    // Sinkronisasi 1:1: hapus riwayat token listrik terkait jika ada.
+    try {
+      await utilityMeterRepository?.deleteLinkedPurchase(householdId, id);
+    } catch (_) {
+      // Non-blocking: kegagalan sinkronisasi token tidak boleh membatalkan arsip transaksi.
     }
 
     await (database.update(database.transactions)..where(
@@ -896,8 +915,9 @@ class ArchiveTransaction {
 }
 
 class DeleteTransaction {
-  DeleteTransaction(this.database);
+  DeleteTransaction(this.database, {this.utilityMeterRepository});
   final AppDatabase database;
+  final UtilityMeterRepository? utilityMeterRepository;
 
   /// Menghapus dari daftar aktif secara terkontrol, tanpa physical delete yang
   /// akan memutus jejak audit dan relasi data lokal.
@@ -910,6 +930,13 @@ class DeleteTransaction {
           .call(householdId: householdId, transactionId: id);
     } catch (_) {
       // Ignore rollback errors (not a payment transaction or other issues)
+    }
+
+    // Sinkronisasi 1:1: hapus riwayat token listrik terkait jika ada.
+    try {
+      await utilityMeterRepository?.deleteLinkedPurchase(householdId, id);
+    } catch (_) {
+      // Non-blocking: kegagalan sinkronisasi token tidak boleh membatalkan penghapusan transaksi.
     }
 
     await (database.update(database.transactions)..where(

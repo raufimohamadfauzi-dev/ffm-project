@@ -543,7 +543,9 @@ class FfmPersonalMemoryService {
       final valLower = m.value.toLowerCase().trim();
 
       bool isMatch = false;
-      if (valLower.isNotEmpty && valLower.length >= 3 && lower.contains(valLower)) {
+      if (valLower.isNotEmpty &&
+          valLower.length >= 3 &&
+          lower.contains(valLower)) {
         isMatch = true;
       } else if (keyLower.length >= 4 && lower.contains(keyLower)) {
         isMatch = true;
@@ -553,23 +555,28 @@ class FfmPersonalMemoryService {
             isMatch = lower.contains('gaji') || lower.contains('gajian');
             break;
           case 'commodity':
-            isMatch = lower.contains('komoditas') ||
+            isMatch =
+                lower.contains('komoditas') ||
                 lower.contains('panen') ||
                 lower.contains('tanam');
             break;
           case 'monthly_income':
-            isMatch = lower.contains('penghasilan') || lower.contains('pendapatan');
+            isMatch =
+                lower.contains('penghasilan') || lower.contains('pendapatan');
             break;
           case 'location':
-            isMatch = lower.contains('domisili') || lower.contains('tinggal di');
+            isMatch =
+                lower.contains('domisili') || lower.contains('tinggal di');
             break;
           case 'agriculture_field':
-            isMatch = lower.contains('lahan') ||
+            isMatch =
+                lower.contains('lahan') ||
                 lower.contains('kebun') ||
                 lower.contains('sawah');
             break;
           case 'electricity_meter':
-            isMatch = lower.contains('meteran') ||
+            isMatch =
+                lower.contains('meteran') ||
                 lower.contains('idpel') ||
                 lower.contains('token pln');
             break;

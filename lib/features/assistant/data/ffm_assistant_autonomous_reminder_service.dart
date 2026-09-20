@@ -27,11 +27,13 @@ class FfmAssistantAutonomousReminderService {
         ReminderSourceTypeX.fromStorage(payload['sourceType']?.toString()) ??
         ReminderSourceType.assistantLog;
     final rawSourceId = payload['sourceId']?.toString().trim();
-    final sourceId =
-        (rawSourceId != null && rawSourceId.isNotEmpty) ? rawSourceId : insight.id;
+    final sourceId = (rawSourceId != null && rawSourceId.isNotEmpty)
+        ? rawSourceId
+        : insight.id;
     final rawTitle = payload['title']?.toString().trim();
-    final title =
-        (rawTitle != null && rawTitle.isNotEmpty) ? rawTitle : insight.title.trim();
+    final title = (rawTitle != null && rawTitle.isNotEmpty)
+        ? rawTitle
+        : insight.title.trim();
     final scheduledAt =
         DateTime.tryParse(payload['scheduledAt']?.toString() ?? '') ??
         insight.expiresAt?.subtract(const Duration(days: 7)) ??

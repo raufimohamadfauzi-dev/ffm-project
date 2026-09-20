@@ -12,11 +12,13 @@ class _FakeHttpClient extends http.BaseClient {
   final Future<http.Response> Function(String method, Uri uri) handler;
   Map<String, String>? lastHeaders;
   Uri? lastUri;
+  String? lastBody;
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     lastHeaders = request.headers;
     lastUri = request.url;
+    lastBody = await request.finalize().transform(utf8.decoder).join();
     final response = await handler(request.method, request.url);
     return http.StreamedResponse(
       Stream<List<int>>.value(response.bodyBytes),
@@ -186,6 +188,42 @@ void main() {
       expect(result.diagnosticCode, GeminiDiagnosticCodes.chatSuccess);
     },
   );
+
+  test('chat mendukung beberapa gambar dalam satu request Gemini', () async {
+    late _FakeHttpClient client;
+    client = _FakeHttpClient(
+      (method, uri) async => http.Response(
+        jsonEncode({
+          'candidates': [
+            {
+              'content': {
+                'parts': [
+                  {'text': 'Saya membaca 2 foto.'},
+                ],
+              },
+            },
+          ],
+        }),
+        200,
+      ),
+    );
+
+    final service = GeminiService(client: client);
+    final result = await service.chat(
+      prompt: 'Baca 2 foto ini',
+      apiKey: 'test-key',
+      model: 'gemini-2.5-flash',
+      images: [
+        const GeminiImageInput(base64Data: 'AAA', mimeType: 'image/jpeg'),
+        const GeminiImageInput(base64Data: 'BBB', mimeType: 'image/png'),
+      ],
+    );
+
+    expect(result.ok, isTrue);
+    expect(result.text, 'Saya membaca 2 foto.');
+    expect(client.lastBody, contains('inline_data'));
+    expect(client.lastBody!.split('inline_data').length, 3);
+  });
 
   test(
     'listModels hanya mengembalikan model yang mendukung generateContent',

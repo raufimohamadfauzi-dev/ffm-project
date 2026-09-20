@@ -124,7 +124,15 @@ class FfmAssistantCapabilityRegistry {
       description: 'Membaca jejak perubahan lokal dengan filter terbatas.',
       risk: FfmAssistantCapabilityRisk.readOnly,
       destination: FfmAssistantDestination.activityLog,
-      parameterNames: ['action', 'entity', 'dateFrom', 'dateTo', 'search', 'limit', 'offset'],
+      parameterNames: [
+        'action',
+        'entity',
+        'dateFrom',
+        'dateTo',
+        'search',
+        'limit',
+        'offset',
+      ],
       readOnly: true,
     ),
     const FfmAssistantCapability(
@@ -581,7 +589,8 @@ class FfmAssistantCapabilityRegistry {
     const FfmAssistantCapability(
       id: 'draft.reminder_complete',
       label: 'Siapkan penyelesaian pengingat',
-      description: 'Menampilkan pengingat atau occurrence yang akan ditandai selesai.',
+      description:
+          'Menampilkan pengingat atau occurrence yang akan ditandai selesai.',
       risk: FfmAssistantCapabilityRisk.prepare,
       destination: FfmAssistantDestination.reminders,
       parameterNames: ['targetId'],

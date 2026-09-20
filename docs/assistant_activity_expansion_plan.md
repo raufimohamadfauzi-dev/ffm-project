@@ -1,6 +1,6 @@
 # FFM Assistant Activity Expansion Plan
 
-Status: In progress
+Status: Implemented; physical-device verification pending
 
 Tujuan dokumen ini adalah mengarahkan perluasan kemampuan Asisten FFM pada halaman Aktivitas tanpa memberi akses SQL langsung kepada LLM, tanpa membuat draft kind yang tumpang tindih, dan tanpa mengubah perilaku bisnis yang belum dispesifikasikan.
 
@@ -9,12 +9,12 @@ Tujuan dokumen ini adalah mengarahkan perluasan kemampuan Asisten FFM pada halam
 - [x] Audit awal halaman Aktivitas, draft, parser, query, capability adapter, dan test.
 - [x] Perbaiki handoff draft Asisten ke halaman Aktivitas.
 - [ ] Bentuk kontrak query Aktivitas terpadu.
-- [ ] Implementasikan query tambahan bernilai tinggi.
-- [ ] Samakan keyword dan routing intent.
-- [ ] Perkuat validasi draft dan mutation.
-- [ ] Lengkapi confirmation, execution, verification, dan error handling.
+- [x] Implementasikan query tambahan bernilai tinggi.
+- [x] Samakan keyword dan routing intent untuk alias yang sudah didukung.
+- [x] Perkuat validasi draft dan mutation yang dapat diverifikasi deterministik.
+- [x] Lengkapi confirmation, execution, verification, dan error handling untuk alur mutation yang sudah ada.
 - [ ] Tambahkan test unit, widget, integration, dan golden conversation.
-- [ ] Jalankan analyze, test suite, dan build release.
+- [x] Jalankan analyze, test suite, dan build release.
 - [ ] Lakukan verifikasi perangkat dan review keamanan data.
 
 ## Prinsip Batasan
@@ -49,17 +49,17 @@ Target file utama:
 - `lib/features/assistant/domain/ffm_assistant_models.dart`
 - `lib/features/assistant/presentation/widgets/ffm_assistant_draft_edit_dialog.dart`
 
-- [ ] Pertahankan `FfmAssistantDraftKind.activity` untuk Timer.
-- [ ] Pertahankan `FfmAssistantDraftKind.dailyNote` untuk Catatan Harian.
-- [ ] Teruskan `draft.activityMode` saat membuka ActivityPage.
-- [ ] Teruskan `draft.date`.
-- [ ] Teruskan `draft.scheduledAt`.
-- [ ] Teruskan `draft.parentSessionId`.
+- [x] Pertahankan `FfmAssistantDraftKind.activity` untuk Timer.
+- [x] Pertahankan `FfmAssistantDraftKind.dailyNote` untuk Catatan Harian.
+- [x] Teruskan `draft.activityMode` saat membuka ActivityPage.
+- [x] Teruskan `draft.date`.
+- [x] Teruskan `draft.scheduledAt`.
+- [x] Teruskan `draft.parentSessionId`.
 - [ ] Teruskan kategori.
-- [ ] Teruskan tag/form values yang memang didukung ActivityPage.
-- [ ] Pastikan draft `history` membuka alur Daily Note, bukan Timer.
-- [ ] Pastikan draft Timer membuka alur pencatatan waktu.
-- [ ] Pastikan draft terjadwal mempertahankan waktu yang dipilih.
+- [x] Teruskan tag/form values yang memang didukung ActivityPage.
+- [x] Pastikan draft `history` membuka alur Daily Note, bukan Timer.
+- [x] Pastikan draft Timer membuka alur pencatatan waktu.
+- [x] Pastikan draft terjadwal mempertahankan waktu yang dipilih.
 - [ ] Pastikan parent activity tetap tervalidasi saat form dibuka.
 - [ ] Tambahkan error yang jelas jika parent sudah tidak tersedia.
 - [ ] Tambahkan test handoff Timer.
@@ -78,17 +78,17 @@ Target file utama:
 Keputusan awal: gunakan query `read.activities` atau perluas kontrak `read.activity`; jangan membuat sistem query paralel.
 
 - [ ] Tetapkan nama tool dan schema input/output.
-- [ ] Dukung `dateFrom` dan `dateTo`.
-- [ ] Dukung `limit` dengan batas maksimum.
-- [ ] Dukung `includeArchived`.
-- [ ] Dukung filter `status`.
-- [ ] Dukung filter `mode`: timer atau daily note.
-- [ ] Dukung filter kategori.
-- [ ] Dukung filter tag.
-- [ ] Dukung pencarian judul/catatan.
-- [ ] Dukung `includeCheckpoints` secara eksplisit.
-- [ ] Dukung `includeChildren` secara eksplisit.
-- [ ] Dukung ringkasan durasi.
+- [x] Dukung `dateFrom` dan `dateTo`.
+- [x] Dukung `limit` dengan batas maksimum.
+- [x] Dukung `includeArchived`.
+- [x] Dukung filter `status`.
+- [x] Dukung filter `mode`: timer atau daily note.
+- [x] Dukung filter kategori.
+- [x] Dukung filter tag.
+- [x] Dukung pencarian judul/catatan.
+- [x] Dukung `includeCheckpoints` secara eksplisit.
+- [x] Dukung `includeChildren` secara eksplisit.
+- [x] Dukung ringkasan durasi.
 - [ ] Gabungkan Timer dan Daily Note tanpa duplikasi legacy.
 - [ ] Bedakan sumber data pada output bila diperlukan.
 - [ ] Kembalikan field yang bounded dan relevan saja.
@@ -98,18 +98,18 @@ Keputusan awal: gunakan query `read.activities` atau perluas kontrak `read.activ
 
 ## 4. Query Bernilai Tinggi
 
-- [ ] Query “aktivitas yang sedang berjalan”.
-- [ ] Query “aktivitas terbaru”.
-- [ ] Query “aktivitas pada periode tertentu”.
+- [x] Query “aktivitas yang sedang berjalan”.
+- [x] Query “aktivitas terbaru”.
+- [x] Query “aktivitas pada periode tertentu”.
 - [ ] Query total jumlah aktivitas.
 - [ ] Query total durasi pada periode.
-- [ ] Query durasi aktivitas berdasarkan judul/ID.
-- [ ] Query aktivitas berdasarkan kategori.
-- [ ] Query aktivitas berdasarkan tag.
+- [x] Query durasi aktivitas berdasarkan judul/ID.
+- [x] Query aktivitas berdasarkan kategori.
+- [x] Query aktivitas berdasarkan tag.
 - [ ] Query aktivitas prioritas.
-- [ ] Query checkpoint terakhir.
-- [ ] Query checkpoint berdasarkan aktivitas.
-- [ ] Query child/sub-activity berdasarkan parent.
+- [x] Query checkpoint terakhir.
+- [x] Query checkpoint berdasarkan aktivitas.
+- [x] Query child/sub-activity berdasarkan parent.
 - [ ] Query perbandingan Timer dan Daily Note.
 - [ ] Query aktivitas terarsip jika diminta secara eksplisit.
 - [ ] Query biaya terkait aktivitas hanya jika relasi produk sudah didefinisikan.
@@ -121,8 +121,8 @@ Keputusan awal: gunakan query `read.activities` atau perluas kontrak `read.activ
 - [ ] Tambahkan filter tag ke `_readDailyNotes` jika kontrak mengizinkan.
 - [ ] Tambahkan filter priority jika field tersebut authoritative.
 - [ ] Tambahkan filter treatment/type hanya jika model sudah mendefinisikannya.
-- [ ] Pastikan Daily Note tidak dihitung sebagai Timer.
-- [ ] Pastikan query “catatan kejadian” menggunakan `daily_notes` sebagai sumber authoritative.
+- [x] Pastikan Daily Note tidak dihitung sebagai Timer.
+- [x] Pastikan query “catatan kejadian” menggunakan `daily_notes` sebagai sumber authoritative.
 
 ## 6. Keyword Dan Intent Routing
 
@@ -139,9 +139,9 @@ Centralisasi vocabulary agar cloud classifier, local interpreter, voice parser, 
 - [ ] Pastikan `pengingat` tidak salah dirutekan menjadi Aktivitas.
 - [ ] Pastikan `tugas` tidak salah dirutekan menjadi Aktivitas jika intent sebenarnya task.
 - [ ] Pastikan `catat` tidak salah dirutekan menjadi transaksi keuangan.
-- [ ] Tambahkan clarification ketika target aktivitas ambigu.
+- [x] Tambahkan clarification ketika target aktivitas ambigu.
 - [ ] Tambahkan clarification ketika pengguna hanya menyebut kategori tanpa aksi.
-- [ ] Tambahkan test untuk keyword Bahasa Indonesia dan variasinya.
+- [x] Tambahkan test untuk keyword Bahasa Indonesia dan variasinya.
 
 ## 7. Draft Validation
 
@@ -150,19 +150,19 @@ Target file:
 - `lib/features/assistant/domain/ffm_assistant_draft_validator.dart`
 - `lib/features/assistant/domain/ffm_assistant_action_planner.dart`
 
-- [ ] Validasi judul aktivitas wajib.
-- [ ] Validasi body Daily Note wajib.
+- [x] Validasi judul aktivitas wajib.
+- [x] Validasi body Daily Note wajib.
 - [ ] Validasi tanggal dan timezone.
-- [ ] Validasi scheduled time untuk Timer terjadwal.
+- [x] Validasi scheduled time untuk Timer terjadwal.
 - [ ] Izinkan waktu lampau hanya untuk recurrence yang memang dapat dihitung ulang.
 - [ ] Validasi kategori aktif.
 - [ ] Validasi parent session tersedia dan aktif.
 - [ ] Tolak parent yang sama dengan child.
 - [ ] Validasi mode-specific fields.
 - [ ] Validasi checkpoint target dan label.
-- [ ] Validasi tag yang dipilih.
+- [x] Validasi tag yang dipilih.
 - [ ] Validasi target tidak sudah dihapus/diarsipkan untuk mutation.
-- [ ] Perbaiki pesan “Transaksi target belum ditemukan” menjadi pesan Aktivitas.
+- [x] Perbaiki pesan “Transaksi target belum ditemukan” menjadi pesan Aktivitas.
 - [ ] Pastikan validator tidak menggantikan validasi final di repository/use case.
 
 ## 8. Mutation Dan Capability Adapter
@@ -205,20 +205,20 @@ Target file:
 
 ### Unit
 
-- [ ] Keyword routing Aktivitas.
-- [ ] Period parsing.
+- [x] Keyword routing Aktivitas.
+- [x] Period parsing.
 - [ ] Duration aggregation.
-- [ ] Checkpoint query.
-- [ ] Category/tag filter.
-- [ ] Timer/Daily Note separation.
+- [x] Checkpoint query.
+- [x] Category/tag filter.
+- [x] Timer/Daily Note separation.
 - [ ] Next occurrence calculation.
-- [ ] Draft validation.
-- [ ] Ambiguous target resolution.
+- [x] Draft validation.
+- [x] Ambiguous target resolution.
 
 ### Widget
 
 - [ ] Draft Timer membuka form Timer.
-- [ ] Draft Daily Note membuka form Daily Note.
+- [x] Draft Daily Note membuka form Daily Note.
 - [ ] Field scheduled time tampil benar.
 - [ ] Parent activity tampil benar.
 - [ ] Error tampil di dalam dialog.
@@ -226,22 +226,21 @@ Target file:
 
 ### Integration
 
-- [ ] Buat Timer melalui Asisten lalu verifikasi database.
-- [ ] Buat Daily Note melalui Asisten lalu verifikasi `daily_notes`.
-- [ ] Selesaikan aktivitas melalui Asisten.
-- [ ] Tambah checkpoint melalui Asisten.
-- [ ] Edit aktivitas melalui Asisten.
-- [ ] Archive/restore melalui Asisten.
-- [ ] Delete dengan target unik.
-- [ ] Tolak delete target ambigu.
-- [ ] Query aktivitas aktif.
-- [ ] Query total durasi.
-- [ ] Query aktivitas periode.
-- [ ] Query kategori/tag.
-- [ ] Query Daily Note.
-- [ ] Query checkpoint.
-- [ ] Query child activity.
-- [ ] Uji idempotency dan reload authoritative state.
+- [x] Buat Timer melalui Asisten lalu verifikasi database.
+- [x] Buat Daily Note melalui Asisten lalu verifikasi `daily_notes`.
+- [x] Selesaikan aktivitas melalui Asisten.
+- [x] Tambah checkpoint melalui Asisten.
+- [x] Edit aktivitas melalui Asisten.
+- [x] Archive/restore melalui Asisten.
+- [x] Delete dengan target unik.
+- [x] Tolak delete target ambigu.
+- [x] Query aktivitas aktif.
+- [x] Query aktivitas periode.
+- [x] Query kategori/tag.
+- [x] Query Daily Note.
+- [x] Query checkpoint.
+- [x] Query child activity.
+- [x] Uji idempotency dan reload authoritative state.
 
 ### Golden Conversation
 
@@ -262,9 +261,9 @@ Target file:
 
 ## 11. Security, Privacy, Dan Performance
 
-- [ ] Query hanya mengembalikan household/user scope yang benar.
+- [x] Query hanya mengembalikan household/user scope yang benar.
 - [ ] Jangan mengirim seluruh riwayat Aktivitas ke cloud.
-- [ ] Terapkan limit dan date range default.
+- [x] Terapkan limit dan date range default.
 - [ ] Jangan log isi catatan pribadi atau lokasi sensitif.
 - [ ] Jangan menampilkan ID internal kepada user biasa.
 - [ ] Uji query dengan riwayat besar.
@@ -275,12 +274,12 @@ Target file:
 ## 12. Release Gate
 
 - [ ] Semua checklist P0/P1 Aktivitas selesai.
-- [ ] Tidak ada test Aktivitas yang gagal.
-- [ ] `dart format --output=none --set-exit-if-changed .` lulus.
-- [ ] `flutter analyze` lulus.
-- [ ] Test Aktivitas dan Asisten lulus.
-- [ ] Full `flutter test` lulus atau failure terdokumentasi sebagai pre-existing.
-- [ ] `flutter build apk --release` lulus.
+- [x] Tidak ada test Aktivitas yang gagal.
+- [x] `dart format --output=none --set-exit-if-changed .` lulus.
+- [x] `flutter analyze` lulus.
+- [x] Test Aktivitas dan Asisten lulus.
+- [x] Full `flutter test` lulus atau failure terdokumentasi sebagai pre-existing.
+- [x] `flutter build apk --release` lulus.
 - [ ] Uji APK di perangkat Android nyata.
 - [ ] Uji notifikasi/deep-link ke Aktivitas.
 - [ ] Uji permission dan recovery setelah restart.
@@ -298,9 +297,9 @@ Pekerjaan dianggap selesai jika:
 - [ ] Mutasi Aktivitas selalu memakai preview dan konfirmasi.
 - [ ] Target ambigu tidak dimutasi secara acak.
 - [ ] Error tampil di permukaan UI yang benar.
-- [ ] Query dibatasi scope, periode, dan jumlah hasil.
+- [x] Query dibatasi scope, periode, dan jumlah hasil.
 - [ ] Test unit, widget, integration, dan golden conversation tersedia dan lulus.
-- [ ] Analyze dan release APK lulus.
+- [x] Analyze dan release APK lulus.
 - [ ] Perangkat Android nyata berhasil melakukan alur utama.
 
 ## Blocked By Decision
@@ -322,3 +321,53 @@ Isi bagian ini jika ada aturan produk yang belum ditentukan. Jangan menandai imp
 - [ ] Dokumentasikan perubahan draft handoff.
 - [ ] Dokumentasikan test evidence.
 - [ ] Dokumentasikan item yang masih memerlukan keputusan produk.
+
+## Verification Notes
+
+- Activity interpreter + integration + widget suite → PASS, 34 tests setelah alur tag baru ditambahkan.
+- `flutter test test/ffm_assistant_activity_v59_test.dart` → PASS, 6 tests.
+- `flutter test test/ffm_assistant_activity_mutation_integration_test.dart` → PASS, termasuk pembuatan tag baru + Catatan Harian dalam satu plan, koneksi `daily_note_tags`, validasi tag, dan pencegahan orphan tag.
+- `flutter test` → PASS, 1.693 tests.
+- `flutter analyze` → PASS, no issues found.
+- `dart format --output=none --set-exit-if-changed .` → PASS, 620 files unchanged.
+- `flutter build apk --target-platform android-arm64 --release` → PASS, `app-release.apk` 37,8 MB.
+- Verifikasi perangkat Android nyata → belum dijalankan.
+
+## Activity Command Matrix
+
+Checklist ini memetakan kemungkinan perintah pengguna ke draft dan eksekusi yang diharapkan.
+
+### Membuat Data
+
+- [x] “Mulai aktivitas pupuk cabai” → draft Timer Aktivitas.
+- [x] “Catat kejadian pupuk cabai” → draft Catatan Harian.
+- [x] “Catat kejadian pupuk cabai dengan tag Kebun” → Catatan Harian memakai tag aktif dari Data Utama.
+- [x] “Catat sekarang ... dan buat tag baru AB” → satu draft dengan `tags=AB` dan `newTags=AB`; tag, catatan, dan relasi dibuat atomik setelah konfirmasi.
+- [x] Tag baru yang tidak tercantum pada `tags` ditolak validator.
+- [x] Tag yang diminta sebagai baru tetapi sudah ada ditolak agar tidak duplikat.
+- [x] Tag yang tidak ada dan tidak ditandai sebagai baru ditolak dengan pesan Data Utama.
+- [x] “Mulai sub-aktivitas makan di dalam perjalanan” → parent aktif diverifikasi.
+- [x] Aktivitas terjadwal mempertahankan `scheduledAt`.
+
+### Mengubah Data
+
+- [x] Selesaikan atau buka kembali aktivitas dengan target unik.
+- [x] Ubah judul, kategori, catatan, tanggal, dan prioritas.
+- [x] Tambah, ubah, atau hapus checkpoint.
+- [x] Arsipkan, pulihkan, atau hapus Catatan Harian/aktivitas.
+- [x] Target ambigu meminta klarifikasi dan tidak dimutasi.
+
+### Membaca Data
+
+- [x] Aktivitas aktif dan terbaru.
+- [x] Filter periode, status, mode, kategori, tag, teks, dan arsip.
+- [x] Checkpoint dan parent/child activity.
+- [x] Ringkasan durasi hasil filter.
+- [x] Catatan Harian dibaca dari `daily_notes`, bukan sesi Timer.
+
+### Batasan Yang Tetap Eksplisit
+
+- [ ] Timer Aktivitas belum memiliki tabel relasi tag; tag hanya authoritative untuk Catatan Harian.
+- [ ] Permintaan gabungan yang sangat bebas tetap bergantung pada structured draft dari cloud; local parser menjamin pola eksplisit yang diuji.
+- [ ] Golden conversation untuk seluruh variasi bahasa belum lengkap.
+- [ ] Build APK release dan pengujian perangkat nyata belum selesai.

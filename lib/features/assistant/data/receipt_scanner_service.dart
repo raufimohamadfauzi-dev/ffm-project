@@ -41,8 +41,9 @@ class ReceiptScannerService {
     r'(?<!\d)(\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4})(?!\d)',
   );
 
-  static final _meterNumberRegex = RegExp(
-    r'(?:idpel|id\s*pelanggan|meter|no\.?\s*meter|nomor\s*meteran?)\s*[:#-]?\s*(\d{11,12})',
+  /// Regex lebih longgar untuk deteksi struk PLN (bukan ekstraksi)
+  static final _plnDetectionRegex = RegExp(
+    r'(?:idpel|id\s*pelanggan|id\s*pel|meter|no\.?\s*meter|nomor\s*meteran?)\s*[:#-]?\s*(\d{11,12})',
     caseSensitive: false,
   );
 
@@ -56,7 +57,7 @@ class ReceiptScannerService {
     if (!hasPlnMarker) return false;
 
     final hasTokenCode = _tokenCodeRegex.hasMatch(text);
-    final hasMeterNumber = _meterNumberRegex.hasMatch(text);
+    final hasMeterNumber = _plnDetectionRegex.hasMatch(text);
     final hasKwh = RegExp(
       r'\b\d+(?:[.,]\d+)?\s*kwh\b',
       caseSensitive: false,
@@ -67,6 +68,39 @@ class ReceiptScannerService {
     ).hasMatch(lower);
 
     return hasTokenCode || (hasMeterNumber && hasKwh && hasPrepaidMarker);
+  }
+
+  /// Memeriksa apakah teks gambar merupakan struk pembelian BBM / SPBU.
+  static bool isBbmReceiptText(String text) {
+    final lower = text.toLowerCase();
+    final hasFuelMarker = RegExp(
+      r'\b(spbu|pertamina|shell|vivo|bp\s+akr|pertalite|pertamax|dexlite|biosolar|solar)\b',
+    ).hasMatch(lower);
+    final hasVolumeMarker = RegExp(
+      r'\b\d+(?:[.,]\d+)?\s*(?:liter|lt|l)\b',
+      caseSensitive: false,
+    ).hasMatch(text);
+    return hasFuelMarker || (lower.contains('bbm') && hasVolumeMarker);
+  }
+
+  /// Memeriksa apakah teks gambar merupakan struk belanja ritel / minimarket.
+  static bool isRetailShoppingReceiptText(String text) {
+    final lower = text.toLowerCase();
+    final hasRetailMerchant = RegExp(
+      r'\b(indomaret|alfamart|superindo|transmart|hypermart|lotte|nirmala|griya|yoma|toko|minimarket|kasir)\b',
+    ).hasMatch(lower);
+    final hasShoppingTerms = RegExp(
+      r'\b(total\s+belanja|tunai|kembali|anda\s+hemat|ppn|voucher|dpp)\b',
+    ).hasMatch(lower);
+    return hasRetailMerchant || (hasShoppingTerms && !isPlnTokenText(text));
+  }
+
+  /// Memeriksa apakah teks gambar merupakan screenshot mutasi bank / e-wallet.
+  static bool isBankStatementText(String text) {
+    final lower = text.toLowerCase();
+    return RegExp(
+      r'\b(bca|mandiri|bri|bni|cimb|seabank|gopay|ovo|dana|shopeepay|mutasi|saldo|transfer\s+berhasil|rekening)\b',
+    ).hasMatch(lower);
   }
 
   /// Mengambil kode token PLN 20 digit yang sudah dinormalisasi.
@@ -89,19 +123,31 @@ class ReceiptScannerService {
   }
 
   /// Mengambil nomor meter/IDPEL hanya dari label PLN yang jelas.
+  /// Menggunakan regex detection yang lebih longgar untuk backward compatibility.
   static String? extractPlnMeterNumber(String text) {
-    return _meterNumberRegex.firstMatch(text)?.group(1);
+    return _plnDetectionRegex.firstMatch(text)?.group(1);
   }
 
-  /// Mengambil SEMUA nomor meter/IDPEL unik pada teks. Berguna untuk deteksi
+  /// Mengambil SEMUA nomor IDPEL unik pada teks. Berguna untuk deteksi
   /// struk dengan beberapa meteran (2 rumah dalam 1 gambar).
+  /// HANYA gunakan IDPEL dengan label eksplisit (idpel, id pelanggan, id pel)
+  /// untuk mencegah duplikasi draft dari label "Nomor Meter" yang berbeda.
   static List<String> extractPlnMeters(String text) {
     final result = <String>[];
     final seen = <String>{};
-    for (final match in _meterNumberRegex.allMatches(text)) {
+
+    // HANYA gunakan IDPEL dengan label eksplisit
+    // Tidak ada fallback ke generic meter regex untuk mencegah duplikasi
+    final idpelRegex = RegExp(
+      r'(?:idpel|id\s*pelanggan|id\s*pel)\s*[:#-]?\s*(\d{11,12})',
+      caseSensitive: false,
+    );
+
+    for (final match in idpelRegex.allMatches(text)) {
       final value = match.group(1)!;
       if (seen.add(value)) result.add(value);
     }
+
     return result;
   }
 
@@ -136,7 +182,9 @@ class ReceiptScannerService {
               ? <String>[]
               : [normalizedBase['meterNumber'].toString()]);
 
-    if (orderedTokens.isEmpty && orderedMeters.isEmpty && normalizedBase.isEmpty) {
+    if (orderedTokens.isEmpty &&
+        orderedMeters.isEmpty &&
+        normalizedBase.isEmpty) {
       return const <Map<String, dynamic>>[];
     }
 
@@ -188,6 +236,7 @@ class ReceiptScannerService {
     String? userCaption,
     String? apiKey,
     String? model,
+    List<GeminiImageInput>? images,
   }) async {
     final prepared = await _prepareImage(bytes, mimeType);
     if (prepared == null) {
@@ -211,6 +260,7 @@ class ReceiptScannerService {
       prompt: prompt,
       systemInstruction: _visionSystemInstruction,
       image: imageInput,
+      images: images ?? [imageInput],
       apiKey: apiKey,
       model: model,
       maxOutputTokens: 2048,
@@ -239,7 +289,10 @@ class ReceiptScannerService {
     }
 
     try {
-      final batch = ReceiptImportService.parseBatchJson(text);
+      final batch = ReceiptImportService.parseBatchJson(
+        text,
+        userCaption: userCaption,
+      );
       final reheatedBatch = await _retryMissingPlnMetadata(
         batch: batch,
         originalText: text,
@@ -309,6 +362,7 @@ class ReceiptScannerService {
     String? imagePath,
     String? apiKey,
     String? model,
+    List<GeminiImageInput>? images,
   }) async {
     final prepared = await _prepareImage(bytes, mimeType);
     if (prepared == null) {
@@ -332,6 +386,7 @@ Tugasmu:
 3. Berikan saran atau ringkasan yang bermanfaat bagi keuangan keluarga pengguna.
 ''',
       image: imageInput,
+      images: images ?? [imageInput],
       apiKey: apiKey,
       model: model,
       maxOutputTokens: 2048,
@@ -369,13 +424,20 @@ Tugasmu:
               lower.contains('idpel') ||
               lower.contains('kwh'));
       if (!looksLikePlnTokenReceipt) return false;
-      final token = extractPlnToken(note) ?? extractPlnToken(merchant) ?? extractPlnToken(budget);
-      final kwh = extractPlnKwh(note) ?? extractPlnKwh(merchant) ?? extractPlnKwh(budget);
+      final token =
+          extractPlnToken(note) ??
+          extractPlnToken(merchant) ??
+          extractPlnToken(budget);
+      final kwh =
+          extractPlnKwh(note) ??
+          extractPlnKwh(merchant) ??
+          extractPlnKwh(budget);
       return token == null || kwh == null;
     });
     if (!needsRetry) return batch;
 
-    final retryPrompt = '''
+    final retryPrompt =
+        '''
 Pada gambar struk ini, cari data PLN yang hilang dan lengkapi tanpa mengarang detail lain.
 Format JSON yang harus dikembalikan:
 {"token_code": "<20-digit code atau null>", "kwh": <angka atau null>}
@@ -387,21 +449,27 @@ ${userCaption != null && userCaption.trim().isNotEmpty ? 'Catatan pengguna: ${us
     final retryResult = await _gemini.chat(
       prompt: retryPrompt,
       systemInstruction: 'Kamu membantu melengkapi data struk PLN yang masih kosong. Jawab hanya JSON valid tanpa teks tambahan.',
-      image: image == null ? null : GeminiImageInput(
-        base64Data: base64Encode(image.$1),
-        mimeType: image.$2,
-      ),
+      image: image == null
+          ? null
+          : GeminiImageInput(
+              base64Data: base64Encode(image.$1),
+              mimeType: image.$2,
+            ),
       apiKey: apiKey,
       model: model,
       maxOutputTokens: 512,
     );
-    if (!retryResult.ok || retryResult.text == null || retryResult.text!.trim().isEmpty) {
+    if (!retryResult.ok ||
+        retryResult.text == null ||
+        retryResult.text!.trim().isEmpty) {
       return batch;
     }
 
     try {
       final decoded = jsonDecode(retryResult.text!);
-      final payload = decoded is Map ? Map<String, dynamic>.from(decoded) : const {};
+      final payload = decoded is Map
+          ? Map<String, dynamic>.from(decoded)
+          : const {};
       final tokenCode = payload['token_code']?.toString();
       final rawKwh = payload['kwh'];
       final kwh = rawKwh == null ? null : double.tryParse(rawKwh.toString());
@@ -410,8 +478,13 @@ ${userCaption != null && userCaption.trim().isNotEmpty ? 'Catatan pengguna: ${us
       final updatedEntries = <ReceiptBatchEntry>[];
       var didRetry = false;
       for (final entry in batch.entries) {
-        final lower = '${entry.merchant ?? ''} ${entry.budgetName ?? ''} ${entry.note ?? ''}'.toLowerCase();
-        final isPln = lower.contains('pln') || lower.contains('listrik') || lower.contains('token listrik');
+        final lower =
+            '${entry.merchant ?? ''} ${entry.budgetName ?? ''} ${entry.note ?? ''}'
+                .toLowerCase();
+        final isPln =
+            lower.contains('pln') ||
+            lower.contains('listrik') ||
+            lower.contains('token listrik');
         if (!isPln) {
           updatedEntries.add(entry);
           continue;
@@ -494,6 +567,11 @@ Perhatikan baik-baik gambar sebelum menulis JSON:
 - Struk yang hanya berisi rincian (bukan pembelian, misal rekening tagihan) tetap satu transaksi expense.
 - Jangan menggabungkan beberapa transaksi yang jelas terpisah menjadi satu.
 - Aplikasi menampilkan semua hasil sebagai draft yang wajib diperiksa dan dikonfirmasi.''';
+
+  Future<(Uint8List, String)?> prepareImageForGemini(
+    Uint8List bytes,
+    String mimeType,
+  ) async => _prepareImage(bytes, mimeType);
 
   /// Menyiapkan bytes image; menurunkan resolusi bila gambar terlalu besar
   /// (>10MB atau sisi terpanjang >1600px) untuk upload cepat & konsisten.

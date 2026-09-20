@@ -117,8 +117,7 @@ class UtilityMeterTargetResolution {
   UtilityMeterTargetResolution.noMeters()
     : this(
         status: UtilityMeterTargetStatus.noMeters,
-        message:
-          'Belum ada meteran listrik yang terdaftar di Token Listrik. Kirim nomor meter/IDPEL atau foto struk token agar pembelian bisa dicatat ke rumah yang tepat.',
+        message: 'Belum ada meteran listrik yang terdaftar di Token Listrik. Kirim nomor meter/IDPEL atau foto struk token agar pembelian bisa dicatat ke rumah yang tepat.',
       );
 
   UtilityMeterTargetResolution.ambiguous(
@@ -186,9 +185,10 @@ class UtilityMeterRepository {
       value.replaceAll(RegExp(r'\D'), '');
 
   /// Format ramah untuk satu meteran pada pesan klarifikasi asisten.
-  static String friendlyMeterOption(UtilityMeter meter,
-          {String prefix = '• '}) =>
-      '$prefix${meter.name} (no. ${meter.meterNumber})';
+  static String friendlyMeterOption(
+    UtilityMeter meter, {
+    String prefix = '• ',
+  }) => '$prefix${meter.name} (no. ${meter.meterNumber})';
 
   /// Format ramah untuk daftar meteran pada pesan klarifikasi asisten.
   static String friendlyMeterOptions(List<UtilityMeter> meters) =>
@@ -201,8 +201,7 @@ class UtilityMeterRepository {
     final normalizedAmount = amount > 0 ? amount : 100000;
     return meters
         .map(
-          (meter) =>
-              'beli token listrik $normalizedAmount untuk ${meter.name}',
+          (meter) => 'beli token listrik $normalizedAmount untuk ${meter.name}',
         )
         .toList(growable: false);
   }
@@ -289,7 +288,8 @@ class UtilityMeterRepository {
             (meter) =>
                 meter.name.trim().toLowerCase() == reference ||
                 meter.customerName.trim().toLowerCase() == reference ||
-                normalizeNumber(meter.meterNumber) == normalizeNumber(reference),
+                normalizeNumber(meter.meterNumber) ==
+                    normalizeNumber(reference),
           )
           .toList(growable: false);
       if (matches.length == 1) {
@@ -303,10 +303,7 @@ class UtilityMeterRepository {
 
     if (meters.isEmpty) return UtilityMeterTargetResolution.noMeters();
     if (meters.length == 1) {
-      return UtilityMeterTargetResolution.resolved(
-        meters.single,
-        auto: true,
-      );
+      return UtilityMeterTargetResolution.resolved(meters.single, auto: true);
     }
     return UtilityMeterTargetResolution.missingTarget(meters);
   }
@@ -329,7 +326,10 @@ class UtilityMeterRepository {
         DateTime.tryParse(proposal['timestamp']?.toString() ?? '') ??
         DateTime.now();
 
-    if (amount != null && amount > 0 && creditedKwh != null && creditedKwh > 0) {
+    if (amount != null &&
+        amount > 0 &&
+        creditedKwh != null &&
+        creditedKwh > 0) {
       final rate = amount / creditedKwh;
       if (rate < 300 || rate > 2000) {
         warnings.add(
@@ -343,18 +343,25 @@ class UtilityMeterRepository {
     if (token.isNotEmpty && token.length == 20) {
       final database = _database;
       if (database != null) {
-        final rows = await database.customSelect(
-          'SELECT purchased_at, token_code FROM utility_token_purchases '
-          'WHERE household_id = ? AND token_code = ? LIMIT 1',
-          variables: [Variable.withString(householdId), Variable.withString(token)],
-        ).get();
+        final rows = await database
+            .customSelect(
+              'SELECT purchased_at, token_code FROM utility_token_purchases '
+              'WHERE household_id = ? AND token_code = ? LIMIT 1',
+              variables: [
+                Variable.withString(householdId),
+                Variable.withString(token),
+              ],
+            )
+            .get();
         if (rows.isNotEmpty) {
           final purchasedAtValue = rows.first.data['purchased_at'];
           final String date;
           if (purchasedAtValue is DateTime) {
             date = purchasedAtValue.toIso8601String().substring(0, 10);
           } else if (purchasedAtValue is String) {
-            date = DateTime.parse(purchasedAtValue).toIso8601String().substring(0, 10);
+            date = DateTime.parse(purchasedAtValue)
+                .toIso8601String()
+                .substring(0, 10);
           } else {
             date = 'tanggal tidak diketahui';
           }
@@ -372,20 +379,26 @@ class UtilityMeterRepository {
         final meter = await findMeterByNumber(householdId, meterNumber);
         final meterId = meter?.id;
         if (meterId != null && amount != null && amount > 0) {
-          final startOfDay = DateTime(timestamp.year, timestamp.month, timestamp.day);
+          final startOfDay = DateTime(
+            timestamp.year,
+            timestamp.month,
+            timestamp.day,
+          );
           final endOfDay = startOfDay.add(const Duration(days: 1));
-          final rows = await database.customSelect(
-            'SELECT COUNT(*) AS duplicate_count FROM utility_token_purchases '
-            'WHERE household_id = ? AND meter_id = ? AND amount = ? '
-            'AND purchased_at >= ? AND purchased_at < ?',
-            variables: [
-              Variable.withString(householdId),
-              Variable.withString(meterId),
-              Variable.withInt(amount),
-              Variable.withDateTime(startOfDay),
-              Variable.withDateTime(endOfDay),
-            ],
-          ).get();
+          final rows = await database
+              .customSelect(
+                'SELECT COUNT(*) AS duplicate_count FROM utility_token_purchases '
+                'WHERE household_id = ? AND meter_id = ? AND amount = ? '
+                'AND purchased_at >= ? AND purchased_at < ?',
+                variables: [
+                  Variable.withString(householdId),
+                  Variable.withString(meterId),
+                  Variable.withInt(amount),
+                  Variable.withDateTime(startOfDay),
+                  Variable.withDateTime(endOfDay),
+                ],
+              )
+              .get();
           final countValue = rows.first.data['duplicate_count'];
           final count = countValue is int
               ? countValue
@@ -404,9 +417,9 @@ class UtilityMeterRepository {
   }
 
   static String _formatRp(int value) => value.toString().replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (_) => '.',
-    );
+    RegExp(r'\B(?=(\d{3})+(?!\d))'),
+    (_) => '.',
+  );
 
   Future<void> saveMeter(UtilityMeter meter) async {
     final clean = normalizeNumber(meter.meterNumber);
@@ -456,9 +469,7 @@ class UtilityMeterRepository {
         list
             .map(
               (meter) => meter.id == meterId
-                  ? meter.copyWith(
-                      name: '${meter.name} (Diarsipkan)',
-                    )
+                  ? meter.copyWith(name: '${meter.name} (Diarsipkan)')
                   : meter,
             )
             .toList(),
@@ -505,8 +516,10 @@ class UtilityMeterRepository {
     );
     if (!ok) {
       // ignore: avoid_print
-      print('[UtilityMeterRepository] updateLastToken: meteran '
-          '$meterNumber tidak ditemukan, update dilewati.');
+      print(
+        '[UtilityMeterRepository] updateLastToken: meteran '
+        '$meterNumber tidak ditemukan, update dilewati.',
+      );
     }
   }
 
@@ -526,8 +539,10 @@ class UtilityMeterRepository {
     );
     if (!ok) {
       // ignore: avoid_print
-      print('[UtilityMeterRepository] recordPurchase: meteran '
-          '$meterNumber tidak ditemukan, update dilewati.');
+      print(
+        '[UtilityMeterRepository] recordPurchase: meteran '
+        '$meterNumber tidak ditemukan, update dilewati.',
+      );
     }
   }
 
@@ -647,6 +662,26 @@ class UtilityMeterRepository {
     return _purchaseFromRow(row);
   }
 
+  /// Menghapus entri riwayat token yang terkait dengan sebuah transaksi.
+  /// Dipanggil ketika transaksi PLN dihapus/diarsipkan dari Halaman Transaksi
+  /// agar riwayat di Halaman Token Listrik ikut sinkron (sinkronisasi 1:1 dua arah).
+  /// Operasi ini aman dijalankan berkali-kali (idempoten).
+  Future<void> deleteLinkedPurchase(
+    String householdId,
+    String transactionId,
+  ) async {
+    final database = _database;
+    if (database == null) return;
+    // Hapus entri yang terkait dengan transactionId ini.
+    // Gunakan soft-delete dengan menghapus row (data audit tetap di tabel transactions).
+    await (database.delete(database.utilityTokenPurchases)..where(
+          (row) =>
+              row.householdId.equals(householdId) &
+              row.transactionId.equals(transactionId),
+        ))
+        .go();
+  }
+
   Future<List<UtilityPurchaseHistory>> getPurchaseHistory(
     String householdId, {
     String? meterId,
@@ -702,16 +737,18 @@ class UtilityMeterRepository {
     if (source != 'manual' && source != 'photo') {
       throw ArgumentError.value(source, 'source', 'Use manual or photo');
     }
-    final meter = await (database.select(database.electricityMeters)
-          ..where(
-            (row) =>
-                row.id.equals(meterId) &
-                row.householdId.equals(householdId) &
-                row.isArchived.equals(false),
-          ))
-        .getSingleOrNull();
+    final meter =
+        await (database.select(database.electricityMeters)..where(
+              (row) =>
+                  row.id.equals(meterId) &
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false),
+            ))
+            .getSingleOrNull();
     if (meter == null) {
-      throw StateError('Meteran yang dipilih tidak ditemukan atau sudah diarsipkan.');
+      throw StateError(
+        'Meteran yang dipilih tidak ditemukan atau sudah diarsipkan.',
+      );
     }
 
     final timestamp = recordedAt ?? DateTime.now();
@@ -725,17 +762,19 @@ class UtilityMeterRepository {
       );
     }
 
-    await database.into(database.electricityMeterReadings).insert(
-      ElectricityMeterReadingsCompanion.insert(
-        id: const Uuid().v4(),
-        householdId: householdId,
-        meterId: meterId,
-        readingKwh: readingKwh,
-        recordedAt: timestamp,
-        source: Value(source),
-        note: Value(note),
-      ),
-    );
+    await database
+        .into(database.electricityMeterReadings)
+        .insert(
+          ElectricityMeterReadingsCompanion.insert(
+            id: const Uuid().v4(),
+            householdId: householdId,
+            meterId: meterId,
+            readingKwh: readingKwh,
+            recordedAt: timestamp,
+            source: Value(source),
+            note: Value(note),
+          ),
+        );
   }
 
   Future<List<MeterReading>> getMeterReadings(
@@ -745,15 +784,16 @@ class UtilityMeterRepository {
   }) async {
     final database = _database;
     if (database == null) return const [];
-    final rows = await (database.select(database.electricityMeterReadings)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.meterId.equals(meterId),
-          )
-          ..orderBy([(row) => OrderingTerm.desc(row.recordedAt)])
-          ..limit(limit.clamp(1, 100)))
-        .get();
+    final rows =
+        await (database.select(database.electricityMeterReadings)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.meterId.equals(meterId),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.recordedAt)])
+              ..limit(limit.clamp(1, 100)))
+            .get();
     return rows.map(_readingFromRow).toList(growable: false);
   }
 
@@ -780,26 +820,28 @@ class UtilityMeterRepository {
     }
     final database = _database;
     if (database == null) return null;
-    final before = await (database.select(database.electricityMeterReadings)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.meterId.equals(meterId) &
-                row.recordedAt.isSmallerOrEqualValue(from),
-          )
-          ..orderBy([(row) => OrderingTerm.desc(row.recordedAt)])
-          ..limit(1))
-        .getSingleOrNull();
-    final after = await (database.select(database.electricityMeterReadings)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.meterId.equals(meterId) &
-                row.recordedAt.isBiggerOrEqualValue(to),
-          )
-          ..orderBy([(row) => OrderingTerm.asc(row.recordedAt)])
-          ..limit(1))
-        .getSingleOrNull();
+    final before =
+        await (database.select(database.electricityMeterReadings)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.meterId.equals(meterId) &
+                    row.recordedAt.isSmallerOrEqualValue(from),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.recordedAt)])
+              ..limit(1))
+            .getSingleOrNull();
+    final after =
+        await (database.select(database.electricityMeterReadings)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.meterId.equals(meterId) &
+                    row.recordedAt.isBiggerOrEqualValue(to),
+              )
+              ..orderBy([(row) => OrderingTerm.asc(row.recordedAt)])
+              ..limit(1))
+            .getSingleOrNull();
     if (before == null || after == null) return null;
     final usage = after.readingKwh - before.readingKwh;
     return usage < 0 ? null : usage;
@@ -825,64 +867,76 @@ class UtilityMeterRepository {
     final database = _database;
     if (database == null) return const [];
     if (period != 'monthly' && period != 'weekly' && period != 'daily') {
-      throw ArgumentError.value(period, 'period', 'Use monthly, weekly, or daily');
+      throw ArgumentError.value(
+        period,
+        'period',
+        'Use monthly, weekly, or daily',
+      );
     }
 
     final safeLimit = limit.clamp(1, 31);
     final periodExpression = period == 'monthly'
-      ? "CASE WHEN typeof(purchased_at) IN ('integer', 'real') "
+        ? "CASE WHEN typeof(purchased_at) IN ('integer', 'real') "
               "THEN strftime('%Y-%m', purchased_at, 'unixepoch') "
-          "ELSE strftime('%Y-%m', purchased_at) END"
-      : period == 'weekly'
-          ? "CASE WHEN typeof(purchased_at) IN ('integer', 'real') "
-                  "THEN strftime('%Y-%W', purchased_at, 'unixepoch') "
+              "ELSE strftime('%Y-%m', purchased_at) END"
+        : period == 'weekly'
+        ? "CASE WHEN typeof(purchased_at) IN ('integer', 'real') "
+              "THEN strftime('%Y-%W', purchased_at, 'unixepoch') "
               "ELSE strftime('%Y-%W', purchased_at) END"
-          : "CASE WHEN typeof(purchased_at) IN ('integer', 'real') "
-                  "THEN strftime('%Y-%m-%d', purchased_at, 'unixepoch') "
+        : "CASE WHEN typeof(purchased_at) IN ('integer', 'real') "
+              "THEN strftime('%Y-%m-%d', purchased_at, 'unixepoch') "
               "ELSE strftime('%Y-%m-%d', purchased_at) END";
-    final rows = await database.customSelect(
-      'SELECT $periodExpression AS period, '
-      "CASE WHEN typeof(MIN(purchased_at)) IN ('integer', 'real') "
-      "THEN datetime(MIN(purchased_at), 'unixepoch') "
-      "ELSE MIN(purchased_at) END AS first_purchase, "
-      'SUM(amount) AS total_cost, '
-      'COALESCE(SUM(credited_kwh), 0) AS total_kwh, '
-      'COUNT(*) AS purchase_count '
-      'FROM utility_token_purchases '
-      'WHERE household_id = ? AND meter_id = ? '
-      'GROUP BY period ORDER BY period DESC LIMIT ?',
-      variables: [
-        Variable.withString(householdId),
-        Variable.withString(meterId),
-        Variable.withInt(safeLimit),
-      ],
-    ).get();
+    final rows = await database
+        .customSelect(
+          'SELECT $periodExpression AS period, '
+          "CASE WHEN typeof(MIN(purchased_at)) IN ('integer', 'real') "
+          "THEN datetime(MIN(purchased_at), 'unixepoch') "
+          "ELSE MIN(purchased_at) END AS first_purchase, "
+          'SUM(amount) AS total_cost, '
+          'COALESCE(SUM(credited_kwh), 0) AS total_kwh, '
+          'COUNT(*) AS purchase_count '
+          'FROM utility_token_purchases '
+          'WHERE household_id = ? AND meter_id = ? '
+          'GROUP BY period ORDER BY period DESC LIMIT ?',
+          variables: [
+            Variable.withString(householdId),
+            Variable.withString(meterId),
+            Variable.withInt(safeLimit),
+          ],
+        )
+        .get();
 
-    final usages = rows.map((row) {
-      final firstPurchase = _periodDate(row.data['first_purchase']);
-      final dateFrom = period == 'monthly'
-          ? DateTime(firstPurchase.year, firstPurchase.month)
-          : period == 'weekly'
+    final usages = rows
+        .map((row) {
+          final firstPurchase = _periodDate(row.data['first_purchase']);
+          final dateFrom = period == 'monthly'
+              ? DateTime(firstPurchase.year, firstPurchase.month)
+              : period == 'weekly'
               ? _startOfWeek(firstPurchase)
-              : DateTime(firstPurchase.year, firstPurchase.month, firstPurchase.day);
-      final dateTo = period == 'monthly'
-          ? DateTime(firstPurchase.year, firstPurchase.month + 1)
-          : period == 'weekly'
+              : DateTime(
+                  firstPurchase.year,
+                  firstPurchase.month,
+                  firstPurchase.day,
+                );
+          final dateTo = period == 'monthly'
+              ? DateTime(firstPurchase.year, firstPurchase.month + 1)
+              : period == 'weekly'
               ? dateFrom.add(const Duration(days: 7))
               : dateFrom.add(const Duration(days: 1));
-      return PeriodUsage(
-        label: period == 'monthly'
-            ? _formatPeriodMonth(firstPurchase)
-            : period == 'weekly'
+          return PeriodUsage(
+            label: period == 'monthly'
+                ? _formatPeriodMonth(firstPurchase)
+                : period == 'weekly'
                 ? _formatPeriodWeek(firstPurchase)
                 : _formatPeriodDay(firstPurchase),
-        dateFrom: dateFrom,
-        dateTo: dateTo,
-        totalCost: _asInt(row.data['total_cost']),
-        totalKwh: _asDouble(row.data['total_kwh']),
-        purchaseCount: _asInt(row.data['purchase_count']),
-      );
-    }).toList(growable: false);
+            dateFrom: dateFrom,
+            dateTo: dateTo,
+            totalCost: _asInt(row.data['total_cost']),
+            totalKwh: _asDouble(row.data['total_kwh']),
+            purchaseCount: _asInt(row.data['purchase_count']),
+          );
+        })
+        .toList(growable: false);
     if (!includeReadings) return usages;
 
     return Future.wait(
@@ -937,13 +991,19 @@ class UtilityMeterRepository {
         );
         int? daysRemaining;
         DateTime? estimatedDepletedAt;
-        if (purchases.isNotEmpty && purchases.first.creditedKwh != null && purchases.first.creditedKwh! > 0) {
+        if (purchases.isNotEmpty &&
+            purchases.first.creditedKwh != null &&
+            purchases.first.creditedKwh! > 0) {
           final credited = purchases.first.creditedKwh!;
-          final elapsedDays = DateTime.now().difference(purchases.first.purchasedAt).inHours / 24.0;
+          final elapsedDays =
+              DateTime.now().difference(purchases.first.purchasedAt).inHours /
+              24.0;
           final remainingKwh = credited - (dailyKwh * elapsedDays);
           if (remainingKwh > 0 && dailyKwh > 0) {
             daysRemaining = (remainingKwh / dailyKwh).round();
-            estimatedDepletedAt = DateTime.now().add(Duration(days: daysRemaining));
+            estimatedDepletedAt = DateTime.now().add(
+              Duration(days: daysRemaining),
+            );
           } else {
             daysRemaining = 0;
             estimatedDepletedAt = DateTime.now();
@@ -970,20 +1030,26 @@ class UtilityMeterRepository {
       final oldest = purchases.last;
       final days = newest.purchasedAt.difference(oldest.purchasedAt).inDays;
       if (days >= 4) {
-        final totalKwh = purchases.take(purchases.length - 1).fold<double>(
-          0.0,
-          (sum, p) => sum + (p.creditedKwh ?? (p.amount / 1500.0)),
-        );
+        final totalKwh = purchases
+            .take(purchases.length - 1)
+            .fold<double>(
+              0.0,
+              (sum, p) => sum + (p.creditedKwh ?? (p.amount / 1500.0)),
+            );
         final dailyKwh = totalKwh / days;
         if (dailyKwh > 0) {
           final lastKwh = newest.creditedKwh ?? (newest.amount / 1500.0);
-          final elapsedDays = DateTime.now().difference(newest.purchasedAt).inDays;
+          final elapsedDays = DateTime.now()
+              .difference(newest.purchasedAt)
+              .inDays;
           final remainingKwh = lastKwh - (dailyKwh * elapsedDays);
           int? daysRemaining;
           DateTime? estimatedDepletedAt;
           if (remainingKwh > 0) {
             daysRemaining = (remainingKwh / dailyKwh).round();
-            estimatedDepletedAt = DateTime.now().add(Duration(days: daysRemaining));
+            estimatedDepletedAt = DateTime.now().add(
+              Duration(days: daysRemaining),
+            );
           } else {
             daysRemaining = 0;
             estimatedDepletedAt = DateTime.now();
@@ -1011,8 +1077,16 @@ class UtilityMeterRepository {
       (m) => m.id == meterId,
       orElse: () => throw StateError('Meter not found'),
     );
-    final history = await getPurchaseHistory(householdId, meterId: meterId, limit: 15);
-    final readings = await getMeterReadings(householdId, meterId: meterId, limit: 15);
+    final history = await getPurchaseHistory(
+      householdId,
+      meterId: meterId,
+      limit: 15,
+    );
+    final readings = await getMeterReadings(
+      householdId,
+      meterId: meterId,
+      limit: 15,
+    );
     final summary = await summarizeUsage(householdId, meterId: meterId);
     final burnRate = await calculateBurnRate(householdId, meterId);
 
@@ -1020,19 +1094,29 @@ class UtilityMeterRepository {
       ..writeln('=== LAPORAN TOKEN LISTRIK PLN ===')
       ..writeln('Properti / Rumah: ${meter.name}')
       ..writeln('No. Meter / IDPEL: ${meter.formattedMeterNumber}')
-      ..writeln('Golongan Daya: ${meter.tariffPower.isNotEmpty ? meter.tariffPower : "-"}')
-      ..writeln('Nama Pelanggan: ${meter.customerName.isNotEmpty ? meter.customerName : "-"}')
+      ..writeln(
+        'Golongan Daya: ${meter.tariffPower.isNotEmpty ? meter.tariffPower : "-"}',
+      )
+      ..writeln(
+        'Nama Pelanggan: ${meter.customerName.isNotEmpty ? meter.customerName : "-"}',
+      )
       ..writeln('Lokasi: ${meter.location.isNotEmpty ? meter.location : "-"}')
       ..writeln('-----------------------------------')
       ..writeln('RINGKASAN:')
       ..writeln('• Total Transaksi Beli: ${summary.purchaseCount}x')
       ..writeln('• Total Pembelian: Rp${summary.totalCost}')
-      ..writeln('• Total kWh Tercatat: ${summary.totalCreditedKwh.toStringAsFixed(2)} kWh');
+      ..writeln(
+        '• Total kWh Tercatat: ${summary.totalCreditedKwh.toStringAsFixed(2)} kWh',
+      );
 
     if (burnRate != null) {
-      buffer.writeln('• Rata-rata Pemakaian: ~${burnRate.dailyKwh.toStringAsFixed(2)} kWh/hari');
+      buffer.writeln(
+        '• Rata-rata Pemakaian: ~${burnRate.dailyKwh.toStringAsFixed(2)} kWh/hari',
+      );
       if (burnRate.daysRemaining != null) {
-        buffer.writeln('• Estimasi Sisa Pulsa: ~${burnRate.daysRemaining} hari');
+        buffer.writeln(
+          '• Estimasi Sisa Pulsa: ~${burnRate.daysRemaining} hari',
+        );
       }
     }
 
@@ -1041,9 +1125,15 @@ class UtilityMeterRepository {
         ..writeln('-----------------------------------')
         ..writeln('RIWAYAT TOKEN TERAKHIR:');
       for (final h in history) {
-        final token = h.tokenCode != null && h.tokenCode!.isNotEmpty ? ' | Token: ${h.tokenCode}' : '';
-        final kwh = h.creditedKwh != null ? ' (${h.creditedKwh!.toStringAsFixed(2)} kWh)' : '';
-        buffer.writeln('• ${h.purchasedAt.toIso8601String().substring(0, 10)}: Rp${h.amount}$kwh$token');
+        final token = h.tokenCode != null && h.tokenCode!.isNotEmpty
+            ? ' | Token: ${h.tokenCode}'
+            : '';
+        final kwh = h.creditedKwh != null
+            ? ' (${h.creditedKwh!.toStringAsFixed(2)} kWh)'
+            : '';
+        buffer.writeln(
+          '• ${h.purchasedAt.toIso8601String().substring(0, 10)}: Rp${h.amount}$kwh$token',
+        );
       }
     }
 
@@ -1052,7 +1142,9 @@ class UtilityMeterRepository {
         ..writeln('-----------------------------------')
         ..writeln('RIWAYAT PEMBACAAN METERAN FISIK:');
       for (final r in readings) {
-        buffer.writeln('• ${r.recordedAt.toIso8601String().substring(0, 10)}: ${r.readingKwh.toStringAsFixed(2)} kWh');
+        buffer.writeln(
+          '• ${r.recordedAt.toIso8601String().substring(0, 10)}: ${r.readingKwh.toStringAsFixed(2)} kWh',
+        );
       }
     }
 
@@ -1126,9 +1218,8 @@ class UtilityMeterRepository {
     return 'Minggu $weekOfMonth ${months[date.month - 1]}';
   }
 
-  int _asInt(Object? value) => value is int
-      ? value
-      : int.tryParse(value?.toString() ?? '') ?? 0;
+  int _asInt(Object? value) =>
+      value is int ? value : int.tryParse(value?.toString() ?? '') ?? 0;
 
   double _asDouble(Object? value) => value is num
       ? value.toDouble()

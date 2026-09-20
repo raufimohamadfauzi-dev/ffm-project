@@ -123,9 +123,13 @@ class FfmAssistantFinancialSnapshotService {
     final rows = await query.get();
     if (rows.isEmpty) return 'Electricity evidence bounded: data kosong.';
 
-    final meters = await (_database.select(_database.electricityMeters)
-          ..where((row) => row.householdId.equals(householdId) & row.isArchived.equals(false)))
-        .get();
+    final meters =
+        await (_database.select(_database.electricityMeters)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
     final meterNameByNumber = <String, String>{
       for (final m in meters)
         m.meterNumber.replaceAll(RegExp(r'\D'), ''): m.name,
@@ -1006,7 +1010,8 @@ class FfmAssistantFinancialSnapshotService {
     final reminders = allReminders
         .where(
           (r) =>
-              r.sourceType == null || !internalSourceTypes.contains(r.sourceType),
+              r.sourceType == null ||
+              !internalSourceTypes.contains(r.sourceType),
         )
         .toList();
 

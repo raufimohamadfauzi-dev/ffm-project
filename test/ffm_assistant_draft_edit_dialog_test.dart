@@ -221,13 +221,27 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Jenis draft: Pengeluaran'), findsOneWidget);
+
+      // Expand tag section first
+      await tester.tap(find.text('Tag penanda'));
+      await tester.pumpAndSettle();
+
       expect(find.text('Tag penanda (wajib)'), findsOneWidget);
       expect(find.text('Rekening sumber pengeluaran'), findsOneWidget);
       expect(
         find.text('Pengeluaran akan mengurangi saldo rekening ini.'),
         findsOneWidget,
       );
-      expect(find.text('Dipakai oleh (opsional)'), findsOneWidget);
+
+      // Expand "Dipakai oleh" section
+      await tester.tap(find.text('Dipakai oleh (opsional)').first);
+      await tester.pumpAndSettle();
+
+      // Verify TextField label is visible
+      expect(
+        find.widgetWithText(TextField, 'Dipakai oleh (opsional)'),
+        findsOneWidget,
+      );
 
       // Verify tag chips: 'kuliner' is in master tags and should be selected
       expect(find.text('#kuliner'), findsOneWidget);
@@ -294,6 +308,10 @@ void main() {
       );
 
       await tester.tap(find.text('Koreksi'));
+      await tester.pumpAndSettle();
+
+      // Expand tag section first
+      await tester.tap(find.text('Tag penanda'));
       await tester.pumpAndSettle();
 
       // Coba klik Pakai perubahan langsung tanpa tag
@@ -461,7 +479,7 @@ void main() {
   });
 
   final invalidDraftCases =
-      <({String name, FfmAssistantDraft draft, String error})>[
+      <({String name, FfmAssistantDraft draft, String? error})>[
         (
           name: 'rekening transfer sama',
           draft: FfmAssistantDraft(
@@ -499,7 +517,7 @@ void main() {
             items: const [ReceiptOcrItem(name: 'Beras', price: 10000)],
             tax: 1000,
           ),
-          error: 'Total harus sama dengan subtotal + pajak - diskon.',
+          error: null, // Changed: now allows save even if total doesn't match
         ),
         (
           name: 'dibayar dan kembalian tidak cocok',
@@ -513,7 +531,7 @@ void main() {
             receiptPaidAmount: 20000,
             receiptChangeAmount: 5000,
           ),
-          error: 'Nominal dibayar dikurangi kembalian harus sama dengan total.',
+          error: null, // Changed: now allows save even if payment mismatch
         ),
       ];
 
@@ -551,9 +569,15 @@ void main() {
       await tester.tap(find.text('Pakai perubahan'));
       await tester.pumpAndSettle();
 
-      expect(result, isNull);
-      expect(find.text(testCase.error), findsOneWidget);
-      expect(find.text('Pakai perubahan'), findsOneWidget);
+      if (testCase.error == null) {
+        // Draft should be saved (non-blocking validation)
+        expect(result, isNotNull);
+      } else {
+        // Draft should be rejected (blocking validation)
+        expect(result, isNull);
+        expect(find.text(testCase.error!), findsOneWidget);
+        expect(find.text('Pakai perubahan'), findsOneWidget);
+      }
     });
   }
 
@@ -571,10 +595,7 @@ void main() {
         reminderMode: ReminderMode.notification,
         recurrenceType: ReminderRecurrenceType.once,
         weekdays: const [],
-        formValues: {
-          'reminderMode': 'notification',
-          'recurrence': 'once',
-        },
+        formValues: {'reminderMode': 'notification', 'recurrence': 'once'},
       );
 
       await tester.pumpWidget(

@@ -71,7 +71,9 @@ class FfmGeminiCloudOrchestrator {
     required String userText,
     required String boundedContext,
     required String householdId,
+    String? conversationHistory,
     GeminiImageInput? image,
+    List<GeminiImageInput>? images,
   }) async {
     String? key;
     String? model;
@@ -99,6 +101,9 @@ class FfmGeminiCloudOrchestrator {
       );
     }
     final instruction = _instruction(boundedContext);
+    final parsedHistory = conversationHistory != null
+        ? _parseConversationHistory(conversationHistory)
+        : const <Map<String, String>>[];
     GeminiResult result;
     try {
       result = await _chat(
@@ -107,7 +112,9 @@ class FfmGeminiCloudOrchestrator {
         userText: userText,
         instruction: instruction,
         tools: _buildTools(),
+        history: parsedHistory,
         image: image,
+        images: images,
       );
     } on Object {
       return FfmGeminiCloudTurnResult.failure(
@@ -247,6 +254,7 @@ class FfmGeminiCloudOrchestrator {
           instruction: nextInstruction,
           tools: isLastAllowedStep ? null : _buildTools(),
           image: image,
+          images: images,
         );
         finalText = result.text?.trim() ?? '';
         if (result.usageMetadata != null) {
@@ -302,7 +310,9 @@ class FfmGeminiCloudOrchestrator {
       }
     }
     if (finalText.contains('read_capability_request') ||
-        finalText.contains('formatVersion":"ffm-assistant-capability-request')) {
+        finalText.contains(
+          'formatVersion":"ffm-assistant-capability-request',
+        )) {
       finalText = accumulatedEvidence.isNotEmpty
           ? _friendlyFallback(accumulatedEvidence.join('\n\n'))
           : 'Data yang diminta sudah diperiksa pada database lokal.';
@@ -335,7 +345,9 @@ class FfmGeminiCloudOrchestrator {
     required String userText,
     required String instruction,
     List<Map<String, dynamic>>? tools,
+    List<Map<String, String>> history = const [],
     GeminiImageInput? image,
+    List<GeminiImageInput>? images,
   }) async {
     final result = await _gemini.chat(
       apiKey: key,
@@ -343,7 +355,9 @@ class FfmGeminiCloudOrchestrator {
       prompt: userText,
       systemInstruction: instruction,
       tools: tools,
+      history: history,
       image: image,
+      images: images,
     );
     await _record(
       code:
@@ -428,11 +442,17 @@ class FfmGeminiCloudOrchestrator {
         '',
       );
       final items = cleaned.split(RegExp(r';\s*|\n+'));
-      final buffer = StringBuffer('Berikut daftar pengingat aktif yang terdaftar:\n');
+      final buffer = StringBuffer(
+        'Berikut daftar pengingat aktif yang terdaftar:\n',
+      );
       var validCount = 0;
       for (final item in items) {
         final trimmed = item.trim();
-        if (trimmed.isEmpty || trimmed.startsWith('… (+') || trimmed.startsWith('(+')) continue;
+        if (trimmed.isEmpty ||
+            trimmed.startsWith('… (+') ||
+            trimmed.startsWith('(+')) {
+          continue;
+        }
         final parts = trimmed.split('|');
         final title = parts.first.replaceAll(RegExp(r'^\s*-\s*'), '').trim();
         if (title.isEmpty) continue;
@@ -707,16 +727,55 @@ class FfmGeminiCloudOrchestrator {
         : '\n\nHasil pembacaan data lokal terverifikasi sejauh ini tercantum di atas. Jika masih memerlukan sumber data lain yang relevan, panggil read_data berikutnya; jika data sudah mencukupi, jawab pertanyaan pengguna sekarang secara tuntas.';
     const header = '\n\nHASIL CAPABILITY LOKAL TERVERIFIKASI:\n';
     final combined = '$instruction$header$facts$suffix';
-    if (combined.length <= 8000) return combined;
+    if (combined.length <= 12000) return combined;
     final availableForInstruction =
-        8000 - header.length - facts.length - suffix.length;
+        12000 - header.length - facts.length - suffix.length;
     if (availableForInstruction <= 1000) {
-      return '${instruction.substring(0, (8000 - header.length - facts.length - suffix.length - 1).clamp(500, instruction.length))}…$header$facts$suffix';
+      return '${instruction.substring(0, (12000 - header.length - facts.length - suffix.length - 1).clamp(500, instruction.length))}…$header$facts$suffix';
     }
     final clippedInstruction = instruction.length > availableForInstruction
         ? '${instruction.substring(0, availableForInstruction - 1)}…'
         : instruction;
     return '$clippedInstruction$header$facts$suffix';
+  }
+
+  /// Parses formatted conversation history into structured user/model pairs
+  /// suitable for Gemini multi-turn API.
+  List<Map<String, String>> _parseConversationHistory(String history) {
+    final result = <Map<String, String>>[];
+    final lines = history.split('\n');
+    final buffer = StringBuffer();
+    String? currentRole;
+
+    for (final line in lines) {
+      if (line.startsWith('Pengguna: ')) {
+        if (currentRole != null && buffer.isNotEmpty) {
+          result.add({'role': currentRole, 'text': buffer.toString().trim()});
+          buffer.clear();
+        }
+        currentRole = 'user';
+        buffer.writeln(line.substring('Pengguna: '.length));
+      } else if (line.startsWith('Asisten: ')) {
+        if (currentRole != null && buffer.isNotEmpty) {
+          result.add({'role': currentRole, 'text': buffer.toString().trim()});
+          buffer.clear();
+        }
+        currentRole = 'model';
+        buffer.writeln(line.substring('Asisten: '.length));
+      } else if (line.trimLeft().startsWith('[Draft:') ||
+          line.trimLeft().startsWith('[Item') ||
+          line.trimLeft().startsWith('[Konteks')) {
+        // Skip metadata/draft annotation lines — not part of conversation.
+      } else if (currentRole != null && line.trim().isNotEmpty) {
+        buffer.writeln(line);
+      }
+    }
+
+    if (currentRole != null && buffer.isNotEmpty) {
+      result.add({'role': currentRole, 'text': buffer.toString().trim()});
+    }
+
+    return result;
   }
 
   String _instruction(String context) =>
@@ -799,6 +858,7 @@ ATURAN DATA & TRANSAKSI:
   * Jika pengguna menyebutkan tag baru yang belum ada di `tag_aktif`: langsung buat draf transaksi dengan `newTags: "nama_tag_baru"` dan `tags: "nama_tag_baru"`. Aplikasi akan membuat tag baru di Data Utama dan transaksi secara atomik dalam satu konfirmasi tanpa perlu dialog tambahan.
   * Jika pengguna sudah menyebutkan tag (atau setelah pengguna memilih/menjawab tag dari pertanyaan klarifikasi): SEGERA panggil tool `create_draft` lengkap dengan `tags` (atau `newTags`) beserta detail nominal, rekening, kategori, dsb. agar kartu konfirmasi draf transaksi langsung muncul di layar pengguna.
 - Nama rekening dan kategori harus sesuai dengan daftar aktif di KONTEKS TERARAH. Tag untuk transaksi diisi dari `tag_aktif`, dipisah koma; toko dari `toko_aktif`.
+- Catatan Harian (`type: "daily_note"`) boleh memakai tag Data Utama. Jika pengguna secara eksplisit meminta tag baru sekaligus mencatat kejadian, buat SATU draft dengan `tags` dan `newTags` berisi nama tag tersebut. Aplikasi akan membuat tag, Catatan Harian, dan relasinya secara atomik setelah satu konfirmasi. Jangan pecah menjadi draft Data Utama terpisah.
 - Jika user meminta tag atau toko yang belum tersedia, buat SATU draft transaksi saja: isi `tags`/`merchant` dengan nama yang diminta, lalu isi `newTags`/`newMerchant` dengan nama baru tersebut. Aplikasi akan menampilkan seluruh perubahan dalam satu preview, meminta satu konfirmasi, lalu membuat Data Utama dan transaksi secara atomik. Jangan membuat lebih dari satu `create_draft` untuk satu transaksi.
 - JANGAN menyatakan bahwa data sudah diubah/disimpan. Kamu hanya membuat draft yang akan diverifikasi oleh aplikasi.
 - ATURAN TRANSPARANSI & EKSEKUSI SARAN: Jangan pernah memberikan janji manis palsu atau mengklaim bisa melakukan tindakan jika kamu belum memanggil tool `create_draft` atau `navigate`. Tawarkan HANYA aksi yang memang bisa dieksekusi oleh aplikasi. Apabila aksi belum dapat dieksekusi otomatis oleh tool, jujurlah kepada pengguna dan berikan panduan langkah demi langkah cara melakukannya secara manual di menu aplikasi. Saat pengguna menyetujui saranmu ("iya", "boleh", "buatkan"), kamu WAJIB memanggil `create_draft` secara langsung agar kartu konfirmasi nyata muncul di layar pengguna.

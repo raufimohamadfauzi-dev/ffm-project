@@ -32,6 +32,7 @@ class _MultiFunctionGeminiService extends GeminiService {
     String? model,
     List<Map<String, dynamic>>? tools,
     GeminiImageInput? image,
+    List<GeminiImageInput>? images,
     int? maxOutputTokens,
   }) async {
     return GeminiResult(
@@ -63,6 +64,7 @@ class _TwoTurnGeminiService extends GeminiService {
     String? model,
     List<Map<String, dynamic>>? tools,
     GeminiImageInput? image,
+    List<GeminiImageInput>? images,
     int? maxOutputTokens,
   }) async {
     callCount++;
@@ -428,6 +430,7 @@ class _CustomStepGeminiService extends GeminiService {
     String? model,
     List<Map<String, dynamic>>? tools,
     GeminiImageInput? image,
+    List<GeminiImageInput>? images,
     int? maxOutputTokens,
   }) async {
     stepCount++;

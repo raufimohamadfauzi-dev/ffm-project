@@ -155,6 +155,8 @@ class Transactions extends Table {
   IntColumn get receiptChangeAmount => integer().nullable()();
   IntColumn get tax => integer().nullable()();
   IntColumn get discount => integer().nullable()();
+  IntColumn get adminFee => integer().nullable()();
+  TextColumn get metadataJson => text().nullable()();
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
   BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime()();

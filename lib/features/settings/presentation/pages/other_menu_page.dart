@@ -205,8 +205,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               onPressed: () => showAppInfoDialog(
                 context,
                 title: 'Tentang menu Lainnya',
-                message:
-                    'Data Utama membantu menyiapkan pilihan transaksi. Menu lain dipakai untuk mengelola aset, target, laporan, keamanan, dan alat offline.',
+                message: 'Data Utama membantu menyiapkan pilihan transaksi. Menu lain dipakai untuk mengelola aset, target, laporan, keamanan, dan alat offline.',
               ),
               icon: const Icon(Icons.info_outline),
             ),
@@ -239,10 +238,12 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: .45),
+                color: Theme.of(context).colorScheme.surfaceContainerHighest
+                    .withValues(alpha: .45),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .7),
+                  color: Theme.of(context).colorScheme.outlineVariant
+                      .withValues(alpha: .7),
                   width: 1,
                 ),
               ),
@@ -267,7 +268,11 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                       value: 'start',
                       child: Row(
                         children: [
-                          Icon(Icons.rocket_launch_rounded, size: 18, color: Color(0xFF059669)),
+                          Icon(
+                            Icons.rocket_launch_rounded,
+                            size: 18,
+                            color: Color(0xFF059669),
+                          ),
                           SizedBox(width: 10),
                           Text('Mulai dari sini (Utama & AI)'),
                         ],
@@ -277,7 +282,11 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                       value: 'family',
                       child: Row(
                         children: [
-                          Icon(Icons.family_restroom_rounded, size: 18, color: Color(0xFFDB2777)),
+                          Icon(
+                            Icons.family_restroom_rounded,
+                            size: 18,
+                            color: Color(0xFFDB2777),
+                          ),
                           SizedBox(width: 10),
                           Text('Data keluarga'),
                         ],
@@ -287,7 +296,11 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                       value: 'reports',
                       child: Row(
                         children: [
-                          Icon(Icons.summarize_rounded, size: 18, color: Color(0xFF2563EB)),
+                          Icon(
+                            Icons.summarize_rounded,
+                            size: 18,
+                            color: Color(0xFF2563EB),
+                          ),
                           SizedBox(width: 10),
                           Text('Laporan dan cadangan'),
                         ],
@@ -297,7 +310,11 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                       value: 'tools',
                       child: Row(
                         children: [
-                          Icon(Icons.handyman_rounded, size: 18, color: Color(0xFFD97706)),
+                          Icon(
+                            Icons.handyman_rounded,
+                            size: 18,
+                            color: Color(0xFFD97706),
+                          ),
                           SizedBox(width: 10),
                           Text('Pengingat dan alat'),
                         ],
@@ -307,7 +324,11 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                       value: 'security',
                       child: Row(
                         children: [
-                          Icon(Icons.security_rounded, size: 18, color: Color(0xFFDC2626)),
+                          Icon(
+                            Icons.security_rounded,
+                            size: 18,
+                            color: Color(0xFFDC2626),
+                          ),
                           SizedBox(width: 10),
                           Text('Keamanan dan informasi'),
                         ],
@@ -395,8 +416,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.cloud_queue_rounded,
                   title: 'Gemini Cloud & Memori',
-                  subtitle:
-                      'Simpan dan uji model Gemini untuk chatbot, serta sambungkan memori Supabase.',
+                  subtitle: 'Simpan dan uji model Gemini untuk chatbot, serta sambungkan memori Supabase.',
                   iconColor: const Color(0xFF0284C7),
                   iconBackgroundColor: const Color(0xFFE0F2FE),
                   badgeText: 'AI CLOUD',
@@ -409,8 +429,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.psychology_alt_rounded,
                   title: 'Asisten Log & Anomali',
-                  subtitle:
-                      'Riwayat laporan jawaban keliru dan pertanyaan gagal dijawab, lengkap dengan trace eksekusi untuk LLM / developer.',
+                  subtitle: 'Riwayat laporan jawaban keliru dan pertanyaan gagal dijawab, lengkap dengan trace eksekusi untuk LLM / developer.',
                   iconColor: const Color(0xFF7C3AED),
                   iconBackgroundColor: const Color(0xFFEDE9FE),
                   badgeText: 'LOG AI',
@@ -435,8 +454,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.family_restroom_rounded,
                   title: 'Profil Keluarga',
-                  subtitle:
-                      'Isi profil keluarga dan data pribadi; kelola cadangan serta pembelajaran Asisten.',
+                  subtitle: 'Isi profil keluarga dan data pribadi; kelola cadangan serta pembelajaran Asisten.',
                   iconColor: const Color(0xFFDB2777),
                   iconBackgroundColor: const Color(0xFFFCE7F3),
                   badgeText: 'PROFIL',
@@ -449,8 +467,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.inventory_2_rounded,
                   title: 'Aset keluarga',
-                  subtitle:
-                      'Catat barang atau kekayaan keluarga yang ingin dipantau.',
+                  subtitle: 'Catat barang atau kekayaan keluarga yang ingin dipantau.',
                   iconColor: const Color(0xFF4F46E5),
                   iconBackgroundColor: const Color(0xFFEEF2FF),
                   badgeText: 'HARTA',
@@ -463,8 +480,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.flag_rounded,
                   title: 'Target keuangan',
-                  subtitle:
-                      'Pantau uang yang ingin dikumpulkan sampai batas waktu tertentu.',
+                  subtitle: 'Pantau uang yang ingin dikumpulkan sampai batas waktu tertentu.',
                   iconColor: const Color(0xFF0D9488),
                   iconBackgroundColor: const Color(0xFFCCFBF1),
                   badgeText: 'GOALS',
@@ -477,8 +493,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.account_balance_rounded,
                   title: 'Hutang & piutang',
-                  subtitle:
-                      'Kelola kewajiban dan uang yang masih perlu diterima keluarga.',
+                  subtitle: 'Kelola kewajiban dan uang yang masih perlu diterima keluarga.',
                   iconColor: const Color(0xFFEA580C),
                   iconBackgroundColor: const Color(0xFFFFEDD5),
                   badgeText: 'KEWAJIBAN',
@@ -503,8 +518,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.ios_share_rounded,
                   title: 'Ekspor & cadangan',
-                  subtitle:
-                      'Buat JSON, CSV, HTML, PDF, atau pulihkan data dari berkas.',
+                  subtitle: 'Buat JSON, CSV, HTML, PDF, atau pulihkan data dari berkas.',
                   iconColor: const Color(0xFF7C3AED),
                   iconBackgroundColor: const Color(0xFFF3E8FF),
                   badgeText: 'BACKUP',
@@ -517,8 +531,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.summarize_rounded,
                   title: 'Ringkasan bulanan',
-                  subtitle:
-                      'Bandingkan arus kas, kesehatan keuangan, dan laporan per bulan.',
+                  subtitle: 'Bandingkan arus kas, kesehatan keuangan, dan laporan per bulan.',
                   iconColor: const Color(0xFF2563EB),
                   iconBackgroundColor: const Color(0xFFDBEAFE),
                   badgeText: 'LAPORAN',
@@ -531,8 +544,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.history_rounded,
                   title: 'Log aktivitas',
-                  subtitle:
-                      'Lihat jejak perubahan transaksi, transfer, impor, dan rekonsiliasi.',
+                  subtitle: 'Lihat jejak perubahan transaksi, transfer, impor, dan rekonsiliasi.',
                   iconColor: const Color(0xFF475569),
                   iconBackgroundColor: const Color(0xFFF1F5F9),
                   badgeText: 'AUDIT',
@@ -545,8 +557,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.inventory_rounded,
                   title: 'Retensi & Arsip',
-                  subtitle:
-                      'Arsipkan atau hapus permanen data lama per tanggal dengan preview dan cadangan wajib.',
+                  subtitle: 'Arsipkan atau hapus permanen data lama per tanggal dengan preview dan cadangan wajib.',
                   iconColor: const Color(0xFFB45309),
                   iconBackgroundColor: const Color(0xFFFEF3C7),
                   badgeText: 'ARSIP',
@@ -571,8 +582,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.mark_email_unread_rounded,
                   title: 'Laporan & Kotak Masuk Asisten',
-                  subtitle:
-                      'Tinjau rekomendasi proaktif, deteksi runway, rebalance anggaran, dan anomali belanja.',
+                  subtitle: 'Tinjau rekomendasi proaktif, deteksi runway, rebalance anggaran, dan anomali belanja.',
                   iconColor: const Color(0xFFD97706),
                   iconBackgroundColor: const Color(0xFFFEF3C7),
                   badgeText: 'PROAKTIF',
@@ -585,8 +595,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.monitor_heart_rounded,
                   title: 'Monitoring Agent',
-                  subtitle:
-                      'Periksa riwayat run dan eksekusi tool Agent secara read-only.',
+                  subtitle: 'Periksa riwayat run dan eksekusi tool Agent secara read-only.',
                   iconColor: const Color(0xFFE11D48),
                   iconBackgroundColor: const Color(0xFFFFE4E6),
                   badgeText: 'AUTONOMY',
@@ -600,8 +609,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.account_balance_wallet_outlined,
                   title: 'Delegasi Anggaran Asisten',
-                  subtitle:
-                      'Tinjau batas per pos, jeda atau cabut delegasi, serta batalkan eksekusi dengan aman.',
+                  subtitle: 'Tinjau batas per pos, jeda atau cabut delegasi, serta batalkan eksekusi dengan aman.',
                   iconColor: const Color(0xFF0F766E),
                   iconBackgroundColor: const Color(0xFFCCFBF1),
                   badgeText: 'ANGGARAN',
@@ -615,8 +623,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.send_rounded,
                   title: 'Telegram Bot Keluarga',
-                  subtitle:
-                      'Kirim laporan mingguan otomatis & alarm radar boncos ke chat/grup keluarga.',
+                  subtitle: 'Kirim laporan mingguan otomatis & alarm radar boncos ke chat/grup keluarga.',
                   iconColor: const Color(0xFF0284C7),
                   iconBackgroundColor: const Color(0xFFE0F2FE),
                   badgeText: 'BOT KELUARGA',
@@ -629,8 +636,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.qr_code_scanner,
                   title: 'Pendeteksi Bayar Otomatis',
-                  subtitle:
-                      'Tangkap otomatis transaksi QRIS & bank dari notifikasi HP. 100% lokal, tanpa cloud.',
+                  subtitle: 'Tangkap otomatis transaksi QRIS & bank dari notifikasi HP. 100% lokal, tanpa cloud.',
                   iconColor: const Color(0xFF7C3AED),
                   iconBackgroundColor: const Color(0xFFEDE9FE),
                   badgeText: 'QRIS & BANK',
@@ -644,8 +650,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.electric_bolt_rounded,
                   title: 'Token Listrik',
-                  subtitle:
-                      'Simpan nomor IDPEL/meteran PLN, salin nomor meter dan 20-digit token dengan 1-ketukan.',
+                  subtitle: 'Simpan nomor IDPEL/meteran PLN, salin nomor meter dan 20-digit token dengan 1-ketukan.',
                   iconColor: const Color(0xFFD97706),
                   iconBackgroundColor: const Color(0xFFFEF3C7),
                   badgeText: 'UTILITAS',
@@ -658,8 +663,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.directions_car_rounded,
                   title: 'Kendaraan & Catatan BBM',
-                  subtitle:
-                      'Daftarkan motor/mobil/traktor, no polisi, kapasitas tangki, serta riwayat pengisian & analisa BBM.',
+                  subtitle: 'Daftarkan motor/mobil/traktor, no polisi, kapasitas tangki, serta riwayat pengisian & analisa BBM.',
                   iconColor: const Color(0xFF0D9488),
                   iconBackgroundColor: const Color(0xFFCCFBF1),
                   badgeText: 'KENDARAAN',
@@ -686,8 +690,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.notifications_active_rounded,
                   title: 'Pengingat',
-                  subtitle:
-                      'Buat pengingat lokal untuk hal yang tidak boleh kelupaan.',
+                  subtitle: 'Buat pengingat lokal untuk hal yang tidak boleh kelupaan.',
                   iconColor: const Color(0xFFCA8A04),
                   iconBackgroundColor: const Color(0xFFFEF9C3),
                   badgeText: 'ALARM',
@@ -700,8 +703,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.nights_stay_rounded,
                   title: 'Kalender Hijriah & Hilal',
-                  subtitle:
-                      'Atur koreksi Hilal (-2/+2 hari) dan penetapan awal bulan Hijriah.',
+                  subtitle: 'Atur koreksi Hilal (-2/+2 hari) dan penetapan awal bulan Hijriah.',
                   iconColor: const Color(0xFF16A34A),
                   iconBackgroundColor: const Color(0xFFDCFCE7),
                   badgeText: 'HIJRIAH',
@@ -714,13 +716,11 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.event_repeat_rounded,
                   title: 'Pemasukan berkala',
-                  subtitle:
-                      'Atur bunga atau pemasukan rutin harian, mingguan, dan bulanan.',
+                  subtitle: 'Atur bunga atau pemasukan rutin harian, mingguan, dan bulanan.',
                   iconColor: const Color(0xFF0891B2),
                   iconBackgroundColor: const Color(0xFFCFFAFE),
                   badgeText: 'RUTIN',
-                  onTap: () =>
-                      _open(context, const RecurringTransactionPage()),
+                  onTap: () => _open(context, const RecurringTransactionPage()),
                   visible: _matches(
                     'Pemasukan berkala',
                     'Atur bunga atau pemasukan rutin harian, mingguan, dan bulanan.',
@@ -729,8 +729,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.calendar_month_rounded,
                   title: 'Kalender & Smartwatch',
-                  subtitle:
-                      'Sinkronisasi tagihan & jatuh tempo ke Google Calendar dan jam tangan pintar.',
+                  subtitle: 'Sinkronisasi tagihan & jatuh tempo ke Google Calendar dan jam tangan pintar.',
                   iconColor: const Color(0xFF0284C7),
                   iconBackgroundColor: const Color(0xFFE0F2FE),
                   badgeText: 'SINKRON',
@@ -743,8 +742,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.nfc_rounded,
                   title: 'Pemindai Kartu NFC e-Money',
-                  subtitle:
-                      'Pindai kartu tol/e-Money langsung untuk cek saldo dan hitung selisih mutasi otomatis.',
+                  subtitle: 'Pindai kartu tol/e-Money langsung untuk cek saldo dan hitung selisih mutasi otomatis.',
                   iconColor: const Color(0xFF059669),
                   iconBackgroundColor: const Color(0xFFD1FAE5),
                   badgeText: 'NFC',
@@ -757,8 +755,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.tag_rounded,
                   title: 'Program Tag Pintar NFC',
-                  subtitle:
-                      'Program stiker koin NFC untuk tombol instan bensin, dapur, atau asisten suara.',
+                  subtitle: 'Program stiker koin NFC untuk tombol instan bensin, dapur, atau asisten suara.',
                   iconColor: const Color(0xFF0284C7),
                   iconBackgroundColor: const Color(0xFFE0F2FE),
                   badgeText: 'SMART TAG',
@@ -797,8 +794,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.bug_report_rounded,
                   title: 'Bantuan perbaikan',
-                  subtitle:
-                      'Lihat error yang benar-benar tercatat dan salin laporan aman untuk perbaikan APK.',
+                  subtitle: 'Lihat error yang benar-benar tercatat dan salin laporan aman untuk perbaikan APK.',
                   iconColor: const Color(0xFFC2410C),
                   iconBackgroundColor: const Color(0xFFFFEDD5),
                   badgeText: 'DIAGNOSTIK',
@@ -811,8 +807,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.privacy_tip_rounded,
                   title: 'Pusat privasi',
-                  subtitle:
-                      'Lihat lokasi data, enkripsi, izin perangkat, dan kendali ekspor.',
+                  subtitle: 'Lihat lokasi data, enkripsi, izin perangkat, dan kendali ekspor.',
                   iconColor: const Color(0xFF4338CA),
                   iconBackgroundColor: const Color(0xFFE0E7FF),
                   badgeText: 'PRIVASI',
@@ -838,8 +833,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 _MenuCard(
                   icon: Icons.delete_sweep_rounded,
                   title: 'Penyimpanan FFM',
-                  subtitle:
-                      'Kelola data lokal atau setel ulang FFM melalui Setelan Android.',
+                  subtitle: 'Kelola data lokal atau setel ulang FFM melalui Setelan Android.',
                   iconColor: const Color(0xFF7C3AED),
                   iconBackgroundColor: const Color(0xFFEDE9FE),
                   badgeText: 'RESET DATA',

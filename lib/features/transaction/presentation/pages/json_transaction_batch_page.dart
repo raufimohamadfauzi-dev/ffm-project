@@ -401,7 +401,10 @@ class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
     }
     setState(() => _loading = true);
     try {
-      final imported = ReceiptImportService.parseBatchJson(text);
+      final imported = ReceiptImportService.parseBatchJson(
+        text,
+        userCaption: null,
+      );
       final warnings = [...imported.warnings];
       final transferEntries = imported.entries
           .where((entry) => entry.type == 'transfer')

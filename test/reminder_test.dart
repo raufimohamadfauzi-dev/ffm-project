@@ -393,56 +393,53 @@ void main() {
       },
     );
 
-    test(
-      'snooze mengubah status dan menjadwalkan ulang sepuluh menit pada mode alarm',
-      () async {
-        final item = reminder(
-          mode: ReminderMode.alarm,
-          scheduledAt: DateTime.now().subtract(const Duration(minutes: 1)),
-        );
-        await repository.saveReminder(item);
-        final occurrence = ReminderOccurrence(
-          key: '20260820-1200',
-          scheduledAt: item.scheduledAt,
-          notificationId: 2002,
-        );
+    test('snooze mengubah status dan menjadwalkan ulang sepuluh menit pada mode alarm', () async {
+      final item = reminder(
+        mode: ReminderMode.alarm,
+        scheduledAt: DateTime.now().subtract(const Duration(minutes: 1)),
+      );
+      await repository.saveReminder(item);
+      final occurrence = ReminderOccurrence(
+        key: '20260820-1200',
+        scheduledAt: item.scheduledAt,
+        notificationId: 2002,
+      );
 
-        final history = await repository.ensureHistory(
-          reminder: item,
-          occurrence: occurrence,
-        );
-        final until = DateTime.now().add(const Duration(minutes: 10));
+      final history = await repository.ensureHistory(
+        reminder: item,
+        occurrence: occurrence,
+      );
+      final until = DateTime.now().add(const Duration(minutes: 10));
 
-        final stateFuture = bloc.stream.firstWhere(
-          (state) => state.history.any(
-            (view) =>
-                view.history.id == history.id &&
-                view.history.status == ReminderHistoryStatus.snoozed,
-          ),
-        );
-        bloc.add(
-          ReminderHistoryStatusChanged(
-            history: history,
-            status: ReminderHistoryStatus.snoozed,
-            snoozedUntil: until,
-          ),
-        );
-        await stateFuture;
+      final stateFuture = bloc.stream.firstWhere(
+        (state) => state.history.any(
+          (view) =>
+              view.history.id == history.id &&
+              view.history.status == ReminderHistoryStatus.snoozed,
+        ),
+      );
+      bloc.add(
+        ReminderHistoryStatusChanged(
+          history: history,
+          status: ReminderHistoryStatus.snoozed,
+          snoozedUntil: until,
+        ),
+      );
+      await stateFuture;
 
-        final stored = await repository.getHistoryById(
-          householdId: householdId,
-          historyId: history.id,
-        );
-        expect(stored?.status, ReminderHistoryStatus.snoozed);
-        expect(
-          stored?.snoozedUntil?.difference(until).abs(),
-          lessThan(const Duration(seconds: 1)),
-        );
-        expect(gateway.scheduled, hasLength(1));
-        expect(gateway.scheduled.single.occurrence.scheduledAt, until);
-        expect(gateway.cancelled, contains(history.notificationId));
-      },
-    );
+      final stored = await repository.getHistoryById(
+        householdId: householdId,
+        historyId: history.id,
+      );
+      expect(stored?.status, ReminderHistoryStatus.snoozed);
+      expect(
+        stored?.snoozedUntil?.difference(until).abs(),
+        lessThan(const Duration(seconds: 1)),
+      );
+      expect(gateway.scheduled, hasLength(1));
+      expect(gateway.scheduled.single.occurrence.scheduledAt, until);
+      expect(gateway.cancelled, contains(history.notificationId));
+    });
 
     test(
       'snooze tidak menjadwalkan ulang jika mode notifikasi biasa',
@@ -542,54 +539,52 @@ void main() {
       },
     );
 
-    test(
-      'membersihkan riwayat yang selesai dan dibatalkan',
-      () async {
-        final item = reminder(
-          scheduledAt: DateTime.now().subtract(const Duration(hours: 1)),
-        );
-        await repository.saveReminder(item);
-        final occ1 = ReminderOccurrence(
-          key: 'occ-1',
-          scheduledAt: DateTime.now().subtract(const Duration(hours: 2)),
-          notificationId: 3001,
-        );
-        final occ2 = ReminderOccurrence(
-          key: 'occ-2',
-          scheduledAt: DateTime.now().subtract(const Duration(hours: 1)),
-          notificationId: 3002,
-        );
-        final h1 = await repository.ensureHistory(
-          reminder: item,
-          occurrence: occ1,
-        );
-        final h2 = await repository.ensureHistory(
-          reminder: item,
-          occurrence: occ2,
-        );
-        await repository.updateHistoryStatus(
-          householdId: householdId,
-          historyId: h1.id,
-          status: ReminderHistoryStatus.completed,
-        );
-        await repository.updateHistoryStatus(
-          householdId: householdId,
-          historyId: h2.id,
-          status: ReminderHistoryStatus.pending,
-        );
+    test('membersihkan riwayat yang selesai dan dibatalkan', () async {
+      final item = reminder(
+        scheduledAt: DateTime.now().subtract(const Duration(hours: 1)),
+      );
+      await repository.saveReminder(item);
+      final occ1 = ReminderOccurrence(
+        key: 'occ-1',
+        scheduledAt: DateTime.now().subtract(const Duration(hours: 2)),
+        notificationId: 3001,
+      );
+      final occ2 = ReminderOccurrence(
+        key: 'occ-2',
+        scheduledAt: DateTime.now().subtract(const Duration(hours: 1)),
+        notificationId: 3002,
+      );
+      final h1 = await repository.ensureHistory(
+        reminder: item,
+        occurrence: occ1,
+      );
+      final h2 = await repository.ensureHistory(
+        reminder: item,
+        occurrence: occ2,
+      );
+      await repository.updateHistoryStatus(
+        householdId: householdId,
+        historyId: h1.id,
+        status: ReminderHistoryStatus.completed,
+      );
+      await repository.updateHistoryStatus(
+        householdId: householdId,
+        historyId: h2.id,
+        status: ReminderHistoryStatus.pending,
+      );
 
-        bloc.add(const ReminderLoadRequested());
-        await bloc.stream.firstWhere((s) => s.history.length == 2);
+      bloc.add(const ReminderLoadRequested());
+      await bloc.stream.firstWhere((s) => s.history.length == 2);
 
-        bloc.add(const ReminderCompletedHistoriesCleared());
-        final state = await bloc.stream.firstWhere(
-          (s) => s.history.length == 1,
-        );
+      bloc.add(const ReminderCompletedHistoriesCleared());
+      final state = await bloc.stream.firstWhere((s) => s.history.length == 1);
 
-        expect(state.history.single.history.id, h2.id);
-        expect(state.history.single.history.status, ReminderHistoryStatus.pending);
-      },
-    );
+      expect(state.history.single.history.id, h2.id);
+      expect(
+        state.history.single.history.status,
+        ReminderHistoryStatus.pending,
+      );
+    });
   });
 }
 

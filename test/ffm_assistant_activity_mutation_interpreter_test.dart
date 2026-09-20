@@ -60,6 +60,20 @@ void main() {
     },
   );
 
+  test('catat kejadian sekaligus tag baru menghasilkan satu draft', () async {
+    final intent = await interpreter.interpret(
+      'tolong catat sekarang saya sedang pupuk cabai di kebun AB dan buat tag baru terkait tag AB',
+    );
+
+    expect(intent.type, FfmAssistantIntentType.createDailyNote);
+    expect(intent.destination, FfmAssistantDestination.activity);
+    expect(intent.draft?.kind, FfmAssistantDraftKind.dailyNote);
+    expect(intent.draft?.note, 'saya sedang pupuk cabai di kebun AB');
+    expect(intent.draft?.tags, 'AB');
+    expect(intent.draft?.newTags, 'AB');
+    expect(intent.needsConfirmation, isTrue);
+  });
+
   test(
     'hapus aktivitas ambigu tidak memilih target secara diam-diam',
     () async {

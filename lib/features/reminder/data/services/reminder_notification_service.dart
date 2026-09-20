@@ -242,6 +242,8 @@ Future<void> _scheduleBackgroundSnooze(
             : AndroidNotificationCategory.reminder,
         fullScreenIntent: isAlarmSnooze,
         visibility: NotificationVisibility.public,
+        showWhen: true,
+        when: snoozedUntil.millisecondsSinceEpoch,
         subText: _reminderSubText,
         styleInformation: BigTextStyleInformation(
           '${payload['title'] ?? 'Pengingat FFM'}',
@@ -689,6 +691,8 @@ class ReminderNotificationService
             : AndroidNotificationCategory.reminder,
         fullScreenIntent: isAlarmMode,
         visibility: NotificationVisibility.public,
+        showWhen: true,
+        when: occurrence.scheduledAt.millisecondsSinceEpoch,
         subText: _reminderSubText,
         styleInformation: BigTextStyleInformation(
           reminder.note?.trim().isNotEmpty == true
@@ -783,6 +787,8 @@ class ReminderNotificationService
           color: _reminderAccentColor,
           category: AndroidNotificationCategory.reminder,
           visibility: NotificationVisibility.public,
+          showWhen: true,
+          when: scheduledAt.millisecondsSinceEpoch,
           subText: _reminderSubText,
           styleInformation: BigTextStyleInformation(
             'Pengingat dijadwalkan ulang.',

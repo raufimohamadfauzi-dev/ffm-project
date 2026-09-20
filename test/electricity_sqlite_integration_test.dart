@@ -176,7 +176,10 @@ void main() {
     await repository.saveMeter(first);
     await repository.archiveMeter('household-a', 'meter-a');
 
-    final archivedSameNumber = first.copyWith(id: 'meter-b', name: 'Rumah Baru');
+    final archivedSameNumber = first.copyWith(
+      id: 'meter-b',
+      name: 'Rumah Baru',
+    );
     await repository.saveMeter(archivedSameNumber);
     expect((await repository.getAllMeters('household-a')).length, 1);
 

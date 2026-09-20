@@ -46,13 +46,55 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verifikasi ada 7 tab
-      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Semua')), findsOneWidget);
-      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Aktif')), findsOneWidget);
-      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Terlambat')), findsOneWidget);
-      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('0-7 hari')), findsOneWidget);
-      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('8-30 hari')), findsOneWidget);
-      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('> 30 hari')), findsOneWidget);
-      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Lunas')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(TabBar),
+          matching: find.textContaining('Semua'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(TabBar),
+          matching: find.textContaining('Aktif'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(TabBar),
+          matching: find.textContaining('Terlambat'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(TabBar),
+          matching: find.textContaining('0-7 hari'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(TabBar),
+          matching: find.textContaining('8-30 hari'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(TabBar),
+          matching: find.textContaining('> 30 hari'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(TabBar),
+          matching: find.textContaining('Lunas'),
+        ),
+        findsOneWidget,
+      );
 
       // Verifikasi ada kotak pencarian
       expect(find.byType(TextField), findsOneWidget);
@@ -83,9 +125,27 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: ReceivableListPage()));
       await tester.pumpAndSettle();
 
-      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Semua')), findsOneWidget);
-      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Aktif')), findsOneWidget);
-      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Terlambat')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(TabBar),
+          matching: find.textContaining('Semua'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(TabBar),
+          matching: find.textContaining('Aktif'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(TabBar),
+          matching: find.textContaining('Terlambat'),
+        ),
+        findsOneWidget,
+      );
       expect(
         find.descendant(
           of: find.byType(TabBar),
@@ -100,8 +160,20 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('> 30 hari')), findsOneWidget);
-      expect(find.descendant(of: find.byType(TabBar), matching: find.textContaining('Lunas')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(TabBar),
+          matching: find.textContaining('> 30 hari'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(TabBar),
+          matching: find.textContaining('Lunas'),
+        ),
+        findsOneWidget,
+      );
 
       expect(find.text('Piutang Mitra'), findsOneWidget);
     },

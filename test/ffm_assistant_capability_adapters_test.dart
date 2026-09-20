@@ -99,17 +99,20 @@ void main() {
     expect(verified.message, contains('aset “Dana darurat”'));
   });
 
-  test('read.electricity adapter tersedia dan merangkum data meteran', () async {
-    final step = const FfmAssistantActionStep(
-      id: 'read-electricity',
-      capabilityId: 'read.electricity',
-    );
+  test(
+    'read.electricity adapter tersedia dan merangkum data meteran',
+    () async {
+      final step = const FfmAssistantActionStep(
+        id: 'read-electricity',
+        capabilityId: 'read.electricity',
+      );
 
-    final result = await adapters.handlers['read.electricity']!(step);
+      final result = await adapters.handlers['read.electricity']!(step);
 
-    expect(result.isSuccess, isTrue);
-    expect(result.message, anyOf(contains('meter'), contains('Belum ada')));
-  });
+      expect(result.isSuccess, isTrue);
+      expect(result.message, anyOf(contains('meter'), contains('Belum ada')));
+    },
+  );
 
   test(
     'draft Catatan Harian disimpan dan diverifikasi di tabel daily_notes',

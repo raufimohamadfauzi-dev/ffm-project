@@ -2825,7 +2825,10 @@ class _TransactionListPageState extends State<TransactionListPage> {
         return name;
       }
     }
-    if (RegExp(r'\b(?:token\s*listrik|pln)\b', caseSensitive: false).hasMatch(note)) {
+    if (RegExp(
+      r'\b(?:token\s*listrik|pln)\b',
+      caseSensitive: false,
+    ).hasMatch(note)) {
       return 'PLN';
     }
     return null;

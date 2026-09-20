@@ -159,4 +159,39 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'pengingat berulang yang jamnya sudah lewat menampilkan jadwal berikutnya',
+    (tester) async {
+      final reminder = ReminderEntity(
+        id: 'reminder-daily-past-today',
+        householdId: 'local-household',
+        title: 'Alarm subuh harian',
+        scheduledAt: DateTime.now().subtract(const Duration(hours: 2)),
+        recurrenceType: ReminderRecurrenceType.daily,
+        weekdays: const [],
+        notificationId: 104,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ReminderScheduleCard(
+              reminder: reminder,
+              onTap: () {},
+              onActiveChanged: (_) {},
+              onEdit: () {},
+              onDelete: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Menunggu jadwal berikutnya'), findsNothing);
+      expect(find.textContaining('lagi'), findsWidgets);
+      expect(find.byIcon(Icons.notifications_active_outlined), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

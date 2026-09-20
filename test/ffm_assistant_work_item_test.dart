@@ -106,8 +106,14 @@ void main() {
       );
 
       expect(result.workItems.length, 2);
-      expect(result.workItems[0].id, matches(RegExp(r'^work_[0-9a-fA-F-]{36}$')));
-      expect(result.workItems[1].id, matches(RegExp(r'^work_[0-9a-fA-F-]{36}$')));
+      expect(
+        result.workItems[0].id,
+        matches(RegExp(r'^work_[0-9a-fA-F-]{36}$')),
+      );
+      expect(
+        result.workItems[1].id,
+        matches(RegExp(r'^work_[0-9a-fA-F-]{36}$')),
+      );
       expect(result.workItems[0].id, isNot(result.workItems[1].id));
     });
 

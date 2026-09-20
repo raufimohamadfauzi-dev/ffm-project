@@ -217,6 +217,8 @@ class FfmAssistantMessageCard extends StatelessWidget {
         (tokenUsage?['candidatesTokenCount'] ?? tokenUsage?['candidateTokens'])
             as int?;
 
+    final visualPaths = entry.allFilePaths;
+
     final content = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -346,6 +348,53 @@ class FfmAssistantMessageCard extends StatelessWidget {
               ],
             ),
           ),
+        ],
+        if (visualPaths.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          _VisualAttachmentGallery(paths: visualPaths),
+          if (!isUser && entry.processTrace != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF14212D)
+                    : const Color(0xFFE0F2FE),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isDark
+                      ? const Color(0xFF38BDF8)
+                      : const Color(0xFF0EA5E9),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.insights_rounded,
+                    size: 15,
+                    color: isDark
+                        ? const Color(0xFF7DD3FC)
+                        : const Color(0xFF0369A1),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Trace visual AI: ${entry.processTrace!.events.isNotEmpty ? entry.processTrace!.events.first.label : 'Gemini Vision dipanggil'}',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: isDark
+                            ? const Color(0xFFE0F2FE)
+                            : const Color(0xFF0C4A6E),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
         if (entry.text.isNotEmpty) ...[
           FfmAssistantMarkdownText(
@@ -913,6 +962,107 @@ class FfmAssistantMessageCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _VisualAttachmentGallery extends StatelessWidget {
+  const _VisualAttachmentGallery({required this.paths});
+
+  final List<String> paths;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final items = paths
+        .where((path) => path.trim().isNotEmpty)
+        .toList(growable: false);
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = items.length <= 1
+            ? 1
+            : items.length <= 2
+            ? 2
+            : 3;
+        final cellWidth =
+            (constraints.maxWidth - (crossAxisCount - 1) * 8) / crossAxisCount;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final path in items)
+              GestureDetector(
+                onTap: () => showDialog<void>(
+                  context: context,
+                  builder: (ctx) => Dialog(
+                    backgroundColor: Colors.black87,
+                    insetPadding: const EdgeInsets.all(12),
+                    child: Stack(
+                      alignment: Alignment.topRight,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Center(
+                            child: InteractiveViewer(
+                              child: Image.file(
+                                File(path),
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, _, _) => const Center(
+                                  child: Text(
+                                    'Gambar tidak dapat ditampilkan.',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white),
+                            tooltip: 'Tutup pratinjau',
+                            onPressed: () => Navigator.pop(ctx),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    width: cellWidth.clamp(96.0, 220.0),
+                    height: crossAxisCount == 1 ? 220.0 : 110.0,
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Image.file(
+                      File(path),
+                      width: cellWidth.clamp(96.0, 220.0),
+                      height: crossAxisCount == 1 ? 220.0 : 110.0,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        width: cellWidth.clamp(96.0, 220.0),
+                        height: crossAxisCount == 1 ? 220.0 : 110.0,
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        child: const Icon(
+                          Icons.image_not_supported_outlined,
+                          size: 28,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

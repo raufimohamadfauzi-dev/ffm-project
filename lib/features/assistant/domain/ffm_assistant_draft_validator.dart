@@ -32,6 +32,8 @@ abstract final class FfmAssistantDraftValidator {
         _validateTransfer(draft, issues);
         _validateTransactionDate(draft, issues);
         _validateTransactionReferences(draft, issues);
+      case FfmAssistantDraftKind.budgetTransfer:
+        break;
       case FfmAssistantDraftKind.income:
         _validateReceiptFields(draft, issues);
         _validateTransactionDate(draft, issues);
@@ -60,21 +62,24 @@ abstract final class FfmAssistantDraftValidator {
         _validateReceiptFields(draft, issues);
         _validateTransactionDate(draft, issues);
         _validateTransactionReferences(draft, issues);
-        final tags = <String>[
-          if (draft.tags != null) draft.tags!,
-          if (draft.newTags != null) draft.newTags!,
-          if (draft.formValues['tags'] != null) draft.formValues['tags']!,
-          if (draft.formValues['newTags'] != null)
-            draft.formValues['newTags']!,
-        ].expand((value) => value.split(',')).where((value) => value.trim().isNotEmpty);
+        final tags =
+            <String>[
+                  if (draft.tags != null) draft.tags!,
+                  if (draft.newTags != null) draft.newTags!,
+                  if (draft.formValues['tags'] != null)
+                    draft.formValues['tags']!,
+                  if (draft.formValues['newTags'] != null)
+                    draft.formValues['newTags']!,
+                ]
+                .expand((value) => value.split(','))
+                .where((value) => value.trim().isNotEmpty);
         if (tags.isEmpty) {
           issues.add(
             const FfmAssistantDraftIssue(
               code: 'expense_tags_required',
               severity: FfmAssistantDraftIssueSeverity.required,
               field: 'tag',
-              message:
-                  'Pilih atau tambahkan minimal 1 tag untuk transaksi pengeluaran.',
+              message: 'Pilih atau tambahkan minimal 1 tag untuk transaksi pengeluaran.',
             ),
           );
         }
@@ -548,7 +553,8 @@ abstract final class FfmAssistantDraftValidator {
           );
         }
       case FfmAssistantDraftKind.dailyNote:
-        final effectiveNote = draft.note ??
+        final effectiveNote =
+            draft.note ??
             draft.formValues['body']?.toString() ??
             draft.formValues['note']?.toString() ??
             draft.title;
@@ -572,6 +578,28 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+        final tagNames =
+            (draft.tags ?? draft.formValues['tags']?.toString() ?? '')
+                .split(',')
+                .map((name) => name.trim().toLowerCase())
+                .where((name) => name.isNotEmpty)
+                .toSet();
+        final newTagNames =
+            (draft.newTags ?? draft.formValues['newTags']?.toString() ?? '')
+                .split(',')
+                .map((name) => name.trim().toLowerCase())
+                .where((name) => name.isNotEmpty)
+                .toSet();
+        if (!tagNames.containsAll(newTagNames)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'daily_note_new_tags_mismatch',
+              severity: FfmAssistantDraftIssueSeverity.conflict,
+              field: 'tag',
+              message: 'Semua tag baru harus ikut tercantum sebagai tag Catatan Harian.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.dailyNoteArchive:
       case FfmAssistantDraftKind.dailyNoteUpdate:
       case FfmAssistantDraftKind.dailyNoteRestore:
@@ -587,28 +615,17 @@ abstract final class FfmAssistantDraftValidator {
           );
         }
       case FfmAssistantDraftKind.activity:
-        if (_isBlank(draft.title)) {
-          issues.add(
-            const FfmAssistantDraftIssue(
-              code: 'activity_title_required',
-              severity: FfmAssistantDraftIssueSeverity.required,
-              field: 'judul aktivitas',
-              message: 'Judul aktivitas belum ada.',
-            ),
-          );
-        }
-        if (draft.date == null &&
-            draft.scheduledAt == null &&
-            _isBlank(draft.formValues['date'])) {
-          issues.add(
-            const FfmAssistantDraftIssue(
-              code: 'activity_date_required',
-              severity: FfmAssistantDraftIssueSeverity.required,
-              field: 'tanggal aktivitas',
-              message: 'Tanggal atau waktu aktivitas belum valid.',
-            ),
-          );
-        }
+        _validateActivityCreate(draft, issues);
+      case FfmAssistantDraftKind.transactionUpdate:
+      case FfmAssistantDraftKind.transactionArchive:
+      case FfmAssistantDraftKind.transactionDelete:
+        _validateTransactionTarget(draft, issues);
+      case FfmAssistantDraftKind.activityArchive:
+      case FfmAssistantDraftKind.activityDelete:
+      case FfmAssistantDraftKind.activityFinish:
+      case FfmAssistantDraftKind.activityUpdate:
+      case FfmAssistantDraftKind.activityEdit:
+        _validateActivityMutation(draft, issues);
       case FfmAssistantDraftKind.task:
         if (_isBlank(draft.title)) {
           issues.add(
@@ -715,24 +732,6 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
-      case FfmAssistantDraftKind.transactionUpdate:
-      case FfmAssistantDraftKind.transactionArchive:
-      case FfmAssistantDraftKind.transactionDelete:
-      case FfmAssistantDraftKind.activityArchive:
-      case FfmAssistantDraftKind.activityDelete:
-      case FfmAssistantDraftKind.activityFinish:
-      case FfmAssistantDraftKind.activityUpdate:
-      case FfmAssistantDraftKind.activityEdit:
-        if (_isBlank(draft.formValues['targetId'])) {
-          issues.add(
-            const FfmAssistantDraftIssue(
-              code: 'transaction_target_required',
-              severity: FfmAssistantDraftIssueSeverity.required,
-              field: 'transaksi',
-              message: 'Transaksi target belum ditemukan secara unik.',
-            ),
-          );
-        }
       case FfmAssistantDraftKind.budget:
         if (!draft.hasAmount) {
           issues.add(
@@ -823,6 +822,73 @@ abstract final class FfmAssistantDraftValidator {
         break;
       case FfmAssistantDraftKind.meterReading:
         break;
+      case FfmAssistantDraftKind.createUtilityMeter:
+        if (_isBlank(draft.title) && _isBlank(draft.formValues['name'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'utility_meter_name_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'nama meter',
+              message: 'Nama meteran atau IDPEL belum ada. Isi dulu sebelum konfirmasi pendaftaran.',
+            ),
+          );
+        }
+        if (_isBlank(draft.formValues['meterNumber'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'utility_meter_number_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'IDPEL',
+              message: 'Nomor IDPEL atau meteran belum ada. Masukkan IDPEL 11–12 digit.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.updateTokenCode:
+        if (_isBlank(draft.formValues['meterId']) &&
+            _isBlank(draft.formValues['meterNumber'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'utility_meter_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'meteran tujuan',
+              message: 'Meteran listrik tujuan belum dipilih. Pilih meteran yang akan diupdate token-nya.',
+            ),
+          );
+        }
+        if (_isBlank(draft.formValues['tokenCode'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'utility_token_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'kode token',
+              message: 'Kode token 20 digit belum ada. Masukkan token PLN yang benar.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.updateUtilityMeter:
+        if (_isBlank(draft.formValues['meterId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'utility_meter_id_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'ID meteran',
+              message: 'ID meteran belum ada. Pilih meteran yang akan diubah.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.deleteUtilityMeter:
+        if (_isBlank(draft.formValues['meterId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'utility_meter_id_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'ID meteran',
+              message: 'ID meteran belum ada. Pilih meteran yang akan dihapus.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.analyzeElectricityConsumption:
+        break;
     }
     return issues;
   }
@@ -877,7 +943,9 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.activityArchive ||
     FfmAssistantDraftKind.activityDelete ||
     FfmAssistantDraftKind.monitoringJob ||
-    FfmAssistantDraftKind.meterReading => false,
+    FfmAssistantDraftKind.meterReading ||
+    FfmAssistantDraftKind.createUtilityMeter ||
+    FfmAssistantDraftKind.updateTokenCode => false,
     _ => true,
   };
 
@@ -975,7 +1043,8 @@ abstract final class FfmAssistantDraftValidator {
         0,
         (sum, item) => sum + item.calculatedTotal,
       );
-      final expected = subtotal +
+      final expected =
+          subtotal +
           (draft.tax ?? 0) +
           (draft.adminFee ?? 0) -
           (draft.discount ?? 0);
@@ -1046,6 +1115,147 @@ abstract final class FfmAssistantDraftValidator {
           severity: FfmAssistantDraftIssueSeverity.required,
           field: 'tanggal',
           message: 'Tanggal transaksi belum valid.',
+        ),
+      );
+    }
+  }
+
+  static void _validateActivityCreate(
+    FfmAssistantDraft draft,
+    List<FfmAssistantDraftIssue> issues,
+  ) {
+    if (_isBlank(draft.title)) {
+      issues.add(
+        const FfmAssistantDraftIssue(
+          code: 'activity_title_required',
+          severity: FfmAssistantDraftIssueSeverity.required,
+          field: 'judul aktivitas',
+          message: 'Judul aktivitas belum ada.',
+        ),
+      );
+    }
+    if (draft.date == null &&
+        draft.scheduledAt == null &&
+        _isBlank(draft.formValues['date'])) {
+      issues.add(
+        const FfmAssistantDraftIssue(
+          code: 'activity_date_required',
+          severity: FfmAssistantDraftIssueSeverity.required,
+          field: 'tanggal aktivitas',
+          message: 'Tanggal atau waktu aktivitas belum valid.',
+        ),
+      );
+    }
+    _validateActivityVocabulary(draft, issues);
+  }
+
+  static void _validateTransactionTarget(
+    FfmAssistantDraft draft,
+    List<FfmAssistantDraftIssue> issues,
+  ) {
+    if (_isBlank(draft.formValues['targetId'])) {
+      issues.add(
+        const FfmAssistantDraftIssue(
+          code: 'transaction_target_required',
+          severity: FfmAssistantDraftIssueSeverity.required,
+          field: 'transaksi',
+          message: 'Transaksi target belum ditemukan secara unik.',
+        ),
+      );
+    }
+  }
+
+  static void _validateActivityMutation(
+    FfmAssistantDraft draft,
+    List<FfmAssistantDraftIssue> issues,
+  ) {
+    if (_isBlank(draft.formValues['targetId'])) {
+      issues.add(
+        const FfmAssistantDraftIssue(
+          code: 'activity_target_required',
+          severity: FfmAssistantDraftIssueSeverity.required,
+          field: 'aktivitas',
+          message: 'Aktivitas target belum ditemukan secara unik.',
+        ),
+      );
+    }
+    _validateActivityVocabulary(draft, issues);
+    final operation = draft.formValues['operation']?.toString().trim();
+    const supportedOperations = {
+      'archive',
+      'delete',
+      'finish',
+      'reopen',
+      'update',
+      'edit',
+      'priority',
+      'checkpoint_delete',
+      'checkpoint_edit',
+    };
+    if (operation != null &&
+        operation.isNotEmpty &&
+        !supportedOperations.contains(operation)) {
+      issues.add(
+        const FfmAssistantDraftIssue(
+          code: 'activity_operation_invalid',
+          severity: FfmAssistantDraftIssueSeverity.conflict,
+          field: 'operasi aktivitas',
+          message: 'Operasi aktivitas belum dikenali.',
+        ),
+      );
+    }
+    if (operation == 'priority') {
+      final priority = draft.formValues['priority']?.toString().trim();
+      if (priority != '0' && priority != '1') {
+        issues.add(
+          const FfmAssistantDraftIssue(
+            code: 'activity_priority_invalid',
+            severity: FfmAssistantDraftIssueSeverity.conflict,
+            field: 'prioritas aktivitas',
+            message: 'Prioritas aktivitas harus berupa aktif atau nonaktif.',
+          ),
+        );
+      }
+    }
+    if (operation == 'checkpoint_edit' && _isBlank(draft.formValues['label'])) {
+      issues.add(
+        const FfmAssistantDraftIssue(
+          code: 'activity_checkpoint_label_required',
+          severity: FfmAssistantDraftIssueSeverity.required,
+          field: 'label checkpoint',
+          message: 'Label checkpoint baru belum ada.',
+        ),
+      );
+    }
+  }
+
+  static void _validateActivityVocabulary(
+    FfmAssistantDraft draft,
+    List<FfmAssistantDraftIssue> issues,
+  ) {
+    final mode = draft.formValues['activityMode']?.toString().trim();
+    if (mode != null &&
+        mode.isNotEmpty &&
+        !const {'timeTracking', 'history'}.contains(mode)) {
+      issues.add(
+        const FfmAssistantDraftIssue(
+          code: 'activity_mode_invalid',
+          severity: FfmAssistantDraftIssueSeverity.conflict,
+          field: 'mode aktivitas',
+          message: 'Mode aktivitas harus berupa timer atau catatan riwayat.',
+        ),
+      );
+    }
+    final kind = draft.formValues['kind']?.toString().trim();
+    if (kind != null &&
+        kind.isNotEmpty &&
+        !const {'timer', 'task', 'note', 'event'}.contains(kind)) {
+      issues.add(
+        const FfmAssistantDraftIssue(
+          code: 'activity_kind_invalid',
+          severity: FfmAssistantDraftIssueSeverity.conflict,
+          field: 'jenis aktivitas',
+          message: 'Jenis aktivitas belum dikenali.',
         ),
       );
     }

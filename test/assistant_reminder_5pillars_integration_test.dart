@@ -75,13 +75,12 @@ void main() {
       occurrenceCalculator: calculator,
       clock: () => fixedClock,
     );
-    interpreter = FfmAssistantInterpreter(
-      db,
-      clock: () => fixedClock,
-    );
+    interpreter = FfmAssistantInterpreter(db, clock: () => fixedClock);
 
     // Seed test accounts and categories
-    await db.into(db.accounts).insert(
+    await db
+        .into(db.accounts)
+        .insert(
           AccountsCompanion.insert(
             id: 'acc-bca',
             householdId: AppContext.householdId,
@@ -90,7 +89,9 @@ void main() {
             createdAt: fixedClock,
           ),
         );
-    await db.into(db.categories).insert(
+    await db
+        .into(db.categories)
+        .insert(
           CategoriesCompanion.insert(
             id: 'cat-util',
             householdId: AppContext.householdId,
@@ -106,56 +107,60 @@ void main() {
   });
 
   group('Pilar 1 (Poin 3): Query & Ringkasan Pengingat via Assistant Query Tool & Digest', () {
-    test('UpcomingRemindersQueryTool filters reminders by timeframe correctly', () async {
-      await reminderRepo.saveReminder(
-        ReminderEntity(
-          id: 'rem-today',
+    test(
+      'UpcomingRemindersQueryTool filters reminders by timeframe correctly',
+      () async {
+        await reminderRepo.saveReminder(
+          ReminderEntity(
+            id: 'rem-today',
+            householdId: AppContext.householdId,
+            title: 'Bayar Listrik PLN Hari Ini',
+            scheduledAt: DateTime(2026, 9, 17, 14, 0),
+            recurrenceType: ReminderRecurrenceType.once,
+            weekdays: const [],
+            notificationId: 101,
+            isActive: true,
+            createdAt: fixedClock,
+            updatedAt: fixedClock,
+          ),
+        );
+        await reminderRepo.saveReminder(
+          ReminderEntity(
+            id: 'rem-tomorrow',
+            householdId: AppContext.householdId,
+            title: 'Beli Token Air Besok',
+            scheduledAt: DateTime(2026, 9, 18, 9, 0),
+            recurrenceType: ReminderRecurrenceType.once,
+            weekdays: const [],
+            notificationId: 102,
+            isActive: true,
+            createdAt: fixedClock,
+            updatedAt: fixedClock,
+          ),
+        );
+
+        final snapshotService = FfmAssistantFinancialSnapshotService(db);
+        final digest = await snapshotService.buildRemindersDigest(
           householdId: AppContext.householdId,
-          title: 'Bayar Listrik PLN Hari Ini',
-          scheduledAt: DateTime(2026, 9, 17, 14, 0),
-          recurrenceType: ReminderRecurrenceType.once,
-          weekdays: const [],
-          notificationId: 101,
-          isActive: true,
-          createdAt: fixedClock,
-          updatedAt: fixedClock,
-        ),
-      );
-      await reminderRepo.saveReminder(
-        ReminderEntity(
-          id: 'rem-tomorrow',
+        );
+
+        expect(digest, contains('Bayar Listrik PLN Hari Ini'));
+        expect(digest, contains('Beli Token Air Besok'));
+
+        final queryRegistry = FfmAssistantQueryRegistry(
+          db,
+          clock: () => fixedClock,
+        );
+        final todayAnswer = await queryRegistry.tryAnswer(
+          'ada pengingat apa hari ini',
           householdId: AppContext.householdId,
-          title: 'Beli Token Air Besok',
-          scheduledAt: DateTime(2026, 9, 18, 9, 0),
-          recurrenceType: ReminderRecurrenceType.once,
-          weekdays: const [],
-          notificationId: 102,
-          isActive: true,
-          createdAt: fixedClock,
-          updatedAt: fixedClock,
-        ),
-      );
+        );
 
-      final snapshotService = FfmAssistantFinancialSnapshotService(
-        db,
-      );
-      final digest = await snapshotService.buildRemindersDigest(
-        householdId: AppContext.householdId,
-      );
-
-      expect(digest, contains('Bayar Listrik PLN Hari Ini'));
-      expect(digest, contains('Beli Token Air Besok'));
-
-      final queryRegistry = FfmAssistantQueryRegistry(db, clock: () => fixedClock);
-      final todayAnswer = await queryRegistry.tryAnswer(
-        'ada pengingat apa hari ini',
-        householdId: AppContext.householdId,
-      );
-
-      expect(todayAnswer, isNotNull);
-      expect(todayAnswer!.message, contains('Bayar Listrik PLN Hari Ini'));
-      expect(todayAnswer.message.contains('Beli Token Air Besok'), isFalse);
-    });
+        expect(todayAnswer, isNotNull);
+        expect(todayAnswer!.message, contains('Bayar Listrik PLN Hari Ini'));
+        expect(todayAnswer.message.contains('Beli Token Air Besok'), isFalse);
+      },
+    );
   });
 
   group('Pilar 2 (Poin 4): Selesaikan Pengingat Lewat Bahasa Santai', () {
@@ -175,7 +180,9 @@ void main() {
         ),
       );
 
-      final intent = await interpreter.interpret('selesaikan pengingat wifi indihome');
+      final intent = await interpreter.interpret(
+        'selesaikan pengingat wifi indihome',
+      );
       expect(intent.type, FfmAssistantIntentType.completeReminder);
       expect(intent.draft, isNotNull);
       expect(intent.draft!.kind, FfmAssistantDraftKind.reminderComplete);
@@ -185,7 +192,10 @@ void main() {
       final planner = FfmAssistantActionPlanner(now: () => fixedClock);
       final plan = planner.planFor(intent);
       expect(plan, isNotNull);
-      expect(plan!.steps.any((s) => s.capabilityId == 'mutate.complete'), isTrue);
+      expect(
+        plan!.steps.any((s) => s.capabilityId == 'mutate.complete'),
+        isTrue,
+      );
 
       final adapters = FfmAssistantCapabilityAdapterRegistry(
         database: db,
@@ -205,14 +215,19 @@ void main() {
       ).execute(plan.id);
 
       expect(executedPlan?.status, FfmAssistantActionPlanStatus.completed);
-      final updatedReminder = await reminderRepo.getReminder(AppContext.householdId, 'rem-wifi');
+      final updatedReminder = await reminderRepo.getReminder(
+        AppContext.householdId,
+        'rem-wifi',
+      );
       expect(updatedReminder!.isActive, isFalse);
     });
   });
 
   group('Pilar 3 (Poin 5): Pengingat Ambang Batas Finansial', () {
     test('Interprets condition-based budget monitoring trigger', () async {
-      final intent = await interpreter.interpret('ingatkan kalau budget jajan < 50rb');
+      final intent = await interpreter.interpret(
+        'ingatkan kalau budget jajan < 50rb',
+      );
       expect(intent.type, FfmAssistantIntentType.createMonitoringJob);
       expect(intent.draft, isNotNull);
       expect(intent.draft!.kind, FfmAssistantDraftKind.monitoringJob);
@@ -222,53 +237,64 @@ void main() {
   });
 
   group('Pilar 4 (Poin 2): Smart Auto-Dismiss Pengingat saat Transaksi Dicatat Lebih Awal', () {
-    test('Automatically resolves matching active reminder when expense is logged', () async {
-      await reminderRepo.saveReminder(
-        ReminderEntity(
-          id: 'rem-pdam',
+    test(
+      'Automatically resolves matching active reminder when expense is logged',
+      () async {
+        await reminderRepo.saveReminder(
+          ReminderEntity(
+            id: 'rem-pdam',
+            householdId: AppContext.householdId,
+            title: 'Bayar Tagihan PDAM Air',
+            scheduledAt: DateTime(2026, 9, 22, 10, 0),
+            recurrenceType: ReminderRecurrenceType.once,
+            weekdays: const [],
+            notificationId: 104,
+            isActive: true,
+            createdAt: fixedClock,
+            updatedAt: fixedClock,
+          ),
+        );
+
+        final adapters = FfmAssistantCapabilityAdapterRegistry(
+          database: db,
           householdId: AppContext.householdId,
-          title: 'Bayar Tagihan PDAM Air',
-          scheduledAt: DateTime(2026, 9, 22, 10, 0),
-          recurrenceType: ReminderRecurrenceType.once,
-          weekdays: const [],
-          notificationId: 104,
-          isActive: true,
-          createdAt: fixedClock,
-          updatedAt: fixedClock,
-        ),
-      );
+          reminderMutations: mutationService,
+          clock: () => fixedClock,
+        );
 
-      final adapters = FfmAssistantCapabilityAdapterRegistry(
-        database: db,
-        householdId: AppContext.householdId,
-        reminderMutations: mutationService,
-        clock: () => fixedClock,
-      );
+        final saveDraftHandler = adapters.handlers['mutate.save_draft'];
+        expect(saveDraftHandler, isNotNull);
 
-      final saveDraftHandler = adapters.handlers['mutate.save_draft'];
-      expect(saveDraftHandler, isNotNull);
+        final saveResult = await saveDraftHandler!(
+          FfmAssistantActionStep(
+            id: 'save-tx-1',
+            capabilityId: 'mutate.save_draft',
+            parameters: {
+              'kind': 'expense',
+              '_idempotencyKey': 'test-idem-tx-pdam',
+              'amount': 75000,
+              'fromAccount': 'BCA',
+              'category': 'Tagihan & Utilitas',
+              'note': 'Bayar PDAM bulan September',
+              'date': fixedClock.toIso8601String(),
+            },
+          ),
+        );
 
-      final saveResult = await saveDraftHandler!(
-        FfmAssistantActionStep(
-          id: 'save-tx-1',
-          capabilityId: 'mutate.save_draft',
-          parameters: {
-            'kind': 'expense',
-            '_idempotencyKey': 'test-idem-tx-pdam',
-            'amount': 75000,
-            'fromAccount': 'BCA',
-            'category': 'Tagihan & Utilitas',
-            'note': 'Bayar PDAM bulan September',
-            'date': fixedClock.toIso8601String(),
-          },
-        ),
-      );
+        expect(saveResult.isSuccess, isTrue);
+        expect(
+          saveResult.message,
+          contains(
+            'Pengingat “Bayar Tagihan PDAM Air” otomatis ditandai selesai.',
+          ),
+        );
 
-      expect(saveResult.isSuccess, isTrue);
-      expect(saveResult.message, contains('Pengingat “Bayar Tagihan PDAM Air” otomatis ditandai selesai.'));
-
-      final updatedReminder = await reminderRepo.getReminder(AppContext.householdId, 'rem-pdam');
-      expect(updatedReminder!.isActive, isFalse);
-    });
+        final updatedReminder = await reminderRepo.getReminder(
+          AppContext.householdId,
+          'rem-pdam',
+        );
+        expect(updatedReminder!.isActive, isFalse);
+      },
+    );
   });
 }

@@ -221,35 +221,65 @@ void main() {
     },
   );
 
-  test('retry OCR PLN mengisi token dan kWh yang hilang pada output kedua', () async {
-    var callCount = 0;
-    final service = ReceiptScannerService(
-      gemini: GeminiService(
-        client: _FakeHttpClient((method, uri, body) async {
-          callCount += 1;
-          if (callCount == 1) {
+  test(
+    'retry OCR PLN mengisi token dan kWh yang hilang pada output kedua',
+    () async {
+      var callCount = 0;
+      final service = ReceiptScannerService(
+        gemini: GeminiService(
+          client: _FakeHttpClient((method, uri, body) async {
+            callCount += 1;
+            if (callCount == 1) {
+              return http.Response(
+                jsonEncode({
+                  'candidates': [
+                    {
+                      'content': {
+                        'parts': [
+                          {
+                            'text': jsonEncode({
+                              'format': 'ffm-transaction-batch-v1',
+                              'transactions': [
+                                {
+                                  'type': 'expense',
+                                  'merchant': 'PLN',
+                                  'budget_name': 'Listrik',
+                                  'amount': 50000,
+                                  'date': '2026-09-05',
+                                  'note': 'Pembelian token listrik untuk meter 1401234567890',
+                                  'items': const [
+                                    {
+                                      'name': 'Token listrik',
+                                      'quantity': 1,
+                                      'amount': 50000,
+                                    },
+                                  ],
+                                },
+                              ],
+                            }),
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                }),
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }
+
             return http.Response(
               jsonEncode({
                 'candidates': [
                   {
                     'content': {
                       'parts': [
-                        {'text': jsonEncode({
-                          'format': 'ffm-transaction-batch-v1',
-                          'transactions': [
-                            {
-                              'type': 'expense',
-                              'merchant': 'PLN',
-                              'budget_name': 'Listrik',
-                              'amount': 50000,
-                              'date': '2026-09-05',
-                              'note': 'Pembelian token listrik untuk meter 1401234567890',
-                              'items': const [
-                                {'name': 'Token listrik', 'quantity': 1, 'amount': 50000},
-                              ],
-                            },
-                          ],
-                        })},
+                        {
+                          'text': jsonEncode({
+                            'token_code': '12345678901234567890',
+                            'kwh': 50.0,
+                          }),
+                        },
                       ],
                     },
                   },
@@ -258,44 +288,28 @@ void main() {
               200,
               headers: {'content-type': 'application/json'},
             );
-          }
+          }),
+        ),
+      );
 
-          return http.Response(
-            jsonEncode({
-              'candidates': [
-                {
-                  'content': {
-                    'parts': [
-                      {'text': jsonEncode({
-                        'token_code': '12345678901234567890',
-                        'kwh': 50.0,
-                      })},
-                    ],
-                  },
-                },
-              ],
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }),
-      ),
-    );
+      final outcome = await service.scanImage(
+        bytes: _tinyImage(),
+        imagePath: '/tmp/struk-pln.jpg',
+        apiKey: 'test-key',
+        model: 'gemini-test',
+      );
 
-    final outcome = await service.scanImage(
-      bytes: _tinyImage(),
-      imagePath: '/tmp/struk-pln.jpg',
-      apiKey: 'test-key',
-      model: 'gemini-test',
-    );
-
-    expect(outcome.ok, isTrue);
-    expect(outcome.batch, isNotNull);
-    expect(outcome.batch!.hadOcrRetry, isTrue);
-    expect(outcome.batch!.entries.single.note, contains('12345678901234567890'));
-    expect(outcome.batch!.entries.single.note, contains('50.0'));
-    expect(callCount, 2);
-  });
+      expect(outcome.ok, isTrue);
+      expect(outcome.batch, isNotNull);
+      expect(outcome.batch!.hadOcrRetry, isTrue);
+      expect(
+        outcome.batch!.entries.single.note,
+        contains('12345678901234567890'),
+      );
+      expect(outcome.batch!.entries.single.note, contains('50.0'));
+      expect(callCount, 2);
+    },
+  );
 
   test('JSON satu struk (ffm-receipt-draft-v1) tetap diterima sebagai satu transaksi', () async {
     final service = ReceiptScannerService(
@@ -721,34 +735,37 @@ void main() {
       ReceiptScannerService.extractPlnTokens(text).first,
       '12345678901234567890',
     );
-    expect(ReceiptScannerService.extractPlnMeters(text), ['14123456789', '15123456789']);
-    expect(
-      ReceiptScannerService.extractPlnToken(text),
-      '12345678901234567890',
-    );
+    expect(ReceiptScannerService.extractPlnMeters(text), [
+      '14123456789',
+      '15123456789',
+    ]);
+    expect(ReceiptScannerService.extractPlnToken(text), '12345678901234567890');
     expect(ReceiptScannerService.extractPlnMeterNumber(text), '14123456789');
   });
 
-  test('multi token & multi IDPEL menghasilkan proposal terpisah per meteran', () {
-    const text =
-        'PLN TOKEN 1234-5678-9012-3456-7890 IDPEL 14123456789 '
-        'TOKEN 2234-5678-9012-3456-7890 IDPEL 15123456789';
+  test(
+    'multi token & multi IDPEL menghasilkan proposal terpisah per meteran',
+    () {
+      const text =
+          'PLN TOKEN 1234-5678-9012-3456-7890 IDPEL 14123456789 '
+          'TOKEN 2234-5678-9012-3456-7890 IDPEL 15123456789';
 
-    final proposals = ReceiptScannerService.expandPlnUtilityProposals(
-      text,
-      baseProposal: const {
-        'amount': 100660,
-        'adminFee': 660,
-      },
-    );
+      final proposals = ReceiptScannerService.expandPlnUtilityProposals(
+        text,
+        baseProposal: const {'amount': 100660, 'adminFee': 660},
+      );
 
-    expect(proposals, hasLength(2));
-    expect(proposals[0]['meterNumber'], '14123456789');
-    expect(proposals[0]['tokenCode'], '12345678901234567890');
-    expect(proposals[1]['meterNumber'], '15123456789');
-    expect(proposals[1]['tokenCode'], '22345678901234567890');
-    expect(proposals.every((proposal) => proposal['amount'] == 100660), isTrue);
-  });
+      expect(proposals, hasLength(2));
+      expect(proposals[0]['meterNumber'], '14123456789');
+      expect(proposals[0]['tokenCode'], '12345678901234567890');
+      expect(proposals[1]['meterNumber'], '15123456789');
+      expect(proposals[1]['tokenCode'], '22345678901234567890');
+      expect(
+        proposals.every((proposal) => proposal['amount'] == 100660),
+        isTrue,
+      );
+    },
+  );
 
   test(
     'gambar dimensi besar tapi kecil ukuran ikut di-resize ke PNG',

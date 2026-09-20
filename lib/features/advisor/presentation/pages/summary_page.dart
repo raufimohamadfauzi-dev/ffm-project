@@ -2287,8 +2287,8 @@ class _ReminderNotificationButtonState
     final tooltip = _pendingCount > 0
         ? 'Pengingat ($_pendingCount butuh tindakan)'
         : _hasActiveAutonomous
-            ? 'Pengingat (Ada alarm/notifikasi otonom aktif)'
-            : 'Pengingat';
+        ? 'Pengingat (Ada alarm/notifikasi otonom aktif)'
+        : 'Pengingat';
 
     return Semantics(
       label: tooltip,

@@ -1,4 +1,5 @@
 import 'package:hijri_plus/hijri_plus.dart';
+
 import '../entities/reminder_entity.dart';
 
 class ReminderOccurrenceCalculator {
@@ -20,8 +21,10 @@ class ReminderOccurrenceCalculator {
       ),
       ReminderRecurrenceType.monthly => nextMonthlyOccurrenceAt(base, current),
       ReminderRecurrenceType.yearly => nextYearlyOccurrenceAt(base, current),
-      ReminderRecurrenceType.hijriMonthly =>
-          nextHijriMonthlyOccurrenceAt(base, current),
+      ReminderRecurrenceType.hijriMonthly => nextHijriMonthlyOccurrenceAt(
+        base,
+        current,
+      ),
     };
     if (candidate == null) return null;
     return ReminderOccurrence(
@@ -224,11 +227,16 @@ DateTime nextHijriMonthlyOccurrenceAt(DateTime base, DateTime now) {
       targetHijriYear,
       targetHijriMonth,
     );
-    final clampedDay =
-        targetHijriDay > daysInHijriMonth ? daysInHijriMonth : targetHijriDay;
+    final clampedDay = targetHijriDay > daysInHijriMonth
+        ? daysInHijriMonth
+        : targetHijriDay;
 
     // Konversi kembali ke Gregorian
-    final targetHijri = HijriDate(targetHijriYear, targetHijriMonth, clampedDay);
+    final targetHijri = HijriDate(
+      targetHijriYear,
+      targetHijriMonth,
+      clampedDay,
+    );
     final targetGreg = calendar.toGregorian(targetHijri).date;
 
     final candidate = DateTime(

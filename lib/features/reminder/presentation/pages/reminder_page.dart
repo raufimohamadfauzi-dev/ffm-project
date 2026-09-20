@@ -11,6 +11,7 @@ import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart'
 import '../../data/services/reminder_notification_service.dart';
 import '../../data/services/reminder_sound_picker.dart';
 import '../../domain/entities/reminder_entity.dart';
+import '../../domain/usecases/reminder_usecases.dart';
 import '../../../transaction/domain/entities/transaction_entity.dart';
 import '../../../transaction/presentation/pages/transaction_form_page.dart';
 import '../bloc/reminder_bloc.dart';
@@ -345,24 +346,29 @@ class _ReminderViewState extends State<_ReminderView> {
 
           final history = switch (_historyFilter) {
             _HistoryFilter.all => state.history,
-            _HistoryFilter.actionable => state.history
-                .where(
-                  (item) =>
-                      item.history.status != ReminderHistoryStatus.completed &&
-                      item.history.status != ReminderHistoryStatus.cancelled,
-                )
-                .toList(growable: false),
-            _HistoryFilter.completed => state.history
-                .where(
-                  (item) =>
-                      item.history.status == ReminderHistoryStatus.completed,
-                )
-                .toList(growable: false),
-            _HistoryFilter.missed => state.history
-                .where(
-                  (item) => item.history.status == ReminderHistoryStatus.missed,
-                )
-                .toList(growable: false),
+            _HistoryFilter.actionable =>
+              state.history
+                  .where(
+                    (item) =>
+                        item.history.status !=
+                            ReminderHistoryStatus.completed &&
+                        item.history.status != ReminderHistoryStatus.cancelled,
+                  )
+                  .toList(growable: false),
+            _HistoryFilter.completed =>
+              state.history
+                  .where(
+                    (item) =>
+                        item.history.status == ReminderHistoryStatus.completed,
+                  )
+                  .toList(growable: false),
+            _HistoryFilter.missed =>
+              state.history
+                  .where(
+                    (item) =>
+                        item.history.status == ReminderHistoryStatus.missed,
+                  )
+                  .toList(growable: false),
           };
 
           final rawReminders = _originFilter == null
@@ -482,8 +488,7 @@ class _ReminderViewState extends State<_ReminderView> {
                         (h) =>
                             h.history.status ==
                                 ReminderHistoryStatus.completed ||
-                            h.history.status ==
-                                ReminderHistoryStatus.cancelled,
+                            h.history.status == ReminderHistoryStatus.cancelled,
                       ))
                         TextButton.icon(
                           onPressed: () =>
@@ -540,8 +545,7 @@ class _ReminderViewState extends State<_ReminderView> {
                         message: switch (_historyFilter) {
                           _HistoryFilter.all =>
                             'Belum ada riwayat pengingat yang tercatat.',
-                          _HistoryFilter.actionable =>
-                            'Tidak ada pengingat yang memerlukan tindakan saat ini.',
+                          _HistoryFilter.actionable => 'Tidak ada pengingat yang memerlukan tindakan saat ini.',
                           _HistoryFilter.completed =>
                             'Belum ada riwayat pengingat yang diselesaikan.',
                           _HistoryFilter.missed =>
@@ -557,13 +561,11 @@ class _ReminderViewState extends State<_ReminderView> {
                       final isActionable =
                           historyItem.status !=
                               ReminderHistoryStatus.completed &&
-                          historyItem.status !=
-                              ReminderHistoryStatus.cancelled;
+                          historyItem.status != ReminderHistoryStatus.cancelled;
                       final isMissed =
                           historyItem.status == ReminderHistoryStatus.missed;
                       final isCompleted =
-                          historyItem.status ==
-                          ReminderHistoryStatus.completed;
+                          historyItem.status == ReminderHistoryStatus.completed;
                       final isSnoozed =
                           historyItem.status == ReminderHistoryStatus.snoozed;
                       final isAutonomous =
@@ -571,8 +573,7 @@ class _ReminderViewState extends State<_ReminderView> {
                       final isHighlighted =
                           historyItem.id == _lastNotifiedPendingHistoryId ||
                           (historyItem.id == widget.focusHistoryId &&
-                              historyItem.reminderId ==
-                                  widget.focusReminderId);
+                              historyItem.reminderId == widget.focusReminderId);
                       final colorScheme = Theme.of(context).colorScheme;
 
                       return AppCard(
@@ -597,10 +598,10 @@ class _ReminderViewState extends State<_ReminderView> {
                                       color: isCompleted
                                           ? colorScheme.primary
                                           : isMissed
-                                              ? colorScheme.error
-                                              : isSnoozed
-                                                  ? Colors.orange.shade700
-                                                  : colorScheme.primary,
+                                          ? colorScheme.error
+                                          : isSnoozed
+                                          ? Colors.orange.shade700
+                                          : colorScheme.primary,
                                       size: 22,
                                     ),
                                   ),
@@ -635,38 +636,52 @@ class _ReminderViewState extends State<_ReminderView> {
                                               Container(
                                                 padding:
                                                     const EdgeInsets.symmetric(
-                                                  horizontal: 6,
-                                                  vertical: 2,
-                                                ),
+                                                      horizontal: 6,
+                                                      vertical: 2,
+                                                    ),
                                                 decoration: BoxDecoration(
-                                                  color: colorScheme.brightness ==
+                                                  color:
+                                                      colorScheme.brightness ==
                                                           Brightness.dark
-                                                      ? Colors.deepPurple.shade900
-                                                          .withAlpha(190)
-                                                      : Colors.deepPurple.shade50,
+                                                      ? Colors
+                                                            .deepPurple
+                                                            .shade900
+                                                            .withAlpha(190)
+                                                      : Colors
+                                                            .deepPurple
+                                                            .shade50,
                                                   borderRadius:
                                                       BorderRadius.circular(6),
                                                   border: Border.all(
-                                                    color: colorScheme.brightness ==
+                                                    color:
+                                                        colorScheme
+                                                                .brightness ==
                                                             Brightness.dark
                                                         ? Colors.purple.shade300
-                                                            .withAlpha(140)
-                                                        : Colors.deepPurple.shade400,
+                                                              .withAlpha(140)
+                                                        : Colors
+                                                              .deepPurple
+                                                              .shade400,
                                                     width: 0.8,
                                                   ),
                                                 ),
                                                 child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
                                                   children: [
                                                     Icon(
                                                       Icons.auto_awesome,
                                                       size: 11,
-                                                      color: colorScheme
+                                                      color:
+                                                          colorScheme
                                                                   .brightness ==
                                                               Brightness.dark
-                                                          ? Colors.purple.shade200
-                                                          : Colors.deepPurple
-                                                              .shade800,
+                                                          ? Colors
+                                                                .purple
+                                                                .shade200
+                                                          : Colors
+                                                                .deepPurple
+                                                                .shade800,
                                                     ),
                                                     const SizedBox(width: 3.5),
                                                     Text(
@@ -678,15 +693,17 @@ class _ReminderViewState extends State<_ReminderView> {
                                                             fontSize: 10.5,
                                                             fontWeight:
                                                                 FontWeight.w600,
-                                                            color: colorScheme
+                                                            color:
+                                                                colorScheme
                                                                         .brightness ==
                                                                     Brightness
                                                                         .dark
-                                                                ? Colors.purple
-                                                                    .shade100
+                                                                ? Colors
+                                                                      .purple
+                                                                      .shade100
                                                                 : Colors
-                                                                    .deepPurple
-                                                                    .shade900,
+                                                                      .deepPurple
+                                                                      .shade900,
                                                           ),
                                                     ),
                                                   ],
@@ -725,9 +742,11 @@ class _ReminderViewState extends State<_ReminderView> {
                                         Navigator.of(context).push(
                                           MaterialPageRoute<void>(
                                             builder: (_) => TransactionFormPage(
-                                              initialType: TransactionType.expense,
+                                              initialType:
+                                                  TransactionType.expense,
                                               initialNote: historyItem.title,
-                                              initialDate: historyItem.scheduledAt,
+                                              initialDate:
+                                                  historyItem.scheduledAt,
                                             ),
                                           ),
                                         );
@@ -738,7 +757,10 @@ class _ReminderViewState extends State<_ReminderView> {
                                         value: 'catat_transaksi',
                                         child: Row(
                                           children: [
-                                            Icon(Icons.receipt_long_rounded, size: 18),
+                                            Icon(
+                                              Icons.receipt_long_rounded,
+                                              size: 18,
+                                            ),
                                             SizedBox(width: 8),
                                             Text('Catat Pengeluaran'),
                                           ],
@@ -777,9 +799,8 @@ class _ReminderViewState extends State<_ReminderView> {
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: OutlinedButton.icon(
-                                          onPressed: () => context
-                                              .read<ReminderBloc>()
-                                              .add(
+                                          onPressed: () =>
+                                              context.read<ReminderBloc>().add(
                                                 ReminderHistoryStatusChanged(
                                                   history: historyItem,
                                                   status: ReminderHistoryStatus
@@ -928,10 +949,7 @@ class _ReminderSourceTypeBadge extends StatelessWidget {
 }
 
 class _HistoryStatusBadge extends StatelessWidget {
-  const _HistoryStatusBadge({
-    required this.status,
-    this.snoozedUntil,
-  });
+  const _HistoryStatusBadge({required this.status, this.snoozedUntil});
 
   final ReminderHistoryStatus status;
   final DateTime? snoozedUntil;
@@ -1018,13 +1036,16 @@ class ReminderScheduleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final now = DateTime.now();
+    final nextOccurrence = const ReminderOccurrenceCalculator().nextOccurrence(
+      reminder,
+      now: now,
+    );
     final isPastDue =
         reminder.recurrenceType == ReminderRecurrenceType.once &&
         reminder.scheduledAt.isBefore(now);
-    final isUpcoming =
-        reminder.isActive && !isPastDue && !reminder.scheduledAt.isBefore(now);
+    final isUpcoming = reminder.isActive && nextOccurrence != null;
     final countdownText = _buildReminderCountdownText(
-      reminder.scheduledAt,
+      nextOccurrence?.scheduledAt ?? reminder.scheduledAt,
       reminder.isActive,
       recurrenceType: reminder.recurrenceType,
     );
@@ -1491,6 +1512,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
   String? _soundUri;
   String? _soundName;
   String? _destinationRoute;
+  String? _dialogError;
 
   @override
   void initState() {
@@ -1581,12 +1603,13 @@ class _ReminderDialogState extends State<_ReminderDialog> {
       setState(() {
         _soundUri = selection.uri;
         _soundName = selection.name;
+        _dialogError = null;
       });
     } on Object catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nada dering belum bisa dipilih: $error')),
-      );
+      setState(() {
+        _dialogError = 'Nada dering belum bisa dipilih: $error';
+      });
     }
   }
 
@@ -1594,25 +1617,25 @@ class _ReminderDialogState extends State<_ReminderDialog> {
     setState(() {
       _soundUri = null;
       _soundName = null;
+      _dialogError = null;
     });
   }
 
   void _save() {
     final title = _titleController.text.trim();
-    if (title.isEmpty || _scheduledAt.isBefore(DateTime.now())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Isi judul dan pilih waktu yang masih akan datang.'),
-        ),
-      );
+    final isPastOneTimeReminder =
+        _recurrence == ReminderRecurrenceType.once &&
+        _scheduledAt.isBefore(DateTime.now());
+    if (title.isEmpty || isPastOneTimeReminder) {
+      setState(() {
+        _dialogError = 'Isi judul dan pilih waktu yang masih akan datang.';
+      });
       return;
     }
     if (_recurrence == ReminderRecurrenceType.weekly && _weekday.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pilih minimal satu hari untuk pengulangan mingguan.'),
-        ),
-      );
+      setState(() {
+        _dialogError = 'Pilih minimal satu hari untuk pengulangan mingguan.';
+      });
       return;
     }
     final initial = widget.initial;
@@ -1663,6 +1686,37 @@ class _ReminderDialogState extends State<_ReminderDialog> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (_dialogError != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.error_outline_rounded,
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _dialogError!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           TextField(
             controller: _titleController,
             autofocus: widget.initial == null,
@@ -1815,8 +1869,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
             isExpanded: true,
             decoration: const InputDecoration(
               labelText: 'Halaman Terkait (Deep-Link)',
-              helperText:
-                  'Otomatis membuka halaman ini saat notifikasi pengingat diklik',
+              helperText: 'Otomatis membuka halaman ini saat notifikasi pengingat diklik',
             ),
             items: const [
               DropdownMenuItem(
@@ -1831,22 +1884,13 @@ class _ReminderDialogState extends State<_ReminderDialog> {
                 value: 'liabilities',
                 child: Text('Hutang & Cicilan'),
               ),
-              DropdownMenuItem(
-                value: 'goals',
-                child: Text('Target Tabungan'),
-              ),
+              DropdownMenuItem(value: 'goals', child: Text('Target Tabungan')),
               DropdownMenuItem(
                 value: 'budget',
                 child: Text('Anggaran Belanja'),
               ),
-              DropdownMenuItem(
-                value: 'transactions',
-                child: Text('Transaksi'),
-              ),
-              DropdownMenuItem(
-                value: 'assets',
-                child: Text('Daftar Aset'),
-              ),
+              DropdownMenuItem(value: 'transactions', child: Text('Transaksi')),
+              DropdownMenuItem(value: 'assets', child: Text('Daftar Aset')),
               DropdownMenuItem(
                 value: 'activity',
                 child: Text('Aktivitas & Rutinitas'),
@@ -1975,8 +2019,9 @@ class _PermissionBannerState extends State<_PermissionBanner> {
                             style: FilledButton.styleFrom(
                               backgroundColor: colorScheme.error,
                               foregroundColor: colorScheme.onError,
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
                               textStyle: const TextStyle(fontSize: 13),
                             ),
                             onPressed: _requesting ? null : _requestOrOpen,
@@ -2002,8 +2047,9 @@ class _PermissionBannerState extends State<_PermissionBanner> {
                                   120,
                                 ),
                               ),
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 10),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
                               textStyle: const TextStyle(fontSize: 12),
                             ),
                             onPressed: _openBatterySettings,

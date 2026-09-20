@@ -221,6 +221,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       <FfmAssistantProcessEvent>[];
   var _submitting = false;
   var _scanning = false;
+  final List<String> _pendingAttachmentPaths = <String>[];
   String? _pendingAttachmentPath;
   String? _pendingAttachmentName;
 
@@ -623,7 +624,25 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     );
   }
 
+  var _isAppendingEntry = false;
+
   void _appendEntry(FfmAssistantChatEntry entry) {
+    if (_isAppendingEntry) {
+      _appendEntryInternal(entry);
+      return;
+    }
+    if (mounted) {
+      _isAppendingEntry = true;
+      setState(() {
+        _appendEntryInternal(entry);
+      });
+      _isAppendingEntry = false;
+      return;
+    }
+    _appendEntryInternal(entry);
+  }
+
+  void _appendEntryInternal(FfmAssistantChatEntry entry) {
     final now = DateTime.now();
     final suggestedQuestions = !entry.isUser
         ? (entry.suggestedQuestions.isNotEmpty
@@ -1536,11 +1555,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         intent.draft?.kind == FfmAssistantDraftKind.activityEdit ||
         intent.draft?.kind == FfmAssistantDraftKind.activityArchive ||
         intent.draft?.kind == FfmAssistantDraftKind.activityDelete;
-    final isReminder = intent.draft?.kind == FfmAssistantDraftKind.reminder ||
+    final isReminder =
+        intent.draft?.kind == FfmAssistantDraftKind.reminder ||
         intent.draft?.kind == FfmAssistantDraftKind.reminderUpdate ||
         intent.draft?.kind == FfmAssistantDraftKind.reminderArchive ||
         intent.draft?.kind == FfmAssistantDraftKind.reminderComplete;
-    final isTransaction = intent.draft?.kind == FfmAssistantDraftKind.expense ||
+    final isTransaction =
+        intent.draft?.kind == FfmAssistantDraftKind.expense ||
         intent.draft?.kind == FfmAssistantDraftKind.income ||
         intent.draft?.kind == FfmAssistantDraftKind.transfer ||
         intent.draft?.kind == FfmAssistantDraftKind.goalDeposit ||
@@ -1571,11 +1592,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       FfmAssistantDraftKind.assetUpdate ||
       FfmAssistantDraftKind.assetArchive => 'Aset',
       FfmAssistantDraftKind.masterData => 'Data Utama',
-      _ => isActivity
-          ? 'Aktivitas'
-          : (isReminder
-              ? 'Pengingat'
-              : (isTransaction ? 'Transaksi' : 'Data')),
+      _ =>
+        isActivity
+            ? 'Aktivitas'
+            : (isReminder
+                  ? 'Pengingat'
+                  : (isTransaction ? 'Transaksi' : 'Data')),
     };
     final plan = await _capabilityExecutor.execute(planId);
     if (!mounted || plan == null) return;
@@ -1614,65 +1636,75 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       if (raw != null && raw.startsWith('verified: ')) {
         message = 'Perubahan ${subject.toLowerCase()} berhasil disimpan.';
       } else {
-        message = raw ??
+        message =
+            raw ??
             'Perubahan ${subject.toLowerCase()} selesai dan telah diverifikasi.';
       }
     }
 
-    // Sinkronisasi otomatis ke UtilityMeterRepository jika transaksi adalah pembelian token listrik
+    // Sinkronisasi 1:1 ke UtilityMeterRepository menggunakan recordLinkedPurchase.
+    // Ini menyimpan ke tabel utility_token_purchases dengan transactionId sebagai
+    // foreign key agar sinkronisasi dua arah (edit/hapus transaksi = hapus token history)
+    // dijamin oleh database, bukan logika UI ad-hoc.
     final utilityProposal = intent.draft?.metadata?['utilityProposal'];
-    final rawMeter = intent.draft?.formValues['meterNumber'] ??
-        intent.draft?.formValues['idpel'] ??
-        (utilityProposal is Map
-            ? utilityProposal['meterNumber']?.toString()
-            : null);
-    if (rawMeter != null && rawMeter.trim().isNotEmpty) {
+    final hasUtilityProposal =
+        utilityProposal is Map &&
+        (utilityProposal['meterNumber'] != null ||
+            utilityProposal['tokenCode'] != null);
+    if (hasUtilityProposal) {
       try {
-        final cleanMeter = UtilityMeterRepository.normalizeNumber(rawMeter);
-        if (cleanMeter.length >= 9 && cleanMeter.length <= 13) {
-          final utilityRepo = getIt.isRegistered<UtilityMeterRepository>()
-              ? getIt<UtilityMeterRepository>()
-              : UtilityMeterRepository();
-          final existing = await utilityRepo.findMeterByNumber(
-            AppContext.householdId,
-            cleanMeter,
-          );
-          final meterName = intent.draft?.formValues['proposedMeterName'] ??
-              intent.draft?.formValues['meterName'] ??
-              (utilityProposal is Map
-                  ? utilityProposal['proposedMeterName']?.toString()
-                  : null) ??
-              'Meteran PLN $cleanMeter';
-          final tokenCode = intent.draft?.formValues['tokenCode'] ??
-              (utilityProposal is Map
-                  ? utilityProposal['tokenCode']?.toString()
-                  : null);
-          final amountNum = intent.draft?.amount?.toDouble();
+        final utilityRepo = getIt.isRegistered<UtilityMeterRepository>()
+            ? getIt<UtilityMeterRepository>()
+            : UtilityMeterRepository();
 
-          if (existing == null) {
-            final newMeter = UtilityMeter(
-              id: 'meter_${Uuid().v4()}',
-              householdId: AppContext.householdId,
-              name: meterName,
-              meterNumber: cleanMeter,
-              createdAt: DateTime.now(),
-              lastTokenNumber: tokenCode,
-              lastAmount: amountNum,
-              lastPurchasedAt: DateTime.now(),
-            );
-            await utilityRepo.saveMeter(newMeter);
-          } else {
-            await utilityRepo.recordPurchase(
-              householdId: AppContext.householdId,
-              meterNumber: cleanMeter,
-              tokenCode: tokenCode,
-              amount: amountNum,
-              timestamp: DateTime.now(),
-            );
-          }
-        }
-      } catch (_) {
-        // Non-blocking
+        // Ambil transactionId dari hasil eksekusi plan (step terakhir yang completed).
+        final savedTransactionId =
+            plan.steps
+                .where(
+                  (step) =>
+                      step.status == FfmAssistantActionStepStatus.completed &&
+                      step.result != null &&
+                      step.result!.startsWith('txn:'),
+                )
+                .map((step) => step.result!.replaceFirst('txn:', ''))
+                .firstOrNull ??
+            // Fallback: cari di formValues (batch-scan menyimpan id di sini)
+            intent.draft?.formValues['savedTransactionId']?.toString() ??
+            // Fallback akhir: gunakan planId yang unique per-eksekusi
+            planId;
+
+        // Bangun proposal dari utilityProposal metadata + formValues draft.
+        final proposal = <Object?, Object?>{
+          ...Map.from(utilityProposal),
+          // Pastikan nominal yang benar dipakai (dari draft, bukan hanya proposal OCR)
+          'amount': utilityProposal['amount'] ?? intent.draft?.amount,
+          'adminFee':
+              utilityProposal['adminFee'] ?? intent.draft?.adminFee ?? 0,
+          'tokenCode':
+              utilityProposal['tokenCode'] ??
+              intent.draft?.formValues['tokenCode'],
+          'meterNumber':
+              utilityProposal['meterNumber'] ??
+              intent.draft?.formValues['meterNumber'] ??
+              intent.draft?.formValues['idpel'],
+          'proposedMeterName':
+              utilityProposal['proposedMeterName'] ??
+              intent.draft?.formValues['proposedMeterName'] ??
+              intent.draft?.formValues['meterName'],
+          'creditedKwh': utilityProposal['creditedKwh'],
+          'timestamp':
+              utilityProposal['timestamp'] ?? DateTime.now().toIso8601String(),
+        };
+
+        await utilityRepo.recordLinkedPurchase(
+          householdId: AppContext.householdId,
+          transactionId: savedTransactionId,
+          proposal: proposal,
+        );
+      } catch (e) {
+        // Non-blocking: gagal sync utility tidak boleh membatalkan pesan sukses transaksi.
+        // ignore: avoid_print
+        print('[FFMAssistantSheet] Utility sync gagal (non-fatal): $e');
       }
     }
     final isDailyNote =
@@ -1908,7 +1940,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           ? 'Rp ${_formatRupiah(draft.amount!)}'
           : '';
       final categoryOrTitle = draft.categoryName ?? draft.title ?? '';
-      final account = (draft.kind == FfmAssistantDraftKind.income
+      final account =
+          (draft.kind == FfmAssistantDraftKind.income
               ? draft.toAccountName
               : draft.fromAccountName) ??
           '';
@@ -2070,8 +2103,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         _ => 'Data',
       };
       final title = draft.title ?? draft.categoryName ?? draft.goalName ?? '';
-      final amountStr =
-          draft.amount != null ? ' Rp ${_formatRupiah(draft.amount!)}' : '';
+      final amountStr = draft.amount != null
+          ? ' Rp ${_formatRupiah(draft.amount!)}'
+          : '';
       return await showDialog<bool>(
             context: context,
             builder: (dialogContext) => AlertDialog(
@@ -2094,7 +2128,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           false;
     }
     final operation = draft.formValues['operation'] ?? 'perubahan';
-    final isActivity = draft.formValues['entity'] == 'activity_session' ||
+    final isActivity =
+        draft.formValues['entity'] == 'activity_session' ||
         draft.kind == FfmAssistantDraftKind.activityArchive ||
         draft.kind == FfmAssistantDraftKind.activityDelete;
     final target =
@@ -2136,17 +2171,22 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   Future<void> _submit([String? overrideText]) async {
     await _historyRestoreFuture;
-    final attachedPath = _pendingAttachmentPath;
+    final attachedPaths = _pendingAttachmentPaths.isNotEmpty
+        ? List<String>.from(_pendingAttachmentPaths)
+        : (_pendingAttachmentPath == null
+              ? const <String>[]
+              : [_pendingAttachmentPath!]);
     final text = (overrideText ?? _controller.text).trim();
 
-    if (attachedPath != null) {
+    if (attachedPaths.isNotEmpty) {
       setState(() {
+        _pendingAttachmentPaths.clear();
         _pendingAttachmentPath = null;
         _pendingAttachmentName = null;
         _controller.clear();
       });
       await _scanReceiptFromPhoto(
-        customPath: attachedPath,
+        customPaths: attachedPaths,
         userCaption: text.isNotEmpty ? text : null,
       );
       return;
@@ -2631,10 +2671,23 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         '$text ${intents.map((i) => i.response ?? i.clarification ?? '').join(' ')}',
       );
 
+      final effectiveIntents = <FfmAssistantIntent>[];
+      final seenDraftKeys = <String>{};
+      for (final intent in intents) {
+        if (intent.draft != null) {
+          final d = intent.draft!;
+          final key = '${d.kind.name}_${d.title}_${d.amount}_${d.date?.day}';
+          if (!seenDraftKeys.add(key)) {
+            continue;
+          }
+        }
+        effectiveIntents.add(intent);
+      }
+
       final readPlanIds = <String>[];
       final traceSnapshots = <(FfmAssistantProcessTrace, int)>[];
       void applyTurnChanges() {
-        for (final intent in intents) {
+        for (final intent in effectiveIntents) {
           String response = intent.response ?? intent.clarification ?? '';
           if (response.isEmpty) {
             if (intent.draft != null) {
@@ -2644,6 +2697,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               response = 'Permintaanmu sedang diproses.';
             }
           }
+
           final actionPlan = _actionPlanner.planFor(intent);
           if (actionPlan != null) {
             _actionPlanController.register(actionPlan);
@@ -2885,6 +2939,32 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   Future<void> _pickImage(ImageSource source) async {
     try {
       final picker = ImagePicker();
+      if (source == ImageSource.gallery) {
+        final pickedFiles = await picker.pickMultiImage(
+          maxWidth: 1600,
+          maxHeight: 1600,
+          imageQuality: 85,
+        );
+        if (pickedFiles.isEmpty) return;
+        if (!mounted) return;
+        setState(() {
+          _pendingAttachmentPaths
+            ..clear()
+            ..addAll(
+              pickedFiles
+                  .map((file) => file.path)
+                  .where((path) => path.isNotEmpty),
+            );
+          _pendingAttachmentPath = _pendingAttachmentPaths.isNotEmpty
+              ? _pendingAttachmentPaths.first
+              : null;
+          _pendingAttachmentName = _pendingAttachmentPaths.length == 1
+              ? pickedFiles.first.name
+              : '${_pendingAttachmentPaths.length} foto siap dikirim';
+        });
+        _inputFocusNode.requestFocus();
+        return;
+      }
       final pickedFile = await picker.pickImage(
         source: source,
         maxWidth: 1600,
@@ -2894,6 +2974,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       if (pickedFile == null) return;
       if (!mounted) return;
       setState(() {
+        _pendingAttachmentPaths
+          ..clear()
+          ..add(pickedFile.path);
         _pendingAttachmentPath = pickedFile.path;
         _pendingAttachmentName = pickedFile.name;
       });
@@ -2909,21 +2992,29 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   /// pilih foto → kirim ke Gemini vision → parse deterministik → draft chat.
   Future<void> _scanReceiptFromPhoto({
     String? customPath,
+    List<String>? customPaths,
     String? userCaption,
   }) async {
     if (_submitting || _scanning) return;
-    String path;
-    if (customPath != null) {
-      path = customPath;
-    } else {
+    var selectedPaths =
+        customPaths ?? (customPath == null ? <String>[] : [customPath]);
+    if (selectedPaths.isEmpty) {
       final picked = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: const ['jpg', 'jpeg', 'png'],
+        // ignore: deprecated_member_use
+        allowMultiple: true,
       );
-      if (picked.isEmpty || picked.single.path == null) return;
-      path = picked.single.path!;
+      if (picked.isEmpty) return;
+      selectedPaths = [
+        ...selectedPaths,
+        ...picked
+            .map((file) => file.path)
+            .whereType<String>()
+            .where((path) => path.trim().isNotEmpty),
+      ];
     }
-    if (!mounted) return;
+    if (!mounted || selectedPaths.isEmpty) return;
     if (!_cloudReady) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -2934,9 +3025,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       );
       return;
     }
+    final firstPath = selectedPaths.first;
     Uint8List bytes;
     try {
-      bytes = await File(path).readAsBytes();
+      bytes = await File(firstPath).readAsBytes();
     } on Object {
       if (!mounted) return;
       setState(() {
@@ -2946,8 +3038,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           FfmAssistantChatEntry(
             isUser: false,
             text: 'Foto struk tidak dapat dibaca dari berkas yang dipilih. Coba pilih foto lain.',
-            filePath: path,
+            filePath: firstPath,
             fileFormat: 'image',
+            filePaths: selectedPaths,
             createdAt: DateTime.now(),
           ),
         );
@@ -2956,7 +3049,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       _scrollToEnd(force: true);
       return;
     }
-    await _handleImageUpload(path, bytes, userCaption: userCaption);
+    await _handleImageUpload(
+      firstPath,
+      bytes,
+      userCaption: userCaption,
+      allPaths: selectedPaths,
+    );
   }
 
   bool _isBroadVisualQuestion(String? caption) {
@@ -2987,6 +3085,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     String path,
     Uint8List bytes, {
     String? userCaption,
+    List<String> allPaths = const <String>[],
   }) async {
     if (!mounted) return;
 
@@ -3003,11 +3102,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         ? 'Menganalisis gambar dengan Gemini Vision…'
         : 'Membaca struk dari foto…';
 
+    final filePaths = _normalizeImagePaths(
+      allPaths.isNotEmpty ? allPaths : [path],
+    );
     final userEntry = FfmAssistantChatEntry(
       isUser: true,
       text: caption,
       filePath: path,
       fileFormat: 'image',
+      filePaths: filePaths,
       createdAt: DateTime.now(),
     );
     FfmAssistantChatEntry placeholder = FfmAssistantChatEntry(
@@ -3015,6 +3118,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       text: placeholderText,
       filePath: path,
       fileFormat: 'image',
+      filePaths: filePaths,
       createdAt: DateTime.now(),
     );
     setState(() {
@@ -3026,18 +3130,27 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _scrollToEnd(force: true);
 
     final outcome = isBroadQuestion
-      ? await _handleVisualQuestionWithOrchestrator(
-        bytes,
-        isMeterReadingPhoto
-          ? 'Baca angka kWh pada display meter ini. Balas hanya angka tanpa unit.'
-          : caption,
-        path,
-        )
+        ? await _handleVisualQuestionWithOrchestrator(
+            bytes,
+            isMeterReadingPhoto
+                ? 'Baca angka kWh pada display meter ini. Balas hanya angka tanpa unit.'
+                : caption,
+            path,
+            filePaths,
+          )
         : await _receiptScanner.scanImage(
             bytes: bytes,
             mimeType: _mimeTypeFor(path),
             imagePath: path,
             userCaption: userCaption,
+            images: filePaths
+                .map(
+                  (source) => GeminiImageInput(
+                    base64Data: base64Encode(File(source).readAsBytesSync()),
+                    mimeType: _mimeTypeFor(source),
+                  ),
+                )
+                .toList(growable: false),
           );
 
     if (!mounted) return;
@@ -3079,14 +3192,20 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           response: outcome.message,
           pluginMetadata: {'retryScan': true},
         );
+        final visualTrace = _visualGeminiTrace(
+          imageCount: filePaths.length,
+          elapsed: outcome.latency ?? Duration.zero,
+          tokenUsage: outcome.tokenUsage,
+        );
         _appendEntry(
           FfmAssistantChatEntry(
             isUser: false,
             text: outcome.message,
             filePath: path,
             fileFormat: 'image',
+            filePaths: filePaths,
             intent: retryIntent,
-            processTrace: errorTrace,
+            processTrace: errorTrace ?? visualTrace,
             createdAt: DateTime.now(),
           ),
         );
@@ -3113,14 +3232,20 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         if (!mounted) return;
         setState(() {
           _activeVisualContext =
-              'Foto ($path): ${outcome.message.split('\n').first}';
+              'Foto (${filePaths.length} gambar): ${outcome.message.split('\n').first}';
+          final visualTrace = _visualGeminiTrace(
+            imageCount: filePaths.length,
+            elapsed: outcome.latency ?? Duration.zero,
+            tokenUsage: outcome.tokenUsage,
+          );
           _appendEntry(
             FfmAssistantChatEntry(
               isUser: false,
               text: outcome.message,
               filePath: path,
               fileFormat: 'image',
-              processTrace: trace,
+              filePaths: filePaths,
+              processTrace: trace ?? visualTrace,
               createdAt: DateTime.now(),
             ),
           );
@@ -3139,6 +3264,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 text: 'Struk terbaca, tetapi ada kendala saat memproses hasilnya. Coba pindai lagi.',
                 filePath: path,
                 fileFormat: 'image',
+                filePaths: filePaths,
+                processTrace: _visualGeminiTrace(
+                  imageCount: filePaths.length,
+                  elapsed: Duration.zero,
+                ),
                 createdAt: DateTime.now(),
               ),
             );
@@ -3155,9 +3285,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     String caption,
     String imagePath,
   ) async {
-    final match = RegExp(r'(?<!\d)(\d+(?:[.,]\d+)?)(?!\d)').firstMatch(
-      outcome.message,
-    );
+    final match = RegExp(r'(?<!\d)(\d+(?:[.,]\d+)?)(?!\d)')
+        .firstMatch(outcome.message);
     if (match == null) {
       if (!mounted) return;
       setState(() {
@@ -3182,7 +3311,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         _appendEntry(
           FfmAssistantChatEntry(
             isUser: false,
-            text: 'Saya melihat angka **$readingText kWh** pada display meter.\n\n${intent.clarification}',
+            text:
+                'Saya melihat angka **$readingText kWh** pada display meter.\n\n${intent.clarification}',
             filePath: imagePath,
             fileFormat: 'image',
           ),
@@ -3196,7 +3326,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         _appendEntry(
           FfmAssistantChatEntry(
             isUser: false,
-            text: 'Saya melihat angka **$readingText kWh**, tetapi meter tujuan belum dapat ditentukan.',
+            text:
+                'Saya melihat angka **$readingText kWh**, tetapi meter tujuan belum dapat ditentukan.',
             filePath: imagePath,
             fileFormat: 'image',
           ),
@@ -3217,7 +3348,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       _appendEntry(
         FfmAssistantChatEntry(
           isUser: false,
-          text: 'Saya melihat angka **$readingText kWh** pada display meter di foto. Periksa meter tujuan, lalu konfirmasi untuk mencatatnya.\n\n${intent.response ?? ''}',
+          text:
+              'Saya melihat angka **$readingText kWh** pada display meter di foto. Periksa meter tujuan, lalu konfirmasi untuk mencatatnya.\n\n${intent.response ?? ''}',
           intent: intent,
           review: review,
           filePath: imagePath,
@@ -3326,8 +3458,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           // Deteksi struk dengan beberapa meteran (2 rumah dalam 1 gambar).
           // Jika Gemini tidak memisahkannya menjadi beberapa entry, kita ingatkan
           // user alih-alih menebak meter tujuan.
-          final detectedTokens = ReceiptScannerService.extractPlnTokens(allText);
-          final detectedMeters = ReceiptScannerService.extractPlnMeters(allText);
+          final detectedTokens = ReceiptScannerService.extractPlnTokens(
+            allText,
+          );
+          final detectedMeters = ReceiptScannerService.extractPlnMeters(
+            allText,
+          );
 
           if (cleanToken != null) {
             final formattedToken =
@@ -3343,7 +3479,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
             final totalAmount = entry.amount?.toDouble();
             final adminFeeVal = (entry.adminFee ?? 0).toDouble();
-            final tokenSubtotal = (totalAmount != null && totalAmount > adminFeeVal)
+            final tokenSubtotal =
+                (totalAmount != null && totalAmount > adminFeeVal)
                 ? totalAmount - adminFeeVal
                 : totalAmount;
 
@@ -3435,28 +3572,31 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             }
 
             // Simpan metadata ke draft untuk dieksekusi setelah konfirmasi
-            final splitProposals = ReceiptScannerService.expandPlnUtilityProposals(
-              allText,
-              baseProposal: {
-                'amount': tokenSubtotal ?? 0,
-                'adminFee': entry.adminFee ?? 0,
-                'meterNumber': cleanMeterNumber,
-                'tokenCode': cleanToken,
-                'formattedToken': formattedToken,
-                if (cleanMeterNumber case final String meter) 'idpel': meter,
-                if (matchedMeter != null) 'meterName': matchedMeter.name,
-                if (utilityMetadata['proposedMeterName'] != null)
-                  'proposedMeterName': utilityMetadata['proposedMeterName'],
-                'creditedKwh': creditedKwh,
-              },
-            );
+            final splitProposals =
+                ReceiptScannerService.expandPlnUtilityProposals(
+                  allText,
+                  baseProposal: {
+                    'amount': tokenSubtotal ?? 0,
+                    'adminFee': entry.adminFee ?? 0,
+                    'meterNumber': cleanMeterNumber,
+                    'tokenCode': cleanToken,
+                    'formattedToken': formattedToken,
+                    if (cleanMeterNumber case final String meter)
+                      'idpel': meter,
+                    if (matchedMeter != null) 'meterName': matchedMeter.name,
+                    if (utilityMetadata['proposedMeterName'] != null)
+                      'proposedMeterName': utilityMetadata['proposedMeterName'],
+                    'creditedKwh': creditedKwh,
+                  },
+                );
 
             final utilityProposal = splitProposals.length > 1
                 ? splitProposals.first
                 : utilityMetadata;
 
             final existingFormTags = draft.formValues['tags']?.toString();
-            final defaultTags = (existingFormTags == null || existingFormTags.trim().isEmpty)
+            final defaultTags =
+                (existingFormTags == null || existingFormTags.trim().isEmpty)
                 ? 'utilitas, listrik'
                 : existingFormTags;
 
@@ -3472,10 +3612,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   'idpel': cleanMeterNumber,
                 },
                 if (utilityMetadata['proposedMeterName'] != null) ...{
-                  'proposedMeterName':
-                      utilityMetadata['proposedMeterName'].toString(),
-                  'meterName':
-                      utilityMetadata['proposedMeterName'].toString(),
+                  'proposedMeterName': utilityMetadata['proposedMeterName']
+                      .toString(),
+                  'meterName': utilityMetadata['proposedMeterName'].toString(),
                 } else if (matchedMeter != null) ...{
                   'proposedMeterName': matchedMeter.name,
                   'meterName': matchedMeter.name,
@@ -3490,7 +3629,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   'utilityProposalBatch': splitProposals,
               },
             );
-
           }
         } on Object {
           // Draft transaksi tetap menggunakan hasil OCR Gemini.
@@ -3647,14 +3785,18 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
       final utilitySplitProposals =
           (draft.metadata?['utilityProposalBatch'] as List?) ?? const [];
-      final queuedDrafts = <({
-        FfmAssistantDraft draft,
-        FfmAssistantIntent intent,
-        FfmAssistantDraftReview review,
-      })>[];
+      final queuedDrafts =
+          <
+            ({
+              FfmAssistantDraft draft,
+              FfmAssistantIntent intent,
+              FfmAssistantDraftReview review,
+            })
+          >[];
 
       if (utilitySplitProposals.length > 1) {
-        for (final proposal in utilitySplitProposals.cast<Map<String, dynamic>>()) {
+        for (final proposal
+            in utilitySplitProposals.cast<Map<String, dynamic>>()) {
           final splitFormValues = <String, dynamic>{...draft.formValues};
           if (proposal['meterNumber'] != null) {
             splitFormValues['meterNumber'] = proposal['meterNumber'];
@@ -3707,7 +3849,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             version: 1,
             issues: FfmAssistantDraftValidator.validate(splitDraft),
           );
-          queuedDrafts.add((draft: splitDraft, intent: splitIntent, review: splitReview));
+          queuedDrafts.add((
+            draft: splitDraft,
+            intent: splitIntent,
+            review: splitReview,
+          ));
         }
       } else {
         final intent = FfmAssistantIntent(
@@ -3934,15 +4080,55 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   String _activityKey(ActivityVoiceIntent intent) =>
       '${intent.type.name}:${intent.targetSessionId ?? intent.parentSessionId ?? intent.targetTitle}:${intent.checkpointLabel ?? ''}:${intent.normalizedText}';
 
+  List<String> _normalizeImagePaths(List<String> paths) {
+    final seen = <String>{};
+    final normalized = <String>[];
+    for (final path in paths) {
+      final trimmed = path.trim();
+      if (trimmed.isEmpty) continue;
+      if (seen.add(trimmed)) normalized.add(trimmed);
+    }
+    return normalized;
+  }
+
+  FfmAssistantProcessTrace _visualGeminiTrace({
+    required int imageCount,
+    Duration? elapsed,
+    Map<String, dynamic>? tokenUsage,
+  }) {
+    final label = imageCount > 1
+        ? 'Gemini Vision membaca $imageCount gambar dalam satu request'
+        : 'Gemini Vision membaca 1 gambar';
+    return FfmAssistantProcessTrace(
+      origin: FfmAssistantResponseOrigin.geminiCloud,
+      elapsed: elapsed ?? Duration.zero,
+      tokenUsage: tokenUsage,
+      events: [
+        FfmAssistantProcessEvent(
+          label: label,
+          detail: imageCount > 1
+              ? 'Semua attachment dikirim sekaligus agar model melihat konteks visual yang utuh.'
+              : 'Attachment dikirim sebagai konteks visual utama untuk analisis.',
+          elapsed: elapsed ?? Duration.zero,
+        ),
+        FfmAssistantProcessEvent(
+          label: 'Validasi hasil visual',
+          detail: 'Menyimpulkan jawaban dari gambar yang dipilih dan memetakan ke konteks FFM.',
+          elapsed: elapsed ?? Duration.zero,
+        ),
+      ],
+    );
+  }
+
   /// Handle pertanyaan visual dengan orkestrator yang memiliki bounded context
   Future<ReceiptScanOutcome> _handleVisualQuestionWithOrchestrator(
     Uint8List bytes,
     String question,
-    String imagePath,
-  ) async {
+    String imagePath, [
+    List<String> imagePaths = const <String>[],
+  ]) async {
     try {
       if (!getIt.isRegistered<FfmGeminiCloudOrchestrator>()) {
-        // Fallback ke scanner biasa jika orkestrator tidak tersedia
         return await _receiptScanner.askVisualQuestion(
           bytes: bytes,
           question: question,
@@ -3952,22 +4138,61 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       }
 
       final orchestrator = getIt<FfmGeminiCloudOrchestrator>();
-
-      // Buat bounded context keuangan
       final boundedContext = await _buildBoundedFinancialContext();
+      final sources = imagePaths.isNotEmpty ? imagePaths : [imagePath];
+      final imageInputs = <GeminiImageInput>[];
+      for (final source in sources) {
+        try {
+          final sourceBytes = await File(source).readAsBytes();
+          final prepared = await _receiptScanner.prepareImageForGemini(
+            sourceBytes,
+            _mimeTypeFor(source),
+          );
+          if (prepared != null) {
+            imageInputs.add(
+              GeminiImageInput(
+                base64Data: base64Encode(prepared.$1),
+                mimeType: prepared.$2,
+              ),
+            );
+          }
+        } on Object {
+          continue;
+        }
+      }
 
-      // Siapkan input gambar
-      final imageInput = GeminiImageInput(
-        base64Data: base64Encode(bytes),
-        mimeType: _mimeTypeFor(imagePath),
-      );
+      if (imageInputs.isEmpty) {
+        final imageInput = GeminiImageInput(
+          base64Data: base64Encode(bytes),
+          mimeType: _mimeTypeFor(imagePath),
+        );
+        final result = await orchestrator.run(
+          userText: question,
+          boundedContext: boundedContext,
+          householdId: AppContext.householdId,
+          image: imageInput,
+        );
+        if (result.ok) {
+          return ReceiptScanOutcome(
+            ok: true,
+            message: result.text!,
+            tokenUsage: result.usageMetadata?.toJson(),
+            latency: result.latency,
+          );
+        }
+        return ReceiptScanOutcome(
+          ok: false,
+          message:
+              result.errorMessage ??
+              'Gagal memproses gambar dengan orkestrator.',
+        );
+      }
 
-      // Gunakan orkestrator dengan bounded context dan gambar
       final result = await orchestrator.run(
         userText: question,
         boundedContext: boundedContext,
         householdId: AppContext.householdId,
-        image: imageInput,
+        images: imageInputs,
       );
 
       if (result.ok) {
@@ -3977,16 +4202,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           tokenUsage: result.usageMetadata?.toJson(),
           latency: result.latency,
         );
-      } else {
-        return ReceiptScanOutcome(
-          ok: false,
-          message:
-              result.errorMessage ??
-              'Gagal memproses gambar dengan orkestrator.',
-        );
       }
+      return ReceiptScanOutcome(
+        ok: false,
+        message:
+            result.errorMessage ?? 'Gagal memproses gambar dengan orkestrator.',
+      );
     } on Object {
-      // Fallback ke scanner biasa jika terjadi error
       return await _receiptScanner.askVisualQuestion(
         bytes: bytes,
         question: question,
@@ -4464,7 +4686,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             () => _appendEntry(
               FfmAssistantChatEntry(
                 isUser: false,
-                text: 'Konfirmasi tidak dapat diterapkan ke draft ${intent.draft?.kind.name ?? 'ini'}. Tidak ada data yang diubah.',
+                text:
+                    'Konfirmasi tidak dapat diterapkan ke draft ${intent.draft?.kind.name ?? 'ini'}. Tidak ada data yang diubah.',
               ),
             ),
           );
@@ -4496,7 +4719,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       });
       if (!mounted) return;
       Navigator.of(context).pop();
-      await Future<void>.delayed(const Duration(milliseconds: 180));
       await handler(intent);
       return;
     }
@@ -4939,6 +5161,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       return true;
     }
 
+    // Short answers (under 50 chars) without question words are likely
+    // completing a draft (e.g. "untuk chatGPT plus", "jam 8 pagi", "untuk bayar listrik").
+    if (normalized.length < 50 &&
+        !RegExp(
+          r'^(?:apa|bagaimana|gimana|kenapa|mengapa|berapa|kapan|di\s*mana|siapa|apakah|bisakah|tolong|bisa)\b',
+        ).hasMatch(normalized) &&
+        !normalized.endsWith('?')) {
+      return true;
+    }
+
     return false;
   }
 
@@ -5303,13 +5535,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (before.formValues['periodType'] != after.formValues['periodType']) {
       return 'periode anggaran diubah menjadi ${after.formValues['periodType']}.';
     }
-    if (before.title != after.title && after.kind == FfmAssistantDraftKind.reminder) {
+    if (before.title != after.title &&
+        after.kind == FfmAssistantDraftKind.reminder) {
       return 'judul pengingat diubah menjadi ${after.title}.';
     }
-    if (before.date != after.date && after.kind == FfmAssistantDraftKind.reminder) {
+    if (before.date != after.date &&
+        after.kind == FfmAssistantDraftKind.reminder) {
       return 'waktu pengingat diubah.';
     }
-    if (before.reminderMode != after.reminderMode && after.kind == FfmAssistantDraftKind.reminder) {
+    if (before.reminderMode != after.reminderMode &&
+        after.kind == FfmAssistantDraftKind.reminder) {
       return 'tipe alarm/pengingat diubah.';
     }
     if (before.soundName != after.soundName &&
@@ -5387,17 +5622,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       final sourceIndex = sourceEntry == null
           ? -1
           : _entries.indexOf(sourceEntry);
-      final revisedEntry = (sourceEntry ?? const FfmAssistantChatEntry(
-        isUser: false,
-        text: '',
-      )).copyWith(
-        text: revisedIntent.response!,
-        intent: revisedIntent,
-        understanding: 'Kamu mengubah field draft lewat form review.',
-        review: nextReview,
-        isCorrected: true,
-        correctionText: revisedIntent.response,
-      );
+      final revisedEntry =
+          (sourceEntry ?? const FfmAssistantChatEntry(isUser: false, text: ''))
+              .copyWith(
+                text: revisedIntent.response!,
+                intent: revisedIntent,
+                understanding: 'Kamu mengubah field draft lewat form review.',
+                review: nextReview,
+                isCorrected: true,
+                correctionText: revisedIntent.response,
+              );
       if (sourceIndex >= 0) {
         _entries[sourceIndex] = revisedEntry;
       } else {
@@ -6020,17 +6254,17 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         : _entries;
     if (priorEntries.isEmpty) return null;
 
-    final recent = priorEntries.length > 20
-        ? priorEntries.sublist(priorEntries.length - 20)
+    final recent = priorEntries.length > 30
+        ? priorEntries.sublist(priorEntries.length - 30)
         : priorEntries;
     final lines = <String>[];
     for (final entry in recent) {
       final role = entry.isUser ? 'Pengguna' : 'Asisten';
       final text = entry.text.trim();
       if (text.isNotEmpty) {
-        final snippet = text.split('\n').take(6).join(' ').trim();
-        final truncated = snippet.length > 600
-            ? '${snippet.substring(0, 600)}...'
+        final snippet = text.split('\n').take(8).join(' ').trim();
+        final truncated = snippet.length > 800
+            ? '${snippet.substring(0, 800)}...'
             : snippet;
         lines.add('$role: $truncated');
       }
@@ -6321,7 +6555,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                               ? () => _submit(entry.intent!.rawText)
                               : null,
                           onRetryScan:
-                              entry.intent?.pluginMetadata?['retryScan'] == true &&
+                              entry.intent?.pluginMetadata?['retryScan'] ==
+                                      true &&
                                   entry.filePath != null
                               ? () => _scanReceiptFromPhoto(
                                   customPath: entry.filePath!,
@@ -6512,7 +6747,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                 setState(() => _pendingMemoryInsight = null);
                               },
                             ),
-                          if (_pendingAttachmentPath != null)
+                          if (_pendingAttachmentPaths.isNotEmpty)
                             Container(
                               margin: const EdgeInsets.only(bottom: 8),
                               padding: const EdgeInsets.symmetric(
@@ -6535,7 +6770,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(8),
                                     child: Image.file(
-                                      File(_pendingAttachmentPath!),
+                                      File(_pendingAttachmentPaths.first),
                                       width: 38,
                                       height: 38,
                                       fit: BoxFit.cover,
@@ -6554,7 +6789,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                       children: [
                                         Text(
                                           _pendingAttachmentName ??
-                                              'Foto struk siap dikirim',
+                                              '${_pendingAttachmentPaths.length} foto siap dikirim',
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
@@ -6563,7 +6798,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                           ),
                                         ),
                                         Text(
-                                          'Foto struk siap dikirim • Estimasi ~1.000–2.000 token Gemini Vision',
+                                          '${_pendingAttachmentPaths.length} gambar siap dikirim • Estimasi ${_pendingAttachmentPaths.length > 1 ? 'lebih banyak' : '~1.000–2.000'} token Gemini Vision',
                                           style: theme.textTheme.labelSmall
                                               ?.copyWith(
                                                 color:
@@ -6579,6 +6814,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                     tooltip: 'Batalkan lampiran',
                                     onPressed: () {
                                       setState(() {
+                                        _pendingAttachmentPaths.clear();
                                         _pendingAttachmentPath = null;
                                         _pendingAttachmentName = null;
                                       });
@@ -6652,8 +6888,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                     textInputAction: TextInputAction.newline,
                                     onTap: _scrollToEnd,
                                     decoration: InputDecoration(
-                                      hintText: _pendingAttachmentPath != null
-                                          ? 'Tambah instruksi untuk struk ini (opsional)…'
+                                      hintText:
+                                          _pendingAttachmentPaths.isNotEmpty
+                                          ? 'Tambah instruksi untuk gambar ini (opsional)…'
                                           : 'Tulis perintah atau pertanyaan…',
                                       border: InputBorder.none,
                                       contentPadding:

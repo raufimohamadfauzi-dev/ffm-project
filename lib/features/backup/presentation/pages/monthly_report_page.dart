@@ -80,66 +80,65 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
     final tags = await db.select(db.tags).get();
     final merchants = await db.select(db.merchants).get();
 
-    final budgets = await (db.select(db.envelopeBudgets)
-          ..where(
-            (r) =>
-                r.householdId.equals(householdId) &
-                r.isActive.equals(true),
-          ))
-        .get();
+    final budgets =
+        await (db.select(db.envelopeBudgets)..where(
+              (r) =>
+                  r.householdId.equals(householdId) & r.isActive.equals(true),
+            ))
+            .get();
 
-    final activitySessions = await (db.select(db.activitySessions)
-          ..where(
-            (r) =>
-                r.householdId.equals(householdId) &
-                r.isArchived.equals(false),
-          ))
-        .get();
+    final activitySessions =
+        await (db.select(db.activitySessions)..where(
+              (r) =>
+                  r.householdId.equals(householdId) &
+                  r.isArchived.equals(false),
+            ))
+            .get();
 
-    final activityEntries = await (db.select(db.activityEntries)
-          ..where(
-            (r) =>
-                r.householdId.equals(householdId) &
-                r.isArchived.equals(false),
-          ))
-        .get();
+    final activityEntries =
+        await (db.select(db.activityEntries)..where(
+              (r) =>
+                  r.householdId.equals(householdId) &
+                  r.isArchived.equals(false),
+            ))
+            .get();
 
-    final dailyNotes = await (db.select(db.dailyNotes)
-          ..where(
-            (r) =>
-                r.householdId.equals(householdId) &
-                r.isArchived.equals(false),
-          ))
-        .get();
+    final dailyNotes =
+        await (db.select(db.dailyNotes)..where(
+              (r) =>
+                  r.householdId.equals(householdId) &
+                  r.isArchived.equals(false),
+            ))
+            .get();
 
-    final tasks = await (db.select(db.tasks)
-          ..where(
-            (r) =>
-                r.householdId.equals(householdId) &
-                r.isArchived.equals(false),
-          ))
-        .get();
+    final tasks =
+        await (db.select(db.tasks)..where(
+              (r) =>
+                  r.householdId.equals(householdId) &
+                  r.isArchived.equals(false),
+            ))
+            .get();
 
-    final dailyRoutines = await (db.select(db.dailyRoutines)
-          ..where(
-            (r) =>
-                r.householdId.equals(householdId) &
-                r.isActive.equals(true) &
-                r.isArchived.equals(false),
-          ))
-        .get();
+    final dailyRoutines =
+        await (db.select(db.dailyRoutines)..where(
+              (r) =>
+                  r.householdId.equals(householdId) &
+                  r.isActive.equals(true) &
+                  r.isArchived.equals(false),
+            ))
+            .get();
 
-    final routineCompletions = await (db.select(db.dailyRoutineCompletions)
-          ..where((r) => r.householdId.equals(householdId)))
-        .get();
+    final routineCompletions = await (db.select(
+      db.dailyRoutineCompletions,
+    )..where((r) => r.householdId.equals(householdId))).get();
 
-    final harvestEvents = await (db.select(db.harvestEvents)
-          ..where(
-            (r) =>
-                r.householdId.equals(householdId) &
-                r.isArchived.equals(false),
-          ))
-        .get();
+    final harvestEvents =
+        await (db.select(db.harvestEvents)..where(
+              (r) =>
+                  r.householdId.equals(householdId) &
+                  r.isArchived.equals(false),
+            ))
+            .get();
 
     final categoryLabels = {for (final item in categories) item.id: item.name};
     final merchantLabels = {for (final item in merchants) item.id: item.name};
@@ -217,13 +216,18 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
     bool isWeekly,
   ) {
     if (isWeekly) {
-      final start = DateTime(refDate.year, refDate.month, refDate.day)
-          .subtract(Duration(days: refDate.weekday - 1));
+      final start = DateTime(
+        refDate.year,
+        refDate.month,
+        refDate.day,
+      ).subtract(Duration(days: refDate.weekday - 1));
       final end = start.add(const Duration(days: 7));
-      return rows.where((item) {
-        final d = item.transaction.date;
-        return !d.isBefore(start) && d.isBefore(end);
-      }).toList(growable: false);
+      return rows
+          .where((item) {
+            final d = item.transaction.date;
+            return !d.isBefore(start) && d.isBefore(end);
+          })
+          .toList(growable: false);
     } else {
       return rows
           .where(
@@ -259,7 +263,9 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
       initialDate: _month,
-      helpText: _isWeekly ? 'Pilih tanggal acuan minggu' : 'Pilih bulan laporan',
+      helpText: _isWeekly
+          ? 'Pilih tanggal acuan minggu'
+          : 'Pilih bulan laporan',
       cancelText: AppCopy.batal,
       confirmText: AppCopy.selesai,
     );
@@ -275,8 +281,11 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
     try {
       final List<int> bytes;
       if (data.isWeekly) {
-        final start = DateTime(data.month.year, data.month.month, data.month.day)
-            .subtract(Duration(days: data.month.weekday - 1));
+        final start = DateTime(
+          data.month.year,
+          data.month.month,
+          data.month.day,
+        ).subtract(Duration(days: data.month.weekday - 1));
         final end = start.add(const Duration(days: 6));
         bytes = await const PdfReportService().buildCustomRangeReport(
           from: start,
@@ -316,7 +325,8 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
 
       await Printing.sharePdf(
         bytes: Uint8List.fromList(bytes),
-        filename: 'ffm-laporan-${_isWeekly ? "mingguan" : "bulanan"}-${_monthStamp(data.month)}.pdf',
+        filename:
+            'ffm-laporan-${_isWeekly ? "mingguan" : "bulanan"}-${_monthStamp(data.month)}.pdf',
       );
       await OfflineToolHistoryService().saveMonthlyReport(
         MonthlyReportRecord(
@@ -336,9 +346,7 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Laporan belum berhasil dibuat: $e'),
-          ),
+          SnackBar(content: Text('Laporan belum berhasil dibuat: $e')),
         );
       }
     } finally {
@@ -348,8 +356,11 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
 
   String _periodTitle(_MonthlyReportData data) {
     if (data.isWeekly) {
-      final start = DateTime(data.month.year, data.month.month, data.month.day)
-          .subtract(Duration(days: data.month.weekday - 1));
+      final start = DateTime(
+        data.month.year,
+        data.month.month,
+        data.month.day,
+      ).subtract(Duration(days: data.month.weekday - 1));
       final end = start.add(const Duration(days: 6));
       return 'Minggu (${start.day}/${start.month} - ${end.day}/${end.month}/${end.year})';
     }
@@ -391,7 +402,13 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
           destination: FfmAssistantDestination.monthlyReport,
           dataSummary: summaryText,
           child: Scaffold(
-            appBar: AppBar(title: Text(_isWeekly ? 'Laporan Mingguan & Operasional' : 'Laporan Bulanan & Operasional')),
+            appBar: AppBar(
+              title: Text(
+                _isWeekly
+                    ? 'Laporan Mingguan & Operasional'
+                    : 'Laporan Bulanan & Operasional',
+              ),
+            ),
             body: !snapshot.hasData
                 ? const Center(child: CircularProgressIndicator())
                 : _buildBody(context, snapshot.data!),
@@ -453,45 +470,67 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
             children: [
               Row(
                 children: [
-                  Icon(_isWeekly ? Icons.view_week_outlined : Icons.calendar_month_outlined, color: scheme.primary),
+                  Icon(
+                    _isWeekly
+                        ? Icons.view_week_outlined
+                        : Icons.calendar_month_outlined,
+                    color: scheme.primary,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: _isWeekly
                         ? Text(
                             _periodTitle(data),
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(color: scheme.onPrimaryContainer, fontWeight: FontWeight.bold),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: scheme.onPrimaryContainer,
+                                  fontWeight: FontWeight.bold,
+                                ),
                           )
                         : DropdownButton<DateTime>(
                             value: _recentMonths().firstWhere(
-                              (m) => m.year == _month.year && m.month == _month.month,
+                              (m) =>
+                                  m.year == _month.year &&
+                                  m.month == _month.month,
                               orElse: () => _month,
                             ),
                             isExpanded: true,
                             underline: const SizedBox.shrink(),
-                            icon: Icon(Icons.arrow_drop_down, color: scheme.onPrimaryContainer),
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(color: scheme.onPrimaryContainer, fontWeight: FontWeight.bold),
+                            icon: Icon(
+                              Icons.arrow_drop_down,
+                              color: scheme.onPrimaryContainer,
+                            ),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: scheme.onPrimaryContainer,
+                                  fontWeight: FontWeight.bold,
+                                ),
                             dropdownColor: scheme.surface,
                             items: _recentMonths().map((m) {
-                              final isSelected = m.year == _month.year && m.month == _month.month;
+                              final isSelected =
+                                  m.year == _month.year &&
+                                  m.month == _month.month;
                               return DropdownMenuItem<DateTime>(
                                 value: m,
                                 child: Text(
                                   _monthLabel(m),
                                   style: TextStyle(
-                                    color: isSelected ? scheme.primary : scheme.onSurface,
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    color: isSelected
+                                        ? scheme.primary
+                                        : scheme.onSurface,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
                                   ),
                                 ),
                               );
                             }).toList(),
                             onChanged: (val) {
-                              if (val == null || (val.year == _month.year && val.month == _month.month)) return;
+                              if (val == null ||
+                                  (val.year == _month.year &&
+                                      val.month == _month.month)) {
+                                return;
+                              }
                               setState(() {
                                 _month = val;
                                 _future = _load(_month, _isWeekly);
@@ -501,7 +540,10 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                   ),
                   IconButton(
                     tooltip: 'Buka Kalender',
-                    icon: Icon(Icons.date_range_outlined, color: scheme.primary),
+                    icon: Icon(
+                      Icons.date_range_outlined,
+                      color: scheme.primary,
+                    ),
                     onPressed: _pickMonth,
                   ),
                 ],
@@ -612,12 +654,16 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Perkiraan Kekayaan Bersih (Net Worth)',
-                            style: AppTextStyles.labelCaps),
+                        const Text(
+                          'Perkiraan Kekayaan Bersih (Net Worth)',
+                          style: AppTextStyles.labelCaps,
+                        ),
                         const SizedBox(height: 4),
                         AppMoneyText(
                           data.netWorth,
-                          color: data.netWorth >= 0 ? positiveColor : negativeColor,
+                          color: data.netWorth >= 0
+                              ? positiveColor
+                              : negativeColor,
                           compact: true,
                         ),
                         Text(
@@ -641,19 +687,28 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
         const SizedBox(height: 16),
 
         // Top Categories & Merchants Analytics Section
-        _buildSectionHeader(context, 'Analisis Pengeluaran & Merchant', Icons.pie_chart_outline),
+        _buildSectionHeader(
+          context,
+          'Analisis Pengeluaran & Merchant',
+          Icons.pie_chart_outline,
+        ),
         const SizedBox(height: 8),
         AppCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Pengeluaran Terbesar per Kategori', style: AppTextStyles.labelCaps),
+              const Text(
+                'Pengeluaran Terbesar per Kategori',
+                style: AppTextStyles.labelCaps,
+              ),
               const SizedBox(height: 8),
               if (data.topExpenseCategories.isEmpty)
                 const Text('Belum ada pengeluaran tercatat pada periode ini.')
               else
                 ...data.topExpenseCategories.map((entry) {
-                  final pct = data.expense > 0 ? (entry.value / data.expense) : 0.0;
+                  final pct = data.expense > 0
+                      ? (entry.value / data.expense)
+                      : 0.0;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),
                     child: Column(
@@ -662,7 +717,12 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(entry.key, style: const TextStyle(fontWeight: FontWeight.w600)),
+                            Text(
+                              entry.key,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                             Text(_money(entry.value)),
                           ],
                         ),
@@ -678,7 +738,10 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                 }),
               if (data.topMerchants.isNotEmpty) ...[
                 const Divider(height: 24),
-                const Text('Toko / Merchant Teratas', style: AppTextStyles.labelCaps),
+                const Text(
+                  'Toko / Merchant Teratas',
+                  style: AppTextStyles.labelCaps,
+                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -708,17 +771,33 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
               ],
               if (data.topExpenses.isNotEmpty) ...[
                 const Divider(height: 24),
-                const Text('Transaksi Pengeluaran Terbesar', style: AppTextStyles.labelCaps),
+                const Text(
+                  'Transaksi Pengeluaran Terbesar',
+                  style: AppTextStyles.labelCaps,
+                ),
                 const SizedBox(height: 8),
                 ...data.topExpenses.map((row) {
-                  final catName = data.categoryLabels[row.transaction.categoryId] ?? 'Tanpa Kategori';
-                  final dateStr = '${row.transaction.date.day}/${row.transaction.date.month}';
+                  final catName =
+                      data.categoryLabels[row.transaction.categoryId] ??
+                      'Tanpa Kategori';
+                  final dateStr =
+                      '${row.transaction.date.day}/${row.transaction.date.month}';
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
                     dense: true,
-                    title: Text(row.transaction.note ?? catName, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    title: Text(
+                      row.transaction.note ?? catName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     subtitle: Text('$dateStr · $catName'),
-                    trailing: Text(_money(row.transaction.amount.abs()), style: TextStyle(color: negativeColor, fontWeight: FontWeight.bold)),
+                    trailing: Text(
+                      _money(row.transaction.amount.abs()),
+                      style: TextStyle(
+                        color: negativeColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   );
                 }),
               ],
@@ -728,13 +807,20 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
         const SizedBox(height: 16),
 
         // Budgets & Goals Section
-        _buildSectionHeader(context, 'Anggaran & Target Keuangan', Icons.flag_outlined),
+        _buildSectionHeader(
+          context,
+          'Anggaran & Target Keuangan',
+          Icons.flag_outlined,
+        ),
         const SizedBox(height: 8),
         AppCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Kepatuhan Pos Anggaran', style: AppTextStyles.labelCaps),
+              const Text(
+                'Kepatuhan Pos Anggaran',
+                style: AppTextStyles.labelCaps,
+              ),
               const SizedBox(height: 8),
               if (data.budgets.isEmpty)
                 const Text('Belum ada pos anggaran aktif disiapkan.')
@@ -742,7 +828,12 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                 ...data.budgets.map((b) {
                   final catId = b.categoryId;
                   final spent = data.currentRows
-                      .where((r) => r.transaction.amount < 0 && (catId == null || r.transaction.categoryId == catId))
+                      .where(
+                        (r) =>
+                            r.transaction.amount < 0 &&
+                            (catId == null ||
+                                r.transaction.categoryId == catId),
+                      )
                       .fold(0, (sum, r) => sum + r.transaction.amount.abs());
                   final allocated = b.allocated;
                   final pct = allocated > 0 ? (spent / allocated) : 0.0;
@@ -756,15 +847,28 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(b.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                            Text('${_money(spent)} / ${_money(allocated)}',
-                                style: TextStyle(color: isOver ? negativeColor : scheme.onSurface)),
+                            Text(
+                              b.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              '${_money(spent)} / ${_money(allocated)}',
+                              style: TextStyle(
+                                color: isOver
+                                    ? negativeColor
+                                    : scheme.onSurface,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 4),
                         LinearProgressIndicator(
                           value: pct.clamp(0.0, 1.0),
-                          color: isOver ? negativeColor : (pct > 0.8 ? warningColor : positiveColor),
+                          color: isOver
+                              ? negativeColor
+                              : (pct > 0.8 ? warningColor : positiveColor),
                           backgroundColor: scheme.surfaceContainerHighest,
                         ),
                       ],
@@ -773,10 +877,15 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                 }),
               if (data.goals.isNotEmpty) ...[
                 const Divider(height: 24),
-                const Text('Progres Target Keuangan', style: AppTextStyles.labelCaps),
+                const Text(
+                  'Progres Target Keuangan',
+                  style: AppTextStyles.labelCaps,
+                ),
                 const SizedBox(height: 8),
                 ...data.goals.map((g) {
-                  final pct = g.targetAmount > 0 ? (g.currentAmount / g.targetAmount) : 0.0;
+                  final pct = g.targetAmount > 0
+                      ? (g.currentAmount / g.targetAmount)
+                      : 0.0;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),
                     child: Column(
@@ -785,8 +894,15 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(g.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                            Text('${_money(g.currentAmount)} / ${_money(g.targetAmount)} (${(pct * 100).toStringAsFixed(0)}%)'),
+                            Text(
+                              g.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              '${_money(g.currentAmount)} / ${_money(g.targetAmount)} (${(pct * 100).toStringAsFixed(0)}%)',
+                            ),
                           ],
                         ),
                         const SizedBox(height: 4),
@@ -806,7 +922,11 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
         const SizedBox(height: 16),
 
         // Liabilities, Receivables & Asset Portfolio
-        _buildSectionHeader(context, 'Hutang, Piutang & Portofolio Aset', Icons.account_balance_wallet_outlined),
+        _buildSectionHeader(
+          context,
+          'Hutang, Piutang & Portofolio Aset',
+          Icons.account_balance_wallet_outlined,
+        ),
         const SizedBox(height: 8),
         AppCard(
           color: scheme.secondaryContainer,
@@ -815,9 +935,7 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
             children: [
               Text(
                 'Piutang (Tambahan, Bukan Kas)',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
+                style: Theme.of(context).textTheme.titleMedium
                     ?.copyWith(color: scheme.onSecondaryContainer),
               ),
               const SizedBox(height: 4),
@@ -848,17 +966,13 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
               const SizedBox(height: 8),
               Text(
                 'Piutang baru periode ini: ${_money(data.receivablesStartedThisMonth)}',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
+                style: Theme.of(context).textTheme.bodySmall
                     ?.copyWith(color: scheme.onSecondaryContainer),
               ),
               const Divider(height: 24),
               Text(
                 'Kewajiban Hutang',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
+                style: Theme.of(context).textTheme.titleMedium
                     ?.copyWith(color: scheme.onSecondaryContainer),
               ),
               const SizedBox(height: 8),
@@ -885,9 +999,7 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                 const Divider(height: 24),
                 Text(
                   'Portofolio Aset',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
+                  style: Theme.of(context).textTheme.titleMedium
                       ?.copyWith(color: scheme.onSecondaryContainer),
                 ),
                 const SizedBox(height: 8),
@@ -897,11 +1009,17 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('${asset.name} (${asset.assetType})',
-                            style: TextStyle(color: scheme.onSecondaryContainer)),
-                        Text(_money(asset.value),
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, color: scheme.onSecondaryContainer)),
+                        Text(
+                          '${asset.name} (${asset.assetType})',
+                          style: TextStyle(color: scheme.onSecondaryContainer),
+                        ),
+                        Text(
+                          _money(asset.value),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: scheme.onSecondaryContainer,
+                          ),
+                        ),
                       ],
                     ),
                   );
@@ -913,13 +1031,20 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
         const SizedBox(height: 16),
 
         // Activity Logs, Daily Notes & Harvest Report Section
-        _buildSectionHeader(context, 'Catatan Aktivitas, Jurnal & Panen', Icons.assignment_outlined),
+        _buildSectionHeader(
+          context,
+          'Catatan Aktivitas, Jurnal & Panen',
+          Icons.assignment_outlined,
+        ),
         const SizedBox(height: 8),
         AppCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Catatan Aktivitas & Operasional Periode Ini', style: AppTextStyles.labelCaps),
+              const Text(
+                'Catatan Aktivitas & Operasional Periode Ini',
+                style: AppTextStyles.labelCaps,
+              ),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -962,7 +1087,10 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
               ),
               if (data.currentMonthActivities.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                const Text('Kegiatan Penting Periode Ini:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text(
+                  'Kegiatan Penting Periode Ini:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 6),
                 ...data.currentMonthActivities.take(5).map((act) {
                   final dateStr = '${act.startedAt.day}/${act.startedAt.month}';
@@ -971,13 +1099,18 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                     dense: true,
                     leading: const Icon(Icons.event_note, size: 20),
                     title: Text(act.title),
-                    subtitle: Text('$dateStr ${act.place != null ? "· ${act.place}" : ""}'),
+                    subtitle: Text(
+                      '$dateStr ${act.place != null ? "· ${act.place}" : ""}',
+                    ),
                   );
                 }),
               ],
               if (data.currentMonthDailyNotes.isNotEmpty) ...[
                 const Divider(height: 24),
-                const Text('Jurnal / Refleksi Harian:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text(
+                  'Jurnal / Refleksi Harian:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 6),
                 ...data.currentMonthDailyNotes.take(3).map((note) {
                   final dateStr = '${note.noteDate.day}/${note.noteDate.month}';
@@ -986,22 +1119,32 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                     dense: true,
                     leading: const Icon(Icons.notes, size: 20),
                     title: Text(note.title ?? 'Catatan $dateStr'),
-                    subtitle: Text(note.body, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    subtitle: Text(
+                      note.body,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   );
                 }),
               ],
               const Divider(height: 24),
-              const Text('Hasil Panen & Usaha Periodik', style: AppTextStyles.labelCaps),
+              const Text(
+                'Hasil Panen & Usaha Periodik',
+                style: AppTextStyles.labelCaps,
+              ),
               const SizedBox(height: 8),
               if (data.currentMonthHarvests.isEmpty)
-                const Text('Belum ada data hasil panen atau usaha tercatat pada periode ini.')
+                const Text(
+                  'Belum ada data hasil panen atau usaha tercatat pada periode ini.',
+                )
               else ...[
                 Row(
                   children: [
                     Expanded(
                       child: _StatSummaryBox(
                         title: 'Total Bobot/Volume',
-                        value: '${data.currentMonthHarvestTotalQuantity.toStringAsFixed(1)} kg/unit',
+                        value:
+                            '${data.currentMonthHarvestTotalQuantity.toStringAsFixed(1)} kg/unit',
                         icon: Icons.agriculture_outlined,
                       ),
                     ),
@@ -1018,14 +1161,23 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                 const SizedBox(height: 8),
                 ...data.currentMonthHarvests.map((h) {
                   final dateStr = '${h.harvestedAt.day}/${h.harvestedAt.month}';
-                  final buyerStr = h.buyerName != null && h.buyerName!.isNotEmpty ? ' · Pembeli: ${h.buyerName}' : '';
+                  final buyerStr =
+                      h.buyerName != null && h.buyerName!.isNotEmpty
+                      ? ' · Pembeli: ${h.buyerName}'
+                      : '';
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
                     dense: true,
-                    leading: const Icon(Icons.eco_outlined, color: Colors.green),
+                    leading: const Icon(
+                      Icons.eco_outlined,
+                      color: Colors.green,
+                    ),
                     title: Text('${h.commodity} (${h.quantity} ${h.unit})'),
                     subtitle: Text('$dateStr$buyerStr'),
-                    trailing: Text(_money(h.totalAmount ?? 0), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    trailing: Text(
+                      _money(h.totalAmount ?? 0),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   );
                 }),
                 const SizedBox(height: 6),
@@ -1049,7 +1201,11 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                 children: [
                   Icon(Icons.auto_awesome, color: scheme.primary),
                   const SizedBox(width: 8),
-                  Text('Ringkasan Narasi Eksekutif', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                  Text(
+                    'Ringkasan Narasi Eksekutif',
+                    style: Theme.of(context).textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -1096,7 +1252,11 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                   'Dibuat ${item.createdAt.day}/${item.createdAt.month}/${item.createdAt.year} · Arus kas ${_money(item.net)}',
                 ),
                 onTap: () => setState(() {
-                  _month = DateTime(item.month.year, item.month.month, item.month.day);
+                  _month = DateTime(
+                    item.month.year,
+                    item.month.month,
+                    item.month.day,
+                  );
                   _future = _load(_month, _isWeekly);
                 }),
               ),
@@ -1105,12 +1265,20 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title, IconData icon) {
+  Widget _buildSectionHeader(
+    BuildContext context,
+    String title,
+    IconData icon,
+  ) {
     return Row(
       children: [
         Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
         const SizedBox(width: 8),
-        Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleMedium
+              ?.copyWith(fontWeight: FontWeight.bold),
+        ),
       ],
     );
   }
@@ -1149,14 +1317,17 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
   }
 
   String _statusLabel(FinancialHealthStatus status) => switch (status) {
-        FinancialHealthStatus.excellent => 'Kondisi Sangat Kuat',
-        FinancialHealthStatus.good => 'Kondisi Baik',
-        FinancialHealthStatus.fair => 'Cukup Stabil',
-        FinancialHealthStatus.warning => 'Perlu Perhatian Khusus',
-        FinancialHealthStatus.critical => 'Perlu Dibenahi Segera',
-      };
+    FinancialHealthStatus.excellent => 'Kondisi Sangat Kuat',
+    FinancialHealthStatus.good => 'Kondisi Baik',
+    FinancialHealthStatus.fair => 'Cukup Stabil',
+    FinancialHealthStatus.warning => 'Perlu Perhatian Khusus',
+    FinancialHealthStatus.critical => 'Perlu Dibenahi Segera',
+  };
 
-  Widget _buildLearningInsightsCard(BuildContext context, _MonthlyReportData data) {
+  Widget _buildLearningInsightsCard(
+    BuildContext context,
+    _MonthlyReportData data,
+  ) {
     final scheme = Theme.of(context).colorScheme;
     final positiveColor = AppSemanticColors.positive(context);
     final negativeColor = AppSemanticColors.negative(context);
@@ -1175,8 +1346,12 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
       savingsStatus = 'Defisit';
     }
 
-    final debtColor = data.debtToIncomeRatio <= 30.0 ? positiveColor : negativeColor;
-    final debtStatus = data.debtToIncomeRatio <= 30.0 ? 'Aman (≤30%)' : 'Waspada (>30%)';
+    final debtColor = data.debtToIncomeRatio <= 30.0
+        ? positiveColor
+        : negativeColor;
+    final debtStatus = data.debtToIncomeRatio <= 30.0
+        ? 'Aman (≤30%)'
+        : 'Waspada (>30%)';
 
     return AppCard(
       child: Column(
@@ -1190,14 +1365,17 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                   color: scheme.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(Icons.school_outlined, color: scheme.primary, size: 20),
+                child: Icon(
+                  Icons.school_outlined,
+                  color: scheme.primary,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 8),
               Text(
                 'Pelajaran & Rasio Finansial',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -1206,18 +1384,26 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
             children: [
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: savingsColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: savingsColor.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: savingsColor.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Rasio Tabungan',
-                        style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: scheme.onSurfaceVariant,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -1239,7 +1425,10 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
               const SizedBox(width: 8),
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: debtColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
@@ -1250,7 +1439,10 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                     children: [
                       Text(
                         'Beban Cicilan (DTI)',
-                        style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: scheme.onSurfaceVariant,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -1292,14 +1484,17 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.lightbulb_outline, size: 16, color: scheme.primary),
+                    Icon(
+                      Icons.lightbulb_outline,
+                      size: 16,
+                      color: scheme.primary,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         point,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              height: 1.35,
-                            ),
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(height: 1.35),
                       ),
                     ),
                   ],
@@ -1311,7 +1506,10 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
     );
   }
 
-  Widget _buildWhatIfSimulatorCard(BuildContext context, _MonthlyReportData data) {
+  Widget _buildWhatIfSimulatorCard(
+    BuildContext context,
+    _MonthlyReportData data,
+  ) {
     final scheme = Theme.of(context).colorScheme;
     final positiveColor = AppSemanticColors.positive(context);
 
@@ -1321,7 +1519,8 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
 
     final topCategory = data.topExpenseCategories.first;
     final int topAmount = topCategory.value;
-    final int monthlySavings = (topAmount * (_simulatorPercentage / 100)).round();
+    final int monthlySavings = (topAmount * (_simulatorPercentage / 100))
+        .round();
     final int yearlySavings = monthlySavings * 12;
 
     return AppCard(
@@ -1336,15 +1535,18 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                   color: Colors.amber.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.auto_graph, color: Colors.amber, size: 20),
+                child: const Icon(
+                  Icons.auto_graph,
+                  color: Colors.amber,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Simulator Penghematan Bulan Depan',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -1376,16 +1578,42 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Potensi Hemat Bulanan:', style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
-                    Text(_money(monthlySavings), style: TextStyle(fontWeight: FontWeight.bold, color: positiveColor, fontSize: 14)),
+                    Text(
+                      'Potensi Hemat Bulanan:',
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      _money(monthlySavings),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: positiveColor,
+                        fontSize: 14,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Akumulasi 1 Tahun:', style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
-                    Text(_money(yearlySavings), style: TextStyle(fontWeight: FontWeight.bold, color: positiveColor, fontSize: 14)),
+                    Text(
+                      'Akumulasi 1 Tahun:',
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      _money(yearlySavings),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: positiveColor,
+                        fontSize: 14,
+                      ),
+                    ),
                   ],
                 ),
                 if (data.goals.isNotEmpty) ...[
@@ -1403,7 +1631,10 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
     );
   }
 
-  Widget _buildConsultAssistantCard(BuildContext context, _MonthlyReportData data) {
+  Widget _buildConsultAssistantCard(
+    BuildContext context,
+    _MonthlyReportData data,
+  ) {
     final scheme = Theme.of(context).colorScheme;
 
     void openWith(String prompt) {
@@ -1413,7 +1644,9 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Tekan ikon Asisten melayang di pojok kanan bawah untuk memulai konsultasi.'),
+            content: Text(
+              'Tekan ikon Asisten melayang di pojok kanan bawah untuk memulai konsultasi.',
+            ),
           ),
         );
       }
@@ -1431,13 +1664,14 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
               Expanded(
                 child: Text(
                   'Konsultasi Laporan ke Asisten AI',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  style: Theme.of(context).textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.bold),
                 ),
               ),
               FilledButton.tonalIcon(
-                onPressed: () => openWith('Analisis laporan ${_periodTitle(data)} ini dan beri saya evaluasi pembelajaran untuk bulan depan.'),
+                onPressed: () => openWith(
+                  'Analisis laporan ${_periodTitle(data)} ini dan beri saya evaluasi pembelajaran untuk bulan depan.',
+                ),
                 icon: const Icon(Icons.chat_bubble_outline, size: 16),
                 label: const Text('Buka AI'),
               ),
@@ -1456,17 +1690,23 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
               ActionChip(
                 avatar: const Icon(Icons.insights, size: 16),
                 label: const Text('Evaluasi & Saran'),
-                onPressed: () => openWith('Evaluasi laporan ${_periodTitle(data)} ini: apa yang bagus dan apa yang harus saya perbaiki di bulan depan?'),
+                onPressed: () => openWith(
+                  'Evaluasi laporan ${_periodTitle(data)} ini: apa yang bagus dan apa yang harus saya perbaiki di bulan depan?',
+                ),
               ),
               ActionChip(
                 avatar: const Icon(Icons.search, size: 16),
                 label: const Text('Cari Kebocoran Uang'),
-                onPressed: () => openWith('Berdasarkan laporan ${_periodTitle(data)}, di pos mana kebocoran uang terbesar saya dan bagaimana cara menambalnya?'),
+                onPressed: () => openWith(
+                  'Berdasarkan laporan ${_periodTitle(data)}, di pos mana kebocoran uang terbesar saya dan bagaimana cara menambalnya?',
+                ),
               ),
               ActionChip(
                 avatar: const Icon(Icons.wallet, size: 16),
                 label: const Text('Rekomendasi Anggaran'),
-                onPressed: () => openWith('Dari laporan ${_periodTitle(data)} ini, buatkan rekomendasi plafon anggaran belanja untuk bulan depan.'),
+                onPressed: () => openWith(
+                  'Dari laporan ${_periodTitle(data)} ini, buatkan rekomendasi plafon anggaran belanja untuk bulan depan.',
+                ),
               ),
             ],
           ),
@@ -1505,7 +1745,10 @@ class _StatSummaryBox extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: Theme.of(context).textTheme.bodySmall),
-                Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  value,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
               ],
             ),
           ),
@@ -1562,15 +1805,16 @@ class MonthlyReportLearningMetrics {
     required List<MapEntry<String, int>> topExpenseCategories,
   }) {
     final netCashflow = income - expense;
-    final savingsRate =
-        income > 0 ? (netCashflow / income * 100).clamp(-100.0, 100.0) : 0.0;
+    final savingsRate = income > 0
+        ? (netCashflow / income * 100).clamp(-100.0, 100.0)
+        : 0.0;
     final debtToIncomeRatio = income > 0
         ? (totalMonthlyInstallments / income * 100).clamp(0.0, 100.0)
         : 0.0;
     final topExpenseCategoryShare =
         (expense > 0 && topExpenseCategories.isNotEmpty)
-            ? (topExpenseCategories.first.value / expense * 100).clamp(0.0, 100.0)
-            : 0.0;
+        ? (topExpenseCategories.first.value / expense * 100).clamp(0.0, 100.0)
+        : 0.0;
 
     final points = <String>[];
     if (savingsRate >= 20.0) {
@@ -1688,7 +1932,9 @@ class _MonthlyReportData {
       .fold(0, (sum, item) => sum + item.originalAmount);
 
   int get receivablesDueThisMonth => receivables
-      .where((item) => item.remainingBalance > 0 && _isCurrentPeriod(item.dueDate))
+      .where(
+        (item) => item.remainingBalance > 0 && _isCurrentPeriod(item.dueDate),
+      )
       .fold(0, (sum, item) => sum + item.remainingBalance);
 
   int get liabilitiesTotal =>
@@ -1717,8 +1963,11 @@ class _MonthlyReportData {
 
   bool _isCurrentPeriod(DateTime d) {
     if (isWeekly) {
-      final start = DateTime(month.year, month.month, month.day)
-          .subtract(Duration(days: month.weekday - 1));
+      final start = DateTime(
+        month.year,
+        month.month,
+        month.day,
+      ).subtract(Duration(days: month.weekday - 1));
       final end = start.add(const Duration(days: 7));
       return !d.isBefore(start) && d.isBefore(end);
     } else {
@@ -1803,33 +2052,27 @@ class _MonthlyReportData {
     return expenses.reversed.take(5).toList();
   }
 
-  List<ActivityEntry> get currentMonthActivities => activityEntries
-      .where((e) => _isCurrentPeriod(e.startedAt))
-      .toList();
+  List<ActivityEntry> get currentMonthActivities =>
+      activityEntries.where((e) => _isCurrentPeriod(e.startedAt)).toList();
 
-  List<DailyNote> get currentMonthDailyNotes => dailyNotes
-      .where((n) => _isCurrentPeriod(n.noteDate))
-      .toList();
+  List<DailyNote> get currentMonthDailyNotes =>
+      dailyNotes.where((n) => _isCurrentPeriod(n.noteDate)).toList();
 
-  List<HarvestEvent> get currentMonthHarvests => harvestEvents
-      .where((h) => _isCurrentPeriod(h.harvestedAt))
-      .toList();
+  List<HarvestEvent> get currentMonthHarvests =>
+      harvestEvents.where((h) => _isCurrentPeriod(h.harvestedAt)).toList();
 
   int get currentMonthHarvestTotalValue => currentMonthHarvests.fold(
-        0,
-        (sum, item) => sum + (item.totalAmount ?? 0),
-      );
+    0,
+    (sum, item) => sum + (item.totalAmount ?? 0),
+  );
 
-  double get currentMonthHarvestTotalQuantity => currentMonthHarvests.fold(
-        0.0,
-        (sum, item) => sum + item.quantity,
-      );
+  double get currentMonthHarvestTotalQuantity =>
+      currentMonthHarvests.fold(0.0, (sum, item) => sum + item.quantity);
 
   int get tasksCompletedThisMonth => tasks
       .where((t) => t.completedAt != null && _isCurrentPeriod(t.completedAt!))
       .length;
 
-  int get routineCompletionsThisMonth => routineCompletions
-      .where((c) => _isCurrentPeriod(c.routineDate))
-      .length;
+  int get routineCompletionsThisMonth =>
+      routineCompletions.where((c) => _isCurrentPeriod(c.routineDate)).length;
 }

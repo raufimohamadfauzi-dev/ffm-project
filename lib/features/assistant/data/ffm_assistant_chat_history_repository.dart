@@ -362,6 +362,9 @@ class FfmAssistantChatHistoryRepository {
     'isUser': entry.isUser,
     'text': entry.text,
     'createdAt': (entry.createdAt ?? DateTime.now()).toIso8601String(),
+    'filePath': entry.filePath,
+    'fileFormat': entry.fileFormat,
+    if (entry.filePaths.isNotEmpty) 'filePaths': entry.filePaths,
     'verifiedFacts': entry.verifiedFacts,
     'analysisResults': entry.analysisResults,
     'feedbackType': entry.feedbackType,
@@ -386,6 +389,9 @@ class FfmAssistantChatHistoryRepository {
     final sentAt = raw['sentAt'];
     final receivedAt = raw['receivedAt'];
     final modelUsed = raw['modelUsed'];
+    final filePath = raw['filePath'];
+    final fileFormat = raw['fileFormat'];
+    final filePaths = raw['filePaths'];
     final verifiedFacts = raw['verifiedFacts'];
     final analysisResults = raw['analysisResults'];
     final feedbackType = raw['feedbackType'];
@@ -399,9 +405,21 @@ class FfmAssistantChatHistoryRepository {
     final suggestedQuestions = rawSuggested is List
         ? rawSuggested.map((e) => e.toString()).toList()
         : const <String>[];
+    final parsedPaths = filePaths is List
+        ? filePaths.map((e) => e.toString()).where((e) => e.isNotEmpty).toList()
+        : (filePath is String && filePath.isNotEmpty
+              ? [filePath.toString()]
+              : const <String>[]);
     return FfmAssistantChatEntry(
       isUser: isUser,
       text: text,
+      filePath: filePath is String && filePath.isNotEmpty
+          ? filePath.toString()
+          : null,
+      fileFormat: fileFormat is String && fileFormat.isNotEmpty
+          ? fileFormat.toString()
+          : null,
+      filePaths: parsedPaths,
       createdAt: parsedDate,
       sentAt: sentAt is String ? DateTime.tryParse(sentAt) : null,
       receivedAt: receivedAt is String ? DateTime.tryParse(receivedAt) : null,

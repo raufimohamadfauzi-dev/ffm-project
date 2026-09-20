@@ -1,4 +1,11 @@
-enum ReminderRecurrenceType { once, daily, weekly, monthly, yearly, hijriMonthly }
+enum ReminderRecurrenceType {
+  once,
+  daily,
+  weekly,
+  monthly,
+  yearly,
+  hijriMonthly,
+}
 
 enum ReminderOrigin { user, autonomous }
 

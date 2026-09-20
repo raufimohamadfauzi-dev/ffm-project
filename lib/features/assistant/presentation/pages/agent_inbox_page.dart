@@ -495,7 +495,9 @@ class _AgentInboxPageState extends State<AgentInboxPage>
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                color: theme.colorScheme.primaryContainer.withValues(
+                  alpha: 0.3,
+                ),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: theme.colorScheme.primary.withValues(alpha: 0.2),
@@ -788,7 +790,9 @@ class _AgentInboxPageState extends State<AgentInboxPage>
 
     final entries = <MapEntry<String, String>>[];
     for (final entry in payload.entries) {
-      if (entry.value == null || entry.value.toString().trim().isEmpty) continue;
+      if (entry.value == null || entry.value.toString().trim().isEmpty) {
+        continue;
+      }
       final label = switch (entry.key) {
         'scheduledAt' => 'Jadwal',
         'reminderMode' || 'mode' => 'Tipe Pengingat',

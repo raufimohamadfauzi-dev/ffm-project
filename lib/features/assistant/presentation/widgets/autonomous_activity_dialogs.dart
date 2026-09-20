@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../domain/entities/autonomous_activity_models.dart';
 
 /// Menampilkan dialog konfirmasi pembatalan (revert) aksi otonom.
@@ -50,7 +51,9 @@ Future<bool> showRevertActivityDialog({
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF3F4F6),
+                color: isDark
+                    ? const Color(0xFF2A2A2A)
+                    : const Color(0xFFF3F4F6),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isDark ? Colors.grey[800]! : Colors.grey[300]!,
@@ -83,9 +86,7 @@ Future<bool> showRevertActivityDialog({
               decoration: BoxDecoration(
                 color: Colors.amber.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.amber.withValues(alpha: 0.3),
-                ),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -163,7 +164,9 @@ Future<Map<String, dynamic>?> showEditActivityDialog({
   DateTime? selectedHarvestDate;
   if (activity.activityType == AutonomousActivityType.harvestShift) {
     if (payload['newHarvestDate'] != null) {
-      selectedHarvestDate = DateTime.tryParse(payload['newHarvestDate'].toString());
+      selectedHarvestDate = DateTime.tryParse(
+        payload['newHarvestDate'].toString(),
+      );
     }
     selectedHarvestDate ??= DateTime.now().add(const Duration(days: 30));
   }
@@ -186,15 +189,24 @@ Future<Map<String, dynamic>?> showEditActivityDialog({
           };
 
           return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
             title: Row(
               children: [
-                const Icon(Icons.edit_note_rounded, color: Colors.blueAccent, size: 24),
+                const Icon(
+                  Icons.edit_note_rounded,
+                  color: Colors.blueAccent,
+                  size: 24,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Koreksi $typeBadge',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -214,16 +226,22 @@ Future<Map<String, dynamic>?> showEditActivityDialog({
                   const SizedBox(height: 14),
 
                   // Bidang Spesifik: Fuel Log (BBM)
-                  if (activity.activityType == AutonomousActivityType.fuelLog) ...[
+                  if (activity.activityType ==
+                      AutonomousActivityType.fuelLog) ...[
                     TextField(
                       controller: litersController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: const InputDecoration(
                         labelText: 'Volume Bahan Bakar (Liter)',
                         hintText: 'Contoh: 3.5',
                         border: OutlineInputBorder(),
                         isDense: true,
-                        prefixIcon: Icon(Icons.local_gas_station_rounded, size: 20),
+                        prefixIcon: Icon(
+                          Icons.local_gas_station_rounded,
+                          size: 20,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -254,7 +272,8 @@ Future<Map<String, dynamic>?> showEditActivityDialog({
                   ],
 
                   // Bidang Spesifik: Envelope Rebalance (Pergeseran Anggaran)
-                  if (activity.activityType == AutonomousActivityType.envelopeRebalance) ...[
+                  if (activity.activityType ==
+                      AutonomousActivityType.envelopeRebalance) ...[
                     TextField(
                       controller: amountController,
                       keyboardType: TextInputType.number,
@@ -270,7 +289,8 @@ Future<Map<String, dynamic>?> showEditActivityDialog({
                   ],
 
                   // Bidang Spesifik: Utility Meter (Meteran Listrik)
-                  if (activity.activityType == AutonomousActivityType.utilityMeter) ...[
+                  if (activity.activityType ==
+                      AutonomousActivityType.utilityMeter) ...[
                     TextField(
                       controller: meterNumberController,
                       keyboardType: TextInputType.number,
@@ -279,7 +299,10 @@ Future<Map<String, dynamic>?> showEditActivityDialog({
                         hintText: 'Contoh: 14234567890',
                         border: OutlineInputBorder(),
                         isDense: true,
-                        prefixIcon: Icon(Icons.electric_meter_rounded, size: 20),
+                        prefixIcon: Icon(
+                          Icons.electric_meter_rounded,
+                          size: 20,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -308,10 +331,14 @@ Future<Map<String, dynamic>?> showEditActivityDialog({
                   ],
 
                   // Bidang Spesifik: Harvest Shift (Siklus Tani)
-                  if (activity.activityType == AutonomousActivityType.harvestShift) ...[
+                  if (activity.activityType ==
+                      AutonomousActivityType.harvestShift) ...[
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.calendar_month_rounded, color: Colors.green),
+                      leading: const Icon(
+                        Icons.calendar_month_rounded,
+                        color: Colors.green,
+                      ),
                       title: const Text('Target Tanggal Panen'),
                       subtitle: Text(
                         selectedHarvestDate != null
@@ -341,7 +368,8 @@ Future<Map<String, dynamic>?> showEditActivityDialog({
                   ],
 
                   // Bidang Spesifik: Habit Declaration
-                  if (activity.activityType == AutonomousActivityType.habitDeclaration) ...[
+                  if (activity.activityType ==
+                      AutonomousActivityType.habitDeclaration) ...[
                     TextField(
                       controller: habitTextController,
                       decoration: const InputDecoration(
@@ -397,44 +425,62 @@ Future<Map<String, dynamic>?> showEditActivityDialog({
                   var newDesc = descController.text.trim();
                   if (newTitle.isEmpty) return;
 
-                  final updatedPayload = Map<String, dynamic>.of(activity.payload);
+                  final updatedPayload = Map<String, dynamic>.of(
+                    activity.payload,
+                  );
 
                   // Update payload & deskripsi otomatis sesuai nilai baru
                   if (activity.activityType == AutonomousActivityType.fuelLog) {
-                    final liters = double.tryParse(litersController.text.trim());
-                    final cost = int.tryParse(costController.text.replaceAll(RegExp(r'[^0-9]'), ''));
+                    final liters = double.tryParse(
+                      litersController.text.trim(),
+                    );
+                    final cost = int.tryParse(
+                      costController.text.replaceAll(RegExp(r'[^0-9]'), ''),
+                    );
                     final odo = double.tryParse(odoController.text.trim());
                     if (liters != null) updatedPayload['liters'] = liters;
                     if (cost != null) updatedPayload['cost'] = cost;
                     if (odo != null) updatedPayload['odometer'] = odo;
                     if (liters != null && cost != null) {
-                      newDesc = '$liters L BBM Rp $cost'
+                      newDesc =
+                          '$liters L BBM Rp $cost'
                           '${odo != null ? ' (Odo: ${odo.toInt()} km)' : ''}';
                     }
-                  } else if (activity.activityType == AutonomousActivityType.envelopeRebalance) {
-                    final amount = int.tryParse(amountController.text.replaceAll(RegExp(r'[^0-9]'), ''));
+                  } else if (activity.activityType ==
+                      AutonomousActivityType.envelopeRebalance) {
+                    final amount = int.tryParse(
+                      amountController.text.replaceAll(RegExp(r'[^0-9]'), ''),
+                    );
                     if (amount != null) {
                       updatedPayload['amount'] = amount;
                       final from = payload['fromBudgetName'] ?? 'Pos Sumber';
                       final to = payload['toBudgetName'] ?? 'Pos Target';
                       newDesc = 'Menggeser Rp $amount dari $from ke $to.';
                     }
-                  } else if (activity.activityType == AutonomousActivityType.utilityMeter) {
+                  } else if (activity.activityType ==
+                      AutonomousActivityType.utilityMeter) {
                     final meterNum = meterNumberController.text.trim();
                     final alias = aliasController.text.trim();
                     final tariff = tariffPowerController.text.trim();
-                    if (meterNum.isNotEmpty) updatedPayload['meterNumber'] = meterNum;
+                    if (meterNum.isNotEmpty) {
+                      updatedPayload['meterNumber'] = meterNum;
+                    }
                     if (alias.isNotEmpty) updatedPayload['alias'] = alias;
-                    if (tariff.isNotEmpty) updatedPayload['tariffPower'] = tariff;
+                    if (tariff.isNotEmpty) {
+                      updatedPayload['tariffPower'] = tariff;
+                    }
                     newDesc = 'Meteran PLN: $alias ($meterNum - $tariff)';
-                  } else if (activity.activityType == AutonomousActivityType.harvestShift) {
+                  } else if (activity.activityType ==
+                      AutonomousActivityType.harvestShift) {
                     if (selectedHarvestDate != null) {
-                      updatedPayload['newHarvestDate'] = selectedHarvestDate!.toIso8601String();
+                      updatedPayload['newHarvestDate'] = selectedHarvestDate!
+                          .toIso8601String();
                       final dateStr =
                           '${selectedHarvestDate!.day.toString().padLeft(2, '0')}/${selectedHarvestDate!.month.toString().padLeft(2, '0')}/${selectedHarvestDate!.year}';
                       newDesc = 'Target panen diperbarui ke $dateStr.';
                     }
-                  } else if (activity.activityType == AutonomousActivityType.habitDeclaration) {
+                  } else if (activity.activityType ==
+                      AutonomousActivityType.habitDeclaration) {
                     final hText = habitTextController.text.trim();
                     final cat = categoryController.text.trim();
                     if (hText.isNotEmpty) updatedPayload['habitText'] = hText;
@@ -443,7 +489,9 @@ Future<Map<String, dynamic>?> showEditActivityDialog({
 
                   Navigator.of(ctx).pop({
                     'title': newTitle,
-                    'description': newDesc.isNotEmpty ? newDesc : activity.description,
+                    'description': newDesc.isNotEmpty
+                        ? newDesc
+                        : activity.description,
                     'payload': updatedPayload,
                   });
                 },

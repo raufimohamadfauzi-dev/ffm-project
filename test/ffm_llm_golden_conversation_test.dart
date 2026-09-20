@@ -42,6 +42,7 @@ class _CapturingGemini extends GeminiService {
     String? model,
     List<Map<String, dynamic>>? tools,
     GeminiImageInput? image,
+    List<GeminiImageInput>? images,
     int? maxOutputTokens,
   }) async {
     calls++;

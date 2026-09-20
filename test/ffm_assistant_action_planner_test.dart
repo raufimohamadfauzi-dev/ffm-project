@@ -98,16 +98,16 @@ void main() {
 
     final plan = const FfmAssistantActionPlanner().planFor(intent)!;
 
+    expect(plan.steps.map((step) => step.capabilityId), [
+      'read.reminders',
+      'draft.reminder',
+      'mutate.save_draft',
+      'verify.saved_draft',
+    ]);
     expect(
-      plan.steps.map((step) => step.capabilityId),
-      [
-        'read.reminders',
-        'draft.reminder',
-        'mutate.save_draft',
-        'verify.saved_draft',
-      ],
+      plan.steps.every((step) => step.parameters['targetId'] == null),
+      isTrue,
     );
-    expect(plan.steps.every((step) => step.parameters['targetId'] == null), isTrue);
   });
 
   test('canonical draft fields tidak dapat ditimpa formValues', () {

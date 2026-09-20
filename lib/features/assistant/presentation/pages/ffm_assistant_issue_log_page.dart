@@ -17,12 +17,7 @@ class FfmAssistantIssueLogPage extends StatefulWidget {
       _FfmAssistantIssueLogPageState();
 }
 
-enum _IssueExportFormat {
-  llmPrompt,
-  markdown,
-  json,
-  shareMarkdown,
-}
+enum _IssueExportFormat { llmPrompt, markdown, json, shareMarkdown }
 
 class _FfmAssistantIssueLogPageState extends State<FfmAssistantIssueLogPage>
     with SingleTickerProviderStateMixin {
@@ -89,64 +84,69 @@ class _FfmAssistantIssueLogPageState extends State<FfmAssistantIssueLogPage>
   }
 
   List<FfmAssistantResponseFeedback> get _filteredIssues {
-    return _issues.where((issue) {
-      if (_selectedStatusFilter == 'open') {
-        if (issue.reviewStatus ==
-                FfmAssistantResponseFeedbackReviewStatus.fixed ||
-            issue.reviewStatus ==
-                FfmAssistantResponseFeedbackReviewStatus.approved ||
-            issue.reviewStatus ==
-                FfmAssistantResponseFeedbackReviewStatus.rejected) {
-          return false;
-        }
-      } else if (_selectedStatusFilter == 'resolved') {
-        if (issue.reviewStatus !=
-                FfmAssistantResponseFeedbackReviewStatus.fixed &&
-            issue.reviewStatus !=
-                FfmAssistantResponseFeedbackReviewStatus.approved &&
-            issue.reviewStatus !=
-                FfmAssistantResponseFeedbackReviewStatus.rejected) {
-          return false;
-        }
-      }
+    return _issues
+        .where((issue) {
+          if (_selectedStatusFilter == 'open') {
+            if (issue.reviewStatus ==
+                    FfmAssistantResponseFeedbackReviewStatus.fixed ||
+                issue.reviewStatus ==
+                    FfmAssistantResponseFeedbackReviewStatus.approved ||
+                issue.reviewStatus ==
+                    FfmAssistantResponseFeedbackReviewStatus.rejected) {
+              return false;
+            }
+          } else if (_selectedStatusFilter == 'resolved') {
+            if (issue.reviewStatus !=
+                    FfmAssistantResponseFeedbackReviewStatus.fixed &&
+                issue.reviewStatus !=
+                    FfmAssistantResponseFeedbackReviewStatus.approved &&
+                issue.reviewStatus !=
+                    FfmAssistantResponseFeedbackReviewStatus.rejected) {
+              return false;
+            }
+          }
 
-      if (_selectedOriginFilter != 'all') {
-        final origin =
-            issue.issueMetadata['responseOrigin']?.toString().toLowerCase() ??
-            '';
-        if (_selectedOriginFilter == 'gemini' && !origin.contains('gemini')) {
-          return false;
-        }
-        if (_selectedOriginFilter == 'orchestrator' &&
-            !origin.contains('orchestrator')) {
-          return false;
-        }
-        if (_selectedOriginFilter == 'rule' && !origin.contains('rule')) {
-          return false;
-        }
-        if (_selectedOriginFilter == 'anomaly' &&
-            !origin.contains('anomaly') &&
-            !origin.contains('error')) {
-          return false;
-        }
-      }
-      if (_searchQuery.isEmpty) return true;
-      final query = _searchQuery.toLowerCase();
-      final question = issue.questionText.toLowerCase();
-      final answer = issue.responseText.toLowerCase();
-      final note = (issue.note ?? '').toLowerCase();
-      final plugin =
-          (issue.issueMetadata['pluginName'] ?? '').toString().toLowerCase();
-      final capability =
-          (issue.issueMetadata['usedReadCapability'] ?? '')
+          if (_selectedOriginFilter != 'all') {
+            final origin =
+                issue.issueMetadata['responseOrigin']
+                    ?.toString()
+                    .toLowerCase() ??
+                '';
+            if (_selectedOriginFilter == 'gemini' &&
+                !origin.contains('gemini')) {
+              return false;
+            }
+            if (_selectedOriginFilter == 'orchestrator' &&
+                !origin.contains('orchestrator')) {
+              return false;
+            }
+            if (_selectedOriginFilter == 'rule' && !origin.contains('rule')) {
+              return false;
+            }
+            if (_selectedOriginFilter == 'anomaly' &&
+                !origin.contains('anomaly') &&
+                !origin.contains('error')) {
+              return false;
+            }
+          }
+          if (_searchQuery.isEmpty) return true;
+          final query = _searchQuery.toLowerCase();
+          final question = issue.questionText.toLowerCase();
+          final answer = issue.responseText.toLowerCase();
+          final note = (issue.note ?? '').toLowerCase();
+          final plugin = (issue.issueMetadata['pluginName'] ?? '')
               .toString()
               .toLowerCase();
-      return question.contains(query) ||
-          answer.contains(query) ||
-          note.contains(query) ||
-          plugin.contains(query) ||
-          capability.contains(query);
-    }).toList(growable: false);
+          final capability = (issue.issueMetadata['usedReadCapability'] ?? '')
+              .toString()
+              .toLowerCase();
+          return question.contains(query) ||
+              answer.contains(query) ||
+              note.contains(query) ||
+              plugin.contains(query) ||
+              capability.contains(query);
+        })
+        .toList(growable: false);
   }
 
   List<FfmAssistantUnansweredQuestion> get _filteredUnanswered {
@@ -176,10 +176,18 @@ class _FfmAssistantIssueLogPageState extends State<FfmAssistantIssueLogPage>
     buffer.writeln('');
     buffer.writeln('## LINGKUNGAN SISTEM & ATURAN ARSITEKTUR');
     buffer.writeln('- Target Platform: Android ARM64');
-    buffer.writeln('- Arsitektur: Hybrid Orchestrator (Deterministic Local Engine + Gemini Cloud)');
-    buffer.writeln('- Bounded Capabilities: read.summary, read.transactions (maks. 8 item terikat)');
-    buffer.writeln('- Integritas Finansial: Angka saldo dan transaksi adalah mutlak deterministik dari database lokal. LLM dilarang berhalusinasi.');
-    buffer.writeln('- Waktu Ekspor: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now())}');
+    buffer.writeln(
+      '- Arsitektur: Hybrid Orchestrator (Deterministic Local Engine + Gemini Cloud)',
+    );
+    buffer.writeln(
+      '- Bounded Capabilities: read.summary, read.transactions (maks. 8 item terikat)',
+    );
+    buffer.writeln(
+      '- Integritas Finansial: Angka saldo dan transaksi adalah mutlak deterministik dari database lokal. LLM dilarang berhalusinasi.',
+    );
+    buffer.writeln(
+      '- Waktu Ekspor: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now())}',
+    );
     buffer.writeln('');
     buffer.writeln('TUGAS ANDA:');
     buffer.writeln(
@@ -319,9 +327,9 @@ class _FfmAssistantIssueLogPageState extends State<FfmAssistantIssueLogPage>
         final jsonText = await _feedbackRepository.exportAllIssuesJson();
         await Clipboard.setData(ClipboardData(text: jsonText));
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Semua masalah disalin sebagai JSON.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Semua masalah disalin sebagai JSON.')),
+        );
       case _IssueExportFormat.shareMarkdown:
         final prompt = _buildLlmDiagnosticPrompt();
         await SharePlus.instance.share(
@@ -333,7 +341,9 @@ class _FfmAssistantIssueLogPageState extends State<FfmAssistantIssueLogPage>
     }
   }
 
-  Future<void> _copySingleIssuePrompt(FfmAssistantResponseFeedback issue) async {
+  Future<void> _copySingleIssuePrompt(
+    FfmAssistantResponseFeedback issue,
+  ) async {
     final buffer = StringBuffer();
     buffer.writeln('# LAPORAN MASALAH ASISTEN FFM (DIAGNOSTIK LLM)');
     buffer.writeln('');
@@ -341,15 +351,23 @@ class _FfmAssistantIssueLogPageState extends State<FfmAssistantIssueLogPage>
     buffer.writeln('');
     buffer.writeln('## INFORMASI EKSEKUSI');
     buffer.writeln('- ID Masalah: `${issue.id}`');
-    buffer.writeln('- Tanggal: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(issue.createdAt)}');
+    buffer.writeln(
+      '- Tanggal: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(issue.createdAt)}',
+    );
     final metadata = issue.issueMetadata;
     buffer.writeln('- Origin: `${metadata['responseOrigin'] ?? 'unknown'}`');
-    if (metadata['model'] != null) buffer.writeln('- Model: `${metadata['model']}`');
-    if (metadata['pluginName'] != null) buffer.writeln('- Plugin: `${metadata['pluginName']}`');
+    if (metadata['model'] != null) {
+      buffer.writeln('- Model: `${metadata['model']}`');
+    }
+    if (metadata['pluginName'] != null) {
+      buffer.writeln('- Plugin: `${metadata['pluginName']}`');
+    }
     if (metadata['usedReadCapability'] != null) {
       buffer.writeln('- Read Capability: `${metadata['usedReadCapability']}`');
     }
-    if (issue.note != null && issue.note!.isNotEmpty) buffer.writeln('- Catatan: ${issue.note}');
+    if (issue.note != null && issue.note!.isNotEmpty) {
+      buffer.writeln('- Catatan: ${issue.note}');
+    }
     buffer.writeln('');
     buffer.writeln('## PERTANYAAN USER');
     buffer.writeln('> ${issue.questionText.replaceAll('\n', '\n> ')}');
@@ -363,14 +381,20 @@ class _FfmAssistantIssueLogPageState extends State<FfmAssistantIssueLogPage>
     if (trace is Map) {
       buffer.writeln('');
       buffer.writeln('## PROCESS TRACE');
-      if (trace['elapsedMs'] != null) buffer.writeln('- Total Durasi: `${trace['elapsedMs']}ms`');
-      if (trace['fallbackReason'] != null) buffer.writeln('- Fallback Reason: `${trace['fallbackReason']}`');
+      if (trace['elapsedMs'] != null) {
+        buffer.writeln('- Total Durasi: `${trace['elapsedMs']}ms`');
+      }
+      if (trace['fallbackReason'] != null) {
+        buffer.writeln('- Fallback Reason: `${trace['fallbackReason']}`');
+      }
       final events = trace['events'];
       if (events is List && events.isNotEmpty) {
         buffer.writeln('- Timeline:');
         for (final ev in events) {
           if (ev is Map) {
-            buffer.writeln('  * `[+${ev['elapsedMs']}ms]` ${ev['label']}${ev['detail'] != null ? ' (${ev['detail']})' : ''}');
+            buffer.writeln(
+              '  * `[+${ev['elapsedMs']}ms]` ${ev['label']}${ev['detail'] != null ? ' (${ev['detail']})' : ''}',
+            );
           }
         }
       }
@@ -379,7 +403,9 @@ class _FfmAssistantIssueLogPageState extends State<FfmAssistantIssueLogPage>
     await Clipboard.setData(ClipboardData(text: buffer.toString()));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Prompt diagnostik masalah ini telah disalin.')),
+      const SnackBar(
+        content: Text('Prompt diagnostik masalah ini telah disalin.'),
+      ),
     );
   }
 
@@ -446,22 +472,31 @@ class _FfmAssistantIssueLogPageState extends State<FfmAssistantIssueLogPage>
     );
   }
 
-  Future<void> _resolveUnanswered(FfmAssistantUnansweredQuestion question) async {
+  Future<void> _resolveUnanswered(
+    FfmAssistantUnansweredQuestion question,
+  ) async {
     await _unansweredRepository.markResolved(question.id);
     if (!mounted) return;
-    setState(() => _unanswered = _unanswered.where((u) => u.id != question.id).toList());
+    setState(
+      () =>
+          _unanswered = _unanswered.where((u) => u.id != question.id).toList(),
+    );
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Pertanyaan ditandai selesai.')),
     );
   }
 
-  Future<void> _deleteUnanswered(FfmAssistantUnansweredQuestion question) async {
+  Future<void> _deleteUnanswered(
+    FfmAssistantUnansweredQuestion question,
+  ) async {
     await _unansweredRepository.deletePermanently(question.id);
     if (!mounted) return;
-    setState(() => _unanswered = _unanswered.where((u) => u.id != question.id).toList());
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Pertanyaan dihapus.')),
+    setState(
+      () =>
+          _unanswered = _unanswered.where((u) => u.id != question.id).toList(),
     );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Pertanyaan dihapus.')));
   }
 
   Future<void> _editNote(FfmAssistantResponseFeedback issue) async {
@@ -501,23 +536,25 @@ class _FfmAssistantIssueLogPageState extends State<FfmAssistantIssueLogPage>
     );
     if (!mounted) return;
     setState(() {
-      _issues = _issues.map((i) {
-        if (i.id != issue.id) return i;
-        return FfmAssistantResponseFeedback(
-          id: i.id,
-          questionText: i.questionText,
-          responseText: i.responseText,
-          kind: i.kind,
-          reviewStatus: i.reviewStatus,
-          isArchived: i.isArchived,
-          createdAt: i.createdAt,
-          note: normalized.isEmpty ? null : normalized,
-          pageContext: i.pageContext,
-          updatedAt: DateTime.now(),
-          sourceMessageId: i.sourceMessageId,
-          issueMetadata: i.issueMetadata,
-        );
-      }).toList(growable: false);
+      _issues = _issues
+          .map((i) {
+            if (i.id != issue.id) return i;
+            return FfmAssistantResponseFeedback(
+              id: i.id,
+              questionText: i.questionText,
+              responseText: i.responseText,
+              kind: i.kind,
+              reviewStatus: i.reviewStatus,
+              isArchived: i.isArchived,
+              createdAt: i.createdAt,
+              note: normalized.isEmpty ? null : normalized,
+              pageContext: i.pageContext,
+              updatedAt: DateTime.now(),
+              sourceMessageId: i.sourceMessageId,
+              issueMetadata: i.issueMetadata,
+            );
+          })
+          .toList(growable: false);
     });
   }
 
@@ -528,23 +565,25 @@ class _FfmAssistantIssueLogPageState extends State<FfmAssistantIssueLogPage>
     await _feedbackRepository.setReviewStatus(issue.id, status);
     if (!mounted) return;
     setState(() {
-      _issues = _issues.map((i) {
-        if (i.id != issue.id) return i;
-        return FfmAssistantResponseFeedback(
-          id: i.id,
-          questionText: i.questionText,
-          responseText: i.responseText,
-          kind: i.kind,
-          reviewStatus: status,
-          isArchived: i.isArchived,
-          createdAt: i.createdAt,
-          note: i.note,
-          pageContext: i.pageContext,
-          updatedAt: DateTime.now(),
-          sourceMessageId: i.sourceMessageId,
-          issueMetadata: i.issueMetadata,
-        );
-      }).toList(growable: false);
+      _issues = _issues
+          .map((i) {
+            if (i.id != issue.id) return i;
+            return FfmAssistantResponseFeedback(
+              id: i.id,
+              questionText: i.questionText,
+              responseText: i.responseText,
+              kind: i.kind,
+              reviewStatus: status,
+              isArchived: i.isArchived,
+              createdAt: i.createdAt,
+              note: i.note,
+              pageContext: i.pageContext,
+              updatedAt: DateTime.now(),
+              sourceMessageId: i.sourceMessageId,
+              issueMetadata: i.issueMetadata,
+            );
+          })
+          .toList(growable: false);
     });
   }
 
@@ -557,107 +596,119 @@ class _FfmAssistantIssueLogPageState extends State<FfmAssistantIssueLogPage>
       destination: FfmAssistantDestination.assistantIssueLog,
       child: Scaffold(
         appBar: AppBar(
-        title: const Text('Asisten Log & Anomali'),
-        actions: [
-          PopupMenuButton<_IssueExportFormat>(
-            tooltip: 'Ekspor & Bagikan',
-            enabled: totalCount > 0,
-            onSelected: _handleExportAction,
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: _IssueExportFormat.llmPrompt,
-                child: Row(
-                  children: [
-                    Icon(Icons.smart_toy_outlined, color: Colors.purple, size: 20),
-                    SizedBox(width: 10),
-                    Text('Salin Prompt Diagnostik LLM'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: _IssueExportFormat.markdown,
-                child: Row(
-                  children: [
-                    Icon(Icons.description_outlined, color: Colors.blue, size: 20),
-                    SizedBox(width: 10),
-                    Text('Salin Semua (Markdown .md)'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: _IssueExportFormat.json,
-                child: Row(
-                  children: [
-                    Icon(Icons.data_object_rounded, color: Colors.teal, size: 20),
-                    SizedBox(width: 10),
-                    Text('Salin Semua (JSON .json)'),
-                  ],
-                ),
-              ),
-              PopupMenuDivider(),
-              PopupMenuItem(
-                value: _IssueExportFormat.shareMarkdown,
-                child: Row(
-                  children: [
-                    Icon(Icons.share_outlined, color: Colors.green, size: 20),
-                    SizedBox(width: 10),
-                    Text('Bagikan File Log (.md)'),
-                  ],
-                ),
-              ),
-            ],
-            icon: const Icon(Icons.ios_share_rounded),
-          ),
-          if (totalCount > 0)
-            IconButton(
-              tooltip: 'Hapus Semua Log',
-              onPressed: _clearAllLogs,
-              icon: const Icon(Icons.delete_sweep_outlined),
-            ),
-          IconButton(
-            tooltip: 'Muat ulang',
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: TabBar(
-            controller: _tabController,
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: [
-              Tab(text: 'Semua ($totalCount)'),
-              Tab(text: 'Jawaban Bermasalah (${_issues.length})'),
-              Tab(text: 'Gagal Dijawab (${_unanswered.length})'),
-            ],
-          ),
-        ),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-          ? Center(child: Text(_error!))
-          : totalCount == 0
-          ? const _EmptyIssueState()
-          : Column(
-              children: [
-                _buildSearchAndFilters(isDark),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
+          title: const Text('Asisten Log & Anomali'),
+          actions: [
+            PopupMenuButton<_IssueExportFormat>(
+              tooltip: 'Ekspor & Bagikan',
+              enabled: totalCount > 0,
+              onSelected: _handleExportAction,
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: _IssueExportFormat.llmPrompt,
+                  child: Row(
                     children: [
-                      // Tab 0: Semua
-                      _buildCombinedTab(),
-                      // Tab 1: Jawaban Bermasalah
-                      _buildIssuesTab(),
-                      // Tab 2: Gagal Dijawab
-                      _buildUnansweredTab(),
+                      Icon(
+                        Icons.smart_toy_outlined,
+                        color: Colors.purple,
+                        size: 20,
+                      ),
+                      SizedBox(width: 10),
+                      Text('Salin Prompt Diagnostik LLM'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: _IssueExportFormat.markdown,
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.description_outlined,
+                        color: Colors.blue,
+                        size: 20,
+                      ),
+                      SizedBox(width: 10),
+                      Text('Salin Semua (Markdown .md)'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: _IssueExportFormat.json,
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.data_object_rounded,
+                        color: Colors.teal,
+                        size: 20,
+                      ),
+                      SizedBox(width: 10),
+                      Text('Salin Semua (JSON .json)'),
+                    ],
+                  ),
+                ),
+                PopupMenuDivider(),
+                PopupMenuItem(
+                  value: _IssueExportFormat.shareMarkdown,
+                  child: Row(
+                    children: [
+                      Icon(Icons.share_outlined, color: Colors.green, size: 20),
+                      SizedBox(width: 10),
+                      Text('Bagikan File Log (.md)'),
                     ],
                   ),
                 ),
               ],
+              icon: const Icon(Icons.ios_share_rounded),
             ),
+            if (totalCount > 0)
+              IconButton(
+                tooltip: 'Hapus Semua Log',
+                onPressed: _clearAllLogs,
+                icon: const Icon(Icons.delete_sweep_outlined),
+              ),
+            IconButton(
+              tooltip: 'Muat ulang',
+              onPressed: _loading ? null : _load,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(48),
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              tabs: [
+                Tab(text: 'Semua ($totalCount)'),
+                Tab(text: 'Jawaban Bermasalah (${_issues.length})'),
+                Tab(text: 'Gagal Dijawab (${_unanswered.length})'),
+              ],
+            ),
+          ),
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? Center(child: Text(_error!))
+            : totalCount == 0
+            ? const _EmptyIssueState()
+            : Column(
+                children: [
+                  _buildSearchAndFilters(isDark),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        // Tab 0: Semua
+                        _buildCombinedTab(),
+                        // Tab 1: Jawaban Bermasalah
+                        _buildIssuesTab(),
+                        // Tab 2: Gagal Dijawab
+                        _buildUnansweredTab(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }
@@ -680,7 +731,8 @@ class _FfmAssistantIssueLogPageState extends State<FfmAssistantIssueLogPage>
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                onPressed: () => _handleExportAction(_IssueExportFormat.llmPrompt),
+                onPressed: () =>
+                    _handleExportAction(_IssueExportFormat.llmPrompt),
                 icon: const Icon(Icons.copy_all_rounded, size: 18),
                 label: const Text(
                   'Salin Semua Percakapan & Log untuk Agent Coding',
@@ -1008,9 +1060,7 @@ class _IssueTile extends StatelessWidget {
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: Colors.blue.withValues(alpha: 0.2),
-              ),
+              border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
             ),
             child: SelectableText(
               issue.questionText,
@@ -1080,7 +1130,11 @@ class _IssueTile extends StatelessWidget {
                             value: status,
                             child: Row(
                               children: [
-                                Icon(_statusIcon(status), color: _statusColor(status), size: 18),
+                                Icon(
+                                  _statusIcon(status),
+                                  color: _statusColor(status),
+                                  size: 18,
+                                ),
                                 const SizedBox(width: 8),
                                 Text(_statusLabel(status)),
                               ],
@@ -1100,7 +1154,11 @@ class _IssueTile extends StatelessWidget {
               IconButton.outlined(
                 tooltip: 'Hapus log',
                 onPressed: onDelete,
-                icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                icon: const Icon(
+                  Icons.delete_outline,
+                  size: 18,
+                  color: Colors.red,
+                ),
               ),
             ],
           ),
@@ -1144,7 +1202,10 @@ class _UnansweredTile extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.amber.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
@@ -1152,7 +1213,11 @@ class _UnansweredTile extends StatelessWidget {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.help_outline_rounded, size: 14, color: Colors.amber),
+                      Icon(
+                        Icons.help_outline_rounded,
+                        size: 14,
+                        color: Colors.amber,
+                      ),
                       SizedBox(width: 4),
                       Text(
                         'Gagal Dijawab / Fallback',
@@ -1167,14 +1232,20 @@ class _UnansweredTile extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: isDark ? Colors.white12 : Colors.black12,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     '${item.occurrenceCount}x ditanyakan',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 const Spacer(),
@@ -1229,7 +1300,11 @@ class _UnansweredTile extends StatelessWidget {
                 IconButton.outlined(
                   tooltip: 'Hapus',
                   onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    size: 16,
+                    color: Colors.red,
+                  ),
                 ),
               ],
             ),
@@ -1266,7 +1341,11 @@ class _ProcessTraceSection extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.timeline_rounded, size: 16, color: Colors.indigo),
+              const Icon(
+                Icons.timeline_rounded,
+                size: 16,
+                color: Colors.indigo,
+              ),
               const SizedBox(width: 6),
               const Text(
                 'Trace Eksekusi & Audit',
@@ -1322,7 +1401,9 @@ class _ProcessTraceSection extends StatelessWidget {
                               detail,
                               style: TextStyle(
                                 fontSize: 11,
-                                color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                color: isDark
+                                    ? Colors.grey[400]
+                                    : Colors.grey[600],
                               ),
                             ),
                         ],

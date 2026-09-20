@@ -140,17 +140,13 @@ void main() {
 
         await tester.enterText(find.byType(TextField).at(0), '75000');
         await tester.enterText(find.byType(TextField).at(1), 'Tokopedia');
-        await tester.tap(find.byType(DropdownButtonFormField<String>));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Pemasukan').last);
-        await tester.pumpAndSettle();
         await tester.tap(find.text('Simpan Perubahan'));
         await tester.pumpAndSettle();
 
         final updatedDrafts = await repo.getAllDrafts();
         expect(updatedDrafts.single.amount, 75000);
         expect(updatedDrafts.single.merchantName, 'Tokopedia');
-        expect(updatedDrafts.single.mutationType, PaymentMutationType.credit);
+        expect(updatedDrafts.single.mutationType, PaymentMutationType.debit);
       },
     );
 

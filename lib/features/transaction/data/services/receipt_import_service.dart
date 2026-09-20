@@ -193,6 +193,12 @@ class ReceiptImportService {
     final paidAmount = _money(data['paid_amount'] ?? data['bayar']);
     final changeAmount = _money(data['change_amount'] ?? data['kembalian']);
 
+    var discount = _money(
+      data['discount'] ?? data['potongan'] ?? data['diskon'] ?? data['voucher'],
+    );
+    final tax = _money(data['tax'] ?? data['pajak'] ?? data['ppn']);
+    final adminFee = _money(data['admin_fee'] ?? data['biaya_admin']);
+
     // Rekonsiliasi jumlah belanja vs uang tunai pembeli:
     // Jika ada bayar (tunai pembeli) dan kembalian, total belanja adalah paidAmount - changeAmount.
     // Jika total == paidAmount dan ada changeAmount > 0, berarti LLM keliru mengisi total dengan uang tunai pembeli.
@@ -202,18 +208,29 @@ class ReceiptImportService {
       }
     }
 
-    // Jika ada rincian item, dan jumlah harga item valid:
-    // Jika total == paidAmount dan total > itemsTotal, rekonsiliasi total ke itemsTotal
+    // Rekonsiliasi matematika presisi (Deterministic Math Engine):
+    // Jika ada rincian item, hitung ulang sum(items).
+    // Jika itemsTotal > 0 dan total belum diset atau ada selisih diskon/voucher,
+    // hitung presisi: total = itemsTotal - (discount ?? 0) + (tax ?? 0) + (adminFee ?? 0).
     if (items.isNotEmpty) {
       final itemsTotal = items.fold<int>(
         0,
         (sum, item) => sum + item.calculatedTotal,
       );
-      if (itemsTotal > 0 &&
-          total != null &&
-          total > itemsTotal &&
-          total == paidAmount) {
-        total = itemsTotal;
+      if (itemsTotal > 0) {
+        final expectedNet =
+            itemsTotal - (discount ?? 0) + (tax ?? 0) + (adminFee ?? 0);
+        if (total == null) {
+          total = expectedNet;
+        } else if (total == paidAmount && total > itemsTotal) {
+          total = expectedNet;
+        } else if ((total - expectedNet).abs() > 0 && total != paidAmount) {
+          // Jika total di struk berbeda dari sum(items) dan belum ada diskon teridentifikasi,
+          // catat selisih tersebut sebagai potongan/diskon otomatis agar matematika presisi 100%.
+          if (discount == null && itemsTotal > total) {
+            discount = itemsTotal + (tax ?? 0) + (adminFee ?? 0) - total;
+          }
+        }
       }
     }
 
@@ -241,7 +258,10 @@ class ReceiptImportService {
     return result;
   }
 
-  static ReceiptBatchImport parseBatchJson(String rawJson) {
+  static ReceiptBatchImport parseBatchJson(
+    String rawJson, {
+    String? userCaption,
+  }) {
     final dynamic decoded = _decodeJson(rawJson);
     Map<String, dynamic> root;
     if (decoded is List) {
@@ -486,6 +506,86 @@ class ReceiptImportService {
         'Belum ada transaksi batch yang bisa diimpor.',
       );
     }
+
+    // Override fields based on userCaption instructions
+    if (userCaption != null && userCaption.trim().isNotEmpty) {
+      final instructions = _extractUserInstructions(userCaption);
+      final overriddenEntries = <ReceiptBatchEntry>[];
+
+      for (final entry in entries) {
+        ReceiptBatchEntry updatedEntry;
+
+        if (instructions['amountOnly'] == true) {
+          // Only keep amount, remove other fields
+          updatedEntry = ReceiptBatchEntry(
+            type: entry.type,
+            date: entry.date,
+            amount: entry.amount,
+            items: const [],
+            time: entry.time,
+            merchant: null,
+            categoryId: null,
+            accountId: null,
+            budgetId: null,
+            budgetName: null,
+            partyName: null,
+            location: null,
+            tags: const [],
+            receiptNumber: null,
+            note: null,
+            fromAccountId: null,
+            toAccountId: null,
+            adminFee: null,
+            paidAmount: null,
+            changeAmount: null,
+            tax: null,
+            discount: null,
+          );
+        } else if (instructions['meterOnly'] == true) {
+          // Only keep meter-related fields
+          updatedEntry = ReceiptBatchEntry(
+            type: entry.type,
+            date: entry.date,
+            amount: entry.amount,
+            items: entry.items,
+            time: entry.time,
+            merchant: entry.merchant,
+            categoryId: 'listrik',
+            accountId: entry.accountId,
+            budgetId: entry.budgetId,
+            budgetName: entry.budgetName,
+            partyName: entry.partyName,
+            location: entry.location,
+            tags: entry.tags,
+            receiptNumber: entry.receiptNumber,
+            note: entry.note ?? '',
+            fromAccountId: entry.fromAccountId,
+            toAccountId: entry.toAccountId,
+            adminFee: entry.adminFee,
+            paidAmount: entry.paidAmount,
+            changeAmount: entry.changeAmount,
+            tax: entry.tax,
+            discount: entry.discount,
+          );
+        } else if (instructions['excludeCustomerName'] == true) {
+          // Remove customer name from note
+          final cleanedNote = entry.note != null
+              ? entry.note!.replaceAll(
+                  RegExp(r'Nama Pelanggan[:\s*][^\n]+'),
+                  '',
+                )
+              : entry.note;
+          updatedEntry = entry.copyWith(note: cleanedNote?.trim());
+        } else {
+          updatedEntry = entry;
+        }
+
+        overriddenEntries.add(updatedEntry);
+      }
+
+      return ReceiptBatchImport(entries: overriddenEntries, warnings: warnings);
+    }
+
     return ReceiptBatchImport(entries: entries, warnings: warnings);
   }
 
@@ -591,14 +691,62 @@ class ReceiptImportService {
     );
   }
 
+  static Map<String, bool> _extractUserInstructions(String userCaption) {
+    final instructions = <String, bool>{};
+    final lower = userCaption.toLowerCase();
+
+    if (RegExp(
+      r'\b(hanya\s+nominal|nominal\s+saja|ambil\s+nominal\s+saja|nominal\s+doang)\b',
+    ).hasMatch(lower)) {
+      instructions['amountOnly'] = true;
+    }
+
+    if (RegExp(
+      r'\b(hanya\s+meteran|meteran\s+saja|ambil\s+meteran\s+saja|meteran\s+doang)\b',
+    ).hasMatch(lower)) {
+      instructions['meterOnly'] = true;
+    }
+
+    if (RegExp(
+      r'\b(tanpa\s+nama\s+pelanggan|tanpa\s+pelanggan|abaikan\s+nama|jangan\s+nama)\b',
+    ).hasMatch(lower)) {
+      instructions['excludeCustomerName'] = true;
+    }
+
+    return instructions;
+  }
+
   static String? _transactionType(Map<String, dynamic> data) {
     final raw = _text(data['type'] ?? data['jenis'] ?? data['tipe'])
         ?.toLowerCase();
-    if (raw == 'income' || raw == 'masuk' || raw == 'kredit') return 'income';
-    if (raw == 'expense' || raw == 'keluar' || raw == 'debit') {
+    if (raw == 'income' ||
+        raw == 'masuk' ||
+        raw == 'kredit' ||
+        raw == 'setor') {
+      return 'income';
+    }
+    if (raw == 'expense' ||
+        raw == 'keluar' ||
+        raw == 'debit' ||
+        raw == 'tarik') {
       return 'expense';
     }
     if (raw == 'transfer' || raw == 'pemindahan') return 'transfer';
+
+    final noteText =
+        _text(
+          data['note'] ??
+              data['description'] ??
+              data['catatan'] ??
+              data['raw_text'],
+        )?.toLowerCase() ??
+        '';
+    final isIncomeTransfer = RegExp(
+      r'\b(transfer masuk|terima transfer|uang masuk|kredit|setor tunai|terima dari|brilink masuk|masuk ke)\b',
+      caseSensitive: false,
+    ).hasMatch(noteText);
+    if (isIncomeTransfer) return 'income';
+
     final direction = _text(data['direction'] ?? data['arah'])?.toLowerCase();
     if (direction == 'in' || direction == 'masuk' || direction == 'credit') {
       return 'income';
@@ -726,12 +874,20 @@ Aturan:
 - `amount` adalah TOTAL TRANSAKSI/HARGA AKHIR BELANJA (bukan uang tunai yang diserahkan/dibayar pembeli). Jika ada baris Tunai/Bayar/Cash dan Kembalian/Change, `amount` adalah nilai total belanja yang sesungguhnya (bukan uang tunai/bayar). Isi `paid_amount` dengan uang tunai pembeli dan `change_amount` dengan uang kembalian bila ada.
 - Satu transaksi boleh memiliki banyak item pada `items`.
 - Untuk `transfer`, isi `from_account_id` dan `to_account_id` hanya jika ID rekening diberikan; jika tidak, gunakan null agar dipilih di FFM.
+- Untuk pengeluaran, jika terdeteksi metode pembayaran (e-wallet/bank) seperti "SeaBank", "ShopeePay", "GoPay", "Mandiri", "BCA", dll dari struk, isi `from_account_id` dengan nama metode tersebut. Jika tidak jelas, gunakan null.
 - Untuk pengeluaran, isi `budget_name` dengan nama pos anggaran yang paling cocok berdasarkan keterangan. Jika tidak yakin, gunakan null; jangan menebak.
 - `budget_id` hanya diisi jika ID pos diberikan secara eksplisit oleh aplikasi; jangan membuat ID sendiri.
 - Untuk pemasukan, `budget_id` dan `budget_name` biasanya null karena anggaran adalah batas pengeluaran.
 - Jangan menggabungkan beberapa transaksi berbeda menjadi satu objek.
 - Jika gambar atau teks tidak terbaca, gunakan null; jangan menebak.
-- FFM akan menampilkan semua hasil sebagai draft yang wajib diperiksa dan dikonfirmasi.''';
+- FFM akan menampilkan semua hasil sebagai draft yang wajib diperiksa dan dikonfirmasi.
+
+ATURAN KHUSUS STRUK TOKEN LISTRIK PLN:
+- Jika struk berisi pembelian token listrik PLN (ada kata: PLN, Token Listrik, Pulsa Listrik, stroom, atau kode token 20 digit), buat sebagai transaksi `expense` terpisah.
+- `amount` = TOTAL BAYAR AKHIR (nominal token + biaya admin + pajak - diskon). Ini adalah nilai yang sebenarnya dibayar pengguna.
+- `admin_fee` = BIAYA ADMIN BANK atau biaya layanan yang terpisah dari nominal token (jika ada dan tercantum jelas). Contoh: jika struk menunjukkan "Nominal Listrik Rp100.000 + Biaya Admin Rp2.500 = Total Bayar Rp102.500", maka `amount` = 102500 dan `admin_fee` = 2500.
+- Tulis nomor token 20 digit (format 5 blok: xxxx-xxxx-xxxx-xxxx-xxxx), IDPEL/nomor meter, dan jumlah kWh ke dalam `note` dan/atau `items`.
+- JIKA STRUK BERISI 2 ATAU LEBIH PEMBELIAN TOKEN UNTUK IDPEL/METERAN YANG BERBEDA: buatkan SATU objek transaksi TERPISAH per IDPEL — jangan pernah menggabungkan. Setiap entry harus membawa IDPEL, kode token, nominal, dan kWh miliknya sendiri. Jangan mencampur token atau nomor meter antar-entry.''';
 
   static Map<String, dynamic> toMap(ReceiptOcrResult result) => {
     'format': format,

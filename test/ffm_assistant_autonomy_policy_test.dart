@@ -78,7 +78,10 @@ void main() {
       requiresConfirmation: true,
       steps: const [
         FfmAssistantActionStep(id: 'save', capabilityId: 'mutate.save_draft'),
-        FfmAssistantActionStep(id: 'verify', capabilityId: 'verify.saved_draft'),
+        FfmAssistantActionStep(
+          id: 'verify',
+          capabilityId: 'verify.saved_draft',
+        ),
       ],
     );
     controller.register(plan);
@@ -92,11 +95,15 @@ void main() {
       handlers: {
         'mutate.save_draft': (_) async {
           executed = true;
-          return const FfmAssistantCapabilityExecutionResult.success('tersimpan');
+          return const FfmAssistantCapabilityExecutionResult.success(
+            'tersimpan',
+          );
         },
         'verify.saved_draft': (_) async {
           verified = true;
-          return const FfmAssistantCapabilityExecutionResult.success('terverifikasi');
+          return const FfmAssistantCapabilityExecutionResult.success(
+            'terverifikasi',
+          );
         },
       },
     );
@@ -109,37 +116,51 @@ void main() {
     expect(result?.blockedReason, isNull);
   });
 
-  test('controller.update menggantikan plan yang sebelumnya berstatus blocked', () {
-    final controller = FfmAssistantActionPlanController();
-    final initialPlan = FfmAssistantActionPlan(
-      id: 'plan-1',
-      summary: 'plan awal',
-      createdAt: DateTime(2026, 8, 31),
-      status: FfmAssistantActionPlanStatus.blocked,
-      blockedReason: 'error sebelumnya',
-      steps: const [
-        FfmAssistantActionStep(id: 'save', capabilityId: 'mutate.save_draft'),
-      ],
-    );
-    controller.register(initialPlan);
-    expect(controller.get('plan-1')?.status, FfmAssistantActionPlanStatus.blocked);
+  test(
+    'controller.update menggantikan plan yang sebelumnya berstatus blocked',
+    () {
+      final controller = FfmAssistantActionPlanController();
+      final initialPlan = FfmAssistantActionPlan(
+        id: 'plan-1',
+        summary: 'plan awal',
+        createdAt: DateTime(2026, 8, 31),
+        status: FfmAssistantActionPlanStatus.blocked,
+        blockedReason: 'error sebelumnya',
+        steps: const [
+          FfmAssistantActionStep(id: 'save', capabilityId: 'mutate.save_draft'),
+        ],
+      );
+      controller.register(initialPlan);
+      expect(
+        controller.get('plan-1')?.status,
+        FfmAssistantActionPlanStatus.blocked,
+      );
 
-    // Jika dipanggil register lagi, status tetap blocked karena register idempoten
-    controller.register(initialPlan.copyWith(status: FfmAssistantActionPlanStatus.planned));
-    expect(controller.get('plan-1')?.status, FfmAssistantActionPlanStatus.blocked);
+      // Jika dipanggil register lagi, status tetap blocked karena register idempoten
+      controller.register(
+        initialPlan.copyWith(status: FfmAssistantActionPlanStatus.planned),
+      );
+      expect(
+        controller.get('plan-1')?.status,
+        FfmAssistantActionPlanStatus.blocked,
+      );
 
-    // Dengan update, plan ter-reset ke status baru dan bisa dikonfirmasi
-    final updatedPlan = initialPlan.copyWith(
-      status: FfmAssistantActionPlanStatus.planned,
-      blockedReason: null,
-    );
-    controller.update(updatedPlan);
-    expect(controller.get('plan-1')?.status, FfmAssistantActionPlanStatus.planned);
+      // Dengan update, plan ter-reset ke status baru dan bisa dikonfirmasi
+      final updatedPlan = initialPlan.copyWith(
+        status: FfmAssistantActionPlanStatus.planned,
+        blockedReason: null,
+      );
+      controller.update(updatedPlan);
+      expect(
+        controller.get('plan-1')?.status,
+        FfmAssistantActionPlanStatus.planned,
+      );
 
-    controller.markAwaitingConfirmation('plan-1');
-    final confirmed = controller.confirm('plan-1');
-    expect(confirmed?.status, FfmAssistantActionPlanStatus.executing);
-  });
+      controller.markAwaitingConfirmation('plan-1');
+      final confirmed = controller.confirm('plan-1');
+      expect(confirmed?.status, FfmAssistantActionPlanStatus.executing);
+    },
+  );
 
   test('executor memblokir plan yang melewati token budget policy', () async {
     final controller = FfmAssistantActionPlanController()

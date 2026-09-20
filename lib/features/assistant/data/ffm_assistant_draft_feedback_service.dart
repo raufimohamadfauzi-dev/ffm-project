@@ -1,18 +1,18 @@
 import 'dart:async';
+
 import '../domain/ffm_assistant_models.dart';
 
 /// Service untuk melacak perubahan draft dan mengirim feedback ke LLM
 /// serta mempelajari aturan personal baru secara otonom (Modul 3A).
 class FfmAssistantDraftFeedbackService {
-  FfmAssistantDraftFeedbackService({
-    this.onRuleLearned,
-  });
+  FfmAssistantDraftFeedbackService({this.onRuleLearned});
 
   Future<void> Function({
     required String key,
     required String value,
     required String label,
-  })? onRuleLearned;
+  })?
+  onRuleLearned;
 
   final List<DraftChangeRecord> _changeHistory = [];
   final List<({String key, String value, String label})> _learnedRules = [];
@@ -28,7 +28,7 @@ class FfmAssistantDraftFeedbackService {
     required DateTime timestamp,
   }) async {
     final changedFields = _identifyChangedFields(originalDraft, editedDraft);
-    
+
     if (changedFields.isEmpty) return;
 
     final record = DraftChangeRecord(
@@ -64,11 +64,7 @@ class FfmAssistantDraftFeedbackService {
       _learnedRules.removeWhere((r) => r.key == key);
       _learnedRules.add((key: key, value: editedCategory, label: label));
       if (onRuleLearned != null) {
-        await onRuleLearned!(
-          key: key,
-          value: editedCategory,
-          label: label,
-        );
+        await onRuleLearned!(key: key, value: editedCategory, label: label);
       }
     }
 
@@ -85,11 +81,7 @@ class FfmAssistantDraftFeedbackService {
       _learnedRules.removeWhere((r) => r.key == key);
       _learnedRules.add((key: key, value: editedCategory, label: label));
       if (onRuleLearned != null) {
-        await onRuleLearned!(
-          key: key,
-          value: editedCategory,
-          label: label,
-        );
+        await onRuleLearned!(key: key, value: editedCategory, label: label);
       }
     }
 
@@ -103,11 +95,7 @@ class FfmAssistantDraftFeedbackService {
       _learnedRules.removeWhere((r) => r.key == key);
       _learnedRules.add((key: key, value: fromAccount, label: label));
       if (onRuleLearned != null) {
-        await onRuleLearned!(
-          key: key,
-          value: fromAccount,
-          label: label,
-        );
+        await onRuleLearned!(key: key, value: fromAccount, label: label);
       }
     }
   }
@@ -146,16 +134,18 @@ class FfmAssistantDraftFeedbackService {
 
     final recentChanges = _changeHistory.take(3).toList();
     final feedback = StringBuffer();
-    
+
     feedback.writeln('Konteks perubahan draft terbaru:');
     for (final change in recentChanges) {
-      feedback.writeln('- ${change.changeType}: ${change.changedFields.join(', ')}');
+      feedback.writeln(
+        '- ${change.changeType}: ${change.changedFields.join(', ')}',
+      );
       if (change.changedFields.contains('title')) {
         feedback.writeln('  Dari: "${change.originalDraft.title ?? '-'}"');
         feedback.writeln('  Ke: "${change.editedDraft.title ?? '-'}"');
       }
     }
-    
+
     return feedback.toString();
   }
 
@@ -173,11 +163,16 @@ class FfmAssistantDraftFeedbackService {
         'category': currentDraft.categoryName,
         'date': currentDraft.date?.toIso8601String(),
       },
-      'recentChanges': _changeHistory.take(3).map((change) => {
-        'changeType': change.changeType,
-        'changedFields': change.changedFields,
-        'timestamp': change.timestamp.toIso8601String(),
-      }).toList(),
+      'recentChanges': _changeHistory
+          .take(3)
+          .map(
+            (change) => {
+              'changeType': change.changeType,
+              'changedFields': change.changedFields,
+              'timestamp': change.timestamp.toIso8601String(),
+            },
+          )
+          .toList(),
     };
   }
 
@@ -191,7 +186,7 @@ class FfmAssistantDraftFeedbackService {
     FfmAssistantDraft edited,
   ) {
     final changed = <String>[];
-    
+
     if (original.title != edited.title) changed.add('title');
     if (original.amount != edited.amount) changed.add('amount');
     if (original.categoryName != edited.categoryName) changed.add('category');
@@ -200,16 +195,21 @@ class FfmAssistantDraftFeedbackService {
     if (original.formValues['tags'] != edited.formValues['tags']) {
       changed.add('tags');
     }
-    if (original.formValues['incomeSource'] != edited.formValues['incomeSource']) {
+    if (original.formValues['incomeSource'] !=
+        edited.formValues['incomeSource']) {
       changed.add('incomeSource');
     }
-    if (original.fromAccountName != edited.fromAccountName) changed.add('fromAccount');
-    if (original.toAccountName != edited.toAccountName) changed.add('toAccount');
+    if (original.fromAccountName != edited.fromAccountName) {
+      changed.add('fromAccount');
+    }
+    if (original.toAccountName != edited.toAccountName) {
+      changed.add('toAccount');
+    }
     if (original.merchantName != edited.merchantName) changed.add('merchant');
     if (original.location != edited.location) changed.add('location');
     if (original.partyName != edited.partyName) changed.add('party');
     if (original.adminFee != edited.adminFee) changed.add('adminFee');
-    
+
     return changed;
   }
 

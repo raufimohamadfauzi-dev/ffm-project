@@ -771,8 +771,9 @@ class FfmAssistantProposalJsonService {
       'weekly' || 'mingguan' => ReminderRecurrenceType.weekly,
       'monthly' || 'bulanan' => ReminderRecurrenceType.monthly,
       'yearly' || 'tahunan' => ReminderRecurrenceType.yearly,
-      'hijri_monthly' || 'hijriah' || 'bulanan hijriah' =>
-        ReminderRecurrenceType.hijriMonthly,
+      'hijri_monthly' ||
+      'hijriah' ||
+      'bulanan hijriah' => ReminderRecurrenceType.hijriMonthly,
       _ => ReminderRecurrenceType.once,
     };
 

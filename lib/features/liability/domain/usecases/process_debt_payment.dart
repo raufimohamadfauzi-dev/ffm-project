@@ -28,13 +28,13 @@ class ProcessDebtPayment {
           ? null
           : idempotencyKey;
       if (transactionId != null) {
-        final existingTransaction = await (database.select(database.transactions)
-              ..where(
-                (row) =>
-                    row.householdId.equals(householdId) &
-                    row.id.equals(transactionId),
-              ))
-            .getSingleOrNull();
+        final existingTransaction =
+            await (database.select(database.transactions)..where(
+                  (row) =>
+                      row.householdId.equals(householdId) &
+                      row.id.equals(transactionId),
+                ))
+                .getSingleOrNull();
         if (existingTransaction != null) {
           final expectedAmount = isLiability ? -amount : amount;
           if (existingTransaction.source ==
@@ -44,41 +44,45 @@ class ProcessDebtPayment {
               existingTransaction.date.isAtSameMomentAs(date) &&
               existingTransaction.accountId == accountId) {
             if (isLiability) {
-              final target = await (database.select(database.liabilities)..where(
-                    (row) =>
-                        row.householdId.equals(householdId) &
-                        row.id.equals(targetId),
-                  ))
-                  .getSingleOrNull();
+              final target =
+                  await (database.select(database.liabilities)..where(
+                        (row) =>
+                            row.householdId.equals(householdId) &
+                            row.id.equals(targetId),
+                      ))
+                      .getSingleOrNull();
               if (target == null) {
                 throw StateError('Target pembayaran tidak ditemukan.');
               }
               return target.remainingBalance;
             }
-            final target = await (database.select(database.receivables)..where(
-                  (row) =>
-                      row.householdId.equals(householdId) &
-                      row.id.equals(targetId),
-                ))
-                .getSingleOrNull();
+            final target =
+                await (database.select(database.receivables)..where(
+                      (row) =>
+                          row.householdId.equals(householdId) &
+                          row.id.equals(targetId),
+                    ))
+                    .getSingleOrNull();
             if (target == null) {
               throw StateError('Target pembayaran tidak ditemukan.');
             }
             return target.remainingBalance;
           }
-          throw StateError('Idempotency key sudah dipakai oleh pembayaran dengan isi berbeda.');
+          throw StateError(
+            'Idempotency key sudah dipakai oleh pembayaran dengan isi berbeda.',
+          );
         }
       }
       int newRemaining;
 
       if (isLiability) {
-        final existing = await (database.select(database.liabilities)
-              ..where(
-                (row) =>
-                    row.householdId.equals(householdId) &
-                    row.id.equals(targetId),
-              ))
-            .getSingleOrNull();
+        final existing =
+            await (database.select(database.liabilities)..where(
+                  (row) =>
+                      row.householdId.equals(householdId) &
+                      row.id.equals(targetId),
+                ))
+                .getSingleOrNull();
 
         if (existing == null) {
           throw StateError('Data hutang tidak ditemukan.');
@@ -90,25 +94,24 @@ class ProcessDebtPayment {
         );
         if (error != null) throw ArgumentError(error);
 
-        newRemaining = (existing.remainingBalance - amount).clamp(0, existing.remainingBalance);
+        newRemaining = (existing.remainingBalance - amount).clamp(
+          0,
+          existing.remainingBalance,
+        );
 
-        await (database.update(database.liabilities)
-              ..where(
-                (row) =>
-                    row.householdId.equals(householdId) &
-                    row.id.equals(targetId),
-              ))
-            .write(LiabilitiesCompanion(
-              remainingBalance: Value(newRemaining),
-            ));
+        await (database.update(database.liabilities)..where(
+              (row) =>
+                  row.householdId.equals(householdId) & row.id.equals(targetId),
+            ))
+            .write(LiabilitiesCompanion(remainingBalance: Value(newRemaining)));
       } else {
-        final existing = await (database.select(database.receivables)
-              ..where(
-                (row) =>
-                    row.householdId.equals(householdId) &
-                    row.id.equals(targetId),
-              ))
-            .getSingleOrNull();
+        final existing =
+            await (database.select(database.receivables)..where(
+                  (row) =>
+                      row.householdId.equals(householdId) &
+                      row.id.equals(targetId),
+                ))
+                .getSingleOrNull();
 
         if (existing == null) {
           throw StateError('Data piutang tidak ditemukan.');
@@ -120,37 +123,43 @@ class ProcessDebtPayment {
         );
         if (error != null) throw ArgumentError(error);
 
-        newRemaining = (existing.remainingBalance - amount).clamp(0, existing.remainingBalance);
+        newRemaining = (existing.remainingBalance - amount).clamp(
+          0,
+          existing.remainingBalance,
+        );
 
-        await (database.update(database.receivables)
-              ..where(
-                (row) =>
-                    row.householdId.equals(householdId) &
-                    row.id.equals(targetId),
-              ))
-            .write(ReceivablesCompanion(
-              remainingBalance: Value(newRemaining),
-            ));
+        await (database.update(database.receivables)..where(
+              (row) =>
+                  row.householdId.equals(householdId) & row.id.equals(targetId),
+            ))
+            .write(ReceivablesCompanion(remainingBalance: Value(newRemaining)));
       }
 
       // Catat mutasi kas bila dipilih dan rekening tersedia
       if (recordCashTransaction && accountId != null && accountId.isNotEmpty) {
-        final account = await (database.select(database.accounts)..where(
-              (row) =>
-                  row.householdId.equals(householdId) &
-                  row.id.equals(accountId) &
-                  row.isActive.equals(true) &
-                  row.isArchived.equals(false),
-            ))
-            .getSingleOrNull();
-        if (account == null) throw StateError('Rekening pembayaran tidak ditemukan atau bukan milik household ini.');
+        final account =
+            await (database.select(database.accounts)..where(
+                  (row) =>
+                      row.householdId.equals(householdId) &
+                      row.id.equals(accountId) &
+                      row.isActive.equals(true) &
+                      row.isArchived.equals(false),
+                ))
+                .getSingleOrNull();
+        if (account == null) {
+          throw StateError(
+            'Rekening pembayaran tidak ditemukan atau bukan milik household ini.',
+          );
+        }
         final now = DateTime.now();
         final txId = transactionId ?? const Uuid().v4();
         final defaultNote = isLiability
             ? 'Pembayaran hutang: $targetName'
             : 'Penerimaan piutang: $targetName';
 
-        await database.into(database.transactions).insert(
+        await database
+            .into(database.transactions)
+            .insert(
               TransactionsCompanion.insert(
                 id: txId,
                 householdId: householdId,
@@ -161,8 +170,12 @@ class ProcessDebtPayment {
                 createdAt: now,
                 accountId: Value(accountId),
                 partyName: Value(targetName),
-                note: Value(note?.trim().isNotEmpty == true ? note!.trim() : defaultNote),
-                source: Value(isLiability ? 'liability_payment' : 'receivable_payment'),
+                note: Value(
+                  note?.trim().isNotEmpty == true ? note!.trim() : defaultNote,
+                ),
+                source: Value(
+                  isLiability ? 'liability_payment' : 'receivable_payment',
+                ),
                 sourceId: Value(targetId),
               ),
             );
@@ -198,13 +211,13 @@ class RollbackDebtPayment {
   }) async {
     return database.transaction(() async {
       // Cari transaksi yang akan dihapus
-      final tx = await (database.select(database.transactions)
-            ..where(
-              (row) =>
-                  row.householdId.equals(householdId) &
-                  row.id.equals(transactionId),
-            ))
-          .getSingleOrNull();
+      final tx =
+          await (database.select(database.transactions)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.id.equals(transactionId),
+              ))
+              .getSingleOrNull();
 
       if (tx == null) {
         throw StateError('Transaksi tidak ditemukan.');
@@ -224,29 +237,29 @@ class RollbackDebtPayment {
         throw StateError('Transaksi pembayaran tidak memiliki targetId.');
       }
 
-      final amount = tx.amount.abs(); // Gunakan nilai absolut untuk rekonsiliasi
+      final amount = tx.amount
+          .abs(); // Gunakan nilai absolut untuk rekonsiliasi
 
       if (isLiabilityPayment) {
-        final existing = await (database.select(database.liabilities)
-              ..where(
-                (row) =>
-                    row.householdId.equals(householdId) &
-                    row.id.equals(targetId),
-              ))
-            .getSingleOrNull();
-
-        if (existing != null) {
-          // Kembalikan sisa hutang
-          final newRemaining = existing.remainingBalance + amount;
-          await (database.update(database.liabilities)
-                ..where(
+        final existing =
+            await (database.select(database.liabilities)..where(
                   (row) =>
                       row.householdId.equals(householdId) &
                       row.id.equals(targetId),
                 ))
-              .write(LiabilitiesCompanion(
-                remainingBalance: Value(newRemaining),
-              ));
+                .getSingleOrNull();
+
+        if (existing != null) {
+          // Kembalikan sisa hutang
+          final newRemaining = existing.remainingBalance + amount;
+          await (database.update(database.liabilities)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.id.equals(targetId),
+              ))
+              .write(
+                LiabilitiesCompanion(remainingBalance: Value(newRemaining)),
+              );
 
           await AuditLogger(database).record(
             action: 'batal bayar hutang',
@@ -261,26 +274,25 @@ class RollbackDebtPayment {
           );
         }
       } else if (isReceivablePayment) {
-        final existing = await (database.select(database.receivables)
-              ..where(
-                (row) =>
-                    row.householdId.equals(householdId) &
-                    row.id.equals(targetId),
-              ))
-            .getSingleOrNull();
-
-        if (existing != null) {
-          // Kembalikan sisa piutang
-          final newRemaining = existing.remainingBalance + amount;
-          await (database.update(database.receivables)
-                ..where(
+        final existing =
+            await (database.select(database.receivables)..where(
                   (row) =>
                       row.householdId.equals(householdId) &
                       row.id.equals(targetId),
                 ))
-              .write(ReceivablesCompanion(
-                remainingBalance: Value(newRemaining),
-              ));
+                .getSingleOrNull();
+
+        if (existing != null) {
+          // Kembalikan sisa piutang
+          final newRemaining = existing.remainingBalance + amount;
+          await (database.update(database.receivables)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.id.equals(targetId),
+              ))
+              .write(
+                ReceivablesCompanion(remainingBalance: Value(newRemaining)),
+              );
 
           await AuditLogger(database).record(
             action: 'batal terima piutang',

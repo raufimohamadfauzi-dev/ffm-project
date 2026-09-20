@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../../../../core/di/injection.dart';
 import '../../domain/entities/reminder_entity.dart';
 import '../../data/services/reminder_tts_service.dart';
@@ -212,7 +214,10 @@ class _AlarmRingingDialogState extends State<AlarmRingingDialog>
           children: [
             ScaleTransition(
               scale: Tween<double>(begin: 0.92, end: 1.12).animate(
-                CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
+                CurvedAnimation(
+                  parent: _animController,
+                  curve: Curves.easeInOut,
+                ),
               ),
               child: Container(
                 padding: const EdgeInsets.all(20),
@@ -247,8 +252,10 @@ class _AlarmRingingDialogState extends State<AlarmRingingDialog>
             if (widget.note != null && widget.note!.trim().isNotEmpty) ...[
               const SizedBox(height: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: colorScheme.surfaceContainerHighest.withAlpha(140),
                   borderRadius: BorderRadius.circular(12),
@@ -265,8 +272,10 @@ class _AlarmRingingDialogState extends State<AlarmRingingDialog>
             if (widget.snoozeCount > 0) ...[
               const SizedBox(height: 6),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: colorScheme.secondaryContainer.withAlpha(140),
                   borderRadius: BorderRadius.circular(8),
@@ -285,8 +294,11 @@ class _AlarmRingingDialogState extends State<AlarmRingingDialog>
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.notifications_active_rounded,
-                      size: 16, color: colorScheme.error),
+                  Icon(
+                    Icons.notifications_active_rounded,
+                    size: 16,
+                    color: colorScheme.error,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     widget.mode == ReminderMode.alarm
@@ -303,8 +315,11 @@ class _AlarmRingingDialogState extends State<AlarmRingingDialog>
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.record_voice_over_rounded,
-                      size: 16, color: colorScheme.primary),
+                  Icon(
+                    Icons.record_voice_over_rounded,
+                    size: 16,
+                    color: colorScheme.primary,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     'Asisten sedang berbicara...',
@@ -330,7 +345,8 @@ class _AlarmRingingDialogState extends State<AlarmRingingDialog>
             onPressed: () {
               _stopSpeech();
               Navigator.of(context).pop();
-              final targetRoute = (widget.destinationRoute != null &&
+              final targetRoute =
+                  (widget.destinationRoute != null &&
                       widget.destinationRoute!.trim().isNotEmpty)
                   ? widget.destinationRoute!
                   : 'reminders';

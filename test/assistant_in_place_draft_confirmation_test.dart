@@ -73,33 +73,39 @@ void main() {
     );
 
     // Seed Data Utama: Account & Category
-    await db.into(db.accounts).insert(
-      AccountsCompanion.insert(
-        id: 'acc-bca',
-        householdId: AppContext.householdId,
-        name: 'BCA',
-        type: 'bank',
-        createdAt: fixedClock,
-      ),
-    );
-    await db.into(db.categories).insert(
-      CategoriesCompanion.insert(
-        id: 'cat-makanan',
-        householdId: AppContext.householdId,
-        name: 'Makanan',
-        type: 'expense',
-        createdAt: fixedClock,
-      ),
-    );
+    await db
+        .into(db.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'acc-bca',
+            householdId: AppContext.householdId,
+            name: 'BCA',
+            type: 'bank',
+            createdAt: fixedClock,
+          ),
+        );
+    await db
+        .into(db.categories)
+        .insert(
+          CategoriesCompanion.insert(
+            id: 'cat-makanan',
+            householdId: AppContext.householdId,
+            name: 'Makanan',
+            type: 'expense',
+            createdAt: fixedClock,
+          ),
+        );
     // Seed existing tag
-    await db.into(db.tags).insert(
-      TagsCompanion.insert(
-        id: 'tag-makan',
-        householdId: AppContext.householdId,
-        name: 'makan',
-        createdAt: fixedClock,
-      ),
-    );
+    await db
+        .into(db.tags)
+        .insert(
+          TagsCompanion.insert(
+            id: 'tag-makan',
+            householdId: AppContext.householdId,
+            name: 'makan',
+            createdAt: fixedClock,
+          ),
+        );
 
     adapterRegistry = FfmAssistantCapabilityAdapterRegistry(
       database: db,
@@ -207,117 +213,128 @@ void main() {
     expect(txRows.first.accountId, 'acc-bca');
   });
 
-  test('Direct in-place reminder draft execution saves reminder with alarm mode', () async {
-    final draft = FfmAssistantDraft(
-      kind: FfmAssistantDraftKind.reminder,
-      title: 'Bayar Wifi Indihome',
-      note: 'Jangan sampai telat',
-      date: fixedClock.add(const Duration(days: 3)),
-      reminderMode: ReminderMode.alarm,
-      createdAt: fixedClock,
-    );
-
-    final intent = FfmAssistantIntent(
-      rawText: 'ingatkan bayar wifi 3 hari lagi',
-      normalizedText: 'ingatkan bayar wifi 3 hari lagi',
-      type: FfmAssistantIntentType.createReminder,
-      destination: FfmAssistantDestination.reminders,
-      draft: draft,
-    );
-
-    final plan = const FfmAssistantActionPlanner().planFor(intent);
-    expect(plan, isNotNull);
-
-    final registered = planController.register(plan!);
-    planController.markAwaitingConfirmation(registered.id);
-    final confirmed = planController.confirm(registered.id);
-    final executedPlan = await capabilityExecutor.execute(confirmed!.id);
-
-    expect(executedPlan!.status, FfmAssistantActionPlanStatus.completed);
-
-    final reminders = await (db.select(db.reminders)).get();
-    expect(reminders.length, 1);
-    expect(reminders.first.title, 'Bayar Wifi Indihome');
-    expect(reminders.first.mode, 'alarm');
-  });
-
-  test('Direct in-place activity draft execution saves activity session', () async {
-    await db.into(db.categories).insert(
-      CategoriesCompanion.insert(
-        id: 'cat-olahraga',
-        householdId: AppContext.householdId,
-        name: 'Olahraga',
-        type: 'activity',
+  test(
+    'Direct in-place reminder draft execution saves reminder with alarm mode',
+    () async {
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.reminder,
+        title: 'Bayar Wifi Indihome',
+        note: 'Jangan sampai telat',
+        date: fixedClock.add(const Duration(days: 3)),
+        reminderMode: ReminderMode.alarm,
         createdAt: fixedClock,
-      ),
-    );
+      );
 
-    final draft = FfmAssistantDraft(
-      kind: FfmAssistantDraftKind.activity,
-      title: 'Lari Pagi',
-      categoryName: 'Olahraga',
-      note: 'Keliling komplek',
-      date: fixedClock,
-      createdAt: fixedClock,
-      formValues: const {
-        'entity': 'activity_session',
-        'activityMode': 'timeTracking',
-      },
-    );
+      final intent = FfmAssistantIntent(
+        rawText: 'ingatkan bayar wifi 3 hari lagi',
+        normalizedText: 'ingatkan bayar wifi 3 hari lagi',
+        type: FfmAssistantIntentType.createReminder,
+        destination: FfmAssistantDestination.reminders,
+        draft: draft,
+      );
 
-    final intent = FfmAssistantIntent(
-      rawText: 'catat aktivitas lari pagi',
-      normalizedText: 'catat aktivitas lari pagi',
-      type: FfmAssistantIntentType.createActivity,
-      destination: FfmAssistantDestination.activity,
-      draft: draft,
-    );
+      final plan = const FfmAssistantActionPlanner().planFor(intent);
+      expect(plan, isNotNull);
 
-    final plan = const FfmAssistantActionPlanner().planFor(intent);
-    expect(plan, isNotNull);
+      final registered = planController.register(plan!);
+      planController.markAwaitingConfirmation(registered.id);
+      final confirmed = planController.confirm(registered.id);
+      final executedPlan = await capabilityExecutor.execute(confirmed!.id);
 
-    final registered = planController.register(plan!);
-    planController.markAwaitingConfirmation(registered.id);
-    final confirmed = planController.confirm(registered.id);
-    final executedPlan = await capabilityExecutor.execute(confirmed!.id);
+      expect(executedPlan!.status, FfmAssistantActionPlanStatus.completed);
 
-    expect(executedPlan!.status, FfmAssistantActionPlanStatus.completed);
+      final reminders = await (db.select(db.reminders)).get();
+      expect(reminders.length, 1);
+      expect(reminders.first.title, 'Bayar Wifi Indihome');
+      expect(reminders.first.mode, 'alarm');
+    },
+  );
 
-    final sessions = await (db.select(db.activitySessions)).get();
-    expect(sessions.length, 1);
-    expect(sessions.first.title, 'Lari Pagi');
-  });
+  test(
+    'Direct in-place activity draft execution saves activity session',
+    () async {
+      await db
+          .into(db.categories)
+          .insert(
+            CategoriesCompanion.insert(
+              id: 'cat-olahraga',
+              householdId: AppContext.householdId,
+              name: 'Olahraga',
+              type: 'activity',
+              createdAt: fixedClock,
+            ),
+          );
 
-  test('Direct in-place daily note draft execution saves daily note to database', () async {
-    final draft = FfmAssistantDraft(
-      kind: FfmAssistantDraftKind.dailyNote,
-      note: 'Hari ini produktif dan menyenangkan',
-      date: fixedClock,
-      createdAt: fixedClock,
-    );
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.activity,
+        title: 'Lari Pagi',
+        categoryName: 'Olahraga',
+        note: 'Keliling komplek',
+        date: fixedClock,
+        createdAt: fixedClock,
+        formValues: const {
+          'entity': 'activity_session',
+          'activityMode': 'timeTracking',
+        },
+      );
 
-    final intent = FfmAssistantIntent(
-      rawText: 'catat jurnal hari ini produktif',
-      normalizedText: 'catat jurnal hari ini produktif',
-      type: FfmAssistantIntentType.createDailyNote,
-      destination: FfmAssistantDestination.activityLog,
-      draft: draft,
-    );
+      final intent = FfmAssistantIntent(
+        rawText: 'catat aktivitas lari pagi',
+        normalizedText: 'catat aktivitas lari pagi',
+        type: FfmAssistantIntentType.createActivity,
+        destination: FfmAssistantDestination.activity,
+        draft: draft,
+      );
 
-    final plan = const FfmAssistantActionPlanner().planFor(intent);
-    expect(plan, isNotNull);
+      final plan = const FfmAssistantActionPlanner().planFor(intent);
+      expect(plan, isNotNull);
 
-    final registered = planController.register(plan!);
-    planController.markAwaitingConfirmation(registered.id);
-    final confirmed = planController.confirm(registered.id);
-    final executedPlan = await capabilityExecutor.execute(confirmed!.id);
+      final registered = planController.register(plan!);
+      planController.markAwaitingConfirmation(registered.id);
+      final confirmed = planController.confirm(registered.id);
+      final executedPlan = await capabilityExecutor.execute(confirmed!.id);
 
-    expect(executedPlan!.status, FfmAssistantActionPlanStatus.completed);
+      expect(executedPlan!.status, FfmAssistantActionPlanStatus.completed);
 
-    final notes = await (db.select(db.dailyNotes)).get();
-    expect(notes.length, 1);
-    expect(notes.first.body, 'Hari ini produktif dan menyenangkan');
-  });
+      final sessions = await (db.select(db.activitySessions)).get();
+      expect(sessions.length, 1);
+      expect(sessions.first.title, 'Lari Pagi');
+    },
+  );
+
+  test(
+    'Direct in-place daily note draft execution saves daily note to database',
+    () async {
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.dailyNote,
+        note: 'Hari ini produktif dan menyenangkan',
+        date: fixedClock,
+        createdAt: fixedClock,
+      );
+
+      final intent = FfmAssistantIntent(
+        rawText: 'catat jurnal hari ini produktif',
+        normalizedText: 'catat jurnal hari ini produktif',
+        type: FfmAssistantIntentType.createDailyNote,
+        destination: FfmAssistantDestination.activityLog,
+        draft: draft,
+      );
+
+      final plan = const FfmAssistantActionPlanner().planFor(intent);
+      expect(plan, isNotNull);
+
+      final registered = planController.register(plan!);
+      planController.markAwaitingConfirmation(registered.id);
+      final confirmed = planController.confirm(registered.id);
+      final executedPlan = await capabilityExecutor.execute(confirmed!.id);
+
+      expect(executedPlan!.status, FfmAssistantActionPlanStatus.completed);
+
+      final notes = await (db.select(db.dailyNotes)).get();
+      expect(notes.length, 1);
+      expect(notes.first.body, 'Hari ini produktif dan menyenangkan');
+    },
+  );
 
   test('Direct in-place goal draft execution saves goal to database', () async {
     final draft = FfmAssistantDraft(

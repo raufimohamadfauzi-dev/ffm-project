@@ -133,6 +133,7 @@ void main() {
         'format': 'ffm-transaction-batch-v1',
         'transactions': transactions,
       }),
+      userCaption: null,
     );
 
     expect(result.entries, hasLength(10));
@@ -157,6 +158,7 @@ void main() {
           },
         ],
       }),
+      userCaption: null,
     );
 
     expect(result.entries.single.budgetName, 'Belanja pasar');
@@ -172,6 +174,7 @@ void main() {
           {'type': 'expense', 'amount': 1.5, 'date': '2026-08-20'},
         ],
       }),
+      userCaption: null,
     );
 
     expect(result.entries.single.amount, isNull);
@@ -183,7 +186,10 @@ void main() {
 
   test('template JSON batch bisa disalin dan diimpor', () {
     final template = ReceiptImportService.templateBatchJson();
-    final result = ReceiptImportService.parseBatchJson(template);
+    final result = ReceiptImportService.parseBatchJson(
+      template,
+      userCaption: null,
+    );
 
     expect(template, contains('ffm-transaction-batch-v1'));
     expect(result.entries, hasLength(1));
@@ -225,6 +231,7 @@ void main() {
           },
         ],
       }),
+      userCaption: null,
     );
 
     expect(result.isBankStatement, isTrue);
@@ -253,7 +260,7 @@ void main() {
       }
     }
     ```
-    ''');
+    ''', userCaption: null);
 
       expect(result.entries, hasLength(1));
       expect(result.entries.single.amount, 12000);
@@ -280,7 +287,7 @@ void main() {
         "note": "Hasil freelance"
       }
     ]
-    ''');
+    ''', userCaption: null);
 
     expect(result.entries, hasLength(2));
     expect(result.entries[0].type, 'expense');
@@ -312,7 +319,7 @@ void main() {
         }
       ]
     }
-    ''');
+    ''', userCaption: null);
 
       expect(result.entries, hasLength(1));
       expect(result.entries[0].type, 'expense');
@@ -363,7 +370,77 @@ void main() {
       ]
     }
     ''';
-    final batchResult = ReceiptImportService.parseBatchJson(batchOverstated);
+    final batchResult = ReceiptImportService.parseBatchJson(
+      batchOverstated,
+      userCaption: null,
+    );
     expect(batchResult.entries[0].amount, 75000);
+  });
+
+  test('userCaption override: hanya nominal', () {
+    final result = ReceiptImportService.parseBatchJson(
+      jsonEncode({
+        'format': 'ffm-transaction-batch-v1',
+        'transactions': [
+          {
+            'type': 'expense',
+            'date': '2026-08-20',
+            'amount': 100000,
+            'merchant': 'Warung',
+            'category_id': 'belanja',
+            'tags': ['makan'],
+            'note': 'Ini struk belanja',
+          },
+        ],
+      }),
+      userCaption: 'ambil nominal saja',
+    );
+
+    expect(result.entries.single.amount, 100000);
+    expect(result.entries.single.merchant, isNull);
+    expect(result.entries.single.categoryId, isNull);
+    expect(result.entries.single.tags, isEmpty);
+    expect(result.entries.single.note, isNull);
+  });
+
+  test('userCaption override: tanpa nama pelanggan', () {
+    final result = ReceiptImportService.parseBatchJson(
+      jsonEncode({
+        'format': 'ffm-transaction-batch-v1',
+        'transactions': [
+          {
+            'type': 'expense',
+            'date': '2026-08-20',
+            'amount': 100000,
+            'note': 'Token PLN 100.000. Nama Pelanggan: YAT***********',
+          },
+        ],
+      }),
+      userCaption: 'tanpa nama pelanggan',
+    );
+
+    expect(result.entries.single.note, isNot(contains('Nama Pelanggan')));
+  });
+
+  test('userCaption no override when caption is null', () {
+    final result = ReceiptImportService.parseBatchJson(
+      jsonEncode({
+        'format': 'ffm-transaction-batch-v1',
+        'transactions': [
+          {
+            'type': 'expense',
+            'date': '2026-08-20',
+            'amount': 100000,
+            'merchant': 'Warung',
+            'category_id': 'belanja',
+          },
+        ],
+      }),
+      userCaption: null,
+    );
+
+    expect(result.entries.single.amount, 100000);
+    expect(result.entries.single.merchant, 'Warung');
+    expect(result.entries.single.categoryId, 'belanja');
   });
 }

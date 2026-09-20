@@ -674,30 +674,36 @@ void main() {
 
   test('Catatan Kejadian dapat difilter berdasarkan tag dan dipakai untuk follow-up', () async {
     final tagDate = DateTime(2026, 9, 14, 7);
-    await database.into(database.tags).insert(
-      TagsCompanion.insert(
-        id: 'tag-cabai-ori212',
-        householdId: AppContext.householdId,
-        name: 'cabai ori212',
-        createdAt: tagDate,
-      ),
-    );
-    await database.into(database.dailyNotes).insert(
-      DailyNotesCompanion.insert(
-        id: 'note-cabai',
-        householdId: AppContext.householdId,
-        noteDate: tagDate,
-        title: const Value('Pemupukan cabai'),
-        body: 'Cabai ori212 tumbuh baik.',
-        createdAt: tagDate,
-      ),
-    );
-    await database.into(database.dailyNoteTags).insert(
-      DailyNoteTagsCompanion.insert(
-        dailyNoteId: 'note-cabai',
-        tagId: 'tag-cabai-ori212',
-      ),
-    );
+    await database
+        .into(database.tags)
+        .insert(
+          TagsCompanion.insert(
+            id: 'tag-cabai-ori212',
+            householdId: AppContext.householdId,
+            name: 'cabai ori212',
+            createdAt: tagDate,
+          ),
+        );
+    await database
+        .into(database.dailyNotes)
+        .insert(
+          DailyNotesCompanion.insert(
+            id: 'note-cabai',
+            householdId: AppContext.householdId,
+            noteDate: tagDate,
+            title: const Value('Pemupukan cabai'),
+            body: 'Cabai ori212 tumbuh baik.',
+            createdAt: tagDate,
+          ),
+        );
+    await database
+        .into(database.dailyNoteTags)
+        .insert(
+          DailyNoteTagsCompanion.insert(
+            dailyNoteId: 'note-cabai',
+            tagId: 'tag-cabai-ori212',
+          ),
+        );
 
     final filtered = await interpreter.interpret(
       'catatan kejadian dengan tag cabai ori212',
