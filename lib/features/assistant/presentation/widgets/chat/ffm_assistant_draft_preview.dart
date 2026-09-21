@@ -269,7 +269,7 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
       if (draft.formValues['meterNumber'] != null ||
           draft.formValues['idpel'] != null)
         MapEntry(
-          'IDPEL / No. Meter',
+          'IDPEL',
           (draft.formValues['meterNumber'] ?? draft.formValues['idpel'])
               .toString(),
         ),
@@ -778,6 +778,17 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                  if (!review.canContinue)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Konfirmasi terkunci sampai masalah berikut diperbaiki:',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.error,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                   for (final issue in review.issues)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),

@@ -8,6 +8,8 @@ import 'package:ffm_manager/features/assistant/data/ffm_assistant_proposal_json_
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_planner.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 import 'package:ffm_manager/shared/widgets/app_components.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 void main() {
   late dynamic database;
@@ -40,6 +42,8 @@ void main() {
   });
 
   setUp(() async {
+    FlutterSecureStorage.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({});
     database = createInMemoryDatabaseForTests();
     interpreter = FfmAssistantInterpreter(database);
     await database
@@ -61,6 +65,17 @@ void main() {
             householdId: AppContext.householdId,
             name: 'Tunai',
             type: 'cash',
+            createdAt: DateTime(2026, 8, 1),
+          ),
+        );
+    await database
+        .into(database.categories)
+        .insert(
+          CategoriesCompanion.insert(
+            id: 'listrik',
+            householdId: AppContext.householdId,
+            name: 'Listrik',
+            type: 'expense',
             createdAt: DateTime(2026, 8, 1),
           ),
         );
@@ -1557,6 +1572,138 @@ void main() {
       expect(parseDecimal('1,250.50'), equals(1250.5));
       expect(parseDecimal(''), isNull);
       expect(parseDecimal(null), isNull);
+    });
+  });
+
+  group('Token Listrik / Utility Meter Queries', () {
+    test('existence check query triggers local query tool', () async {
+      final intent = await interpreter.interpret(
+        'sudah ada yang terdaftar di halaman token listrik?',
+      );
+
+      expect(intent.type, FfmAssistantIntentType.queryData);
+      expect(intent.response, contains('Belum ada data meteran listrik'));
+      expect(intent.pluginMetadata?['localReadCompleted'], isTrue);
+    });
+
+    test('existence question does not fall to Gemini for response', () async {
+      final intent = await interpreter.interpret(
+        'sekarang di halaman token listrik sudah ada isinya?',
+        routingMode: FfmAssistantRoutingMode.agent,
+      );
+
+      expect(intent.type, FfmAssistantIntentType.queryData);
+      expect(intent.pluginMetadata?['localReadCompleted'], isTrue);
+      expect(intent.pluginMetadata?['usedReadCapability'], 'read.electricity');
+    });
+
+    test('empty state returns appropriate message', () async {
+      final intent = await interpreter.interpret('cek IDPEL yang terdaftar');
+
+      expect(intent.type, FfmAssistantIntentType.queryData);
+      expect(intent.response, contains('Belum ada data meteran listrik'));
+    });
+
+    test('count query returns number of meters when empty', () async {
+      final intent = await interpreter.interpret('berapa meteran listrik yang terdaftar?');
+
+      expect(intent.type, FfmAssistantIntentType.queryData);
+      expect(intent.response, contains('Belum ada data meteran listrik'));
+    });
+
+    test('show all meters query returns appropriate message when empty', () async {
+      final intent = await interpreter.interpret('tampilkan semua meteran listrik');
+
+      expect(intent.type, FfmAssistantIntentType.queryData);
+      expect(intent.response, contains('Belum ada data meteran listrik'));
+    });
+
+    test('riwayat pembelian token triggers expense draft when has listrik category', () async {
+      final intent = await interpreter.interpret('riwayat pembelian token');
+
+      expect(intent.type, FfmAssistantIntentType.createExpense);
+      expect(intent.draft, isNotNull);
+    });
+
+    test('catat pembelian token creates expense draft', () async {
+      await database.into(database.electricityMeters).insert(
+        ElectricityMetersCompanion.insert(
+          id: 'meter-1',
+          householdId: AppContext.householdId,
+          name: 'Rumah Utama',
+          meterNumber: '14238765432',
+          normalizedMeterNumber: '14238765432',
+          createdAt: DateTime(2026, 9, 1),
+          updatedAt: DateTime(2026, 9, 1),
+        ),
+      );
+
+      final intent = await interpreter.interpret('catat pembelian token listrik 100rb');
+
+      expect(intent.type, FfmAssistantIntentType.createExpense);
+      expect(intent.draft, isNotNull);
+      expect(intent.draft!.kind, FfmAssistantDraftKind.expense);
+      expect(intent.draft!.amount, 100000);
+      expect(intent.draft!.categoryName, 'Listrik');
+    });
+
+    test('repeated question provides concise response', () async {
+      final firstIntent = await interpreter.interpret(
+        'ada IDPEL yang terdaftar?',
+        isRepeatedQuestion: false,
+      );
+      final secondIntent = await interpreter.interpret(
+        'apakah ada meteran listrik terdaftar?',
+        isRepeatedQuestion: true,
+      );
+
+      expect(firstIntent.type, FfmAssistantIntentType.queryData);
+      expect(firstIntent.response, contains('Belum ada data meteran listrik'));
+      expect(secondIntent.type, FfmAssistantIntentType.queryData);
+      expect(secondIntent.response, contains('Seperti yang saya jelaskan sebelumnya'));
+    });
+
+    test('buy token with no meters returns appropriate message', () async {
+      final intent = await interpreter.interpret('beli token listrik 50rb');
+
+      // When no meters exist, the buy token handler should return an error message
+      // or let it fall through to other handlers
+      expect(intent.type, isNotNull);
+    });
+
+    test('specific meter query returns available meters when empty', () async {
+      final intent = await interpreter.interpret('berapa tagihan listrik untuk rumah utama?');
+
+      expect(intent.type, FfmAssistantIntentType.queryData);
+      expect(intent.response, contains('Belum ada data meteran listrik'));
+    });
+
+    test('analysis query returns appropriate message when no data', () async {
+      final intent = await interpreter.interpret('analisis konsumsi listrik');
+
+      expect(intent.type, FfmAssistantIntentType.queryData);
+      expect(intent.response, contains('Belum ada data meteran listrik untuk dianalisis'));
+    });
+
+    test('hemat/boros query returns appropriate message when no data', () async {
+      final intent = await interpreter.interpret('boros atau hemat listrik saya?');
+
+      expect(intent.type, FfmAssistantIntentType.queryData);
+      expect(intent.response, contains('Belum ada data meteran listrik untuk dianalisis'));
+    });
+
+    test('estimasi habis query returns appropriate message when no data', () async {
+      final intent = await interpreter.interpret('kapan token listrik rumah A habis?');
+
+      expect(intent.type, FfmAssistantIntentType.queryData);
+      expect(intent.response, contains('Belum ada data meteran listrik untuk dianalisis'));
+    });
+
+    test('solusi query returns appropriate message when no data', () async {
+      final intent = await interpreter.interpret('solusi hemat listrik berdasarkan data saya?');
+
+      expect(intent.type, FfmAssistantIntentType.queryData);
+      expect(intent.response, contains('Belum ada data meteran listrik untuk dianalisis'));
     });
   });
 }

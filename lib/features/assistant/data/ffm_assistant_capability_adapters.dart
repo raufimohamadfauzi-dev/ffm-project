@@ -4849,11 +4849,11 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
 
-    // Validate IDPEL length (11-12 digits)
+    // Accept the same IDPEL/meter range as the repository and receipt scanner.
     final idpelDigits = meterNumber.replaceAll(RegExp(r'\D'), '');
-    if (idpelDigits.length < 11 || idpelDigits.length > 12) {
+    if (idpelDigits.length < 9 || idpelDigits.length > 13) {
       return FfmAssistantCapabilityExecutionResult.failure(
-        'IDPEL harus 11-12 digit.',
+        'IDPEL/nomor meter harus 9-13 digit.',
       );
     }
 

@@ -43,8 +43,16 @@ import '../../features/assistant/data/ffm_assistant_agent_task_event_handler.dar
 import '../../features/assistant/data/ffm_assistant_autonomy_trigger_service.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_task_execution_host.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_worker.dart';
+import '../../features/assistant/data/ffm_assistant_autonomy_llm_service.dart';
+import '../../features/assistant/data/ffm_assistant_autonomy_job_repository.dart';
+import '../../features/assistant/data/ffm_assistant_autonomy_conversation_repository.dart';
+import '../../features/assistant/data/ffm_assistant_autonomy_internet_service.dart';
+import '../../features/assistant/data/ffm_assistant_financial_snapshot_service.dart';
+import '../../features/assistant/data/ffm_gemini_cloud_orchestrator.dart';
+import '../../features/assistant/data/ffm_gemini_read_capability_service.dart';
 import '../../features/assistant/data/ffm_assistant_learning_candidate_service.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_background_handler.dart';
+import '../../features/assistant/data/ffm_assistant_autonomy_llm_job_handler.dart';
 import '../../features/assistant/data/ffm_assistant_reminder_due_insight_service.dart';
 import '../../features/assistant/data/ffm_assistant_autonomous_reminder_service.dart';
 import '../../features/assistant/data/nfc_bridge.dart';
@@ -61,6 +69,7 @@ import '../../features/assistant/data/telegram_bot_service.dart';
 import '../../features/assistant/data/telegram_config_repository.dart';
 import '../../features/assistant/data/telegram_delivery_processor.dart';
 import '../../features/assistant/data/telegram_delivery_repository.dart';
+import '../../features/assistant/data/ffm_assistant_telegram_llm_service.dart';
 import '../../features/assistant/data/ffm_assistant_insight_repository.dart';
 import '../../features/assistant/data/payment_draft_repository.dart';
 import '../../features/assistant/data/payment_analytics_service.dart';
@@ -368,6 +377,33 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       candidateService: FfmAssistantLearningCandidateService(
         getIt<FfmAssistantMemoryRepository>(),
       ),
+      llmService: getIt<FfmAssistantAutonomyLlmService>(),
+      jobRepository: getIt<FfmAssistantAutonomyJobRepository>(),
+      conversationRepository:
+          getIt<FfmAssistantAutonomyConversationRepository>(),
+      internetService: getIt<FfmAssistantAutonomyInternetService>(),
+    ),
+  );
+  getIt.registerLazySingleton<FfmAssistantAutonomyJobRepository>(
+    () => FfmAssistantAutonomyJobRepository(db),
+  );
+  getIt.registerLazySingleton<FfmAssistantAutonomyConversationRepository>(
+    () => FfmAssistantAutonomyConversationRepository(db),
+  );
+  getIt.registerLazySingleton<FfmAssistantAutonomyInternetService>(
+    FfmAssistantAutonomyInternetService.new,
+  );
+  getIt.registerLazySingleton<FfmAssistantAutonomyLlmService>(
+    () => FfmAssistantAutonomyLlmService(
+      orchestrator: FfmGeminiCloudOrchestrator(
+        readCapabilities: FfmGeminiReadCapabilityService(
+          FfmAssistantFinancialSnapshotService(db, HijriCalendarService(db)),
+        ),
+        clock: DateTime.now,
+      ),
+      jobRepository: getIt<FfmAssistantAutonomyJobRepository>(),
+      conversationRepository:
+          getIt<FfmAssistantAutonomyConversationRepository>(),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantAutonomyTaskExecutionHost>(
@@ -405,6 +441,11 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       repository: getIt<TelegramDeliveryRepository>(),
       botService: getIt<TelegramBotService>(),
       configRepository: getIt<TelegramConfigRepository>(),
+    ),
+  );
+  getIt.registerLazySingleton<FfmAssistantTelegramLlmService>(
+    () => FfmAssistantTelegramLlmService(
+      triggerService: getIt<FfmAssistantAutonomyTriggerService>(),
     ),
   );
   // Fitur 02: Pendeteksi Notifikasi QRIS & Bank
@@ -460,6 +501,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       telegramConfigRepository: getIt<TelegramConfigRepository>(),
       telegramDeliveryRepository: getIt<TelegramDeliveryRepository>(),
       telegramDeliveryProcessor: getIt<TelegramDeliveryProcessor>(),
+      telegramLlmService: getIt<FfmAssistantTelegramLlmService>(),
       autonomousReminderService: getIt<FfmAssistantAutonomousReminderService>(),
       supabaseConfig: SupabaseConfig(),
     ),
@@ -475,6 +517,18 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       getIt<FfmAssistantAgentTaskEventHandler>(),
       getIt<FfmAssistantReminderDueInsightService>(),
       getIt<AutonomousEvaluationCoordinator>(),
+      getIt<FfmAssistantAutonomyLlmJobHandler>(),
+    ),
+  );
+  getIt.registerLazySingleton<FfmAssistantAutonomyLlmJobHandler>(
+    () => FfmAssistantAutonomyLlmJobHandler(
+      llmService: getIt<FfmAssistantAutonomyLlmService>(),
+      jobRepository: getIt<FfmAssistantAutonomyJobRepository>(),
+      conversationRepository: getIt<FfmAssistantAutonomyConversationRepository>(),
+      internetService: getIt<FfmAssistantAutonomyInternetService>(),
+      executionHost: getIt<FfmAssistantAutonomyTaskExecutionHost>(),
+      telegramDeliveryRepository: getIt<TelegramDeliveryRepository>(),
+      telegramConfigRepository: getIt<TelegramConfigRepository>(),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantReminderDueInsightService>(

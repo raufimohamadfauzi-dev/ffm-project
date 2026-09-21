@@ -41,9 +41,10 @@ class ReceiptScannerService {
     r'(?<!\d)(\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4})(?!\d)',
   );
 
-  /// Regex lebih longgar untuk deteksi struk PLN (bukan ekstraksi)
+  /// IDPEL adalah satu-satunya identitas canonical meter PLN di FFM.
+  /// Nomor meter pada struk hanya informasi pendukung.
   static final _plnDetectionRegex = RegExp(
-    r'(?:idpel|id\s*pelanggan|id\s*pel|meter|no\.?\s*meter|nomor\s*meteran?)\s*[:#-]?\s*(\d{11,12})',
+    r'(?:idpel|id\s*pelanggan|id\s*pel)(?:\s*/\s*(?:meter|no\.?\s*meter|nomor\s*meteran?))?\s*[:#-]?\s*(\d{9,13})',
     caseSensitive: false,
   );
 
@@ -122,8 +123,7 @@ class ReceiptScannerService {
     return result;
   }
 
-  /// Mengambil nomor meter/IDPEL hanya dari label PLN yang jelas.
-  /// Menggunakan regex detection yang lebih longgar untuk backward compatibility.
+  /// Mengambil IDPEL hanya dari label IDPEL yang jelas.
   static String? extractPlnMeterNumber(String text) {
     return _plnDetectionRegex.firstMatch(text)?.group(1);
   }
@@ -138,10 +138,7 @@ class ReceiptScannerService {
 
     // HANYA gunakan IDPEL dengan label eksplisit
     // Tidak ada fallback ke generic meter regex untuk mencegah duplikasi
-    final idpelRegex = RegExp(
-      r'(?:idpel|id\s*pelanggan|id\s*pel)\s*[:#-]?\s*(\d{11,12})',
-      caseSensitive: false,
-    );
+    final idpelRegex = _plnDetectionRegex;
 
     for (final match in idpelRegex.allMatches(text)) {
       final value = match.group(1)!;
@@ -149,6 +146,14 @@ class ReceiptScannerService {
     }
 
     return result;
+  }
+
+  /// Returns true when the OCR text cannot safely pair every token with an
+  /// IDPEL. Repeating the first token or IDPEL would create incorrect drafts.
+  static bool hasAmbiguousPlnPairing(String text) {
+    final tokenCount = extractPlnTokens(text).length;
+    final idpelCount = extractPlnMeters(text).length;
+    return (tokenCount > 1 || idpelCount > 1) && tokenCount != idpelCount;
   }
 
   static double? extractPlnKwh(String text) {
@@ -411,11 +416,16 @@ Tugasmu:
     String? model,
   }) async {
     final needsRetry = batch.entries.any((entry) {
-      final merchant = entry.merchant ?? '';
-      final budget = entry.budgetName ?? '';
-      final note = entry.note ?? '';
-      final allText = [merchant, budget, note].join(' ');
-      final lower = allText.toLowerCase();
+      // Use the explicit OCR metadata to decide whether this is a PLN
+      // receipt. Item names alone are too broad (for example, "TOKEN" can
+      // describe a non-PLN purchase); include items only for extraction.
+      final markerText = [
+        entry.merchant,
+        entry.budgetName,
+        entry.note,
+      ].whereType<String>().join(' ');
+      final allText = _plnEntryText(entry);
+      final lower = markerText.toLowerCase();
       final looksLikePlnTokenReceipt =
           lower.contains('pln') &&
           (lower.contains('token listrik') ||
@@ -424,15 +434,10 @@ Tugasmu:
               lower.contains('idpel') ||
               lower.contains('kwh'));
       if (!looksLikePlnTokenReceipt) return false;
-      final token =
-          extractPlnToken(note) ??
-          extractPlnToken(merchant) ??
-          extractPlnToken(budget);
-      final kwh =
-          extractPlnKwh(note) ??
-          extractPlnKwh(merchant) ??
-          extractPlnKwh(budget);
-      return token == null || kwh == null;
+      final token = extractPlnToken(allText);
+      final kwh = extractPlnKwh(allText);
+      final meter = extractPlnMeterNumber(allText);
+      return token == null || kwh == null || meter == null;
     });
     if (!needsRetry) return batch;
 
@@ -440,7 +445,7 @@ Tugasmu:
         '''
 Pada gambar struk ini, cari data PLN yang hilang dan lengkapi tanpa mengarang detail lain.
 Format JSON yang harus dikembalikan:
-{"token_code": "<20-digit code atau null>", "kwh": <angka atau null>}
+{"token_code": "<20-digit code atau null>", "idpel": "<9-13 digit atau null>", "kwh": <angka atau null>}
 
 Gunakan konteks berikut dari hasil OCR awal: $originalText
 ${userCaption != null && userCaption.trim().isNotEmpty ? 'Catatan pengguna: ${userCaption.trim()}\n' : ''}Jika data tidak ditemukan, tulis null.
@@ -471,16 +476,24 @@ ${userCaption != null && userCaption.trim().isNotEmpty ? 'Catatan pengguna: ${us
           ? Map<String, dynamic>.from(decoded)
           : const {};
       final tokenCode = payload['token_code']?.toString();
+      final meterNumber =
+          payload['idpel']?.toString() ?? payload['meter_number']?.toString();
       final rawKwh = payload['kwh'];
       final kwh = rawKwh == null ? null : double.tryParse(rawKwh.toString());
-      if (tokenCode == null && kwh == null) return batch;
+      if (tokenCode == null && meterNumber == null && kwh == null) return batch;
+
+      // A single retry response is not safe to distribute across multiple
+      // purchases. Keep multi-entry results untouched rather than mixing
+      // token, meter, or kWh between households.
+      final plnEntries = batch.entries
+          .where((entry) => _plnEntryText(entry).toLowerCase().contains('pln'))
+          .toList(growable: false);
+      if (plnEntries.length > 1) return batch;
 
       final updatedEntries = <ReceiptBatchEntry>[];
       var didRetry = false;
       for (final entry in batch.entries) {
-        final lower =
-            '${entry.merchant ?? ''} ${entry.budgetName ?? ''} ${entry.note ?? ''}'
-                .toLowerCase();
+        final lower = _plnEntryText(entry).toLowerCase();
         final isPln =
             lower.contains('pln') ||
             lower.contains('listrik') ||
@@ -492,9 +505,16 @@ ${userCaption != null && userCaption.trim().isNotEmpty ? 'Catatan pengguna: ${us
 
         String note = entry.note ?? '';
         final token = extractPlnToken(note);
+        final meter = extractPlnMeterNumber(note);
         final existingKwh = extractPlnKwh(note);
         if (token == null && tokenCode != null) {
           note = [note, 'Token: $tokenCode'].join(' ').trim();
+        }
+        if (meter == null && meterNumber != null) {
+          final normalizedMeter = meterNumber.replaceAll(RegExp(r'\D'), '');
+          if (normalizedMeter.length >= 9 && normalizedMeter.length <= 13) {
+            note = [note, 'IDPEL: $normalizedMeter'].join(' ').trim();
+          }
         }
         if (existingKwh == null && kwh != null) {
           note = [note, 'KWH: ${kwh.toStringAsFixed(1)}'].join(' ').trim();
@@ -522,6 +542,14 @@ ${userCaption != null && userCaption.trim().isNotEmpty ? 'Catatan pengguna: ${us
       return batch;
     }
   }
+
+  static String _plnEntryText(ReceiptBatchEntry entry) => [
+    entry.merchant,
+    entry.budgetName,
+    entry.note,
+    entry.receiptNumber,
+    ...entry.items.expand((item) => [item.name, item.unit]),
+  ].whereType<String>().where((value) => value.trim().isNotEmpty).join(' ');
 
   /// Validasi deterministik: total transaksi wajib sama dengan jumlah baris item.
   List<String> _crossValidate(ReceiptBatchImport batch) {

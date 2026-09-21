@@ -146,9 +146,22 @@ class _ActivityViewState extends State<_ActivityView>
             initialTitle: widget.initialTitle,
             initialCategory: widget.initialCategory,
             initialNotes: widget.initialNotes,
+            initialStartedAt: widget.initialStartDate,
             initialMode: widget.initialMode,
             initialScheduledAt: widget.initialScheduledAt,
             parentSessionId: widget.initialParentSessionId,
+            initialTagNames: widget.initialTags,
+          );
+        }
+      });
+    } else if (widget.initialStartDate != null && widget.initialMode == ActivityMode.history) {
+      // Open Daily Note form directly when initialStartDate is provided with history mode
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _startDailyNote(
+            initialTitle: widget.initialTitle,
+            initialBody: widget.initialNotes,
+            initialDate: widget.initialStartDate,
             initialTagNames: widget.initialTags,
           );
         }

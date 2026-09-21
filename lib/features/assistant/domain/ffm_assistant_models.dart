@@ -1031,6 +1031,7 @@ class FfmAssistantChatSession {
         review: entry.review,
         filePath: entry.filePath,
         fileFormat: entry.fileFormat,
+        filePaths: entry.filePaths,
         processTrace: entry.processTrace,
         createdAt: entry.createdAt,
         verifiedFacts: entry.verifiedFacts,

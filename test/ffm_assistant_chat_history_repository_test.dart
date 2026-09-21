@@ -37,6 +37,25 @@ void main() {
     expect(restored.last.createdAt, DateTime(2026, 8, 23, 1));
   });
 
+  test('mempertahankan semua attachment pada history chat', () async {
+    final repository = FfmAssistantChatHistoryRepository();
+    await repository.save([
+      const FfmAssistantChatEntry(
+        isUser: true,
+        text: 'Lampirkan dua foto struk',
+        filePath: '/tmp/receipt-1.jpg',
+        filePaths: ['/tmp/receipt-1.jpg', '/tmp/receipt-2.jpg'],
+      ),
+    ]);
+
+    final restored = await repository.load();
+
+    expect(restored.single.allFilePaths, [
+      '/tmp/receipt-1.jpg',
+      '/tmp/receipt-2.jpg',
+    ]);
+  });
+
   test('retensi menyimpan hanya entry terbaru', () async {
     final repository = FfmAssistantChatHistoryRepository();
     final entries = List.generate(

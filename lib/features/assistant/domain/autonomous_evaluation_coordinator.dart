@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/diagnostics/app_diagnostics_service.dart';
@@ -29,6 +30,7 @@ import '../data/telegram_config_repository.dart';
 import '../data/telegram_delivery_processor.dart';
 import '../data/telegram_delivery_repository.dart';
 import '../data/telegram_message_formatter.dart';
+import '../data/ffm_assistant_telegram_llm_service.dart';
 import 'ffm_assistant_action_plan.dart';
 
 class AutonomousEvaluationCoordinator {
@@ -42,6 +44,7 @@ class AutonomousEvaluationCoordinator {
     this.telegramConfigRepository,
     this.telegramDeliveryRepository,
     this.telegramDeliveryProcessor,
+    this.telegramLlmService,
     CashFlowProfileRepository? cashFlowProfileRepository,
     SupabaseConfig? supabaseConfig,
     FfmAssistantAutonomousReminderService? autonomousReminderService,
@@ -115,6 +118,7 @@ class AutonomousEvaluationCoordinator {
   final TelegramConfigRepository? telegramConfigRepository;
   final TelegramDeliveryRepository? telegramDeliveryRepository;
   final TelegramDeliveryProcessor? telegramDeliveryProcessor;
+  final FfmAssistantTelegramLlmService? telegramLlmService;
   final FfmAssistantAutonomyRepository? _autonomyRepo;
   final FfmGeminiCloudOrchestrator? _geminiOrchestrator;
 
@@ -385,7 +389,10 @@ class AutonomousEvaluationCoordinator {
 
     // Catch-up: periksa apakah laporan mingguan tertunda perlu dikirimkan
     try {
-      await checkAndSendWeeklyReport(householdId: householdId);
+      await checkAndSendWeeklyReport(
+        householdId: householdId,
+        isBackground: true,
+      );
     } catch (_) {}
 
     return savedInsights;
@@ -417,9 +424,12 @@ class AutonomousEvaluationCoordinator {
 
   /// Memeriksa dan mengirimkan Laporan Mingguan ke Telegram jika belum terkirim pekan ini (*Catch-Up*).
   /// Parameter `force = true` dapat digunakan untuk pengiriman manual langsung (*Kirim Sekarang*).
+  /// Parameter `isBackground = true` menandakan ini dipanggil dari background scheduler
+  /// (LLM akan di-skip, hanya deterministic yang jalan untuk reliability).
   Future<bool> checkAndSendWeeklyReport({
     required String householdId,
     bool force = false,
+    bool isBackground = false,
   }) async {
     if (telegramBotService == null || telegramConfigRepository == null) {
       return false;
@@ -429,16 +439,64 @@ class AutonomousEvaluationCoordinator {
       if (!config.isReady) return false;
       if (!force && !config.weeklyReportEnabled) return false;
 
-      final now = _clock();
-      if (!force) {
-        // Klaim atomik: hanya satu pemicu (background/manual) yang boleh mengirim.
-        final claimed = await telegramConfigRepository!.claimWeeklyReport(
-          periodKey: householdId,
-          now: now,
+      // Cek apakah user ingin menggunakan LLM untuk laporan
+      if (config.useLlmForWeeklyReport) {
+        // Di background, force fallback ke deterministic untuk reliability
+        if (isBackground) {
+          debugPrint('LLM report only available in foreground mode, falling back to deterministic');
+          return await _sendDeterministicWeeklyReport(
+            householdId: householdId,
+            force: force,
+            config: config,
+          );
+        }
+
+        // Cek apakah LLM service tersedia
+        if (telegramLlmService == null) {
+          // Fallback ke deterministic jika LLM service tidak tersedia
+          debugPrint('LLM service not available, falling back to deterministic report');
+          return await _sendDeterministicWeeklyReport(
+            householdId: householdId,
+            force: force,
+            config: config,
+          );
+        }
+
+        // Gunakan LLM untuk generate laporan
+        final success = await telegramLlmService!.generateWeeklyReport(
+          reportType: 'weekly',
         );
-        if (!claimed) return false;
+
+        return success;
+      } else {
+        // Gunakan jalur deterministic lama
+        return await _sendDeterministicWeeklyReport(
+          householdId: householdId,
+          force: force,
+          config: config,
+        );
       }
-      final claimKey = householdId;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Mengirim laporan mingguan menggunakan metode deterministic (lama).
+  Future<bool> _sendDeterministicWeeklyReport({
+    required String householdId,
+    required bool force,
+    required TelegramConfig config,
+  }) async {
+    final now = _clock();
+    if (!force) {
+      // Klaim atomik: hanya satu pemicu (background/manual) yang boleh mengirim.
+      final claimed = await telegramConfigRepository!.claimWeeklyReport(
+        periodKey: householdId,
+        now: now,
+      );
+      if (!claimed) return false;
+    }
+    final claimKey = householdId;
 
       // Kumpulkan data transaksi 7 hari terakhir secara deterministik
       final sevenDaysAgo = now.subtract(const Duration(days: 7));
@@ -526,85 +584,86 @@ class AutonomousEvaluationCoordinator {
             : null,
       );
 
-      if (telegramDeliveryRepository != null &&
-          telegramDeliveryProcessor != null) {
-        final deliveryNow = _clock();
-        final periodKey = _weeklyPeriodKey(householdId, deliveryNow);
-        final deliveryId = force
-            ? 'telegram:weekly:$householdId:manual:${deliveryNow.microsecondsSinceEpoch}'
-            : periodKey;
-        final enqueued = await telegramDeliveryRepository!.enqueue(
-          deliveryId: deliveryId,
-          householdId: householdId,
-          operation: 'weekly.report',
-          messageText: reportMsg,
-          entityId: periodKey,
-          dedupeKey: force ? null : periodKey,
-          credentialFingerprint:
-              TelegramConfigRepository.credentialFingerprintFor(
-                config.botToken,
-                config.chatId,
-              ),
-          createdAt: deliveryNow,
-        );
-        // Proses segera agar "Kirim Sekarang" dan catch-up tetap responsif;
-        // bila gagal di tengah jalan, siklus background mencoba lagi.
-        if (force || enqueued) {
-          await telegramDeliveryProcessor!.processPending(
+      try {
+        if (telegramDeliveryRepository != null &&
+            telegramDeliveryProcessor != null) {
+          final deliveryNow = _clock();
+          final periodKey = _weeklyPeriodKey(householdId, deliveryNow);
+          final deliveryId = force
+              ? 'telegram:weekly:$householdId:manual:${deliveryNow.microsecondsSinceEpoch}'
+              : periodKey;
+          final enqueued = await telegramDeliveryRepository!.enqueue(
+            deliveryId: deliveryId,
             householdId: householdId,
+            operation: 'weekly.report',
+            messageText: reportMsg,
+            entityId: periodKey,
+            dedupeKey: force ? null : periodKey,
+            credentialFingerprint:
+                TelegramConfigRepository.credentialFingerprintFor(
+                  config.botToken,
+                  config.chatId,
+                ),
+            createdAt: deliveryNow,
           );
+          // Proses segera agar "Kirim Sekarang" dan catch-up tetap responsif;
+          // bila gagal di tengah jalan, siklus background mencoba lagi.
+          if (force || enqueued) {
+            await telegramDeliveryProcessor!.processPending(
+              householdId: householdId,
+            );
+          }
+          final row = await telegramDeliveryRepository!.deliveryById(deliveryId);
+          if (row != null && row.status == 'sent') {
+            await telegramConfigRepository!.recordDeliveryStatus(
+              status: TelegramDeliveryStatus.sent,
+              message: 'Laporan mingguan terkirim.',
+            );
+            return true;
+          }
+          await telegramConfigRepository!.recordDeliveryStatus(
+            status: TelegramDeliveryStatus.failed,
+            message:
+                row?.lastError ?? 'Laporan mingguan masih menunggu pengiriman.',
+          );
+          return false;
         }
-        final row = await telegramDeliveryRepository!.deliveryById(deliveryId);
-        if (row != null && row.status == 'sent') {
+
+        final result = await telegramBotService!.sendMessage(
+          botToken: config.botToken,
+          chatId: config.chatId,
+          text: reportMsg,
+        );
+
+        if (result.success) {
+          await telegramConfigRepository!.saveLastWeeklyReportSent(now);
+          await telegramConfigRepository!.completeWeeklyReport(
+            periodKey: claimKey,
+            now: now,
+          );
           await telegramConfigRepository!.recordDeliveryStatus(
             status: TelegramDeliveryStatus.sent,
             message: 'Laporan mingguan terkirim.',
           );
           return true;
         }
-        await telegramConfigRepository!.recordDeliveryStatus(
-          status: TelegramDeliveryStatus.failed,
-          message:
-              row?.lastError ?? 'Laporan mingguan masih menunggu pengiriman.',
-        );
-        return false;
-      }
-
-      final result = await telegramBotService!.sendMessage(
-        botToken: config.botToken,
-        chatId: config.chatId,
-        text: reportMsg,
-      );
-
-      if (result.success) {
-        await telegramConfigRepository!.saveLastWeeklyReportSent(now);
-        await telegramConfigRepository!.completeWeeklyReport(
+        await telegramConfigRepository!.failWeeklyReport(
           periodKey: claimKey,
           now: now,
         );
         await telegramConfigRepository!.recordDeliveryStatus(
-          status: TelegramDeliveryStatus.sent,
-          message: 'Laporan mingguan terkirim.',
+          status: TelegramDeliveryStatus.failed,
+          message: result.message,
         );
-        return true;
+        return false;
+      } catch (_) {
+        await telegramConfigRepository?.failWeeklyReport(
+          periodKey: claimKey,
+          now: _clock(),
+        );
+        return false;
       }
-      await telegramConfigRepository!.failWeeklyReport(
-        periodKey: claimKey,
-        now: now,
-      );
-      await telegramConfigRepository!.recordDeliveryStatus(
-        status: TelegramDeliveryStatus.failed,
-        message: result.message,
-      );
-      return false;
-    } catch (_) {
-      await telegramConfigRepository?.failWeeklyReport(
-        periodKey: householdId,
-        now: _clock(),
-      );
-      return false;
     }
-  }
 
   /// Kunci periode mingguan (tahun + nomor minggu ISO) untuk deduplikasi
   /// laporan di seluruh siklus evaluasi.

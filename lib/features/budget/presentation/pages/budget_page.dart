@@ -34,6 +34,8 @@ enum _BudgetMenuAction {
   weekStart,
   budgetComparison,
   budgetHistory,
+  periodSummary,
+  transferHistory,
 }
 
 /// Progres pemakaian anggaran dari **dana tersedia** (batas − transfer
@@ -952,8 +954,12 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
         await _transferFunds();
       case _BudgetMenuAction.weekStart:
         await _showWeekStartPicker();
+      case _BudgetMenuAction.periodSummary:
+        await _showPeriodSummary();
       case _BudgetMenuAction.budgetComparison:
         await _showBudgetComparison();
+      case _BudgetMenuAction.transferHistory:
+        await _showTransfers();
       case _BudgetMenuAction.budgetHistory:
         await _showBudgetHistory();
     }
@@ -1113,13 +1119,7 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
     final categoryEnvelopes = filteredEnvelopes
         .where((envelope) => !envelope.isOverall)
         .toList(growable: false);
-    final unconfigured = categoryEnvelopes
-        .where((envelope) => envelope.allocated <= 0)
-        .toList(growable: false);
-    final configured = categoryEnvelopes
-        .where((envelope) => envelope.allocated > 0)
-        .toList(growable: false);
-    final attention = configured
+    final attention = categoryEnvelopes
         .where((envelope) => _statusFor(envelope) != 'Aman')
         .toList(growable: false);
 
@@ -1127,7 +1127,7 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
       destination: FfmAssistantDestination.budget,
       isTab: true,
       dataSummary:
-          'Ada ${attention.length} pos anggaran butuh perhatian: ${attention.map((e) => e.name).join(', ')}.',
+          'Ada ${categoryEnvelopes.length} pos anggaran, ${attention.length} butuh perhatian: ${attention.map((e) => e.name).join(', ')}.',
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Anggaran berbasis pos'),
@@ -1137,21 +1137,15 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
               onPressed: _showSearch ? _closeSearch : _openSearch,
               icon: Icon(_showSearch ? Icons.close : Icons.search),
             ),
-            IconButton(
-              tooltip: 'Buka ringkasan periode',
-              onPressed: _loading || _periodTypeFilter == 'nonrecurring'
-                  ? null
-                  : _showPeriodSummary,
-              icon: const Icon(Icons.analytics_outlined),
-            ),
             PopupMenuButton<_BudgetMenuAction>(
-              tooltip: 'Aksi anggaran lainnya',
+              tooltip: 'Menu lainnya',
               onSelected: _handleMenuAction,
               itemBuilder: (_) => [
-                const PopupMenuItem(
-                  value: _BudgetMenuAction.habitRecommendations,
-                  child: Text('Lihat rekomendasi kebiasaan'),
-                ),
+                if (_periodTypeFilter != 'nonrecurring')
+                  const PopupMenuItem(
+                    value: _BudgetMenuAction.habitRecommendations,
+                    child: Text('Lihat rekomendasi kebiasaan'),
+                  ),
                 if (_periodTypeFilter != 'nonrecurring')
                   const PopupMenuItem(
                     value: _BudgetMenuAction.transferFunds,
@@ -1164,8 +1158,18 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                   ),
                 if (_periodTypeFilter != 'nonrecurring')
                   const PopupMenuItem(
+                    value: _BudgetMenuAction.periodSummary,
+                    child: Text('Ringkasan periode'),
+                  ),
+                if (_periodTypeFilter != 'nonrecurring')
+                  const PopupMenuItem(
                     value: _BudgetMenuAction.budgetComparison,
                     child: Text('Bandingkan periode'),
+                  ),
+                if (_periodTypeFilter != 'nonrecurring')
+                  const PopupMenuItem(
+                    value: _BudgetMenuAction.transferHistory,
+                    child: Text('Riwayat atur ulang alokasi'),
                   ),
                 const PopupMenuItem(
                   value: _BudgetMenuAction.budgetHistory,
@@ -1173,18 +1177,12 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                 ),
               ],
             ),
-            if (_periodTypeFilter != 'nonrecurring')
-              IconButton(
-                tooltip: 'Riwayat atur ulang alokasi',
-                onPressed: _loading ? null : _showTransfers,
-                icon: const Icon(Icons.history_outlined),
-              ),
           ],
         ),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : DefaultTabController(
-                length: 4,
+                length: 2,
                 child: Column(
                   children: [
                     Padding(
@@ -1260,7 +1258,6 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                           _QuickActionsWidget(
                             onQuickCreate: _showQuickCreateDialog,
                             onTransferFunds: _transferFunds,
-                            onCheckStatus: _showPeriodSummary,
                             onRecommendations: _showHabitRecommendations,
                             isNonRecurring: _periodTypeFilter == 'nonrecurring',
                           ),
@@ -1274,22 +1271,23 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                               },
                             ),
                           const SizedBox(height: 12),
-                          _BudgetProgressChart(
-                            envelopes: categoryEnvelopes,
-                            spentFor: _spentFor,
-                            remainingFor: _remainingFor,
-                            statusFor: _statusFor,
-                            statusColor: _statusColor,
-                            money: _money,
-                          ),
-                          const SizedBox(height: 12),
-                          _BudgetBurnRateWidget(
-                            envelopes: categoryEnvelopes,
-                            spentFor: _spentFor,
-                            remainingFor: _remainingFor,
-                            statusFor: _statusFor,
-                            money: _money,
-                          ),
+                          // Hidden by default to reduce UI clutter
+                          // _BudgetProgressChart(
+                          //   envelopes: categoryEnvelopes,
+                          //   spentFor: _spentFor,
+                          //   remainingFor: _remainingFor,
+                          //   statusFor: _statusFor,
+                          //   statusColor: _statusColor,
+                          //   money: _money,
+                          // ),
+                          // const SizedBox(height: 12),
+                          // _BudgetBurnRateWidget(
+                          //   envelopes: categoryEnvelopes,
+                          //   spentFor: _spentFor,
+                          //   remainingFor: _remainingFor,
+                          //   statusFor: _statusFor,
+                          //   money: _money,
+                          // ),
                           const SizedBox(height: 8),
                         ],
                       ),
@@ -1317,7 +1315,7 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                         ),
                       ),
                     const SizedBox(height: 8),
-                    _StatusFilterChips(
+                    _StatusFilterDropdown(
                       selectedFilter: _statusFilter,
                       onFilterChanged: (filter) {
                         setState(() => _statusFilter = filter);
@@ -1328,8 +1326,6 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                       isScrollable: true,
                       tabs: [
                         Tab(text: 'Semua (${categoryEnvelopes.length})'),
-                        Tab(text: 'Belum diatur (${unconfigured.length})'),
-                        Tab(text: 'Aktif (${configured.length})'),
                         Tab(text: 'Perlu perhatian (${attention.length})'),
                       ],
                     ),
@@ -1337,8 +1333,6 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                       child: TabBarView(
                         children: [
                           _envelopeList(_sortEnvelopes(categoryEnvelopes)),
-                          _envelopeList(_sortEnvelopes(unconfigured)),
-                          _envelopeList(_sortEnvelopes(configured)),
                           _envelopeList(_sortEnvelopes(attention)),
                         ],
                       ),
@@ -1352,7 +1346,7 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
 
   Widget _envelopeList(List<EnvelopeBudgetRow> envelopes) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       children: [
         if (envelopes.isEmpty)
           Padding(
@@ -2204,14 +2198,12 @@ class _QuickActionsWidget extends StatelessWidget {
   const _QuickActionsWidget({
     required this.onQuickCreate,
     required this.onTransferFunds,
-    required this.onCheckStatus,
     required this.onRecommendations,
     required this.isNonRecurring,
   });
 
   final VoidCallback onQuickCreate;
   final VoidCallback onTransferFunds;
-  final VoidCallback onCheckStatus;
   final VoidCallback onRecommendations;
   final bool isNonRecurring;
 
@@ -2219,40 +2211,27 @@ class _QuickActionsWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(
-          child: _QuickActionButton(
-            icon: Icons.add_circle_outline,
-            label: 'Atur anggaran cepat',
-            onTap: onQuickCreate,
-          ),
+        _QuickActionButton(
+          icon: Icons.add_circle_outline,
+          label: 'Atur',
+          tooltip: 'Atur anggaran cepat',
+          onTap: onQuickCreate,
         ),
         const SizedBox(width: 8),
         if (!isNonRecurring) ...[
-          Expanded(
-            child: _QuickActionButton(
-              icon: Icons.swap_horiz_outlined,
-              label: 'Transfer dana',
-              onTap: onTransferFunds,
-            ),
+          _QuickActionButton(
+            icon: Icons.swap_horiz_outlined,
+            label: 'Transfer',
+            tooltip: 'Transfer dana',
+            onTap: onTransferFunds,
           ),
           const SizedBox(width: 8),
         ],
-        if (!isNonRecurring) ...[
-          Expanded(
-            child: _QuickActionButton(
-              icon: Icons.analytics_outlined,
-              label: 'Cek status',
-              onTap: onCheckStatus,
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
-        Expanded(
-          child: _QuickActionButton(
-            icon: Icons.lightbulb_outline,
-            label: 'Rekomendasi',
-            onTap: onRecommendations,
-          ),
+        _QuickActionButton(
+          icon: Icons.lightbulb_outline,
+          label: 'Rekom',
+          tooltip: 'Rekomendasi',
+          onTap: onRecommendations,
         ),
       ],
     );
@@ -2263,149 +2242,27 @@ class _QuickActionButton extends StatelessWidget {
   const _QuickActionButton({
     required this.icon,
     required this.label,
+    required this.tooltip,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
+  final String tooltip;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18),
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      ),
-    );
-  }
-}
-
-class _BudgetBurnRateWidget extends StatelessWidget {
-  const _BudgetBurnRateWidget({
-    required this.envelopes,
-    required this.spentFor,
-    required this.remainingFor,
-    required this.statusFor,
-    required this.money,
-  });
-
-  final List<EnvelopeBudgetRow> envelopes;
-  final int Function(EnvelopeBudgetRow) spentFor;
-  final int Function(EnvelopeBudgetRow) remainingFor;
-  final String Function(EnvelopeBudgetRow) statusFor;
-  final String Function(int) money;
-
-  @override
-  Widget build(BuildContext context) {
-    final configuredEnvelopes = envelopes
-        .where((e) => e.allocated > 0 && !e.isNonRecurring)
-        .toList();
-
-    if (configuredEnvelopes.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.access_time_outlined, size: 18),
-              const SizedBox(width: 8),
-              const Text(
-                'Estimasi Habis Anggaran',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...configuredEnvelopes.take(3).map((envelope) {
-            final spent = spentFor(envelope);
-            final remaining = remainingFor(envelope);
-
-            if (remaining <= 0) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        envelope.name,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Sudah habis',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.negative,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            // Calculate burn rate
-            final now = DateTime.now();
-            final periodStart = envelope.startDate;
-            final periodEnd = envelope.endDate;
-            final elapsedDays = now.difference(periodStart).inDays;
-            final remainingDays = periodEnd.difference(now).inDays;
-
-            if (elapsedDays <= 0 || remainingDays <= 0) {
-              return const SizedBox.shrink();
-            }
-
-            final dailyBurnRate = spent / elapsedDays;
-            final estimatedDaysRemaining = dailyBurnRate > 0
-                ? (remaining / dailyBurnRate).round()
-                : remainingDays;
-            final isFastBurn = estimatedDaysRemaining < remainingDays * 0.5;
-
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      envelope.name,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Est. habis dalam $estimatedDaysRemaining hari',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: isFastBurn
-                          ? AppColors.warning
-                          : AppColors.positive,
-                      fontWeight: isFastBurn
-                          ? FontWeight.w600
-                          : FontWeight.normal,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-          if (configuredEnvelopes.length > 3)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'dan ${configuredEnvelopes.length - 3} kategori lainnya...',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-        ],
+    return Tooltip(
+      message: tooltip,
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 18),
+        label: Text(label, style: const TextStyle(fontSize: 11)),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          minimumSize: const Size(0, 36),
+        ),
       ),
     );
   }
@@ -2437,9 +2294,17 @@ class _QuickSetupBudgetWidget extends StatelessWidget {
                 color: AppColors.primary,
               ),
               const SizedBox(width: 8),
-              const Text(
-                'Setup Anggaran Pertama',
-                style: TextStyle(fontWeight: FontWeight.w700),
+              const Expanded(
+                child: Text(
+                  'Setup Anggaran Pertama',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: onSkip,
+                tooltip: 'Tutup',
+                visualDensity: VisualDensity.compact,
               ),
             ],
           ),
@@ -2449,18 +2314,10 @@ class _QuickSetupBudgetWidget extends StatelessWidget {
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: onStartSetup,
-                  icon: const Icon(Icons.settings_outlined, size: 18),
-                  label: const Text('Mulai Setup'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              TextButton(onPressed: onSkip, child: const Text('Nanti')),
-            ],
+          FilledButton.icon(
+            onPressed: onStartSetup,
+            icon: const Icon(Icons.settings_outlined, size: 18),
+            label: const Text('Mulai Setup'),
           ),
         ],
       ),
@@ -2834,8 +2691,8 @@ class _BudgetHistoryDialog extends StatelessWidget {
   }
 }
 
-class _StatusFilterChips extends StatelessWidget {
-  const _StatusFilterChips({
+class _StatusFilterDropdown extends StatelessWidget {
+  const _StatusFilterDropdown({
     required this.selectedFilter,
     required this.onFilterChanged,
   });
@@ -2844,6 +2701,7 @@ class _StatusFilterChips extends StatelessWidget {
   final void Function(String?) onFilterChanged;
 
   static const _filters = [
+    'Semua',
     'Aman',
     'Mendekati batas',
     'Melewati batas',
@@ -2852,160 +2710,19 @@ class _StatusFilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          FilterChip(
-            label: const Text('Semua'),
-            selected: selectedFilter == null,
-            onSelected: (selected) {
-              onFilterChanged(selected ? null : 'Aman');
-            },
-          ),
-          const SizedBox(width: 8),
-          ..._filters.map((filter) {
-            final color = switch (filter) {
-              'Aman' => AppColors.positive,
-              'Mendekati batas' => AppColors.warning,
-              'Melewati batas' => AppColors.negative,
-              'Pemakaian cepat' => AppColors.warning,
-              _ => AppColors.inkMuted,
-            };
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: FilterChip(
-                label: Text(filter),
-                selected: selectedFilter == filter,
-                selectedColor: color.withValues(alpha: 0.2),
-                checkmarkColor: color,
-                onSelected: (selected) {
-                  onFilterChanged(selected ? filter : null);
-                },
-              ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-}
-
-class _BudgetProgressChart extends StatelessWidget {
-  const _BudgetProgressChart({
-    required this.envelopes,
-    required this.spentFor,
-    required this.remainingFor,
-    required this.statusFor,
-    required this.statusColor,
-    required this.money,
-  });
-
-  final List<EnvelopeBudgetRow> envelopes;
-  final int Function(EnvelopeBudgetRow) spentFor;
-  final int Function(EnvelopeBudgetRow) remainingFor;
-  final String Function(EnvelopeBudgetRow) statusFor;
-  final Color Function(String) statusColor;
-  final String Function(int) money;
-
-  @override
-  Widget build(BuildContext context) {
-    final configuredEnvelopes = envelopes
-        .where((e) => e.allocated > 0)
-        .toList();
-
-    if (configuredEnvelopes.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.bar_chart_outlined, size: 18),
-              const SizedBox(width: 8),
-              const Text(
-                'Progress Anggaran per Kategori',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...configuredEnvelopes.take(5).map((envelope) {
-            final spent = spentFor(envelope);
-            final remaining = remainingFor(envelope);
-            final total = envelope.allocated + envelope.rollover;
-            final progress = total > 0 ? spent / total : 0.0;
-            final status = statusFor(envelope);
-            final color = statusColor(status);
-
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          envelope.name,
-                          style: const TextStyle(fontSize: 12),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Text(
-                        '${money(spent)} / ${money(total)}',
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: progress.clamp(0.0, 1.0),
-                      minHeight: 6,
-                      backgroundColor: AppColors.surfaceContainer,
-                      valueColor: AlwaysStoppedAnimation<Color>(color),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        status,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: color,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        'Sisa: ${money(remaining)}',
-                        style: const TextStyle(fontSize: 10),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          }),
-          if (configuredEnvelopes.length > 5)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'dan ${configuredEnvelopes.length - 5} kategori lainnya...',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-        ],
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<String>(
+        value: selectedFilter ?? 'Semua',
+        isExpanded: true,
+        items: _filters.map((filter) {
+          return DropdownMenuItem<String>(
+            value: filter,
+            child: Text(filter),
+          );
+        }).toList(),
+        onChanged: (value) {
+          onFilterChanged(value == 'Semua' ? null : value);
+        },
       ),
     );
   }

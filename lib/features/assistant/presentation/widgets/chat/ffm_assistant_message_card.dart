@@ -988,6 +988,10 @@ class _VisualAttachmentGallery extends StatelessWidget {
             : 3;
         final cellWidth =
             (constraints.maxWidth - (crossAxisCount - 1) * 8) / crossAxisCount;
+        final thumbnailWidth = crossAxisCount == 1
+            ? cellWidth.clamp(96.0, 128.0)
+            : cellWidth.clamp(72.0, 96.0);
+        final thumbnailHeight = crossAxisCount == 1 ? 128.0 : 88.0;
         return Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -1034,8 +1038,8 @@ class _VisualAttachmentGallery extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
-                    width: cellWidth.clamp(96.0, 220.0),
-                    height: crossAxisCount == 1 ? 220.0 : 110.0,
+                    width: thumbnailWidth,
+                    height: thumbnailHeight,
                     decoration: BoxDecoration(
                       border: Border.all(
                         color: theme.colorScheme.outlineVariant,
@@ -1044,8 +1048,8 @@ class _VisualAttachmentGallery extends StatelessWidget {
                     ),
                     child: Image.file(
                       File(path),
-                      width: cellWidth.clamp(96.0, 220.0),
-                      height: crossAxisCount == 1 ? 220.0 : 110.0,
+                      width: thumbnailWidth,
+                      height: thumbnailHeight,
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => Container(
                         width: cellWidth.clamp(96.0, 220.0),

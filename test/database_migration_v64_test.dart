@@ -38,6 +38,74 @@ void main() {
     },
   );
 
+  test(
+    'schema 69 menambahkan admin_fee dan metadata_json pada transactions',
+    () async {
+      final executor = NativeDatabase.memory(
+        setup: (database) {
+          database.execute(
+            'CREATE TABLE transactions ('
+            'id TEXT PRIMARY KEY, amount INTEGER NOT NULL DEFAULT 0)',
+          );
+          database.execute(
+            "INSERT INTO transactions (id, amount) VALUES ('legacy-tx', 1000)",
+          );
+          database.execute('PRAGMA user_version = 68');
+        },
+      );
+      final database = AppDatabase(executor);
+      addTearDown(database.close);
+
+      final columns = await database
+          .customSelect('PRAGMA table_info("transactions")')
+          .get();
+      final names = columns.map((row) => row.read<String>('name')).toSet();
+      expect(names, containsAll(<String>['admin_fee', 'metadata_json']));
+      final row = await database
+          .customSelect(
+            'SELECT id, amount, admin_fee, metadata_json FROM transactions',
+          )
+          .getSingle();
+      expect(row.read<String>('id'), 'legacy-tx');
+      expect(row.read<int>('amount'), 1000);
+      expect(row.data['admin_fee'], isNull);
+      expect(row.data['metadata_json'], isNull);
+    },
+  );
+
+  test('schema 71 memperbaiki index daily notes dan menghapus index memori duplikat', () async {
+    final executor = NativeDatabase.memory(
+      setup: (database) {
+        database.execute(
+          'CREATE TABLE daily_notes ('
+          'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, note_date INTEGER NOT NULL, '
+          'is_archived INTEGER NOT NULL DEFAULT 0)',
+        );
+        database.execute(
+          'CREATE TABLE assistant_memories ('
+          'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, kind TEXT NOT NULL, '
+          'is_archived INTEGER NOT NULL DEFAULT 0)',
+        );
+        database.execute(
+          'CREATE INDEX idx_assistant_memories_household_kind '
+          'ON assistant_memories (household_id, kind, is_archived)',
+        );
+        database.execute('PRAGMA user_version = 70');
+      },
+    );
+    final database = AppDatabase(executor);
+    addTearDown(database.close);
+
+    final indexes = await database
+        .customSelect(
+          "SELECT name FROM sqlite_master WHERE type = 'index' ORDER BY name",
+        )
+        .get();
+    final names = indexes.map((row) => row.read<String>('name')).toSet();
+    expect(names, contains('idx_daily_notes_household_archived_date_id'));
+    expect(names, isNot(contains('idx_assistant_memories_household_kind')));
+  });
+
   test('schema 60 menambahkan note nullable pada Goal dan Budget tanpa menghapus data', () async {
     final executor = NativeDatabase.memory(
       setup: (database) {

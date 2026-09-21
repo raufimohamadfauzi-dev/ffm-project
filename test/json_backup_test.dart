@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/core/database/app_context.dart';
@@ -95,6 +94,33 @@ void main() {
         'completed',
         'Ringkasan aman',
         now.millisecondsSinceEpoch ~/ 1000,
+        now.millisecondsSinceEpoch ~/ 1000,
+      ],
+    );
+    await source.customStatement(
+      'INSERT INTO autonomy_jobs '
+      '(id, household_id, type, status, trigger_data, created_at, updated_at) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [
+        'autonomy-job-1',
+        AppContext.householdId,
+        'consumption_analysis',
+        'completed',
+        '{"api_key":"must-not-export","meter":"meter-1"}',
+        now.millisecondsSinceEpoch ~/ 1000,
+        now.millisecondsSinceEpoch ~/ 1000,
+      ],
+    );
+    await source.customStatement(
+      'INSERT INTO autonomy_conversations '
+      '(id, household_id, job_id, role, content, created_at) '
+      'VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        'autonomy-conversation-1',
+        AppContext.householdId,
+        'autonomy-job-1',
+        'assistant',
+        'Saran hemat listrik',
         now.millisecondsSinceEpoch ~/ 1000,
       ],
     );
@@ -198,6 +224,8 @@ void main() {
         'assistant_agent_goals',
         'assistant_agent_tasks',
         'assistant_agent_task_executions',
+        'autonomy_jobs',
+        'autonomy_conversations',
         'assistant_chat_history',
         'future_feature_records',
       ]),
@@ -205,16 +233,13 @@ void main() {
     expect((modules['audit_logs'] as List), hasLength(1));
     expect((modules['account_reconciliation_logs'] as List), hasLength(1));
     expect((modules['harvest_events'] as List), hasLength(1));
+    final autonomyJob = (modules['autonomy_jobs'] as List).single as Map;
+    expect(autonomyJob['trigger_data'], '{"meter":"meter-1"}');
     final exportedChat =
         (modules['assistant_chat_history'] as List).single as Map;
     expect(exportedChat.containsKey('api_key'), isFalse);
     final exportedReminder = (modules['reminders'] as List).single as Map;
     exportedReminder['scheduled_at'] = now.toIso8601String();
-
-    final directory = await Directory.systemTemp.createTemp('ffm-backup-test-');
-    addTearDown(() => directory.delete(recursive: true));
-    final file = File('${directory.path}/backup.json');
-    await file.writeAsString(jsonEncode(decoded));
 
     await closeSource();
     final restored = createInMemoryDatabaseForTests();
@@ -235,8 +260,8 @@ void main() {
       ],
     );
     List<Map<String, Object?>>? restoredHistory;
-    await JsonBackupService(restored).importAndRestore(
-      file.path,
+    await JsonBackupService(restored).importAndRestoreContent(
+      jsonEncode(decoded),
       onRestoreChatHistory: (rows) async {
         restoredHistory = rows;
       },
@@ -254,6 +279,9 @@ void main() {
     final agentRunRows = await restored
         .customSelect('SELECT id FROM assistant_agent_runs')
         .get();
+    final autonomyConversationRows = await restored
+        .customSelect('SELECT content FROM autonomy_conversations')
+        .get();
     final activityNoteRows = await restored
         .customSelect('SELECT text FROM activity_notes')
         .get();
@@ -270,6 +298,10 @@ void main() {
       now.millisecondsSinceEpoch ~/ 1000,
     );
     expect(agentRunRows, hasLength(1));
+    expect(
+      autonomyConversationRows.single.read<String>('content'),
+      'Saran hemat listrik',
+    );
     expect(activityNoteRows.single.read<String>('text'), 'Menyiram kebun');
     expect(futureFeatureRows, hasLength(2));
     expect(
@@ -320,5 +352,33 @@ void main() {
       );
       expect(requireBackup, isTrue);
     });
+  });
+
+  test('preview menolak format dan household yang tidak kompatibel', () async {
+    final db = createInMemoryDatabaseForTests();
+    addTearDown(db.close);
+    final service = JsonBackupService(db);
+
+    final unsupported = service.previewJson(
+      jsonEncode({
+        'formatVersion': 'cadangan-lain-v1',
+        'isFull': true,
+        'householdId': AppContext.householdId,
+        'modules': <String, Object?>{},
+      }),
+    );
+    expect(unsupported.isRestorable, isFalse);
+    expect(unsupported.validationMessage, contains('tidak didukung'));
+
+    final foreignHousehold = service.previewJson(
+      jsonEncode({
+        'formatVersion': 'ffm-v24-full-safe',
+        'isFull': true,
+        'householdId': 'household-lain',
+        'modules': <String, Object?>{},
+      }),
+    );
+    expect(foreignHousehold.isRestorable, isFalse);
+    expect(foreignHousehold.validationMessage, contains('household'));
   });
 }

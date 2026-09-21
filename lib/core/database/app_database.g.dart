@@ -37345,6 +37345,1144 @@ class TelegramDeliveriesCompanion extends UpdateCompanion<TelegramDelivery> {
   }
 }
 
+class $AutonomyJobsTable extends AutonomyJobs
+    with TableInfo<$AutonomyJobsTable, AutonomyJob> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AutonomyJobsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+    'type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pending'),
+  );
+  static const VerificationMeta _triggerDataMeta = const VerificationMeta(
+    'triggerData',
+  );
+  @override
+  late final GeneratedColumn<String> triggerData = GeneratedColumn<String>(
+    'trigger_data',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _decisionDataMeta = const VerificationMeta(
+    'decisionData',
+  );
+  @override
+  late final GeneratedColumn<String> decisionData = GeneratedColumn<String>(
+    'decision_data',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _resultDataMeta = const VerificationMeta(
+    'resultData',
+  );
+  @override
+  late final GeneratedColumn<String> resultData = GeneratedColumn<String>(
+    'result_data',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
+    'started_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _completedAtMeta = const VerificationMeta(
+    'completedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> completedAt = GeneratedColumn<DateTime>(
+    'completed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    type,
+    status,
+    triggerData,
+    decisionData,
+    resultData,
+    startedAt,
+    completedAt,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'autonomy_jobs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AutonomyJob> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+        _typeMeta,
+        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_typeMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('trigger_data')) {
+      context.handle(
+        _triggerDataMeta,
+        triggerData.isAcceptableOrUnknown(
+          data['trigger_data']!,
+          _triggerDataMeta,
+        ),
+      );
+    }
+    if (data.containsKey('decision_data')) {
+      context.handle(
+        _decisionDataMeta,
+        decisionData.isAcceptableOrUnknown(
+          data['decision_data']!,
+          _decisionDataMeta,
+        ),
+      );
+    }
+    if (data.containsKey('result_data')) {
+      context.handle(
+        _resultDataMeta,
+        resultData.isAcceptableOrUnknown(data['result_data']!, _resultDataMeta),
+      );
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+        _completedAtMeta,
+        completedAt.isAcceptableOrUnknown(
+          data['completed_at']!,
+          _completedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AutonomyJob map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AutonomyJob(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      type: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      triggerData: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trigger_data'],
+      ),
+      decisionData: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}decision_data'],
+      ),
+      resultData: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}result_data'],
+      ),
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}started_at'],
+      ),
+      completedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}completed_at'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AutonomyJobsTable createAlias(String alias) {
+    return $AutonomyJobsTable(attachedDatabase, alias);
+  }
+}
+
+class AutonomyJob extends DataClass implements Insertable<AutonomyJob> {
+  final String id;
+  final String householdId;
+  final String type;
+  final String status;
+  final String? triggerData;
+  final String? decisionData;
+  final String? resultData;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const AutonomyJob({
+    required this.id,
+    required this.householdId,
+    required this.type,
+    required this.status,
+    this.triggerData,
+    this.decisionData,
+    this.resultData,
+    this.startedAt,
+    this.completedAt,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['type'] = Variable<String>(type);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || triggerData != null) {
+      map['trigger_data'] = Variable<String>(triggerData);
+    }
+    if (!nullToAbsent || decisionData != null) {
+      map['decision_data'] = Variable<String>(decisionData);
+    }
+    if (!nullToAbsent || resultData != null) {
+      map['result_data'] = Variable<String>(resultData);
+    }
+    if (!nullToAbsent || startedAt != null) {
+      map['started_at'] = Variable<DateTime>(startedAt);
+    }
+    if (!nullToAbsent || completedAt != null) {
+      map['completed_at'] = Variable<DateTime>(completedAt);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  AutonomyJobsCompanion toCompanion(bool nullToAbsent) {
+    return AutonomyJobsCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      type: Value(type),
+      status: Value(status),
+      triggerData: triggerData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(triggerData),
+      decisionData: decisionData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(decisionData),
+      resultData: resultData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resultData),
+      startedAt: startedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startedAt),
+      completedAt: completedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(completedAt),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory AutonomyJob.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AutonomyJob(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      type: serializer.fromJson<String>(json['type']),
+      status: serializer.fromJson<String>(json['status']),
+      triggerData: serializer.fromJson<String?>(json['triggerData']),
+      decisionData: serializer.fromJson<String?>(json['decisionData']),
+      resultData: serializer.fromJson<String?>(json['resultData']),
+      startedAt: serializer.fromJson<DateTime?>(json['startedAt']),
+      completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'type': serializer.toJson<String>(type),
+      'status': serializer.toJson<String>(status),
+      'triggerData': serializer.toJson<String?>(triggerData),
+      'decisionData': serializer.toJson<String?>(decisionData),
+      'resultData': serializer.toJson<String?>(resultData),
+      'startedAt': serializer.toJson<DateTime?>(startedAt),
+      'completedAt': serializer.toJson<DateTime?>(completedAt),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  AutonomyJob copyWith({
+    String? id,
+    String? householdId,
+    String? type,
+    String? status,
+    Value<String?> triggerData = const Value.absent(),
+    Value<String?> decisionData = const Value.absent(),
+    Value<String?> resultData = const Value.absent(),
+    Value<DateTime?> startedAt = const Value.absent(),
+    Value<DateTime?> completedAt = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => AutonomyJob(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    type: type ?? this.type,
+    status: status ?? this.status,
+    triggerData: triggerData.present ? triggerData.value : this.triggerData,
+    decisionData: decisionData.present ? decisionData.value : this.decisionData,
+    resultData: resultData.present ? resultData.value : this.resultData,
+    startedAt: startedAt.present ? startedAt.value : this.startedAt,
+    completedAt: completedAt.present ? completedAt.value : this.completedAt,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  AutonomyJob copyWithCompanion(AutonomyJobsCompanion data) {
+    return AutonomyJob(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      type: data.type.present ? data.type.value : this.type,
+      status: data.status.present ? data.status.value : this.status,
+      triggerData: data.triggerData.present
+          ? data.triggerData.value
+          : this.triggerData,
+      decisionData: data.decisionData.present
+          ? data.decisionData.value
+          : this.decisionData,
+      resultData: data.resultData.present
+          ? data.resultData.value
+          : this.resultData,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      completedAt: data.completedAt.present
+          ? data.completedAt.value
+          : this.completedAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AutonomyJob(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('type: $type, ')
+          ..write('status: $status, ')
+          ..write('triggerData: $triggerData, ')
+          ..write('decisionData: $decisionData, ')
+          ..write('resultData: $resultData, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    type,
+    status,
+    triggerData,
+    decisionData,
+    resultData,
+    startedAt,
+    completedAt,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AutonomyJob &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.type == this.type &&
+          other.status == this.status &&
+          other.triggerData == this.triggerData &&
+          other.decisionData == this.decisionData &&
+          other.resultData == this.resultData &&
+          other.startedAt == this.startedAt &&
+          other.completedAt == this.completedAt &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AutonomyJobsCompanion extends UpdateCompanion<AutonomyJob> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> type;
+  final Value<String> status;
+  final Value<String?> triggerData;
+  final Value<String?> decisionData;
+  final Value<String?> resultData;
+  final Value<DateTime?> startedAt;
+  final Value<DateTime?> completedAt;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const AutonomyJobsCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.type = const Value.absent(),
+    this.status = const Value.absent(),
+    this.triggerData = const Value.absent(),
+    this.decisionData = const Value.absent(),
+    this.resultData = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AutonomyJobsCompanion.insert({
+    required String id,
+    required String householdId,
+    required String type,
+    this.status = const Value.absent(),
+    this.triggerData = const Value.absent(),
+    this.decisionData = const Value.absent(),
+    this.resultData = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       type = Value(type),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<AutonomyJob> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? type,
+    Expression<String>? status,
+    Expression<String>? triggerData,
+    Expression<String>? decisionData,
+    Expression<String>? resultData,
+    Expression<DateTime>? startedAt,
+    Expression<DateTime>? completedAt,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (type != null) 'type': type,
+      if (status != null) 'status': status,
+      if (triggerData != null) 'trigger_data': triggerData,
+      if (decisionData != null) 'decision_data': decisionData,
+      if (resultData != null) 'result_data': resultData,
+      if (startedAt != null) 'started_at': startedAt,
+      if (completedAt != null) 'completed_at': completedAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AutonomyJobsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? type,
+    Value<String>? status,
+    Value<String?>? triggerData,
+    Value<String?>? decisionData,
+    Value<String?>? resultData,
+    Value<DateTime?>? startedAt,
+    Value<DateTime?>? completedAt,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return AutonomyJobsCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      type: type ?? this.type,
+      status: status ?? this.status,
+      triggerData: triggerData ?? this.triggerData,
+      decisionData: decisionData ?? this.decisionData,
+      resultData: resultData ?? this.resultData,
+      startedAt: startedAt ?? this.startedAt,
+      completedAt: completedAt ?? this.completedAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (triggerData.present) {
+      map['trigger_data'] = Variable<String>(triggerData.value);
+    }
+    if (decisionData.present) {
+      map['decision_data'] = Variable<String>(decisionData.value);
+    }
+    if (resultData.present) {
+      map['result_data'] = Variable<String>(resultData.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<DateTime>(startedAt.value);
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<DateTime>(completedAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AutonomyJobsCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('type: $type, ')
+          ..write('status: $status, ')
+          ..write('triggerData: $triggerData, ')
+          ..write('decisionData: $decisionData, ')
+          ..write('resultData: $resultData, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AutonomyConversationsTable extends AutonomyConversations
+    with TableInfo<$AutonomyConversationsTable, AutonomyConversation> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AutonomyConversationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _jobIdMeta = const VerificationMeta('jobId');
+  @override
+  late final GeneratedColumn<String> jobId = GeneratedColumn<String>(
+    'job_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+    'role',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _reasoningMeta = const VerificationMeta(
+    'reasoning',
+  );
+  @override
+  late final GeneratedColumn<String> reasoning = GeneratedColumn<String>(
+    'reasoning',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    jobId,
+    role,
+    content,
+    reasoning,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'autonomy_conversations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AutonomyConversation> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('job_id')) {
+      context.handle(
+        _jobIdMeta,
+        jobId.isAcceptableOrUnknown(data['job_id']!, _jobIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_jobIdMeta);
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+        _roleMeta,
+        role.isAcceptableOrUnknown(data['role']!, _roleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_roleMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('reasoning')) {
+      context.handle(
+        _reasoningMeta,
+        reasoning.isAcceptableOrUnknown(data['reasoning']!, _reasoningMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AutonomyConversation map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AutonomyConversation(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      jobId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}job_id'],
+      )!,
+      role: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}role'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      reasoning: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reasoning'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AutonomyConversationsTable createAlias(String alias) {
+    return $AutonomyConversationsTable(attachedDatabase, alias);
+  }
+}
+
+class AutonomyConversation extends DataClass
+    implements Insertable<AutonomyConversation> {
+  final String id;
+  final String householdId;
+  final String jobId;
+  final String role;
+  final String content;
+  final String? reasoning;
+  final DateTime createdAt;
+  const AutonomyConversation({
+    required this.id,
+    required this.householdId,
+    required this.jobId,
+    required this.role,
+    required this.content,
+    this.reasoning,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['job_id'] = Variable<String>(jobId);
+    map['role'] = Variable<String>(role);
+    map['content'] = Variable<String>(content);
+    if (!nullToAbsent || reasoning != null) {
+      map['reasoning'] = Variable<String>(reasoning);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  AutonomyConversationsCompanion toCompanion(bool nullToAbsent) {
+    return AutonomyConversationsCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      jobId: Value(jobId),
+      role: Value(role),
+      content: Value(content),
+      reasoning: reasoning == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reasoning),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory AutonomyConversation.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AutonomyConversation(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      jobId: serializer.fromJson<String>(json['jobId']),
+      role: serializer.fromJson<String>(json['role']),
+      content: serializer.fromJson<String>(json['content']),
+      reasoning: serializer.fromJson<String?>(json['reasoning']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'jobId': serializer.toJson<String>(jobId),
+      'role': serializer.toJson<String>(role),
+      'content': serializer.toJson<String>(content),
+      'reasoning': serializer.toJson<String?>(reasoning),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  AutonomyConversation copyWith({
+    String? id,
+    String? householdId,
+    String? jobId,
+    String? role,
+    String? content,
+    Value<String?> reasoning = const Value.absent(),
+    DateTime? createdAt,
+  }) => AutonomyConversation(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    jobId: jobId ?? this.jobId,
+    role: role ?? this.role,
+    content: content ?? this.content,
+    reasoning: reasoning.present ? reasoning.value : this.reasoning,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  AutonomyConversation copyWithCompanion(AutonomyConversationsCompanion data) {
+    return AutonomyConversation(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      jobId: data.jobId.present ? data.jobId.value : this.jobId,
+      role: data.role.present ? data.role.value : this.role,
+      content: data.content.present ? data.content.value : this.content,
+      reasoning: data.reasoning.present ? data.reasoning.value : this.reasoning,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AutonomyConversation(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('jobId: $jobId, ')
+          ..write('role: $role, ')
+          ..write('content: $content, ')
+          ..write('reasoning: $reasoning, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, householdId, jobId, role, content, reasoning, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AutonomyConversation &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.jobId == this.jobId &&
+          other.role == this.role &&
+          other.content == this.content &&
+          other.reasoning == this.reasoning &&
+          other.createdAt == this.createdAt);
+}
+
+class AutonomyConversationsCompanion
+    extends UpdateCompanion<AutonomyConversation> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> jobId;
+  final Value<String> role;
+  final Value<String> content;
+  final Value<String?> reasoning;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const AutonomyConversationsCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.jobId = const Value.absent(),
+    this.role = const Value.absent(),
+    this.content = const Value.absent(),
+    this.reasoning = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AutonomyConversationsCompanion.insert({
+    required String id,
+    required String householdId,
+    required String jobId,
+    required String role,
+    required String content,
+    this.reasoning = const Value.absent(),
+    required DateTime createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       jobId = Value(jobId),
+       role = Value(role),
+       content = Value(content),
+       createdAt = Value(createdAt);
+  static Insertable<AutonomyConversation> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? jobId,
+    Expression<String>? role,
+    Expression<String>? content,
+    Expression<String>? reasoning,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (jobId != null) 'job_id': jobId,
+      if (role != null) 'role': role,
+      if (content != null) 'content': content,
+      if (reasoning != null) 'reasoning': reasoning,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AutonomyConversationsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? jobId,
+    Value<String>? role,
+    Value<String>? content,
+    Value<String?>? reasoning,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return AutonomyConversationsCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      jobId: jobId ?? this.jobId,
+      role: role ?? this.role,
+      content: content ?? this.content,
+      reasoning: reasoning ?? this.reasoning,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (jobId.present) {
+      map['job_id'] = Variable<String>(jobId.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (reasoning.present) {
+      map['reasoning'] = Variable<String>(reasoning.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AutonomyConversationsCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('jobId: $jobId, ')
+          ..write('role: $role, ')
+          ..write('content: $content, ')
+          ..write('reasoning: $reasoning, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -37453,6 +38591,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $AssistantAgentTaskExecutionsTable(this);
   late final $TelegramDeliveriesTable telegramDeliveries =
       $TelegramDeliveriesTable(this);
+  late final $AutonomyJobsTable autonomyJobs = $AutonomyJobsTable(this);
+  late final $AutonomyConversationsTable autonomyConversations =
+      $AutonomyConversationsTable(this);
   late final Index idxTransactionsCategoryDate = Index(
     'idx_transactions_category_date',
     'CREATE INDEX idx_transactions_category_date ON transactions (household_id, category_id, is_deleted, date DESC)',
@@ -37504,6 +38645,22 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final Index idxTelegramDeliveriesDue = Index(
     'idx_telegram_deliveries_due',
     'CREATE INDEX idx_telegram_deliveries_due ON telegram_deliveries (household_id, status, retryable, next_attempt_at)',
+  );
+  late final Index idxAutonomyJobsHouseholdStatus = Index(
+    'idx_autonomy_jobs_household_status',
+    'CREATE INDEX idx_autonomy_jobs_household_status ON autonomy_jobs (household_id, status)',
+  );
+  late final Index idxAutonomyJobsType = Index(
+    'idx_autonomy_jobs_type',
+    'CREATE INDEX idx_autonomy_jobs_type ON autonomy_jobs (type)',
+  );
+  late final Index idxAutonomyConversationsJob = Index(
+    'idx_autonomy_conversations_job',
+    'CREATE INDEX idx_autonomy_conversations_job ON autonomy_conversations (job_id)',
+  );
+  late final Index idxAutonomyConversationsHousehold = Index(
+    'idx_autonomy_conversations_household',
+    'CREATE INDEX idx_autonomy_conversations_household ON autonomy_conversations (household_id)',
   );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -37567,6 +38724,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     assistantAgentTasks,
     assistantAgentTaskExecutions,
     telegramDeliveries,
+    autonomyJobs,
+    autonomyConversations,
     idxTransactionsCategoryDate,
     idxTransactionsMerchantDate,
     idxTransactionsHouseholdVisibilityDateId,
@@ -37580,27 +38739,33 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     idxDailyNotesHouseholdArchivedDateId,
     idxAssistantMemoriesKind,
     idxTelegramDeliveriesDue,
+    idxAutonomyJobsHouseholdStatus,
+    idxAutonomyJobsType,
+    idxAutonomyConversationsJob,
+    idxAutonomyConversationsHousehold,
   ];
 }
 
-typedef $$HouseholdsTableCreateCompanionBuilder = HouseholdsCompanion Function({
-  required String id,
-  required String name,
-  Value<String?> husbandName,
-  Value<String?> wifeName,
-  required DateTime createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$HouseholdsTableUpdateCompanionBuilder = HouseholdsCompanion Function({
-  Value<String> id,
-  Value<String> name,
-  Value<String?> husbandName,
-  Value<String?> wifeName,
-  Value<DateTime> createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$HouseholdsTableCreateCompanionBuilder =
+    HouseholdsCompanion Function({
+      required String id,
+      required String name,
+      Value<String?> husbandName,
+      Value<String?> wifeName,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$HouseholdsTableUpdateCompanionBuilder =
+    HouseholdsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String?> husbandName,
+      Value<String?> wifeName,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$HouseholdsTableFilterComposer
     extends Composer<_$AppDatabase, $HouseholdsTable> {
@@ -37799,28 +38964,30 @@ typedef $$HouseholdsTableProcessedTableManager =
       Household,
       PrefetchHooks Function()
     >;
-typedef $$CategoriesTableCreateCompanionBuilder = CategoriesCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  required String type,
-  Value<String?> parentId,
-  Value<String> defaultBudgetPeriod,
-  Value<bool> isActive,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$CategoriesTableUpdateCompanionBuilder = CategoriesCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String> type,
-  Value<String?> parentId,
-  Value<String> defaultBudgetPeriod,
-  Value<bool> isActive,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$CategoriesTableCreateCompanionBuilder =
+    CategoriesCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      required String type,
+      Value<String?> parentId,
+      Value<String> defaultBudgetPeriod,
+      Value<bool> isActive,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$CategoriesTableUpdateCompanionBuilder =
+    CategoriesCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String> type,
+      Value<String?> parentId,
+      Value<String> defaultBudgetPeriod,
+      Value<bool> isActive,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$CategoriesTableFilterComposer
     extends Composer<_$AppDatabase, $CategoriesTable> {
@@ -38052,24 +39219,26 @@ typedef $$CategoriesTableProcessedTableManager =
       Category,
       PrefetchHooks Function()
     >;
-typedef $$MerchantsTableCreateCompanionBuilder = MerchantsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  Value<String?> details,
-  Value<bool> isActive,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$MerchantsTableUpdateCompanionBuilder = MerchantsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String?> details,
-  Value<bool> isActive,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$MerchantsTableCreateCompanionBuilder =
+    MerchantsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      Value<String?> details,
+      Value<bool> isActive,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$MerchantsTableUpdateCompanionBuilder =
+    MerchantsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String?> details,
+      Value<bool> isActive,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$MerchantsTableFilterComposer
     extends Composer<_$AppDatabase, $MerchantsTable> {
@@ -38265,22 +39434,24 @@ typedef $$MerchantsTableProcessedTableManager =
       Merchant,
       PrefetchHooks Function()
     >;
-typedef $$TagsTableCreateCompanionBuilder = TagsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  Value<bool> isArchived,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$TagsTableUpdateCompanionBuilder = TagsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<bool> isArchived,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$TagsTableCreateCompanionBuilder =
+    TagsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$TagsTableUpdateCompanionBuilder =
+    TagsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$TagsTableFilterComposer extends Composer<_$AppDatabase, $TagsTable> {
   $$TagsTableFilterComposer({
@@ -38459,28 +39630,30 @@ typedef $$TagsTableProcessedTableManager =
       Tag,
       PrefetchHooks Function()
     >;
-typedef $$AccountsTableCreateCompanionBuilder = AccountsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  required String type,
-  Value<int> openingBalance,
-  Value<bool> isActive,
-  Value<bool> isArchived,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$AccountsTableUpdateCompanionBuilder = AccountsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String> type,
-  Value<int> openingBalance,
-  Value<bool> isActive,
-  Value<bool> isArchived,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$AccountsTableCreateCompanionBuilder =
+    AccountsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      required String type,
+      Value<int> openingBalance,
+      Value<bool> isActive,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$AccountsTableUpdateCompanionBuilder =
+    AccountsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String> type,
+      Value<int> openingBalance,
+      Value<bool> isActive,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$AccountsTableFilterComposer
     extends Composer<_$AppDatabase, $AccountsTable> {
@@ -42040,38 +43213,40 @@ typedef $$ElectricityMeterReadingsTableProcessedTableManager =
       ElectricityMeterReading,
       PrefetchHooks Function()
     >;
-typedef $$TransfersTableCreateCompanionBuilder = TransfersCompanion Function({
-  required String id,
-  required String householdId,
-  required String fromAccountId,
-  required String toAccountId,
-  required int amount,
-  Value<int> adminFee,
-  Value<String?> feeTransactionId,
-  required DateTime date,
-  required DateTime recordedAt,
-  Value<String?> note,
-  Value<String?> source,
-  Value<bool> isDeleted,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$TransfersTableUpdateCompanionBuilder = TransfersCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> fromAccountId,
-  Value<String> toAccountId,
-  Value<int> amount,
-  Value<int> adminFee,
-  Value<String?> feeTransactionId,
-  Value<DateTime> date,
-  Value<DateTime> recordedAt,
-  Value<String?> note,
-  Value<String?> source,
-  Value<bool> isDeleted,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$TransfersTableCreateCompanionBuilder =
+    TransfersCompanion Function({
+      required String id,
+      required String householdId,
+      required String fromAccountId,
+      required String toAccountId,
+      required int amount,
+      Value<int> adminFee,
+      Value<String?> feeTransactionId,
+      required DateTime date,
+      required DateTime recordedAt,
+      Value<String?> note,
+      Value<String?> source,
+      Value<bool> isDeleted,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$TransfersTableUpdateCompanionBuilder =
+    TransfersCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> fromAccountId,
+      Value<String> toAccountId,
+      Value<int> amount,
+      Value<int> adminFee,
+      Value<String?> feeTransactionId,
+      Value<DateTime> date,
+      Value<DateTime> recordedAt,
+      Value<String?> note,
+      Value<String?> source,
+      Value<bool> isDeleted,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$TransfersTableFilterComposer
     extends Composer<_$AppDatabase, $TransfersTable> {
@@ -43846,32 +45021,34 @@ typedef $$EnvelopeTransfersTableProcessedTableManager =
       EnvelopeTransfer,
       PrefetchHooks Function()
     >;
-typedef $$AssetsTableCreateCompanionBuilder = AssetsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  required String assetType,
-  Value<int> value,
-  Value<String> placement,
-  Value<String?> note,
-  Value<bool> isArchived,
-  required DateTime createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$AssetsTableUpdateCompanionBuilder = AssetsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String> assetType,
-  Value<int> value,
-  Value<String> placement,
-  Value<String?> note,
-  Value<bool> isArchived,
-  Value<DateTime> createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$AssetsTableCreateCompanionBuilder =
+    AssetsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      required String assetType,
+      Value<int> value,
+      Value<String> placement,
+      Value<String?> note,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AssetsTableUpdateCompanionBuilder =
+    AssetsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String> assetType,
+      Value<int> value,
+      Value<String> placement,
+      Value<String?> note,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$AssetsTableFilterComposer
     extends Composer<_$AppDatabase, $AssetsTable> {
@@ -44137,32 +45314,34 @@ typedef $$AssetsTableProcessedTableManager =
       Asset,
       PrefetchHooks Function()
     >;
-typedef $$GoalsTableCreateCompanionBuilder = GoalsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  Value<String?> note,
-  required int targetAmount,
-  Value<int> currentAmount,
-  Value<DateTime?> targetDate,
-  Value<String?> categoryId,
-  Value<bool> isActive,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$GoalsTableUpdateCompanionBuilder = GoalsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String?> note,
-  Value<int> targetAmount,
-  Value<int> currentAmount,
-  Value<DateTime?> targetDate,
-  Value<String?> categoryId,
-  Value<bool> isActive,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$GoalsTableCreateCompanionBuilder =
+    GoalsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      Value<String?> note,
+      required int targetAmount,
+      Value<int> currentAmount,
+      Value<DateTime?> targetDate,
+      Value<String?> categoryId,
+      Value<bool> isActive,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$GoalsTableUpdateCompanionBuilder =
+    GoalsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String?> note,
+      Value<int> targetAmount,
+      Value<int> currentAmount,
+      Value<DateTime?> targetDate,
+      Value<String?> categoryId,
+      Value<bool> isActive,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$GoalsTableFilterComposer extends Composer<_$AppDatabase, $GoalsTable> {
   $$GoalsTableFilterComposer({
@@ -45798,56 +46977,58 @@ typedef $$RecurringTransactionRunsTableProcessedTableManager =
       RecurringTransactionRun,
       PrefetchHooks Function()
     >;
-typedef $$RemindersTableCreateCompanionBuilder = RemindersCompanion Function({
-  required String id,
-  required String householdId,
-  required String title,
-  Value<String?> note,
-  required DateTime scheduledAt,
-  Value<String> recurrenceType,
-  Value<String> weekdaysJson,
-  Value<bool> isActive,
-  Value<String?> soundUri,
-  Value<String?> soundName,
-  Value<int> defaultSnoozeMinutes,
-  required int notificationId,
-  required DateTime createdAt,
-  Value<DateTime?> updatedAt,
-  Value<String?> sourceType,
-  Value<String?> sourceId,
-  Value<String> origin,
-  Value<String> mode,
-  Value<int?> calendarEventId,
-  Value<bool> isSyncedToCalendar,
-  Value<DateTime?> syncedAt,
-  Value<String?> destinationRoute,
-  Value<int> rowid,
-});
-typedef $$RemindersTableUpdateCompanionBuilder = RemindersCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> title,
-  Value<String?> note,
-  Value<DateTime> scheduledAt,
-  Value<String> recurrenceType,
-  Value<String> weekdaysJson,
-  Value<bool> isActive,
-  Value<String?> soundUri,
-  Value<String?> soundName,
-  Value<int> defaultSnoozeMinutes,
-  Value<int> notificationId,
-  Value<DateTime> createdAt,
-  Value<DateTime?> updatedAt,
-  Value<String?> sourceType,
-  Value<String?> sourceId,
-  Value<String> origin,
-  Value<String> mode,
-  Value<int?> calendarEventId,
-  Value<bool> isSyncedToCalendar,
-  Value<DateTime?> syncedAt,
-  Value<String?> destinationRoute,
-  Value<int> rowid,
-});
+typedef $$RemindersTableCreateCompanionBuilder =
+    RemindersCompanion Function({
+      required String id,
+      required String householdId,
+      required String title,
+      Value<String?> note,
+      required DateTime scheduledAt,
+      Value<String> recurrenceType,
+      Value<String> weekdaysJson,
+      Value<bool> isActive,
+      Value<String?> soundUri,
+      Value<String?> soundName,
+      Value<int> defaultSnoozeMinutes,
+      required int notificationId,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<String?> sourceType,
+      Value<String?> sourceId,
+      Value<String> origin,
+      Value<String> mode,
+      Value<int?> calendarEventId,
+      Value<bool> isSyncedToCalendar,
+      Value<DateTime?> syncedAt,
+      Value<String?> destinationRoute,
+      Value<int> rowid,
+    });
+typedef $$RemindersTableUpdateCompanionBuilder =
+    RemindersCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> title,
+      Value<String?> note,
+      Value<DateTime> scheduledAt,
+      Value<String> recurrenceType,
+      Value<String> weekdaysJson,
+      Value<bool> isActive,
+      Value<String?> soundUri,
+      Value<String?> soundName,
+      Value<int> defaultSnoozeMinutes,
+      Value<int> notificationId,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<String?> sourceType,
+      Value<String?> sourceId,
+      Value<String> origin,
+      Value<String> mode,
+      Value<int?> calendarEventId,
+      Value<bool> isSyncedToCalendar,
+      Value<DateTime?> syncedAt,
+      Value<String?> destinationRoute,
+      Value<int> rowid,
+    });
 
 class $$RemindersTableFilterComposer
     extends Composer<_$AppDatabase, $RemindersTable> {
@@ -48370,32 +49551,34 @@ typedef $$ActivityEntriesTableProcessedTableManager =
       ActivityEntry,
       PrefetchHooks Function()
     >;
-typedef $$DailyNotesTableCreateCompanionBuilder = DailyNotesCompanion Function({
-  required String id,
-  required String householdId,
-  required DateTime noteDate,
-  Value<String?> title,
-  required String body,
-  Value<String?> treatmentType,
-  Value<int> priority,
-  Value<bool> isArchived,
-  required DateTime createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$DailyNotesTableUpdateCompanionBuilder = DailyNotesCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<DateTime> noteDate,
-  Value<String?> title,
-  Value<String> body,
-  Value<String?> treatmentType,
-  Value<int> priority,
-  Value<bool> isArchived,
-  Value<DateTime> createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$DailyNotesTableCreateCompanionBuilder =
+    DailyNotesCompanion Function({
+      required String id,
+      required String householdId,
+      required DateTime noteDate,
+      Value<String?> title,
+      required String body,
+      Value<String?> treatmentType,
+      Value<int> priority,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$DailyNotesTableUpdateCompanionBuilder =
+    DailyNotesCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<DateTime> noteDate,
+      Value<String?> title,
+      Value<String> body,
+      Value<String?> treatmentType,
+      Value<int> priority,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$DailyNotesTableFilterComposer
     extends Composer<_$AppDatabase, $DailyNotesTable> {
@@ -48666,32 +49849,34 @@ typedef $$DailyNotesTableProcessedTableManager =
       DailyNote,
       PrefetchHooks Function()
     >;
-typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
-  required String id,
-  required String householdId,
-  required String title,
-  Value<String?> note,
-  Value<DateTime?> dueDate,
-  Value<String> status,
-  Value<DateTime?> completedAt,
-  Value<bool> isArchived,
-  required DateTime createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> title,
-  Value<String?> note,
-  Value<DateTime?> dueDate,
-  Value<String> status,
-  Value<DateTime?> completedAt,
-  Value<bool> isArchived,
-  Value<DateTime> createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$TasksTableCreateCompanionBuilder =
+    TasksCompanion Function({
+      required String id,
+      required String householdId,
+      required String title,
+      Value<String?> note,
+      Value<DateTime?> dueDate,
+      Value<String> status,
+      Value<DateTime?> completedAt,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$TasksTableUpdateCompanionBuilder =
+    TasksCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> title,
+      Value<String?> note,
+      Value<DateTime?> dueDate,
+      Value<String> status,
+      Value<DateTime?> completedAt,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
   $$TasksTableFilterComposer({
@@ -55948,6 +57133,589 @@ typedef $$TelegramDeliveriesTableProcessedTableManager =
       TelegramDelivery,
       PrefetchHooks Function()
     >;
+typedef $$AutonomyJobsTableCreateCompanionBuilder =
+    AutonomyJobsCompanion Function({
+      required String id,
+      required String householdId,
+      required String type,
+      Value<String> status,
+      Value<String?> triggerData,
+      Value<String?> decisionData,
+      Value<String?> resultData,
+      Value<DateTime?> startedAt,
+      Value<DateTime?> completedAt,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AutonomyJobsTableUpdateCompanionBuilder =
+    AutonomyJobsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> type,
+      Value<String> status,
+      Value<String?> triggerData,
+      Value<String?> decisionData,
+      Value<String?> resultData,
+      Value<DateTime?> startedAt,
+      Value<DateTime?> completedAt,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$AutonomyJobsTableFilterComposer
+    extends Composer<_$AppDatabase, $AutonomyJobsTable> {
+  $$AutonomyJobsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get triggerData => $composableBuilder(
+    column: $table.triggerData,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get decisionData => $composableBuilder(
+    column: $table.decisionData,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get resultData => $composableBuilder(
+    column: $table.resultData,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AutonomyJobsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AutonomyJobsTable> {
+  $$AutonomyJobsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get triggerData => $composableBuilder(
+    column: $table.triggerData,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get decisionData => $composableBuilder(
+    column: $table.decisionData,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get resultData => $composableBuilder(
+    column: $table.resultData,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AutonomyJobsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AutonomyJobsTable> {
+  $$AutonomyJobsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get triggerData => $composableBuilder(
+    column: $table.triggerData,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get decisionData => $composableBuilder(
+    column: $table.decisionData,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get resultData => $composableBuilder(
+    column: $table.resultData,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$AutonomyJobsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AutonomyJobsTable,
+          AutonomyJob,
+          $$AutonomyJobsTableFilterComposer,
+          $$AutonomyJobsTableOrderingComposer,
+          $$AutonomyJobsTableAnnotationComposer,
+          $$AutonomyJobsTableCreateCompanionBuilder,
+          $$AutonomyJobsTableUpdateCompanionBuilder,
+          (
+            AutonomyJob,
+            BaseReferences<_$AppDatabase, $AutonomyJobsTable, AutonomyJob>,
+          ),
+          AutonomyJob,
+          PrefetchHooks Function()
+        > {
+  $$AutonomyJobsTableTableManager(_$AppDatabase db, $AutonomyJobsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AutonomyJobsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AutonomyJobsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AutonomyJobsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> type = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> triggerData = const Value.absent(),
+                Value<String?> decisionData = const Value.absent(),
+                Value<String?> resultData = const Value.absent(),
+                Value<DateTime?> startedAt = const Value.absent(),
+                Value<DateTime?> completedAt = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AutonomyJobsCompanion(
+                id: id,
+                householdId: householdId,
+                type: type,
+                status: status,
+                triggerData: triggerData,
+                decisionData: decisionData,
+                resultData: resultData,
+                startedAt: startedAt,
+                completedAt: completedAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String type,
+                Value<String> status = const Value.absent(),
+                Value<String?> triggerData = const Value.absent(),
+                Value<String?> decisionData = const Value.absent(),
+                Value<String?> resultData = const Value.absent(),
+                Value<DateTime?> startedAt = const Value.absent(),
+                Value<DateTime?> completedAt = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => AutonomyJobsCompanion.insert(
+                id: id,
+                householdId: householdId,
+                type: type,
+                status: status,
+                triggerData: triggerData,
+                decisionData: decisionData,
+                resultData: resultData,
+                startedAt: startedAt,
+                completedAt: completedAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AutonomyJobsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AutonomyJobsTable,
+      AutonomyJob,
+      $$AutonomyJobsTableFilterComposer,
+      $$AutonomyJobsTableOrderingComposer,
+      $$AutonomyJobsTableAnnotationComposer,
+      $$AutonomyJobsTableCreateCompanionBuilder,
+      $$AutonomyJobsTableUpdateCompanionBuilder,
+      (
+        AutonomyJob,
+        BaseReferences<_$AppDatabase, $AutonomyJobsTable, AutonomyJob>,
+      ),
+      AutonomyJob,
+      PrefetchHooks Function()
+    >;
+typedef $$AutonomyConversationsTableCreateCompanionBuilder =
+    AutonomyConversationsCompanion Function({
+      required String id,
+      required String householdId,
+      required String jobId,
+      required String role,
+      required String content,
+      Value<String?> reasoning,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$AutonomyConversationsTableUpdateCompanionBuilder =
+    AutonomyConversationsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> jobId,
+      Value<String> role,
+      Value<String> content,
+      Value<String?> reasoning,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+class $$AutonomyConversationsTableFilterComposer
+    extends Composer<_$AppDatabase, $AutonomyConversationsTable> {
+  $$AutonomyConversationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get jobId => $composableBuilder(
+    column: $table.jobId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reasoning => $composableBuilder(
+    column: $table.reasoning,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AutonomyConversationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AutonomyConversationsTable> {
+  $$AutonomyConversationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get jobId => $composableBuilder(
+    column: $table.jobId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reasoning => $composableBuilder(
+    column: $table.reasoning,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AutonomyConversationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AutonomyConversationsTable> {
+  $$AutonomyConversationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get jobId =>
+      $composableBuilder(column: $table.jobId, builder: (column) => column);
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get reasoning =>
+      $composableBuilder(column: $table.reasoning, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$AutonomyConversationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AutonomyConversationsTable,
+          AutonomyConversation,
+          $$AutonomyConversationsTableFilterComposer,
+          $$AutonomyConversationsTableOrderingComposer,
+          $$AutonomyConversationsTableAnnotationComposer,
+          $$AutonomyConversationsTableCreateCompanionBuilder,
+          $$AutonomyConversationsTableUpdateCompanionBuilder,
+          (
+            AutonomyConversation,
+            BaseReferences<
+              _$AppDatabase,
+              $AutonomyConversationsTable,
+              AutonomyConversation
+            >,
+          ),
+          AutonomyConversation,
+          PrefetchHooks Function()
+        > {
+  $$AutonomyConversationsTableTableManager(
+    _$AppDatabase db,
+    $AutonomyConversationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AutonomyConversationsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AutonomyConversationsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AutonomyConversationsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> jobId = const Value.absent(),
+                Value<String> role = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<String?> reasoning = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AutonomyConversationsCompanion(
+                id: id,
+                householdId: householdId,
+                jobId: jobId,
+                role: role,
+                content: content,
+                reasoning: reasoning,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String jobId,
+                required String role,
+                required String content,
+                Value<String?> reasoning = const Value.absent(),
+                required DateTime createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => AutonomyConversationsCompanion.insert(
+                id: id,
+                householdId: householdId,
+                jobId: jobId,
+                role: role,
+                content: content,
+                reasoning: reasoning,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AutonomyConversationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AutonomyConversationsTable,
+      AutonomyConversation,
+      $$AutonomyConversationsTableFilterComposer,
+      $$AutonomyConversationsTableOrderingComposer,
+      $$AutonomyConversationsTableAnnotationComposer,
+      $$AutonomyConversationsTableCreateCompanionBuilder,
+      $$AutonomyConversationsTableUpdateCompanionBuilder,
+      (
+        AutonomyConversation,
+        BaseReferences<
+          _$AppDatabase,
+          $AutonomyConversationsTable,
+          AutonomyConversation
+        >,
+      ),
+      AutonomyConversation,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -56106,4 +57874,8 @@ class $AppDatabaseManager {
       );
   $$TelegramDeliveriesTableTableManager get telegramDeliveries =>
       $$TelegramDeliveriesTableTableManager(_db, _db.telegramDeliveries);
+  $$AutonomyJobsTableTableManager get autonomyJobs =>
+      $$AutonomyJobsTableTableManager(_db, _db.autonomyJobs);
+  $$AutonomyConversationsTableTableManager get autonomyConversations =>
+      $$AutonomyConversationsTableTableManager(_db, _db.autonomyConversations);
 }

@@ -1121,3 +1121,57 @@ class TelegramDeliveries extends Table {
   @override
   Set<Column<Object>> get primaryKey => {deliveryId};
 }
+
+/// Riwayat pekerjaan otonom yang melibatkan LLM untuk keputusan.
+///
+/// Setiap job merepresentasikan satu tugas otonom yang memerlukan keputusan LLM,
+/// seperti adjust allocation anggaran, generate reminder, atau analisis konsumsi.
+@TableIndex(
+  name: 'idx_autonomy_jobs_household_status',
+  columns: {#householdId, #status},
+)
+@TableIndex(
+  name: 'idx_autonomy_jobs_type',
+  columns: {#type},
+)
+class AutonomyJobs extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get type => text()(); // 'budget_adjust', 'reminder_check', 'consumption_analysis', etc.
+  TextColumn get status => text().withDefault(const Constant('pending'))(); // 'pending', 'in_progress', 'completed', 'failed'
+  TextColumn get triggerData => text().nullable()(); // JSON payload trigger
+  TextColumn get decisionData => text().nullable()(); // JSON keputusan LLM
+  TextColumn get resultData => text().nullable()(); // JSON hasil execution
+  DateTimeColumn get startedAt => dateTime().nullable()();
+  DateTimeColumn get completedAt => dateTime().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Riwayat percakapan otonom dengan LLM untuk keputusan.
+///
+/// Setiap conversation entry merepresentasikan satu pesan dalam percakapan
+/// antara otonom dan LLM, termasuk reasoning LLM untuk keputusan.
+@TableIndex(
+  name: 'idx_autonomy_conversations_job',
+  columns: {#jobId},
+)
+@TableIndex(
+  name: 'idx_autonomy_conversations_household',
+  columns: {#householdId},
+)
+class AutonomyConversations extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get jobId => text()();
+  TextColumn get role => text()(); // 'user', 'assistant', 'system'
+  TextColumn get content => text()();
+  TextColumn get reasoning => text().nullable()(); // reasoning LLM
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}

@@ -28,6 +28,7 @@ import '../../../activity/domain/services/activity_application_service.dart';
 import '../../../activity/presentation/bloc/activity_bloc.dart';
 import '../../../activity/presentation/widgets/activity_live_bar.dart';
 import '../../../settings/data/account_repository.dart';
+import '../../data/ffm_assistant_fuzzy_matcher.dart';
 import '../../../settings/data/utility_meter_repository.dart';
 import '../../../settings/domain/entities/utility_meter_models.dart';
 import '../../../settings/data/vehicle_repository.dart';
@@ -43,6 +44,7 @@ import '../../data/ffm_assistant_capability_adapters.dart';
 import '../../data/ffm_assistant_autonomy_repository.dart';
 import '../../domain/ffm_assistant_capability_executor.dart';
 import '../../data/ffm_assistant_chat_history_repository.dart';
+import '../../data/ffm_assistant_attachment_store.dart';
 import '../../data/ffm_assistant_interpreter.dart';
 import '../../data/ffm_assistant_proposal_json_service.dart';
 import '../../data/ffm_assistant_proactive_cooldown.dart';
@@ -170,6 +172,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _scrollController = ScrollController();
 
   final _historyRepository = FfmAssistantChatHistoryRepository();
+  final _attachmentStore = FfmAssistantAttachmentStore();
   final _actionPlanController = FfmAssistantActionPlanController();
   final _actionPlanner = const FfmAssistantActionPlanner();
   late final _capabilityExecutor = FfmAssistantCapabilityExecutor(
@@ -662,6 +665,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       review: entry.review,
       filePath: entry.filePath,
       fileFormat: entry.fileFormat,
+      filePaths: entry.filePaths,
       processTrace: entry.processTrace,
       createdAt: entry.createdAt ?? now,
       verifiedFacts: entry.verifiedFacts,
@@ -1000,6 +1004,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   Future<void> _deleteConversation(String id) async {
+    final conversation = _conversations
+        .where((item) => item.id == id)
+        .firstOrNull;
+    if (conversation != null) {
+      await _attachmentStore.deleteManagedPaths(
+        conversation.entries.expand((entry) => entry.allFilePaths),
+      );
+    }
     await _historyRepository.deleteConversation(id);
     _conversations = await _historyRepository.loadConversations();
     if (!mounted) return;
@@ -2590,6 +2602,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       if (pending != null) {
         _setActiveProcess('Menyiapkan jawaban dialog tertunda...');
       }
+
+      // Check for similar questions in history
+      final similarQuestion = _checkSimilarQuestionInHistory(text);
+      final isRepeatedQuestion = similarQuestion != null;
+
       final conversationHistory = _buildRecentConversationHistory();
       final lastAssistant = widget.session.lastAssistantText;
       final activitySnapshot = getIt.isRegistered<ActivityBloc>()
@@ -2639,6 +2656,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               activitySnapshot: activitySnapshot,
               routingMode: _routingMode,
               activeDraft: activeDraftForTurn,
+              isRepeatedQuestion: isRepeatedQuestion,
             )).intents)
           : await _interpreter.resolvePendingDialog(
               text,
@@ -3025,6 +3043,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       );
       return;
     }
+    selectedPaths = await _prepareManagedAttachmentPaths(selectedPaths);
+    if (selectedPaths.isEmpty || !mounted) return;
     final firstPath = selectedPaths.first;
     Uint8List bytes;
     try {
@@ -3055,6 +3075,29 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       userCaption: userCaption,
       allPaths: selectedPaths,
     );
+  }
+
+  Future<List<String>> _prepareManagedAttachmentPaths(
+    List<String> sourcePaths,
+  ) async {
+    final managed = <String>[];
+    for (final sourcePath in sourcePaths) {
+      try {
+        final sourceBytes = await File(sourcePath).readAsBytes();
+        final prepared = await _receiptScanner.prepareImageForGemini(
+          sourceBytes,
+          _mimeTypeFor(sourcePath),
+        );
+        if (prepared == null) continue;
+        managed.add(
+          await _attachmentStore.save(prepared.$1, mimeType: prepared.$2),
+        );
+      } on Object {
+        // The caller will show the existing unreadable-file error if all
+        // selected attachments fail; never retain an external source path.
+      }
+    }
+    return managed;
   }
 
   bool _isBroadVisualQuestion(String? caption) {
@@ -3426,7 +3469,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
       // Deteksi meteran PLN hanya dijalankan bila teks benar-benar
       // mengindikasikan struk token listrik. Nomor panjang pada struk lain
-      // (faktur, referensi transfer) tidak boleh memicu meteran baru.
+      // (faktur, referensi transfer) tidak boleh memicu identitas PLN baru.
       final isTokenReceipt = ReceiptScannerService.isPlnTokenText(allText);
 
       String? cleanToken;
@@ -3444,16 +3487,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             allText,
           );
           final creditedKwh = ReceiptScannerService.extractPlnKwh(allText);
-          if (cleanMeterNumber == null) {
-            final fallbackMeterRegex = RegExp(r'\b(\d{9,13})\b');
-            for (final m in fallbackMeterRegex.allMatches(allText)) {
-              final candidate = m.group(1)!;
-              if (cleanToken == null || !cleanToken.contains(candidate)) {
-                cleanMeterNumber = candidate;
-                break;
-              }
-            }
-          }
+          // Do not fall back to arbitrary numbers. A PLN receipt can contain
+          // both IDPEL and Nomor Meter; only explicit IDPEL is canonical.
 
           // Deteksi struk dengan beberapa meteran (2 rumah dalam 1 gambar).
           // Jika Gemini tidak memisahkannya menjadi beberapa entry, kita ingatkan
@@ -3479,16 +3514,21 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
             final totalAmount = entry.amount?.toDouble();
             final adminFeeVal = (entry.adminFee ?? 0).toDouble();
-            final tokenSubtotal =
-                (totalAmount != null && totalAmount > adminFeeVal)
-                ? totalAmount - adminFeeVal
-                : totalAmount;
+            final tokenAmount = _plnTokenAmount(
+              entry,
+              totalAmount: totalAmount,
+              adminFee: adminFeeVal,
+            );
 
             // Simpan sebagai metadata proposal, bukan mutasi langsung
             final utilityMetadata = <String, dynamic>{
               'tokenCode': cleanToken,
               'formattedToken': formattedToken,
-              'amount': tokenSubtotal,
+              // `amount` is the amount paid by the user and is used by the
+              // transaction draft. `tokenAmount` is the PLN nominal stored in
+              // the electricity history.
+              'amount': totalAmount,
+              'tokenAmount': tokenAmount,
               'totalAmount': totalAmount,
               'adminFee': entry.adminFee ?? 0,
               'creditedKwh': creditedKwh,
@@ -3540,7 +3580,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               response =
                   '⚡ **Struk Token Listrik PLN Terdeteksi!**\n'
                   '• Properti: **${matchedMeter.name}**\n'
-                  '• No. Meter: `${matchedMeter.formattedMeterNumber}`\n'
+                  '• IDPEL: `${matchedMeter.formattedMeterNumber}`\n'
                   '• Kode Token: `$formattedToken`\n\n'
                   'Token listrik ini akan dicatat setelah Anda mengonfirmasi transaksi.\n\n'
                   '$response';
@@ -3548,7 +3588,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               meterLabel = 'Token Listrik PLN ($formattedToken)';
               response =
                   '⚡ **Struk Token Listrik PLN Terdeteksi!**\n'
-                  '• No. Meter: `$cleanMeterNumber`\n'
+                  '• IDPEL: `$cleanMeterNumber`\n'
                   '• Kode Token: `$formattedToken`\n\n'
                   'Meteran baru ini akan didaftarkan setelah Anda mengonfirmasi transaksi.\n\n'
                   '$response';
@@ -3576,7 +3616,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 ReceiptScannerService.expandPlnUtilityProposals(
                   allText,
                   baseProposal: {
-                    'amount': tokenSubtotal ?? 0,
+                    'amount': totalAmount ?? 0,
+                    'tokenAmount': tokenAmount ?? 0,
                     'adminFee': entry.adminFee ?? 0,
                     'meterNumber': cleanMeterNumber,
                     'tokenCode': cleanToken,
@@ -3654,6 +3695,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
       if (meterLabel != null) {
         draft = draft.copyWith(categoryName: 'Listrik', note: meterLabel);
+      }
+
+      if (isTokenReceipt &&
+          ReceiptScannerService.hasAmbiguousPlnPairing(allText)) {
+        skipUtilityDraft = true;
+        response =
+            '⚡ Token listrik terbaca, tetapi pasangan IDPEL dan kode token '
+            'tidak lengkap atau tidak seimbang. Tidak ada draft yang dibuat '
+            'agar token tidak tertukar antar-IDPEL. Kirim ulang foto yang '
+            'lebih jelas atau masukkan setiap IDPEL beserta tokennya.';
       }
 
       final isFuelReceipt =
@@ -3927,6 +3978,30 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         );
       });
     }
+  }
+
+  double? _plnTokenAmount(
+    ReceiptBatchEntry entry, {
+    required double? totalAmount,
+    required double adminFee,
+  }) {
+    final tokenItems = entry.items.where((item) {
+      final name = item.name.toLowerCase();
+      return RegExp(r'\b(token|stroom|nominal\s+listrik|pulsa\s+listrik)\b')
+          .hasMatch(name);
+    });
+    final itemAmount = tokenItems.fold<int>(
+      0,
+      (sum, item) => sum + item.calculatedTotal,
+    );
+    if (itemAmount > 0) return itemAmount.toDouble();
+
+    // Legacy OCR output may not expose the token as an item. In that case,
+    // retain the previous best-effort estimate instead of inventing a value.
+    if (totalAmount != null && adminFee > 0 && totalAmount > adminFee) {
+      return totalAmount - adminFee;
+    }
+    return totalAmount;
   }
 
   FfmAssistantDraft _draftForBatchEntry(
@@ -4597,9 +4672,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       if (review == null) return;
       if (!review.canContinue) {
         if (!mounted) return;
+        final blockingIssues = review.issues
+            .where((issue) => issue.blocksContinuation)
+            .map((issue) => issue.message)
+            .take(3)
+            .join('\n• ');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Lengkapi dulu bagian yang ditandai di draft chat.'),
+          SnackBar(
+            content: Text(
+              'Konfirmasi belum tersedia. Perbaiki dulu:\n• $blockingIssues',
+            ),
           ),
         );
         return;
@@ -5517,7 +5599,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       return 'kategori diubah menjadi ${after.categoryName}.';
     }
     if (before.partyName != after.partyName) {
-      return 'pihak diubah menjadi ${after.partyName}.';
+      return 'pihak/penerima diubah menjadi ${after.partyName}.';
     }
     if (before.merchantName != after.merchantName) {
       return 'toko/tempat diubah menjadi ${after.merchantName}.';
@@ -6127,7 +6209,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Reset chat?'),
         content: const Text(
-          'Riwayat chat dan antrean perintah yang belum dibuka akan dihapus. Data keuangan tidak ikut berubah.',
+          'Riwayat chat, antrean perintah yang belum dibuka, dan salinan lampiran privat akan dihapus. File asli di galeri tidak disentuh. Data keuangan yang sudah dikonfirmasi tidak ikut berubah.',
         ),
         actions: [
           TextButton(
@@ -6142,8 +6224,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       ),
     );
     if (confirmed == true && mounted) {
+      final paths = <String>{..._entries.expand((entry) => entry.allFilePaths)};
+      final savedConversations = await _historyRepository.loadConversations();
+      for (final conversation in savedConversations) {
+        paths.addAll(
+          conversation.entries.expand((entry) => entry.allFilePaths),
+        );
+      }
       setState(widget.session.reset);
       await _historyRepository.clear();
+      await _attachmentStore.deleteManagedPaths(paths);
       await _historyRepository.save(_entries);
       FfmPersonalContextProvider.maybeInstance?.clearWorkingContext();
       _scrollToEnd();
@@ -6302,6 +6392,33 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       lines.add('  [Konteks Gambar: $_activeVisualContext]');
     }
     return lines.isEmpty ? null : lines.join('\n');
+  }
+
+  String? _checkSimilarQuestionInHistory(String currentQuestion) {
+    if (_entries.isEmpty) return null;
+
+    final priorEntries = _entries.isNotEmpty && _entries.last.isUser
+        ? _entries.sublist(0, _entries.length - 1)
+        : _entries;
+
+    if (priorEntries.isEmpty) return null;
+
+    // Cek 3-5 pertanyaan user terakhir
+    final recentUserQuestions = priorEntries
+        .where((e) => e.isUser)
+        .take(5)
+        .toList();
+
+    for (final entry in recentUserQuestions) {
+      final similarity = FfmAssistantFuzzyMatcher.similarity(
+        currentQuestion,
+        entry.text,
+      );
+      if (similarity >= 0.85) {
+        return entry.text;
+      }
+    }
+    return null;
   }
 
   void _scrollToEnd({bool force = true, bool animated = true}) {
@@ -6557,9 +6674,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                           onRetryScan:
                               entry.intent?.pluginMetadata?['retryScan'] ==
                                       true &&
-                                  entry.filePath != null
+                                  entry.allFilePaths.isNotEmpty
                               ? () => _scanReceiptFromPhoto(
-                                  customPath: entry.filePath!,
+                                  customPaths: entry.allFilePaths,
                                 )
                               : null,
                           onCopyText: () => _copyEntryText(entry),
@@ -6704,6 +6821,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                         review: old.review,
                                         filePath: old.filePath,
                                         fileFormat: old.fileFormat,
+                                        filePaths: old.filePaths,
                                         processTrace: old.processTrace,
                                         createdAt: old.createdAt,
                                         verifiedFacts: old.verifiedFacts,

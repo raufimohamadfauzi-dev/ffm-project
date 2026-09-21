@@ -2224,14 +2224,43 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
                         Icons.receipt_long_outlined,
                         size: 19,
                       ),
-                      title: Text('Rp ${_formatNumber(purchase.amount)}'),
+                      title: Text(
+                        purchase.tokenCode == null
+                            ? 'Token belum terbaca'
+                            : 'Token ${_formatToken(purchase.tokenCode!)}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       subtitle: Text(
+                        'Nominal token: Rp ${_formatNumber(purchase.amount)}'
+                        '${purchase.adminFee > 0 ? ' • Admin: Rp ${_formatNumber(purchase.adminFee)}' : ''}\n'
                         '${_formatDate(purchase.purchasedAt)}'
                         '${purchase.creditedKwh == null ? '' : ' • ${purchase.creditedKwh!.toStringAsFixed(2)} kWh'}',
                       ),
-                      trailing: const Tooltip(
-                        message: 'Tertaut 1:1 dengan transaksi',
-                        child: Icon(Icons.link_rounded, size: 18),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (purchase.tokenCode != null)
+                            IconButton(
+                              tooltip: 'Salin token',
+                              icon: const Icon(Icons.copy_outlined, size: 18),
+                              onPressed: () async {
+                                await Clipboard.setData(
+                                  ClipboardData(text: purchase.tokenCode!),
+                                );
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Token berhasil disalin.'),
+                                  ),
+                                );
+                              },
+                            ),
+                          const Tooltip(
+                            message: 'Tertaut 1:1 dengan transaksi',
+                            child: Icon(Icons.link_rounded, size: 18),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -2336,6 +2365,12 @@ class _UtilityMeterPageState extends State<UtilityMeterPage> {
     RegExp(r'\B(?=(\d{3})+(?!\d))'),
     (_) => '.',
   );
+
+  String _formatToken(String token) {
+    final clean = token.replaceAll(RegExp(r'\D'), '');
+    if (clean.length != 20) return token;
+    return '${clean.substring(0, 4)}-${clean.substring(4, 8)}-${clean.substring(8, 12)}-${clean.substring(12, 16)}-${clean.substring(16, 20)}';
+  }
 }
 
 class MiniMonthlyBarChart extends StatelessWidget {

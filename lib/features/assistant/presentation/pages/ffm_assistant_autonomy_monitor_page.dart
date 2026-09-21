@@ -4,6 +4,8 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/utils/string_sanitizer.dart';
 import '../../data/ffm_assistant_autonomy_repository.dart';
+import '../../data/ffm_assistant_autonomy_job_repository.dart';
+import '../../data/ffm_assistant_autonomy_conversation_repository.dart';
 import '../../data/ffm_assistant_foreground_service.dart';
 import '../../data/ffm_assistant_insight_repository.dart';
 import '../../domain/ffm_assistant_autonomy_policy.dart';
@@ -28,8 +30,12 @@ class FfmAssistantAutonomyMonitorPage extends StatefulWidget {
 }
 
 class _FfmAssistantAutonomyMonitorPageState
-    extends State<FfmAssistantAutonomyMonitorPage> {
+    extends State<FfmAssistantAutonomyMonitorPage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   List<AssistantAgentRun> _runs = const [];
+  List<AutonomyJob> _jobs = const [];
+  List<AutonomyConversation> _conversations = const [];
   FfmAssistantAutonomyPolicy _policy = const FfmAssistantAutonomyPolicy();
   int _activeInsightCount = 0;
   int _actedInsightCount = 0;
@@ -44,11 +50,22 @@ class _FfmAssistantAutonomyMonitorPageState
 
   FfmAssistantAutonomyRepository get _repository =>
       widget.repository ?? getIt<FfmAssistantAutonomyRepository>();
+  FfmAssistantAutonomyJobRepository get _jobRepository =>
+      FfmAssistantAutonomyJobRepository(getIt<AppDatabase>());
+  FfmAssistantAutonomyConversationRepository get _conversationRepository =>
+      FfmAssistantAutonomyConversationRepository(getIt<AppDatabase>());
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -103,9 +120,19 @@ class _FfmAssistantAutonomyMonitorPageState
         }
       } catch (_) {}
 
+      // Load jobs and conversations
+      List<AutonomyJob> jobs = [];
+      List<AutonomyConversation> conversations = [];
+      try {
+        jobs = await _jobRepository.getJobsByHousehold(widget.householdId);
+        conversations = await _conversationRepository.getConversationsByHousehold(widget.householdId);
+      } catch (_) {}
+
       if (!mounted) return;
       setState(() {
         _runs = runs;
+        _jobs = jobs;
+        _conversations = conversations;
         _policy = policy;
         _activeInsightCount = activeCount;
         _actedInsightCount = actedCount;
@@ -138,39 +165,100 @@ class _FfmAssistantAutonomyMonitorPageState
               icon: const Icon(Icons.refresh),
             ),
           ],
+          bottom: TabBar(
+            controller: _tabController,
+            tabs: const [
+              Tab(text: 'Riwayat Run Agent'),
+              Tab(text: 'Riwayat Pekerjaan'),
+              Tab(text: 'Riwayat Ngobrol'),
+            ],
+          ),
         ),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
-            : RefreshIndicator(
-                onRefresh: _load,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                  children: [
-                    _buildIntro(context),
-                    const SizedBox(height: 16),
-                    _buildForegroundServiceCard(context),
-                    const SizedBox(height: 16),
-                    _buildInsightSummary(context),
-                    const SizedBox(height: 16),
-                    _buildPolicyCard(context),
-                    const SizedBox(height: 16),
-                    if (_error != null) _buildError(context),
-                    if (_error == null && _runs.isEmpty) _buildEmpty(context),
-                    if (_error == null && _runs.isNotEmpty) ...[
-                      _buildSummary(context),
-                      const SizedBox(height: 16),
-                      ..._runs.map(
-                        (run) => _RunCard(
-                          run: run,
-                          repository: _repository,
-                          householdId: widget.householdId,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+            : TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildAgentRunsTab(context),
+                  _buildJobsTab(context),
+                  _buildConversationsTab(context),
+                ],
               ),
+      ),
+    );
+  }
+
+  Widget _buildAgentRunsTab(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: [
+          _buildIntro(context),
+          const SizedBox(height: 16),
+          _buildForegroundServiceCard(context),
+          const SizedBox(height: 16),
+          _buildInsightSummary(context),
+          const SizedBox(height: 16),
+          _buildPolicyCard(context),
+          const SizedBox(height: 16),
+          if (_error != null) _buildError(context),
+          if (_error == null && _runs.isEmpty) _buildEmpty(context),
+          if (_error == null && _runs.isNotEmpty) ...[
+            _buildSummary(context),
+            const SizedBox(height: 16),
+            ..._runs.map(
+              (run) => _RunCard(
+                run: run,
+                repository: _repository,
+                householdId: widget.householdId,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJobsTab(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (_jobs.isEmpty)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: Text('Belum ada pekerjaan otonom'),
+              ),
+            )
+          else
+            ..._jobs.map((job) => _JobCard(job: job)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConversationsTab(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (_conversations.isEmpty)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: Text('Belum ada riwayat ngobrol'),
+              ),
+            )
+          else
+            ..._conversations.map((conv) => _ConversationCard(conversation: conv)),
+        ],
       ),
     );
   }
@@ -955,4 +1043,199 @@ String _formatDate(DateTime date) {
   final local = date.toLocal();
   String twoDigits(int value) => value.toString().padLeft(2, '0');
   return '${local.day}/${local.month}/${local.year} ${twoDigits(local.hour)}:${twoDigits(local.minute)}';
+}
+
+class _JobCard extends StatelessWidget {
+  const _JobCard({required this.job});
+
+  final AutonomyJob job;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(
+          color: isDark ? const Color(0xFF35302B) : const Color(0xFFE8E0D0),
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  _jobTypeIcon(job.type),
+                  size: 20,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    job.type,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                _buildStatusChip(context, job.status),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _InfoLine(label: 'ID', value: job.id),
+            _InfoLine(label: 'Status', value: job.status),
+            if (job.startedAt != null)
+              _InfoLine(label: 'Mulai', value: _formatDate(job.startedAt!)),
+            if (job.completedAt != null)
+              _InfoLine(label: 'Selesai', value: _formatDate(job.completedAt!)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _jobTypeIcon(String type) {
+    switch (type) {
+      case 'budget_adjust':
+        return Icons.account_balance_wallet;
+      case 'reminder_check':
+        return Icons.alarm;
+      case 'consumption_analysis':
+        return Icons.electric_bolt;
+      default:
+        return Icons.work;
+    }
+  }
+
+  Widget _buildStatusChip(BuildContext context, String status) {
+    Color color;
+    switch (status) {
+      case 'completed':
+        color = Colors.green;
+        break;
+      case 'failed':
+        color = Colors.red;
+        break;
+      case 'in_progress':
+        color = Colors.orange;
+        break;
+      default:
+        color = Colors.grey;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+class _ConversationCard extends StatelessWidget {
+  const _ConversationCard({required this.conversation});
+
+  final AutonomyConversation conversation;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(
+          color: isDark ? const Color(0xFF35302B) : const Color(0xFFE8E0D0),
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  _roleIcon(conversation.role),
+                  size: 20,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    conversation.role.toUpperCase(),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Text(
+                  _formatDate(conversation.createdAt),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              conversation.content,
+              style: theme.textTheme.bodyMedium,
+            ),
+            if (conversation.reasoning != null && conversation.reasoning!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Reasoning: ${conversation.reasoning}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _roleIcon(String role) {
+    switch (role) {
+      case 'user':
+        return Icons.person;
+      case 'assistant':
+        return Icons.smart_toy;
+      case 'system':
+        return Icons.settings;
+      default:
+        return Icons.chat_bubble;
+    }
+  }
 }

@@ -383,6 +383,16 @@ class FfmDatabaseStructureService {
       'Utilitas',
       'Pembacaan kWh berkala per meter untuk analisis pemakaian aktual.',
     ),
+    'autonomy_jobs': _TableDefinition(
+      'Riwayat pekerjaan otonom',
+      'Asisten',
+      'Riwayat job otonom yang dijalankan oleh agent dengan status, decision, dan hasil.',
+    ),
+    'autonomy_conversations': _TableDefinition(
+      'Riwayat ngobrol otonom',
+      'Asisten',
+      'Riwayat percakapan otonom dengan LLM untuk keputusan dan reasoning.',
+    ),
   };
 }
 

@@ -69,6 +69,8 @@ class _BackupPageState extends State<BackupPage> {
           .map((row) {
             final mutable = Map<String, Object?>.of(row);
             mutable.remove('imagePath');
+            mutable.remove('filePath');
+            mutable.remove('filePaths');
             return mutable;
           })
           .toList(growable: false);
@@ -112,26 +114,25 @@ class _BackupPageState extends State<BackupPage> {
       );
 
       if (path != null) {
-        final filePath = path.toString();
-        final uri = Uri.tryParse(filePath);
-        final isFileUri = uri?.scheme == 'file';
-        final file = isFileUri ? File.fromUri(uri!) : File(filePath);
-        if (isFileUri || file.isAbsolute) {
-          if (!await file.exists()) {
-            await file.writeAsString(content);
-          }
-        }
         if (!mounted) return;
-        final msg = 'Cadangan penuh berhasil dibuat & disimpan.';
+        final msg = 'Cadangan penuh berhasil disimpan di:\n$path';
         setState(() {
           _lastMessage = msg;
           _lastMessageIsError = false;
         });
         _showNotice(msg);
+      } else {
+        if (!mounted) return;
+        const msg = 'Penyimpanan cadangan dibatalkan.';
+        setState(() {
+          _lastMessage = msg;
+          _lastMessageIsError = false;
+        });
       }
     } catch (e) {
       if (!mounted) return;
-      const msg = 'Cadangan belum berhasil dibuat. Silakan coba lagi.';
+      const msg =
+          'Cadangan belum berhasil disimpan. Periksa ruang penyimpanan lalu coba lagi.';
       setState(() {
         _lastMessage = msg;
         _lastMessageIsError = true;
@@ -144,22 +145,25 @@ class _BackupPageState extends State<BackupPage> {
 
   Future<void> _checkBackup() async {
     if (_working) return; // Anti-spam
-    final path = await _pickJsonPath();
-    if (path == null || !mounted) return;
     setState(() {
       _working = true;
       _lastMessage = null;
       _lastMessageIsError = false;
     });
     try {
-      final preview = _service.previewJson(await File(path).readAsString());
+      final file = await _pickJsonFile();
+      if (file == null || !mounted) {
+        _setSelectionCancelled();
+        return;
+      }
+      final preview = _service.previewJson(await _readJsonFile(file));
       if (!mounted) return;
       final msg = _previewMessage(preview);
       setState(() {
         _lastMessage = msg;
         _lastMessageIsError = false;
       });
-      _showRestorePreview(preview, isCheckOnly: true);
+      await _showRestorePreview(preview, isCheckOnly: true);
     } on FormatException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -182,21 +186,24 @@ class _BackupPageState extends State<BackupPage> {
 
   Future<void> _restoreBackup() async {
     if (_working) return; // Anti-spam
-    final path = await _pickJsonPath();
-    if (path == null || !mounted) return;
+    setState(() {
+      _working = true;
+      _lastMessage = null;
+      _lastMessageIsError = false;
+    });
     try {
-      final content = await File(path).readAsString();
+      final file = await _pickJsonFile();
+      if (file == null || !mounted) {
+        _setSelectionCancelled();
+        return;
+      }
+      final content = await _readJsonFile(file);
       final preview = _service.previewJson(content);
       if (!mounted) return;
       final confirmed = await _showRestorePreview(preview, isCheckOnly: false);
       if (!confirmed || !mounted) return;
-      setState(() {
-        _working = true;
-        _lastMessage = null;
-        _lastMessageIsError = false;
-      });
-      await _service.importAndRestore(
-        path,
+      await _service.importAndRestoreContent(
+        content,
         onRestoreChatHistory: (rows) async {
           await FfmAssistantChatHistoryRepository().importRaw(rows);
         },
@@ -226,7 +233,7 @@ class _BackupPageState extends State<BackupPage> {
       );
       if (!mounted) return;
       const msg =
-          'Data berhasil dipulihkan! Seluruh data lokal diselaraskan secara aman.';
+          'Data cadangan berhasil digabungkan. Data lokal dengan ID yang sama tetap dipertahankan.';
       setState(() {
         _lastMessage = msg;
         _lastMessageIsError = false;
@@ -239,9 +246,19 @@ class _BackupPageState extends State<BackupPage> {
         _lastMessageIsError = true;
       });
       _showNotice(error.message, isError: true);
+    } on FileSystemException {
+      if (!mounted) return;
+      const msg =
+          'Berkas tidak dapat dibaca. Pilih ulang berkas JSON dari penyimpanan yang dapat diakses.';
+      setState(() {
+        _lastMessage = msg;
+        _lastMessageIsError = true;
+      });
+      _showNotice(msg, isError: true);
     } catch (_) {
       if (!mounted) return;
-      const msg = 'Pemulihan dibatalkan karena berkas tidak cocok.';
+      const msg =
+          'Pemulihan belum selesai. Sebagian data mungkin sudah digabungkan; cek kembali data penting Anda.';
       setState(() {
         _lastMessage = msg;
         _lastMessageIsError = true;
@@ -409,13 +426,26 @@ class _BackupPageState extends State<BackupPage> {
     }
   }
 
-  Future<String?> _pickJsonPath() async {
+  Future<PlatformFile?> _pickJsonFile() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
     if (result.isEmpty) return null;
-    return result.single.path;
+    return result.single;
+  }
+
+  Future<String> _readJsonFile(PlatformFile file) async {
+    return utf8.decode(await file.readAsBytes());
+  }
+
+  void _setSelectionCancelled() {
+    if (!mounted) return;
+    const msg = 'Pemilihan berkas dibatalkan.';
+    setState(() {
+      _lastMessage = msg;
+      _lastMessageIsError = false;
+    });
   }
 
   Future<bool> _showRestorePreview(
@@ -440,7 +470,7 @@ class _BackupPageState extends State<BackupPage> {
                   child: Text(
                     isCheckOnly
                         ? 'Informasi Berkas Cadangan'
-                        : (preview.isFull
+                        : (preview.isRestorable
                               ? 'Konfirmasi Pemulihan Data'
                               : 'Berkas Cadangan Tidak Lengkap'),
                   ),
@@ -459,12 +489,12 @@ class _BackupPageState extends State<BackupPage> {
                   const SizedBox(height: 12),
                   if (!isCheckOnly)
                     Text(
-                      preview.isFull
-                          ? '⚠️ PERHATIAN: Pemulihan data akan menyelaraskan database lokal dengan isi cadangan ini secara atomik dan aman.'
-                          : '❌ Berkas ini bukan cadangan penuh FFM yang valid untuk dipulihkan.',
+                      preview.isRestorable
+                          ? 'Pemulihan menggabungkan data baru. Data lokal dengan ID yang sudah ada tidak akan ditimpa atau dihapus.'
+                          : 'Berkas tidak dapat dipulihkan: ${preview.validationMessage}',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: preview.isFull
+                        color: preview.isRestorable
                             ? Theme.of(dialogContext).colorScheme.error
                             : Theme.of(dialogContext).colorScheme.outline,
                       ),
@@ -477,7 +507,7 @@ class _BackupPageState extends State<BackupPage> {
                 onPressed: () => Navigator.of(dialogContext).pop(false),
                 child: Text(isCheckOnly ? 'Tutup' : 'Batal'),
               ),
-              if (!isCheckOnly && preview.isFull)
+              if (!isCheckOnly && preview.isRestorable)
                 FilledButton(
                   onPressed: () => Navigator.of(dialogContext).pop(true),
                   child: const Text('Ya, Pulihkan Sekarang'),
@@ -500,10 +530,14 @@ class _BackupPageState extends State<BackupPage> {
     final pengingat = preview.counts['reminders'] ?? 0;
     final meteran = preview.counts['utility_meters'] ?? 0;
     final kendaraan = preview.counts['vehicles'] ?? 0;
+    final memoriAsisten = preview.counts['assistant_memories'] ?? 0;
+    final pekerjaanOtonom = preview.counts['autonomy_jobs'] ?? 0;
+    final obrolanOtonom = preview.counts['autonomy_conversations'] ?? 0;
     final rentang = preview.transactionFrom == null
         ? 'belum ada data transaksi'
         : '${_dateLabel(preview.transactionFrom!)} s/d ${_dateLabel(preview.transactionTo!)}';
-    return 'Format Versi: ${preview.formatVersion}\n\n'
+    return 'Format Versi: ${preview.formatVersion}\n'
+        '${preview.validationMessage == null ? 'Status: Siap dipulihkan' : 'Status: ${preview.validationMessage}'}\n\n'
         'Rincian Modul Terdeteksi:\n'
         '• Transaksi: $transaksi ($rentang)\n'
         '• Aset Kelolaan: $aset\n'
@@ -515,7 +549,10 @@ class _BackupPageState extends State<BackupPage> {
         '• Rekonsiliasi Saldo: $rekonsiliasi\n'
         '• Log Aktivitas: $aktivitas'
         '${meteran > 0 ? '\n• Token Listrik: $meteran' : ''}'
-        '${kendaraan > 0 ? '\n• Kendaraan & Log BBM: $kendaraan' : ''}';
+        '${kendaraan > 0 ? '\n• Kendaraan & Log BBM: $kendaraan' : ''}'
+        '${memoriAsisten > 0 ? '\n• Memori Asisten: $memoriAsisten' : ''}'
+        '${pekerjaanOtonom > 0 ? '\n• Riwayat Pekerjaan Otonom: $pekerjaanOtonom' : ''}'
+        '${obrolanOtonom > 0 ? '\n• Riwayat Obrolan Otonom: $obrolanOtonom' : ''}';
   }
 
   String _dateLabel(DateTime date) {
@@ -565,7 +602,7 @@ class _BackupPageState extends State<BackupPage> {
                           ),
                     title: const Text('Sertakan riwayat obrolan Asisten'),
                     subtitle: const Text(
-                      'Teks riwayat percakapan akan ikut dicadangkan.',
+                      'Teks percakapan ikut dicadangkan. Lampiran foto atau berkas tidak ikut.',
                     ),
                     controlAffinity: ListTileControlAffinity.leading,
                   ),

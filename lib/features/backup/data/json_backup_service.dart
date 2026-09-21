@@ -10,14 +10,18 @@ class BackupPreview {
   const BackupPreview({
     required this.formatVersion,
     required this.isFull,
+    required this.isRestorable,
     required this.counts,
+    this.validationMessage,
     this.transactionFrom,
     this.transactionTo,
   });
 
   final String formatVersion;
   final bool isFull;
+  final bool isRestorable;
   final Map<String, int> counts;
+  final String? validationMessage;
   final DateTime? transactionFrom;
   final DateTime? transactionTo;
 }
@@ -46,7 +50,22 @@ class JsonBackupService {
     final tables = await _getUserTableNames();
     final modules = <String, Object?>{};
     for (final table in tables) {
-      final rows = await database.customSelect('SELECT * FROM "$table"').get();
+      final tableInfo = await database
+          .customSelect('PRAGMA table_info("$table")')
+          .get();
+      final hasHouseholdId = tableInfo.any(
+        (row) => row.data['name'] == 'household_id',
+      );
+      final rows = await database
+          .customSelect(
+            hasHouseholdId
+                ? 'SELECT * FROM "$table" WHERE household_id = ?'
+                : 'SELECT * FROM "$table"',
+            variables: hasHouseholdId
+                ? [Variable.withString(AppContext.householdId)]
+                : const [],
+          )
+          .get();
       modules[table] = rows.map((row) => _jsonSafe(row.data)).toList();
     }
     if (assistantChatHistory != null) {
@@ -113,9 +132,24 @@ class JsonBackupService {
       return BackupPreview(
         formatVersion: version,
         isFull: false,
+        isRestorable: false,
         counts: const {},
+        validationMessage: 'Bagian data cadangan tidak ditemukan.',
       );
     }
+    final backupHouseholdId = decoded['householdId']?.toString();
+    final householdMatches =
+        backupHouseholdId == null ||
+        backupHouseholdId.isEmpty ||
+        backupHouseholdId == AppContext.householdId;
+    final isSupportedFormat = RegExp(r'^ffm-v\d+-full-safe$').hasMatch(version);
+    final validationMessage = !isFull
+        ? 'Berkas ini bukan cadangan penuh FFM.'
+        : !isSupportedFormat
+        ? 'Versi format cadangan tidak didukung: $version.'
+        : !householdMatches
+        ? 'Cadangan berasal dari household yang berbeda.'
+        : null;
     final counts = <String, int>{};
     for (final entry in modules.entries) {
       final value = entry.value;
@@ -140,7 +174,9 @@ class JsonBackupService {
     return BackupPreview(
       formatVersion: version,
       isFull: isFull,
+      isRestorable: validationMessage == null,
       counts: counts,
+      validationMessage: validationMessage,
       transactionFrom: from,
       transactionTo: to,
     );
@@ -159,9 +195,45 @@ class JsonBackupService {
     Future<void> Function(List<Map<String, Object?>> rows)? onRestoreVehicles,
   }) async {
     final content = await File(path).readAsString();
+    await importAndRestoreContent(
+      content,
+      onRestoreChatHistory: onRestoreChatHistory,
+      onRestoreChatConversations: onRestoreChatConversations,
+      onRestoreUtilityMeters: onRestoreUtilityMeters,
+      onRestoreCashFlowProfiles: onRestoreCashFlowProfiles,
+      onRestoreVehicles: onRestoreVehicles,
+    );
+  }
+
+  Future<void> importAndRestoreContent(
+    String content, {
+    Future<void> Function(List<Map<String, Object?>> rows)?
+    onRestoreChatHistory,
+    Future<void> Function(List<Map<String, Object?>> rows)?
+    onRestoreChatConversations,
+    Future<void> Function(List<Map<String, Object?>> rows)?
+    onRestoreUtilityMeters,
+    Future<void> Function(List<Map<String, Object?>> rows)?
+    onRestoreCashFlowProfiles,
+    Future<void> Function(List<Map<String, Object?>> rows)? onRestoreVehicles,
+  }) async {
+    final preview = previewJson(content);
+    if (!preview.isRestorable) {
+      throw FormatException(
+        preview.validationMessage ?? 'Berkas cadangan tidak dapat dipulihkan.',
+      );
+    }
     final decoded = jsonDecode(content);
     if (decoded is! Map<String, dynamic> || decoded['isFull'] != true) {
       throw const FormatException('Berkas ini bukan cadangan penuh FFM.');
+    }
+    final backupHouseholdId = decoded['householdId']?.toString();
+    if (backupHouseholdId != null &&
+        backupHouseholdId.isNotEmpty &&
+        backupHouseholdId != AppContext.householdId) {
+      throw const FormatException(
+        'Cadangan berasal dari household yang berbeda dan tidak dapat dipulihkan.',
+      );
     }
     final rawModules = decoded['modules'];
     if (rawModules is! Map) {
@@ -176,10 +248,18 @@ class JsonBackupService {
     for (final table in tables) {
       final rows = rawModules[table];
       if (rows is! List) continue;
-      modules[table] = rows
+      final importedRows = rows
           .whereType<Map>()
           .map((row) => Map<String, dynamic>.from(row))
           .toList();
+      if (importedRows.any(
+        (row) =>
+            row['household_id'] != null &&
+            row['household_id'].toString() != AppContext.householdId,
+      )) {
+        throw const FormatException('Cadangan mengandung data household lain.');
+      }
+      modules[table] = importedRows;
     }
     final chatHistoryRows = rawModules['assistant_chat_history'];
     final chatConversationRows = rawModules['assistant_chat_conversations'];
@@ -400,21 +480,33 @@ class JsonBackupService {
     'updated_at',
   }.contains(column);
 
-  Object? _jsonSafe(Object? value) {
+  Object? _jsonSafe(Object? value, {String? key}) {
     if (value is DateTime) return value.toIso8601String();
     if (value is Uint8List) return base64Encode(value);
+    if (value is String && key != null && _isJsonPayloadColumn(key)) {
+      try {
+        final decoded = jsonDecode(value);
+        return jsonEncode(_jsonSafe(decoded));
+      } on FormatException {
+        return value;
+      }
+    }
     if (value is Map) {
       final safe = <String, Object?>{};
       for (final entry in value.entries) {
         final key = entry.key.toString();
         if (_isSecretField(key)) continue;
-        safe[key] = _jsonSafe(entry.value);
+        safe[key] = _jsonSafe(entry.value, key: key);
       }
       return safe;
     }
-    if (value is Iterable) return value.map(_jsonSafe).toList();
+    if (value is Iterable) return value.map((item) => _jsonSafe(item)).toList();
     return value;
   }
+
+  bool _isJsonPayloadColumn(String key) =>
+      key.endsWith('_json') ||
+      const {'trigger_data', 'decision_data', 'result_data'}.contains(key);
 
   DateTime? _dateFromJson(Object? value) {
     if (value is String) return DateTime.tryParse(value);
@@ -438,6 +530,8 @@ class JsonBackupService {
     'assistant_memories' => 'assistant_memories',
     'assistant_learning_examples' => 'assistant_learning_examples',
     'assistant_chat_history' => 'assistant_chat_history',
+    'autonomy_jobs' => 'autonomy_jobs',
+    'autonomy_conversations' => 'autonomy_conversations',
     'utility_meters' => 'utility_meters',
     'cash_flow_profiles' => 'cash_flow_profiles',
     'vehicles' => 'vehicles',

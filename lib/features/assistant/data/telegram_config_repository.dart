@@ -53,6 +53,7 @@ class TelegramConfig {
     this.alertsEnabled = true,
     this.notifyOnNewTransaction = false,
     this.notifyMinAmount = 50000,
+    this.useLlmForWeeklyReport = false,
   });
 
   final String botToken;
@@ -62,6 +63,7 @@ class TelegramConfig {
   final bool alertsEnabled;
   final bool notifyOnNewTransaction;
   final int notifyMinAmount;
+  final bool useLlmForWeeklyReport;
 
   /// Memeriksa apakah kredensial dasar sudah terisi
   bool get isConfigured =>
@@ -78,6 +80,7 @@ class TelegramConfig {
     bool? alertsEnabled,
     bool? notifyOnNewTransaction,
     int? notifyMinAmount,
+    bool? useLlmForWeeklyReport,
   }) {
     return TelegramConfig(
       botToken: botToken ?? this.botToken,
@@ -88,6 +91,8 @@ class TelegramConfig {
       notifyOnNewTransaction:
           notifyOnNewTransaction ?? this.notifyOnNewTransaction,
       notifyMinAmount: notifyMinAmount ?? this.notifyMinAmount,
+      useLlmForWeeklyReport:
+          useLlmForWeeklyReport ?? this.useLlmForWeeklyReport,
     );
   }
 }
@@ -115,6 +120,8 @@ class TelegramConfigRepository {
   static const String _keyAlerts = 'ffm_telegram_alerts_enabled';
   static const String _keyNotifyNewTx = 'ffm_telegram_notify_new_tx';
   static const String _keyNotifyMinAmount = 'ffm_telegram_notify_min_amount';
+  static const String _keyUseLlmForWeeklyReport =
+      'ffm_telegram_use_llm_for_weekly_report';
   static const String _keyLastWeeklyReportSent =
       'ffm_telegram_last_weekly_report_sent';
   static const String _keyWeeklyReportClaim =
@@ -160,6 +167,7 @@ class TelegramConfigRepository {
     final alerts = prefs.getBool(_keyAlerts) ?? true;
     final notifyNewTx = prefs.getBool(_keyNotifyNewTx) ?? false;
     final minAmount = prefs.getInt(_keyNotifyMinAmount) ?? 50000;
+    final useLlm = prefs.getBool(_keyUseLlmForWeeklyReport) ?? false;
 
     return TelegramConfig(
       botToken: token,
@@ -169,6 +177,7 @@ class TelegramConfigRepository {
       alertsEnabled: alerts,
       notifyOnNewTransaction: notifyNewTx,
       notifyMinAmount: minAmount,
+      useLlmForWeeklyReport: useLlm,
     );
   }
 
@@ -187,6 +196,10 @@ class TelegramConfigRepository {
       await prefs.setBool(_keyAlerts, config.alertsEnabled);
       await prefs.setBool(_keyNotifyNewTx, config.notifyOnNewTransaction);
       await prefs.setInt(_keyNotifyMinAmount, config.notifyMinAmount);
+      await prefs.setBool(
+        _keyUseLlmForWeeklyReport,
+        config.useLlmForWeeklyReport,
+      );
       await _secureStorage.write(
         key: _keyBotToken,
         value: config.botToken.trim(),
@@ -217,6 +230,10 @@ class TelegramConfigRepository {
       await prefs.setBool(_keyAlerts, snapshot.alertsEnabled);
       await prefs.setBool(_keyNotifyNewTx, snapshot.notifyOnNewTransaction);
       await prefs.setInt(_keyNotifyMinAmount, snapshot.notifyMinAmount);
+      await prefs.setBool(
+        _keyUseLlmForWeeklyReport,
+        snapshot.useLlmForWeeklyReport,
+      );
       await _secureStorage.write(
         key: _keyBotToken,
         value: snapshot.botToken.trim(),

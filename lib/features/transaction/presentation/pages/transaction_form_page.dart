@@ -498,7 +498,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
         .get();
     final attachmentRows = await database
         .customSelect(
-          'SELECT file_path FROM attachments WHERE transaction_id = ?',
+          'SELECT path FROM attachments WHERE transaction_id = ?',
           variables: [Variable.withString(transactionId)],
         )
         .get();
@@ -515,7 +515,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
           .where((value) => value.isNotEmpty)
           .toList();
       _attachmentPaths = attachmentRows
-          .map((row) => row.data['file_path']?.toString() ?? '')
+          .map((row) => row.data['path']?.toString() ?? '')
           .where((value) => value.isNotEmpty)
           .toList();
 

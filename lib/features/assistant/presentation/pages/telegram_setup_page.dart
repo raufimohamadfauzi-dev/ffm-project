@@ -42,6 +42,7 @@ class _TelegramSetupPageState extends State<TelegramSetupPage> {
   bool _alertsEnabled = true;
   bool _notifyOnNewTransaction = false;
   int _notifyMinAmount = 50000;
+  bool _useLlmForWeeklyReport = false;
 
   TelegramOperationalStatus _operational = const TelegramOperationalStatus();
   String? _familyName;
@@ -72,6 +73,7 @@ class _TelegramSetupPageState extends State<TelegramSetupPage> {
       _alertsEnabled = config.alertsEnabled;
       _notifyOnNewTransaction = config.notifyOnNewTransaction;
       _notifyMinAmount = config.notifyMinAmount;
+      _useLlmForWeeklyReport = config.useLlmForWeeklyReport;
 
       // Ambil nama keluarga untuk sambutan tes jika ada
       try {
@@ -206,6 +208,7 @@ class _TelegramSetupPageState extends State<TelegramSetupPage> {
         final success = await coordinator.checkAndSendWeeklyReport(
           householdId: AppContext.householdId,
           force: true,
+          isBackground: false,
         );
 
         if (!mounted) return;
@@ -259,6 +262,7 @@ class _TelegramSetupPageState extends State<TelegramSetupPage> {
         alertsEnabled: _alertsEnabled,
         notifyOnNewTransaction: _notifyOnNewTransaction,
         notifyMinAmount: _notifyMinAmount,
+        useLlmForWeeklyReport: _useLlmForWeeklyReport,
       );
 
       await _repository.saveConfig(config);
@@ -833,6 +837,19 @@ class _TelegramSetupPageState extends State<TelegramSetupPage> {
                   ? (val) => setState(() => _weeklyReportEnabled = val)
                   : null,
             ),
+            if (_isEnabled && _weeklyReportEnabled) ...[
+              const SizedBox(height: 8),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Gunakan LLM untuk Laporan'),
+                subtitle: const Text(
+                  'Gunakan AI untuk generate laporan yang lebih personal dan adaptif (membutuhkan internet dan Gemini config). Hanya berjalan saat aplikasi dibuka.',
+                  style: TextStyle(fontSize: 12),
+                ),
+                value: _useLlmForWeeklyReport,
+                onChanged: (val) => setState(() => _useLlmForWeeklyReport = val),
+              ),
+            ],
             if (_isEnabled && _weeklyReportEnabled) ...[
               const SizedBox(height: 4),
               SizedBox(

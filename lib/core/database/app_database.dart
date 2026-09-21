@@ -69,6 +69,8 @@ part 'app_database.g.dart';
     AssistantAgentTasks,
     AssistantAgentTaskExecutions,
     TelegramDeliveries,
+    AutonomyJobs,
+    AutonomyConversations,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -77,7 +79,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 68;
+  int get schemaVersion => 71;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -184,6 +186,39 @@ class AppDatabase extends _$AppDatabase {
             !await _hasColumns('reminders', const ['destination_route'])) {
           await m.addColumn(reminders, reminders.destinationRoute);
         }
+      }
+      if (from < 69 && await _hasTable('transactions')) {
+        if (!await _hasColumns('transactions', const ['admin_fee'])) {
+          await m.addColumn(transactions, transactions.adminFee);
+        }
+        if (!await _hasColumns('transactions', const ['metadata_json'])) {
+          await m.addColumn(transactions, transactions.metadataJson);
+        }
+      }
+      if (from < 70) {
+        if (!await _hasTable('autonomy_jobs')) {
+          await m.createTable(autonomyJobs);
+        }
+        if (!await _hasTable('autonomy_conversations')) {
+          await m.createTable(autonomyConversations);
+        }
+      }
+      if (from < 71) {
+        if (await _hasTable('daily_notes') &&
+            await _hasColumns('daily_notes', const [
+              'household_id',
+              'is_archived',
+              'note_date',
+              'id',
+            ])) {
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_daily_notes_household_archived_date_id '
+            'ON daily_notes (household_id, is_archived, note_date DESC, id DESC)',
+          );
+        }
+        await customStatement(
+          'DROP INDEX IF EXISTS idx_assistant_memories_household_kind',
+        );
       }
       if (from < 56 && await _hasTable('reminders')) {
         if (!await _hasColumns('reminders', const ['source_type'])) {
@@ -466,7 +501,7 @@ class AppDatabase extends _$AppDatabase {
             await _hasColumns('daily_notes', const [
               'household_id',
               'is_archived',
-              'date',
+              'note_date',
               'id',
             ])) {
           await m.createIndex(idxDailyNotesHouseholdArchivedDateId);
@@ -703,10 +738,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<void> _createAssistantMemoryIndexes() async {
-    await customStatement(
-      'CREATE INDEX IF NOT EXISTS idx_assistant_memories_household_kind '
-      'ON assistant_memories (household_id, kind, is_archived)',
-    );
+    // The identical idx_assistant_memories_kind is declared in tables.dart.
   }
 
   Future<void> _createAssistantLearningIndexes() async {

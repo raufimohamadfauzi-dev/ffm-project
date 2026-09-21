@@ -149,4 +149,41 @@ class FfmAssistantAutonomyTriggerService {
     }
     return sanitized;
   }
+
+  /// Emit LLM job trigger untuk job yang membutuhkan LLM reasoning.
+  ///
+  /// [jobType] - Tipe job otonom (budget_adjust, reminder_check, dll)
+  /// [userPrompt] - Prompt untuk LLM
+  /// [context] - Context tambahan untuk LLM
+  /// [householdId] - Household ID
+  /// [triggerId] - Optional trigger ID (jika tidak disediakan, akan digenerate otomatis)
+  Future<bool> emitLlmJob({
+    required String jobType,
+    required String userPrompt,
+    String? context,
+    required String householdId,
+    String? triggerId,
+  }) {
+    final normalizedJobType = jobType.trim();
+    final normalizedUserPrompt = userPrompt.trim();
+    final normalizedHouseholdId = householdId.trim();
+    if (normalizedJobType.isEmpty ||
+        normalizedUserPrompt.isEmpty ||
+        normalizedHouseholdId.isEmpty) {
+      return Future.value(false);
+    }
+
+    final finalTriggerId = triggerId ?? 'llm:$normalizedJobType:${DateTime.now().millisecondsSinceEpoch}';
+
+    return emit(
+      triggerId: finalTriggerId,
+      type: 'autonomy.llm.job',
+      householdId: normalizedHouseholdId,
+      payload: <String, Object?>{
+        'jobType': normalizedJobType,
+        'userPrompt': normalizedUserPrompt,
+        if (context != null && context.isNotEmpty) 'context': context,
+      },
+    );
+  }
 }

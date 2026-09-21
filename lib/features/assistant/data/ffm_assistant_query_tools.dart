@@ -153,11 +153,11 @@ class UtilityMeterRepositoryQueryTool implements FfmAssistantQueryTool {
   @override
   bool canHandle(String normalizedText) {
     final asksUtility = RegExp(
-      r'\b(?:listrik|token\s+listrik|nomor\s+token|meteran|meter\s+listrik|idpel|kwh)\b',
+      r'\b(?:listrik|token\s+listrik|nomor\s+token|meteran|meter\s+listrik|idpel|kwh|pln|tagihan|pembayaran|daya|tarif)\b',
       caseSensitive: false,
     ).hasMatch(normalizedText);
     final asksRead = RegExp(
-      r'\b(?:apa|ada|daftar|list|nomor|nama|siapa|terakhir|terbaru|lihat|tampilkan|punya|milik|boros|hemat|banding|analisis|analisa)\b',
+      r'\b(?:apa|ada|tidak\s+ada|sudah\s+ada|belum\s+ada|terdaftar|isinya|punya|milik|daftar|list|nomor|nama|siapa|terakhir|terbaru|lihat|tampilkan|show|status|kondisi|cek|periksa|berapa|jumlah|riwayat|history|summary|ringkasan|analisis|analisa|konsumsi|pemakaian|hemat|boros|estimasi|habis|kapan|solusi|rekomendasi)\b',
       caseSensitive: false,
     ).hasMatch(normalizedText);
     return asksUtility && asksRead;
@@ -179,10 +179,153 @@ class UtilityMeterRepositoryQueryTool implements FfmAssistantQueryTool {
         meterId: meter.id,
       );
     }
+    
+    // Check for specific query types
+    final text = request.normalizedText.toLowerCase();
+    
+    // Existence check query
+    if (text.contains('ada') || text.contains('terdaftar') || text.contains('isinya')) {
+      if (meters.isEmpty) {
+        return const FfmAssistantQueryAnswer(
+          title: 'Meteran dan token listrik',
+          message: 'Belum ada data meteran listrik yang tersimpan. Silakan daftarkan meteran terlebih dahulu di halaman Token Listrik.',
+          capabilityId: 'read.electricity',
+        );
+      }
+      final count = meters.length;
+      final meterNames = meters.map((m) => m.name).join(', ');
+      return FfmAssistantQueryAnswer(
+        title: 'Meteran dan token listrik',
+        message: 'Ya, sudah ada $count meteran listrik yang terdaftar: $meterNames.',
+        capabilityId: 'read.electricity',
+      );
+    }
+    
+    // Count query
+    if (text.contains('berapa') && (text.contains('meteran') || text.contains('idpel'))) {
+      final count = meters.length;
+      if (count == 0) {
+        return const FfmAssistantQueryAnswer(
+          title: 'Meteran dan token listrik',
+          message: 'Belum ada meteran listrik yang terdaftar.',
+          capabilityId: 'read.electricity',
+        );
+      }
+      return FfmAssistantQueryAnswer(
+        title: 'Meteran dan token listrik',
+        message: 'Ada $count meteran listrik yang terdaftar.',
+        capabilityId: 'read.electricity',
+      );
+    }
+    
+    // History query
+    if (text.contains('riwayat') || text.contains('history')) {
+      if (history.isEmpty) {
+        return const FfmAssistantQueryAnswer(
+          title: 'Riwayat pembelian token',
+          message: 'Belum ada riwayat pembelian token.',
+          capabilityId: 'read.electricity',
+        );
+      }
+      final historyText = 'Riwayat pembelian token:\n${history.map((row) {
+        final kwh = row.creditedKwh == null ? '' : '; ${row.creditedKwh!.toStringAsFixed(2)} kWh';
+        return '- ${row.meterNumber}: Rp${row.amount}$kwh; ${DateFormat('dd/MM/yyyy').format(row.purchasedAt)}';
+      }).join('\n')}';
+      return FfmAssistantQueryAnswer(
+        title: 'Riwayat pembelian token',
+        message: historyText,
+        capabilityId: 'read.electricity',
+      );
+    }
+
+    // Analysis query (konsumsi, hemat/boros, estimasi habis)
+    if (text.contains('analisis') || text.contains('analisa') || 
+        text.contains('konsumsi') || text.contains('pemakaian') ||
+        text.contains('hemat') || text.contains('boros') ||
+        text.contains('estimasi') || text.contains('habis') ||
+        text.contains('kapan') ||
+        text.contains('solusi') || text.contains('rekomendasi')) {
+      if (meters.isEmpty) {
+        return const FfmAssistantQueryAnswer(
+          title: 'Analisis Token Listrik',
+          message: 'Belum ada data meteran listrik untuk dianalisis. Silakan daftarkan meteran terlebih dahulu.',
+          capabilityId: 'read.electricity',
+        );
+      }
+      
+      final analysisLines = <String>[];
+      
+      for (final meter in meters) {
+        final summary = summaries[meter.id];
+        if (summary == null || summary.purchaseCount < 2) {
+          analysisLines.add('${meter.name}: Data pembelian belum cukup untuk analisis (minimal 2 pembelian).');
+          continue;
+        }
+        
+        // Calculate burn rate (average daily spending)
+        if (history.isNotEmpty) {
+          final meterHistory = history.where((h) => h.meterId == meter.id).toList();
+          if (meterHistory.length >= 2) {
+            final sortedHistory = meterHistory..sort((a, b) => a.purchasedAt.compareTo(b.purchasedAt));
+            final firstPurchase = sortedHistory.first;
+            final lastPurchase = sortedHistory.last;
+            final daysBetween = lastPurchase.purchasedAt.difference(firstPurchase.purchasedAt).inDays;
+            
+            if (daysBetween > 0) {
+              final totalAmount = sortedHistory.fold<int>(0, (sum, h) => sum + h.amount);
+              final dailyAverage = totalAmount / daysBetween;
+              final monthlyEstimate = dailyAverage * 30;
+              
+              analysisLines.add('${meter.name}:');
+              analysisLines.add('  - Rata-rata harian: Rp${dailyAverage.round()}/hari');
+              analysisLines.add('  - Estimasi bulanan: Rp${monthlyEstimate.round()}/bulan');
+              
+              // Estimate token expiration
+              if (meter.lastAmount != null && dailyAverage > 0) {
+                final daysUntilEmpty = meter.lastAmount! / dailyAverage;
+                final estimatedEmpty = DateTime.now().add(Duration(days: daysUntilEmpty.round()));
+                analysisLines.add('  - Estimasi habis: ${DateFormat('dd/MM/yyyy').format(estimatedEmpty)} (${daysUntilEmpty.round()} hari lagi)');
+              }
+              
+              // Consumption analysis
+              if (summary.averageCostPerKwh != null) {
+                final avgCost = summary.averageCostPerKwh!;
+                if (avgCost > 2000) {
+                  analysisLines.add('  - Status: ⚠️ Tinggi (Rp${avgCost.round()}/kWh)');
+                  analysisLines.add('  - Rekomendasi: Pertimbangkan hemat listrik dengan mematikan peralatan yang tidak dipakai.');
+                } else if (avgCost > 1500) {
+                  analysisLines.add('  - Status: ⚡ Sedang (Rp${avgCost.round()}/kWh)');
+                  analysisLines.add('  - Rekomendasi: Pemakaian wajar, tetap perhatikan peralatan yang menyala terus.');
+                } else {
+                  analysisLines.add('  - Status: ✅ Hemat (Rp${avgCost.round()}/kWh)');
+                  analysisLines.add('  - Rekomendasi: Pemakaian listrik sudah efisien.');
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      if (analysisLines.isEmpty) {
+        return const FfmAssistantQueryAnswer(
+          title: 'Analisis Token Listrik',
+          message: 'Data pembelian belum cukup untuk analisis. Minimal diperlukan 2 pembelian per meteran.',
+          capabilityId: 'read.electricity',
+        );
+      }
+      
+      return FfmAssistantQueryAnswer(
+        title: 'Analisis Token Listrik',
+        message: analysisLines.join('\n'),
+        capabilityId: 'read.electricity',
+      );
+    }
+    
+    // Default comprehensive response
     if (meters.isEmpty && history.isEmpty) {
       return const FfmAssistantQueryAnswer(
         title: 'Meteran dan token listrik',
-        message: 'Belum ada data meteran listrik yang tersimpan.',
+        message: 'Belum ada data meteran listrik yang tersimpan. Silakan daftarkan meteran terlebih dahulu di halaman Token Listrik.',
         capabilityId: 'read.electricity',
       );
     }

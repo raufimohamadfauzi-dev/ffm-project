@@ -277,6 +277,7 @@ void main() {
                         {
                           'text': jsonEncode({
                             'token_code': '12345678901234567890',
+                            'idpel': '1401234567890',
                             'kwh': 50.0,
                           }),
                         },
@@ -306,6 +307,7 @@ void main() {
         outcome.batch!.entries.single.note,
         contains('12345678901234567890'),
       );
+      expect(outcome.batch!.entries.single.note, contains('1401234567890'));
       expect(outcome.batch!.entries.single.note, contains('50.0'));
       expect(callCount, 2);
     },
@@ -721,6 +723,14 @@ void main() {
       equals('14123456789'),
     );
     expect(
+      ReceiptScannerService.extractPlnMeterNumber('IDPEL/METER: 1401234567890'),
+      equals('1401234567890'),
+    );
+    expect(
+      ReceiptScannerService.extractPlnMeterNumber('Nomor Meter: 14331490707'),
+      isNull,
+    );
+    expect(
       ReceiptScannerService.extractPlnKwh('Jumlah KWH: 63,70 kWh'),
       equals(63.7),
     );
@@ -741,6 +751,22 @@ void main() {
     ]);
     expect(ReceiptScannerService.extractPlnToken(text), '12345678901234567890');
     expect(ReceiptScannerService.extractPlnMeterNumber(text), '14123456789');
+  });
+
+  test('pasangan token dan IDPEL tidak seimbang dianggap ambigu', () {
+    expect(
+      ReceiptScannerService.hasAmbiguousPlnPairing(
+        'PLN IDPEL 14123456789 TOKEN 1234-5678-9012-3456-7890 '
+        'TOKEN 2234-5678-9012-3456-7890',
+      ),
+      isTrue,
+    );
+    expect(
+      ReceiptScannerService.hasAmbiguousPlnPairing(
+        'PLN IDPEL 14123456789 TOKEN 1234-5678-9012-3456-7890',
+      ),
+      isFalse,
+    );
   });
 
   test(
