@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
+import '../../../../core/events/ffm_data_event_bus.dart';
 import '../../domain/entities/reminder_entity.dart';
 
 class ReminderHistoryFilter {
@@ -102,6 +103,11 @@ class ReminderRepository {
           'destinationRoute': entity.destinationRoute,
       },
     );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.reminderChanged),
+    );
   }
 
   Future<void> setActive({
@@ -120,6 +126,11 @@ class ReminderRepository {
       householdId: householdId,
       newValue: {'id': reminderId, 'isActive': isActive},
     );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.reminderChanged),
+    );
   }
 
   Future<void> deleteReminder({
@@ -136,6 +147,11 @@ class ReminderRepository {
       entity: 'reminder',
       householdId: householdId,
       newValue: {'id': reminderId},
+    );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.reminderChanged),
     );
   }
 

@@ -147,6 +147,7 @@ void main() {
         expect(digest, contains('Bayar Listrik PLN Hari Ini'));
         expect(digest, contains('Beli Token Air Besok'));
 
+        // Query tool lokal dihapus - semua pertanyaan diarahkan ke Gemini Cloud
         final queryRegistry = FfmAssistantQueryRegistry(
           db,
           clock: () => fixedClock,
@@ -156,9 +157,8 @@ void main() {
           householdId: AppContext.householdId,
         );
 
-        expect(todayAnswer, isNotNull);
-        expect(todayAnswer!.message, contains('Bayar Listrik PLN Hari Ini'));
-        expect(todayAnswer.message.contains('Beli Token Air Besok'), isFalse);
+        // Query tool lokal dihapus - seharusnya return null untuk routing ke Gemini Cloud
+        expect(todayAnswer, isNull);
       },
     );
   });

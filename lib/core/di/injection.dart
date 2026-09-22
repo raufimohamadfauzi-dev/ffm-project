@@ -605,7 +605,6 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       personalContextProvider: () => FfmPersonalContextProvider.maybeInstance,
       categorySuggestion: getIt<FfmCategorySuggestionService>(),
       themeController: getIt<AppThemeController>(),
-      marketCache: getIt<MarketNewsCacheRepository>(),
     ),
   );
   getIt.registerLazySingleton<JsonExportStudioService>(

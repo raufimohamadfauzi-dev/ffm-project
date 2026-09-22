@@ -125,6 +125,16 @@ class _TransactionListPageState extends State<TransactionListPage> {
     });
   }
 
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
   Future<void> _applyAssistantPeriod() async {
     _startDateFilter = widget.initialStartDate;
     _endDateFilter = widget.initialEndDate;
@@ -2105,16 +2115,6 @@ class _TransactionListPageState extends State<TransactionListPage> {
     } on Object {
       // Agregasi bersifat best-effort; penyimpanan transaksi tetap sukses.
     }
-  }
-
-  @override
-  void dispose() {
-    _scrollController
-      ..removeListener(_onScroll)
-      ..dispose();
-    _searchController.dispose();
-    _searchFocusNode.dispose();
-    super.dispose();
   }
 
   String _money(int value) => 'Rp ${formatRupiahInput(value.toString())}';

@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../core/events/ffm_data_event_bus.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../activity/data/repositories/activity_repository.dart';
 import '../../../activity/domain/entities/activity_entity.dart';
@@ -456,6 +457,11 @@ class SaveTransaction {
       entityId: effectiveEntity.id,
       payload: const {'entityType': 'transaction', 'operation': 'save'},
     );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.transactionChanged),
+    );
   }
 }
 
@@ -683,6 +689,11 @@ class SaveTransactionBatch {
         payload: const {'entityType': 'transaction', 'operation': 'save'},
       );
     }
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.transactionChanged),
+    );
   }
 }
 

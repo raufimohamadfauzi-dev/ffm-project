@@ -27,7 +27,6 @@ import '../../advisor/data/cash_flow_profile_repository.dart';
 import '../../advisor/domain/entities/cash_flow_profile_models.dart';
 import '../../advisor/domain/usecases/budget_guard_service.dart';
 import '../../advisor/domain/usecases/flexible_cash_flow_calculator.dart';
-import '../../asset/data/repositories/market_news_cache_repository.dart';
 import '../../budget/data/budget_habit_analyzer.dart';
 import '../../hijri/domain/hijri_calendar_service.dart';
 import '../../settings/data/utility_meter_repository.dart';
@@ -120,7 +119,6 @@ class FfmAssistantInterpreter {
     FfmAssistantVerifiedFactService? verifiedFactService,
     bool? geminiContextFirstEnabled,
     AppThemeController? themeController,
-    MarketNewsCacheRepository? marketCache,
   }) : _memory = memory ?? FfmAssistantLocalMemory(),
        _personalization =
            personalization ?? FfmAssistantPersonalizationRepository(_database),
@@ -163,7 +161,6 @@ class FfmAssistantInterpreter {
     _queryRegistry = FfmAssistantQueryRegistry(
       _database,
       clock: _clock,
-      marketCache: marketCache,
     );
     _utilityMeters = UtilityMeterRepository(_database);
     _actionRegistry = FfmAssistantContextualActionRegistry(clock: _clock);

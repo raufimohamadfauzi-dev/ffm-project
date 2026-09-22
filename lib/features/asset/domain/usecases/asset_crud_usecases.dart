@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
+import '../../../../core/events/ffm_data_event_bus.dart';
 import '../entities/asset_entity.dart';
 
 class GetAssets {
@@ -70,6 +71,11 @@ class SaveAsset {
         'placement': entity.placement,
       },
     );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.assetChanged),
+    );
   }
 }
 
@@ -92,6 +98,11 @@ class ArchiveAsset {
       entity: 'asset',
       householdId: householdId,
       newValue: {'id': id, 'isArchived': true},
+    );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.assetChanged),
     );
   }
 }

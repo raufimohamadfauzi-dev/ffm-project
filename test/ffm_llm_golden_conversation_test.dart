@@ -125,12 +125,15 @@ void main() {
         'transaksi terbaru minggu ini',
         routingMode: FfmAssistantRoutingMode.geminiCloud,
       );
+      // Setelah query tool lokal dihapus, semua pertanyaan routing ke Gemini Cloud
       expect(
         intent.responseOrigin,
-        FfmAssistantResponseOrigin.agentOrchestrator,
+        FfmAssistantResponseOrigin.geminiCloud,
       );
-      expect(intent.response, contains('Rp150.000'));
-      expect(gemini.lastSystemInstruction, isNull);
+      // Response dari Gemini mock adalah "Transaksi terbaru: 150rb kemarin."
+      expect(intent.response, contains('Transaksi terbaru'));
+      // Gemini dipanggil karena tidak ada query tool lokal
+      expect(gemini.lastSystemInstruction, isNotNull);
     });
 
     test('rekening', () async {

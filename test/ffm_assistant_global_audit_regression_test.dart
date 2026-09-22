@@ -283,40 +283,8 @@ void main() {
       },
     );
 
-    test(
-      'active transaction draft + transaksi terakhir tetap recentTransactions',
-      () async {
-        final gemini = _FakeGemini(
-          const GeminiResult(
-            model: 'gemini-2.5-flash',
-            statusCode: 200,
-            message: 'ok',
-            text: 'Transaksi terakhir belum tersedia di konteks test.',
-          ),
-        );
-        final cloudInterpreter = FfmAssistantInterpreter(
-          database,
-          config: _FakeConfig(),
-          geminiService: gemini,
-        );
-
-        final intent = await cloudInterpreter.interpret(
-          'transaksi terakhir apa ya?',
-          routingMode: FfmAssistantRoutingMode.geminiCloud,
-          activeDraft: FfmAssistantDraft(
-            kind: FfmAssistantDraftKind.expense,
-            createdAt: DateTime(2026, 8, 31),
-            title: 'Belanja',
-            amount: 20000,
-          ),
-        );
-
-        expect(gemini.calls, 0);
-        expect(intent.type, FfmAssistantIntentType.queryData);
-        expect(intent.response, contains('Belum ada transaksi'));
-        expect(intent.draft, isNull);
-      },
-    );
+    // Test "active transaction draft + transaksi terakhir tetap recentTransactions" dihapus karena
+    // bergantung pada query tool lokal yang sudah dihapus. Pertanyaan ini sekarang diarahkan ke Gemini Cloud.
   });
 
   group('periode anggaran tepat sasaran', () {

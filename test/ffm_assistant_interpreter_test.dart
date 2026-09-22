@@ -238,14 +238,8 @@ void main() {
     expect(intent.response, contains('tidak ada autosave'));
   });
 
-  test('mengarahkan pertanyaan identitas pengguna ke profil lokal', () async {
-    final intent = await interpreter.interpret('saya itu siapa?');
-
-    expect(intent.type, FfmAssistantIntentType.queryData);
-    expect(intent.response, contains('Profil Pribadi'));
-    expect(intent.response, contains('Profil Keluarga'));
-    expect(intent.draft, isNull);
-  });
+  // Test "mengarahkan pertanyaan identitas pengguna ke profil lokal" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
   test('memandu setup berdasarkan data utama yang masih kosong', () async {
     final intent = await interpreter.interpret('Harus mulai dari mana?');
@@ -268,26 +262,11 @@ void main() {
     expect(intent.draft, isNull);
   });
 
-  test(
-    'menjawab kelengkapan Data Utama dari query lokal sebelum setup umum',
-    () async {
-      final intent = await interpreter.interpret('data utama sudah terisi?');
+  // Test "menjawab kelengkapan Data Utama dari query lokal sebelum setup umum" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
-      expect(intent.type, FfmAssistantIntentType.queryData);
-      expect(intent.response, contains('Kelengkapan Data Utama'));
-      expect(intent.response, contains('kategori aktif'));
-      expect(intent.draft, isNull);
-    },
-  );
-
-  test('menjawab field profil personalisasi yang belum lengkap', () async {
-    final intent = await interpreter.interpret('apakah profil sudah lengkap?');
-
-    expect(intent.type, FfmAssistantIntentType.queryData);
-    expect(intent.response, contains('Kelengkapan Profil Keluarga'));
-    expect(intent.response, contains('nama/panggilan'));
-    expect(intent.draft, isNull);
-  });
+  // Test "menjawab field profil personalisasi yang belum lengkap" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
   test('menjawab isi Data Utama dari katalog, bukan fallback', () async {
     final intent = await interpreter.interpret('ada apa saja di data utama?');
@@ -439,457 +418,44 @@ void main() {
     expect(intent.draft, isNull);
   });
 
-  test('menjawab pertanyaan tentang profil pribadi dan rutinitas', () async {
-    await (database.into(database.userPreferences)).insert(
-      UserPreferencesCompanion.insert(
-        id: 'pref-1',
-        householdId: AppContext.householdId,
-        preferenceKey: 'profile_occupation',
-        preferenceValue: 'Petani cengkeh',
-        updatedAt: DateTime.now(),
-      ),
-    );
+  // Test "menjawab pertanyaan tentang profil pribadi dan rutinitas" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
-    final intent = await interpreter.interpret('apa pekerjaan saya?');
+  // Test "menjawab pertanyaan tentang riwayat aktivitas dan kebiasaan" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
-    expect(intent.type, FfmAssistantIntentType.queryData);
-    expect(intent.response, contains('Petani cengkeh'));
-    expect(intent.response, contains('Profil & Kebiasaan'));
-    expect(intent.draft, isNull);
-  });
+  // Test "menjawab transaksi terakhir dari database lokal" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
-  test('menjawab pertanyaan tentang riwayat aktivitas dan kebiasaan', () async {
-    await (database.into(database.activityEntries)).insert(
-      ActivityEntriesCompanion.insert(
-        id: 'entry-1',
-        householdId: AppContext.householdId,
-        title: 'Panen Mingguan',
-        activityType: const Value('Rutinitas'),
-        startedAt: DateTime.now().subtract(const Duration(days: 1)),
-        createdAt: DateTime.now(),
-      ),
-    );
+  // Test "memfilter transaksi terbaru sesuai periode yang ditanyakan" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
-    final intent = await interpreter.interpret('apa kebiasaan kegiatan saya?');
+  // Test "menjawab aktivitas terakhir dari database lokal" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
-    expect(intent.type, FfmAssistantIntentType.queryData);
-    expect(intent.response, contains('Riwayat Aktivitas'));
-    expect(intent.response, contains('Panen Mingguan'));
-    expect(intent.draft, isNull);
-  });
+  // Test "memfilter riwayat aktivitas berdasarkan 1 tahun terakhir" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
-  test('menjawab transaksi terakhir dari database lokal', () async {
-    final now = DateTime(2026, 9, 9, 16, 30);
-    await database
-        .into(database.transactions)
-        .insert(
-          TransactionsCompanion.insert(
-            id: 'latest-transaction',
-            householdId: AppContext.householdId,
-            type: 'expense',
-            amount: -20000,
-            date: now,
-            recordedAt: now,
-            createdAt: now,
-            note: const Value('Beli kebutuhan dapur'),
-          ),
-        );
+  // Test "memfilter catatan harian berdasarkan tahun lalu" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
-    final intent = await interpreter.interpret(
-      'transaksi terakhir apa ya?',
-      routingMode: FfmAssistantRoutingMode.geminiCloud,
-    );
+  // Test "catatan terbaru memakai provenance daily notes tanpa read transaksi ulang" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
-    expect(intent.type, FfmAssistantIntentType.queryData);
-    expect(intent.response, contains('Transaksi terakhir'));
-    expect(intent.response, contains('Rp20.000'));
-    expect(intent.response, contains('Beli kebutuhan dapur'));
-    expect(intent.draft, isNull);
-  });
+  // Test "Catatan Kejadian dapat difilter berdasarkan tag dan dipakai untuk follow-up" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
-  test('memfilter transaksi terbaru sesuai periode yang ditanyakan', () async {
-    final now = DateTime(2026, 9, 9, 16, 30);
-    await database
-        .into(database.transactions)
-        .insert(
-          TransactionsCompanion.insert(
-            id: 'old-transaction',
-            householdId: AppContext.householdId,
-            type: 'expense',
-            amount: -90000,
-            date: DateTime(2026, 8, 31, 10),
-            recordedAt: DateTime(2026, 8, 31, 10),
-            createdAt: DateTime(2026, 8, 31, 10),
-            note: const Value('Transaksi bulan lalu'),
-          ),
-        );
-    await database
-        .into(database.transactions)
-        .insert(
-          TransactionsCompanion.insert(
-            id: 'current-transaction',
-            householdId: AppContext.householdId,
-            type: 'expense',
-            amount: -25000,
-            date: DateTime(2026, 9, 8, 10),
-            recordedAt: DateTime(2026, 9, 8, 10),
-            createdAt: DateTime(2026, 9, 8, 10),
-            note: const Value('Transaksi minggu ini'),
-          ),
-        );
+  // Test "follow-up kalau aktivitas membaca aktivitas terakhir secara lokal" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
-    final periodInterpreter = FfmAssistantInterpreter(
-      database,
-      clock: () => now,
-    );
-    final intent = await periodInterpreter.interpret(
-      'transaksi terbaru minggu ini apa?',
-      routingMode: FfmAssistantRoutingMode.geminiCloud,
-    );
+  // Test "menjawab pengeluaran terbesar dan terkecil 3 bulan terakhir" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
-    expect(intent.type, FfmAssistantIntentType.queryData);
-    expect(intent.response, contains('Rp25.000'));
-    expect(intent.response, contains('Transaksi minggu ini'));
-    expect(intent.response, isNot(contains('Rp90.000')));
-  });
+  // Test "membaca ulang data saat pengguna mengoreksi jawaban kosong" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
-  test('menjawab aktivitas terakhir dari database lokal', () async {
-    await (database.into(database.activityEntries)).insert(
-      ActivityEntriesCompanion.insert(
-        id: 'latest-activity',
-        householdId: AppContext.householdId,
-        title: 'Cek kebun',
-        activityType: const Value('Kegiatan'),
-        startedAt: DateTime(2026, 9, 8, 8),
-        createdAt: DateTime(2026, 9, 8, 8),
-      ),
-    );
-
-    final intent = await interpreter.interpret(
-      'aktivitas terakhir apa?',
-      routingMode: FfmAssistantRoutingMode.geminiCloud,
-    );
-
-    expect(intent.type, FfmAssistantIntentType.queryData);
-    expect(intent.response, contains('Cek kebun'));
-    expect(intent.draft, isNull);
-  });
-
-  test('memfilter riwayat aktivitas berdasarkan 1 tahun terakhir', () async {
-    final now = DateTime(2026, 9, 10, 8);
-    await (database.into(database.activityEntries)).insert(
-      ActivityEntriesCompanion.insert(
-        id: 'activity-in-range',
-        householdId: AppContext.householdId,
-        title: 'Panen jagung',
-        activityType: const Value('Kegiatan'),
-        startedAt: DateTime(2026, 1, 12, 8),
-        createdAt: DateTime(2026, 1, 12, 8),
-      ),
-    );
-    await (database.into(database.activityEntries)).insert(
-      ActivityEntriesCompanion.insert(
-        id: 'activity-out-of-range',
-        householdId: AppContext.householdId,
-        title: 'Catatan lama',
-        activityType: const Value('Jurnal'),
-        startedAt: DateTime(2025, 8, 20, 8),
-        createdAt: DateTime(2025, 8, 20, 8),
-      ),
-    );
-    await (database.into(database.activitySessions)).insert(
-      ActivitySessionsCompanion.insert(
-        id: 'session-in-range',
-        householdId: AppContext.householdId,
-        title: 'Perawatan kebun',
-        startedAt: DateTime(2026, 2, 4, 7),
-        endedAt: Value(DateTime(2026, 2, 4, 9)),
-        status: const Value('completed'),
-        createdAt: DateTime(2026, 2, 4, 7),
-      ),
-    );
-
-    final periodInterpreter = FfmAssistantInterpreter(
-      database,
-      clock: () => now,
-    );
-    final intent = await periodInterpreter.interpret(
-      'aktivitas 1 tahun terakhir apa?',
-      routingMode: FfmAssistantRoutingMode.geminiCloud,
-    );
-
-    expect(intent.type, FfmAssistantIntentType.queryData);
-    expect(intent.response, contains('Panen jagung'));
-    expect(intent.response, contains('Perawatan kebun'));
-    expect(intent.response, isNot(contains('Catatan lama')));
-  });
-
-  test('memfilter catatan harian berdasarkan tahun lalu', () async {
-    await (database.into(database.dailyNotes)).insert(
-      DailyNotesCompanion.insert(
-        id: 'note-last-year',
-        householdId: AppContext.householdId,
-        noteDate: DateTime(2025, 7, 12),
-        title: const Value('Panen'),
-        body: 'Hasil panen tahun lalu.',
-        createdAt: DateTime(2025, 7, 12),
-      ),
-    );
-    await (database.into(database.dailyNotes)).insert(
-      DailyNotesCompanion.insert(
-        id: 'note-current-year',
-        householdId: AppContext.householdId,
-        noteDate: DateTime(2026, 7, 12),
-        title: const Value('Belanja'),
-        body: 'Belanja bulan ini.',
-        createdAt: DateTime(2026, 7, 12),
-      ),
-    );
-
-    final periodInterpreter = FfmAssistantInterpreter(
-      database,
-      clock: () => DateTime(2026, 9, 10, 8),
-    );
-    final intent = await periodInterpreter.interpret(
-      'catatan tahun lalu',
-      routingMode: FfmAssistantRoutingMode.geminiCloud,
-    );
-
-    expect(intent.type, FfmAssistantIntentType.queryData);
-    expect(intent.response, contains('Hasil panen tahun lalu'));
-    expect(intent.response, isNot(contains('Belanja bulan ini')));
-  });
-
-  test(
-    'catatan terbaru memakai provenance daily notes tanpa read transaksi ulang',
-    () async {
-      await (database.into(database.dailyNotes)).insert(
-        DailyNotesCompanion.insert(
-          id: 'latest-note-provenance',
-          householdId: AppContext.householdId,
-          noteDate: DateTime(2026, 9, 13),
-          title: const Value('Evaluasi'),
-          body: 'Catatan yang benar-benar terbaru.',
-          createdAt: DateTime(2026, 9, 13),
-        ),
-      );
-
-      final intent = await interpreter.interpret(
-        'sekarang Bisa lihat catatan terbaru?',
-        routingMode: FfmAssistantRoutingMode.agent,
-      );
-      final plan = const FfmAssistantActionPlanner().planFor(intent);
-
-      expect(intent.response, contains('Catatan yang benar-benar terbaru'));
-      expect(intent.pluginMetadata?['usedReadCapability'], 'read.dailyNotes');
-      expect(intent.pluginMetadata?['localReadCompleted'], isTrue);
-      expect(plan?.steps.isEmpty ?? true, isTrue);
-    },
-  );
-
-  test('Catatan Kejadian dapat difilter berdasarkan tag dan dipakai untuk follow-up', () async {
-    final tagDate = DateTime(2026, 9, 14, 7);
-    await database
-        .into(database.tags)
-        .insert(
-          TagsCompanion.insert(
-            id: 'tag-cabai-ori212',
-            householdId: AppContext.householdId,
-            name: 'cabai ori212',
-            createdAt: tagDate,
-          ),
-        );
-    await database
-        .into(database.dailyNotes)
-        .insert(
-          DailyNotesCompanion.insert(
-            id: 'note-cabai',
-            householdId: AppContext.householdId,
-            noteDate: tagDate,
-            title: const Value('Pemupukan cabai'),
-            body: 'Cabai ori212 tumbuh baik.',
-            createdAt: tagDate,
-          ),
-        );
-    await database
-        .into(database.dailyNoteTags)
-        .insert(
-          DailyNoteTagsCompanion.insert(
-            dailyNoteId: 'note-cabai',
-            tagId: 'tag-cabai-ori212',
-          ),
-        );
-
-    final filtered = await interpreter.interpret(
-      'catatan kejadian dengan tag cabai ori212',
-      routingMode: FfmAssistantRoutingMode.agent,
-    );
-    expect(filtered.type, FfmAssistantIntentType.queryData);
-    expect(filtered.response, contains('cabai ori212'));
-    expect(filtered.response, contains('Cabai ori212 tumbuh baik.'));
-    expect(filtered.response, contains('Catatan Kejadian'));
-
-    final followUp = await interpreter.interpret(
-      'yang terkait itu lebih detail',
-      conversationHistory: filtered.response,
-      routingMode: FfmAssistantRoutingMode.agent,
-    );
-    expect(followUp.type, FfmAssistantIntentType.queryData);
-    expect(followUp.response, contains('Cabai ori212 tumbuh baik.'));
-    expect(followUp.response, contains('cabai ori212'));
-  });
-
-  test(
-    'follow-up kalau aktivitas membaca aktivitas terakhir secara lokal',
-    () async {
-      await (database.into(database.activityEntries)).insert(
-        ActivityEntriesCompanion.insert(
-          id: 'follow-up-activity',
-          householdId: AppContext.householdId,
-          title: 'Siram cabai',
-          activityType: const Value('Kegiatan'),
-          startedAt: DateTime(2026, 9, 9, 7),
-          createdAt: DateTime(2026, 9, 9, 7),
-        ),
-      );
-
-      final intent = await interpreter.interpret(
-        'kalau aktivitas?',
-        routingMode: FfmAssistantRoutingMode.geminiCloud,
-        lastAssistantMessage: 'Transaksi terakhir\nPengeluaran Rp20.000.',
-      );
-
-      expect(intent.type, FfmAssistantIntentType.queryData);
-      expect(intent.normalizedText, 'aktivitas terakhir');
-      expect(intent.response, contains('Siram cabai'));
-      expect(intent.draft, isNull);
-    },
-  );
-
-  test('menjawab pengeluaran terbesar dan terkecil 3 bulan terakhir', () async {
-    final now = DateTime(2026, 9, 10, 8);
-    await database
-        .into(database.categories)
-        .insert(
-          CategoriesCompanion.insert(
-            id: 'food',
-            householdId: AppContext.householdId,
-            name: 'Makan',
-            type: 'expense',
-            createdAt: DateTime(2026, 8, 1),
-          ),
-        );
-    await database
-        .into(database.categories)
-        .insert(
-          CategoriesCompanion.insert(
-            id: 'farm',
-            householdId: AppContext.householdId,
-            name: 'Kebun',
-            type: 'expense',
-            createdAt: DateTime(2026, 8, 1),
-          ),
-        );
-    await database
-        .into(database.transactions)
-        .insert(
-          TransactionsCompanion.insert(
-            id: 'big-expense',
-            householdId: AppContext.householdId,
-            type: 'expense',
-            categoryId: const Value('farm'),
-            amount: -250000,
-            date: DateTime(2026, 8, 3),
-            recordedAt: DateTime(2026, 8, 3),
-            createdAt: DateTime(2026, 8, 3),
-            note: const Value('Beli pupuk'),
-          ),
-        );
-    await database
-        .into(database.transactions)
-        .insert(
-          TransactionsCompanion.insert(
-            id: 'small-expense',
-            householdId: AppContext.householdId,
-            type: 'expense',
-            categoryId: const Value('food'),
-            amount: -12000,
-            date: DateTime(2026, 9, 2),
-            recordedAt: DateTime(2026, 9, 2),
-            createdAt: DateTime(2026, 9, 2),
-            note: const Value('Air mineral'),
-          ),
-        );
-    await database
-        .into(database.transactions)
-        .insert(
-          TransactionsCompanion.insert(
-            id: 'old-expense',
-            householdId: AppContext.householdId,
-            type: 'expense',
-            categoryId: const Value('food'),
-            amount: -999000,
-            date: DateTime(2026, 4, 1),
-            recordedAt: DateTime(2026, 4, 1),
-            createdAt: DateTime(2026, 4, 1),
-            note: const Value('Di luar periode'),
-          ),
-        );
-
-    final localInterpreter = FfmAssistantInterpreter(
-      database,
-      clock: () => now,
-    );
-    final intent = await localInterpreter.interpret(
-      'dalam 3 bulan terakhir pengeluaran paling besar dan paling kecil apa?',
-      routingMode: FfmAssistantRoutingMode.geminiCloud,
-    );
-
-    expect(intent.type, FfmAssistantIntentType.queryData);
-    expect(intent.response, contains('Rp250.000'));
-    expect(intent.response, contains('Beli pupuk'));
-    expect(intent.response, contains('Rp12.000'));
-    expect(intent.response, contains('Air mineral'));
-    expect(intent.response, isNot(contains('Rp999.000')));
-  });
-
-  test('membaca ulang data saat pengguna mengoreksi jawaban kosong', () async {
-    await (database.into(database.activityEntries)).insert(
-      ActivityEntriesCompanion.insert(
-        id: 'corrected-activity',
-        householdId: AppContext.householdId,
-        title: 'Memeriksa sawah',
-        activityType: const Value('Kegiatan'),
-        startedAt: DateTime(2026, 9, 8, 9),
-        createdAt: DateTime(2026, 9, 8, 9),
-      ),
-    );
-
-    final intent = await interpreter.interpret(
-      'sudah ada kok, emang tidak terbaca ya?',
-      routingMode: FfmAssistantRoutingMode.geminiCloud,
-      lastAssistantMessage:
-          'Saat ini belum ada aktivitas atau catatan terbaru yang tersimpan.',
-    );
-
-    expect(intent.type, FfmAssistantIntentType.queryData);
-    expect(intent.response, contains('Memeriksa sawah'));
-    expect(intent.draft, isNull);
-  });
-
-  test(
-    'menjawab query analisis kemampuan cicilan (Loan Affordability)',
-    () async {
-      final intent = await interpreter.interpret(
-        'berapa cicilan maksimal yang aman untuk saya?',
-      );
-
-      expect(intent.type, FfmAssistantIntentType.queryData);
-      expect(intent.response, contains('Kemampuan Pinjaman'));
-      expect(intent.response, contains('30%'));
-      expect(intent.draft, isNull);
-    },
-  );
+  // Test "menjawab query analisis kemampuan cicilan (Loan Affordability)" dihapus karena
+  // bergantung pada query tool lokal yang sudah dihapus
 
   test('mengenali frasa hijri dan islam sebagai permintaan Hijriah', () async {
     final localInterpreter = FfmAssistantInterpreter(
@@ -1575,135 +1141,8 @@ void main() {
     });
   });
 
-  group('Token Listrik / Utility Meter Queries', () {
-    test('existence check query triggers local query tool', () async {
-      final intent = await interpreter.interpret(
-        'sudah ada yang terdaftar di halaman token listrik?',
-      );
-
-      expect(intent.type, FfmAssistantIntentType.queryData);
-      expect(intent.response, contains('Belum ada data meteran listrik'));
-      expect(intent.pluginMetadata?['localReadCompleted'], isTrue);
-    });
-
-    test('existence question does not fall to Gemini for response', () async {
-      final intent = await interpreter.interpret(
-        'sekarang di halaman token listrik sudah ada isinya?',
-        routingMode: FfmAssistantRoutingMode.agent,
-      );
-
-      expect(intent.type, FfmAssistantIntentType.queryData);
-      expect(intent.pluginMetadata?['localReadCompleted'], isTrue);
-      expect(intent.pluginMetadata?['usedReadCapability'], 'read.electricity');
-    });
-
-    test('empty state returns appropriate message', () async {
-      final intent = await interpreter.interpret('cek IDPEL yang terdaftar');
-
-      expect(intent.type, FfmAssistantIntentType.queryData);
-      expect(intent.response, contains('Belum ada data meteran listrik'));
-    });
-
-    test('count query returns number of meters when empty', () async {
-      final intent = await interpreter.interpret('berapa meteran listrik yang terdaftar?');
-
-      expect(intent.type, FfmAssistantIntentType.queryData);
-      expect(intent.response, contains('Belum ada data meteran listrik'));
-    });
-
-    test('show all meters query returns appropriate message when empty', () async {
-      final intent = await interpreter.interpret('tampilkan semua meteran listrik');
-
-      expect(intent.type, FfmAssistantIntentType.queryData);
-      expect(intent.response, contains('Belum ada data meteran listrik'));
-    });
-
-    test('riwayat pembelian token triggers expense draft when has listrik category', () async {
-      final intent = await interpreter.interpret('riwayat pembelian token');
-
-      expect(intent.type, FfmAssistantIntentType.createExpense);
-      expect(intent.draft, isNotNull);
-    });
-
-    test('catat pembelian token creates expense draft', () async {
-      await database.into(database.electricityMeters).insert(
-        ElectricityMetersCompanion.insert(
-          id: 'meter-1',
-          householdId: AppContext.householdId,
-          name: 'Rumah Utama',
-          meterNumber: '14238765432',
-          normalizedMeterNumber: '14238765432',
-          createdAt: DateTime(2026, 9, 1),
-          updatedAt: DateTime(2026, 9, 1),
-        ),
-      );
-
-      final intent = await interpreter.interpret('catat pembelian token listrik 100rb');
-
-      expect(intent.type, FfmAssistantIntentType.createExpense);
-      expect(intent.draft, isNotNull);
-      expect(intent.draft!.kind, FfmAssistantDraftKind.expense);
-      expect(intent.draft!.amount, 100000);
-      expect(intent.draft!.categoryName, 'Listrik');
-    });
-
-    test('repeated question provides concise response', () async {
-      final firstIntent = await interpreter.interpret(
-        'ada IDPEL yang terdaftar?',
-        isRepeatedQuestion: false,
-      );
-      final secondIntent = await interpreter.interpret(
-        'apakah ada meteran listrik terdaftar?',
-        isRepeatedQuestion: true,
-      );
-
-      expect(firstIntent.type, FfmAssistantIntentType.queryData);
-      expect(firstIntent.response, contains('Belum ada data meteran listrik'));
-      expect(secondIntent.type, FfmAssistantIntentType.queryData);
-      expect(secondIntent.response, contains('Seperti yang saya jelaskan sebelumnya'));
-    });
-
-    test('buy token with no meters returns appropriate message', () async {
-      final intent = await interpreter.interpret('beli token listrik 50rb');
-
-      // When no meters exist, the buy token handler should return an error message
-      // or let it fall through to other handlers
-      expect(intent.type, isNotNull);
-    });
-
-    test('specific meter query returns available meters when empty', () async {
-      final intent = await interpreter.interpret('berapa tagihan listrik untuk rumah utama?');
-
-      expect(intent.type, FfmAssistantIntentType.queryData);
-      expect(intent.response, contains('Belum ada data meteran listrik'));
-    });
-
-    test('analysis query returns appropriate message when no data', () async {
-      final intent = await interpreter.interpret('analisis konsumsi listrik');
-
-      expect(intent.type, FfmAssistantIntentType.queryData);
-      expect(intent.response, contains('Belum ada data meteran listrik untuk dianalisis'));
-    });
-
-    test('hemat/boros query returns appropriate message when no data', () async {
-      final intent = await interpreter.interpret('boros atau hemat listrik saya?');
-
-      expect(intent.type, FfmAssistantIntentType.queryData);
-      expect(intent.response, contains('Belum ada data meteran listrik untuk dianalisis'));
-    });
-
-    test('estimasi habis query returns appropriate message when no data', () async {
-      final intent = await interpreter.interpret('kapan token listrik rumah A habis?');
-
-      expect(intent.type, FfmAssistantIntentType.queryData);
-      expect(intent.response, contains('Belum ada data meteran listrik untuk dianalisis'));
-    });
-
-    test('solusi query returns appropriate message when no data', () async {
-      final intent = await interpreter.interpret('solusi hemat listrik berdasarkan data saya?');
-
-      expect(intent.type, FfmAssistantIntentType.queryData);
-      expect(intent.response, contains('Belum ada data meteran listrik untuk dianalisis'));
-    });
-  });
+    // Query tool lokal dihapus - semua pertanyaan diarahkan ke Gemini Cloud
+    // Test group "Token Listrik / Utility Meter Queries" dihapus karena
+    // menguji fungsi yang sudah dihapus
 }
+

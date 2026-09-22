@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../core/events/ffm_data_event_bus.dart';
 import '../domain/entities/utility_meter_models.dart';
 
 class UtilityPurchaseHistory {
@@ -456,6 +457,11 @@ class UtilityMeterRepository {
             updatedAt: DateTime.now(),
           ),
         );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.utilityMeterChanged),
+    );
   }
 
   Future<void> archiveMeter(String householdId, String meterId) async {
@@ -485,6 +491,11 @@ class UtilityMeterRepository {
             updatedAt: Value(DateTime.now()),
           ),
         );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.utilityMeterChanged),
+    );
   }
 
   Future<void> deleteMeter(String householdId, String meterId) async {
@@ -656,6 +667,12 @@ class UtilityMeterRepository {
           ),
           mode: InsertMode.insertOrIgnore,
         );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.utilityMeterChanged),
+    );
+    
     final row = await (database.select(
       database.utilityTokenPurchases,
     )..where((item) => item.transactionId.equals(transactionId))).getSingle();
@@ -680,6 +697,11 @@ class UtilityMeterRepository {
               row.transactionId.equals(transactionId),
         ))
         .go();
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.utilityMeterChanged),
+    );
   }
 
   Future<List<UtilityPurchaseHistory>> getPurchaseHistory(

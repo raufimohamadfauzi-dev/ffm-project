@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
+import '../../../../core/events/ffm_data_event_bus.dart';
 import '../../../assistant/data/ffm_activity_habit_learner.dart';
 import '../../../assistant/data/ffm_assistant_autonomy_trigger_service.dart';
 import '../../domain/entities/activity_entity.dart';
@@ -245,6 +246,11 @@ class ActivityRepository {
         );
       });
     });
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.dailyNoteChanged),
+    );
   }
 
   Future<void> saveSession(ActivitySessionEntity entity) async {
@@ -305,6 +311,12 @@ class ActivityRepository {
       activityId: entity.id,
       payload: const {'entityType': 'activity_session', 'operation': 'save'},
     );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.activityChanged),
+    );
+    
     habitLearner
         ?.recordActivityObservation(
           title: entity.title,
@@ -429,6 +441,12 @@ class ActivityRepository {
       activityId: entity.sessionId,
       payload: const {'entityType': 'activity_journal', 'operation': 'save'},
     );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.activityChanged),
+    );
+    
     habitLearner
         ?.recordActivityObservation(
           title: entity.title,
@@ -566,6 +584,11 @@ class ActivityRepository {
       householdId: householdId,
       newValue: {'id': id},
     );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.activityChanged),
+    );
   }
 
   Future<void> restoreSession(String householdId, String id) async {
@@ -583,6 +606,11 @@ class ActivityRepository {
       entity: 'activity_session',
       householdId: householdId,
       newValue: {'id': id},
+    );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.activityChanged),
     );
   }
 

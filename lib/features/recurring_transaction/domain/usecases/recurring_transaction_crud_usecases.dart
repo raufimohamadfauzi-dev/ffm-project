@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
+import '../../../../core/events/ffm_data_event_bus.dart';
 
 class GetRecurringTransactions {
   const GetRecurringTransactions(this.database);
@@ -76,6 +77,11 @@ class CreateRecurringTransaction {
         'accountId': accountId,
       },
     );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.transactionChanged),
+    );
     return id;
   }
 }
@@ -135,6 +141,11 @@ class UpdateRecurringTransaction {
         'accountId': accountId,
       },
     );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.transactionChanged),
+    );
   }
 }
 
@@ -174,6 +185,11 @@ class ArchiveRecurringTransaction {
       entity: 'recurring_transaction',
       householdId: householdId,
       newValue: {'id': id, 'isActive': false},
+    );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.transactionChanged),
     );
   }
 }

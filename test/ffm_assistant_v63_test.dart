@@ -83,9 +83,8 @@ void main() {
       );
       final after = await database.select(database.accounts).get();
 
-      expect(answer, isNotNull);
-      expect(answer!.title, 'Saldo SeaBank');
-      expect(answer.message, contains('Saldo buku SeaBank'));
+      // Query tool lokal dihapus - seharusnya return null untuk routing ke Gemini Cloud
+      expect(answer, isNull);
       expect(after, hasLength(before.length));
       expect(after.single.id, before.single.id);
     });
@@ -130,10 +129,8 @@ void main() {
           householdId: AppContext.householdId,
         );
 
-        expect(answer, isNotNull);
-        expect(answer!.title, 'Belanja rokok');
-        expect(answer.message, contains('Rp45.000'));
-        expect(answer.message, contains('2'));
+        // Query tool lokal dihapus - seharusnya return null untuk routing ke Gemini Cloud
+        expect(answer, isNull);
       },
     );
   });

@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
+import '../../../../core/events/ffm_data_event_bus.dart';
 import '../entities/goal_entity.dart';
 
 class GetGoals {
@@ -95,6 +96,11 @@ class SaveGoal {
         'targetDate': entity.targetDate.toIso8601String(),
       },
     );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.goalChanged),
+    );
   }
 }
 
@@ -112,6 +118,11 @@ class DeleteGoal {
       entity: 'goal',
       householdId: householdId,
       newValue: {'id': id, 'isActive': false},
+    );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.goalChanged),
     );
   }
 }

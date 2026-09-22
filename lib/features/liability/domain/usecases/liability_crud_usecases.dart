@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
+import '../../../../core/events/ffm_data_event_bus.dart';
 import '../entities/liability_entity.dart';
 
 class GetLiabilities {
@@ -78,6 +79,11 @@ class SaveLiability {
         'remainingBalance': entity.remainingBalance,
       },
     );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.liabilityChanged),
+    );
   }
 }
 
@@ -95,6 +101,11 @@ class DeleteLiability {
       entity: 'liability',
       householdId: householdId,
       newValue: {'id': id, 'isActive': false},
+    );
+    
+    // Emit event for reactive UI updates
+    FfmDataEventBus.instance.emit(
+      const FfmDataEvent(type: FfmDataEventType.liabilityChanged),
     );
   }
 }
