@@ -64,8 +64,8 @@ void main() {
 
     final cloudDigest = await FfmAssistantFinancialSnapshotService(database)
         .buildElectricityDigest(householdId: 'household-a');
-    expect(cloudDigest, contains('total_cost=100660'));
-    expect(cloudDigest, contains('total_credited_kwh=63.70'));
+    expect(cloudDigest, contains('total_biaya=100660'));
+    expect(cloudDigest, contains('total_kwh_terisi=63.70'));
     expect(cloudDigest, isNot(contains('12345678901234567890')));
     expect(cloudDigest, isNot(contains('14123456789')));
 

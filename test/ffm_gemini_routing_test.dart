@@ -306,13 +306,14 @@ void main() {
     );
     expect(gemini.receivedSystemInstruction, contains('`read.summary`'));
     expect(gemini.receivedSystemInstruction, contains('`read.transactions`'));
+    // New capabilities are now allowed
     expect(
       gemini.receivedSystemInstruction,
-      isNot(contains('`read.accounts`')),
+      contains('`read.accounts`'),
     );
     expect(
       gemini.receivedSystemInstruction,
-      isNot(contains('`read.activity`')),
+      contains('`read.activities`'),
     );
     expect(
       gemini.receivedSystemInstruction,

@@ -222,7 +222,7 @@ void main() {
       );
       expect(
         gemini.finalInstruction,
-        contains('Financial snapshot lokal bounded'),
+        contains('SNAPSHOT_KEUANGAN'),
       );
       expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
       expect(intent.pluginMetadata?['usedReadCapability'], 'read.summary');

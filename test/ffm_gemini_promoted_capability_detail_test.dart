@@ -27,7 +27,7 @@ void main() {
   });
 
   group('Promoted capabilities allowlist & schema', () {
-    test('allowlist hanya read.summary dan read.transactions', () {
+    test('allowlist mencakup semua capability read yang diizinkan', () {
       expect(
         FfmAssistantProposalJsonService.geminiReadCapabilityIds,
         contains('read.summary'),
@@ -46,16 +46,49 @@ void main() {
       );
       expect(
         FfmAssistantProposalJsonService.geminiReadCapabilityIds,
-        isNot(contains('read.accounts')),
+        contains('read.accounts'),
+      );
+      expect(
+        FfmAssistantProposalJsonService.geminiReadCapabilityIds,
+        contains('read.categories'),
+      );
+      expect(
+        FfmAssistantProposalJsonService.geminiReadCapabilityIds,
+        contains('read.analysis'),
+      );
+      expect(
+        FfmAssistantProposalJsonService.geminiReadCapabilityIds,
+        contains('read.activityLog'),
+      );
+      expect(
+        FfmAssistantProposalJsonService.geminiReadCapabilityIds,
+        contains('read.recurring'),
+      );
+      expect(
+        FfmAssistantProposalJsonService.geminiReadCapabilityIds,
+        contains('read.monitoring_evaluation'),
+      );
+      expect(
+        FfmAssistantProposalJsonService.geminiReadCapabilityIds,
+        contains('read.goal_evidence_evaluation'),
+      );
+      expect(
+        FfmAssistantProposalJsonService.geminiReadCapabilityIds,
+        contains('read.history_search'),
+      );
+      expect(
+        FfmAssistantProposalJsonService.geminiReadCapabilityIds,
+        contains('read.model_status'),
       );
 
-      const blocked = ['read.accounts', 'read.categories'];
-      for (final id in blocked) {
+      // Verify that the new capabilities are now allowed
+      const newlyAllowed = ['read.accounts', 'read.categories', 'read.analysis', 'read.activityLog', 'read.recurring'];
+      for (final id in newlyAllowed) {
         final parsed = FfmAssistantProposalJsonService.parseReadCapabilityRequest(
           '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"$id","arguments":{}}',
         );
-        expect(parsed.request, isNull, reason: id);
-        expect(parsed.error, isNotNull, reason: id);
+        expect(parsed.request, isNotNull, reason: id);
+        expect(parsed.error, isNull, reason: id);
       }
     });
 
@@ -124,7 +157,7 @@ void main() {
 
       expect(evidence, contains('income=5000000'));
       expect(evidence, contains('quality='));
-      expect(evidence, contains('Financial snapshot'));
+      expect(evidence, contains('SNAPSHOT_KEUANGAN'));
       expect(evidence.length, lessThan(800));
       expect(evidence, isNot(contains('inc-1'))); // no raw ID
       expect(evidence, isNot(contains('merchant')));
@@ -157,7 +190,7 @@ void main() {
         now: now,
       );
 
-      expect(evidence, contains('Transaction digest'));
+      expect(evidence, contains('DIGEST_TRANSAKSI'));
       expect(evidence, isNot(contains('tx-0'))); // no ID
       expect(
         evidence,
@@ -192,7 +225,7 @@ void main() {
           householdId: AppContext.householdId,
           now: now,
         );
-        expect(evidence, contains('Transaction digest'));
+        expect(evidence, contains('DIGEST_TRANSAKSI'));
 
         // Rentang > 730 hari (2 tahun) ditolak di parser
         final tooLong =
@@ -229,7 +262,7 @@ void main() {
         householdId: AppContext.householdId,
         now: now,
       );
-      expect(evidence, contains('Transaction digest'));
+      expect(evidence, contains('DIGEST_TRANSAKSI'));
       // Default period = 'current_month' → rentang eksplisit awal-bulan..now
       expect(evidence, contains('rentang=2026-08-01..2026-08-15'));
     });
@@ -248,7 +281,7 @@ void main() {
           now: now,
         );
         // Wording harus authoritative dan bounded
-        expect(evidence, contains('Financial snapshot lokal bounded'));
+        expect(evidence, contains('SNAPSHOT_KEUANGAN'));
         expect(evidence, isNot(contains('read.accounts')));
         expect(evidence, isNot(contains('SELECT')));
       },

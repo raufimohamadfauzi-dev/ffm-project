@@ -894,6 +894,45 @@ class FfmAssistantInterpreter {
         ),
       );
     }
+    // Handle system capabilities by creating appropriate intent types
+    if (proposal.drafts.length == 1 &&
+        proposal.drafts.first.kind == FfmAssistantDraftKind.masterData &&
+        proposal.drafts.first.formValues.containsKey('systemCapability')) {
+      final draft = proposal.drafts.first;
+      final capabilityId = draft.formValues['systemCapability'] as String?;
+      final parameters = draft.formValues['systemParameters'] as Map<String, dynamic>?;
+      if (capabilityId != null && parameters != null) {
+        // Map system capability to existing intent types
+        final intentType = switch (capabilityId) {
+          'system.set_theme' => FfmAssistantIntentType.changeTheme,
+          'system.set_hijri_adjustment' => FfmAssistantIntentType.changeHijriAdjustment,
+          'market.refresh' => FfmAssistantIntentType.unknown,
+          _ => FfmAssistantIntentType.unknown,
+        };
+        final metadata = <String, dynamic>{
+          if (capabilityId == 'system.set_theme') 'theme': parameters['theme'],
+          if (capabilityId == 'system.set_hijri_adjustment')
+            'adjustment': parameters['adjustment'],
+          if (capabilityId == 'market.refresh') 'refreshMarketNews': true,
+        };
+        return _InterpretResult.single(
+          FfmAssistantIntent(
+            rawText: rawText,
+            normalizedText: normalized,
+            type: intentType,
+            confidence: .9,
+            response: draft.title,
+            responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
+            pluginName: 'gemini_cloud',
+            pluginCategory: 'gemini_cloud',
+            pluginMetadata: {
+              ...geminiMetadata,
+              ...metadata,
+            },
+          ),
+        );
+      }
+    }
     if (proposal.drafts.length > 1) {
       final draftIntents = proposal.drafts.map((d) {
         final validated = _validateGeminiDraft(d, accounts, categories);

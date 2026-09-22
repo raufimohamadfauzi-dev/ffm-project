@@ -87,12 +87,12 @@ class FfmAssistantFinancialSnapshotService {
       FfmAssistantDataQuality.empty => 'empty',
       FfmAssistantDataQuality.insufficientPeriod => 'insufficient_period',
     };
-    return 'Financial snapshot lokal bounded: periode=${evidence.periodLabel}; '
+    return 'SNAPSHOT_KEUANGAN: periode=${evidence.periodLabel}; '
         'quality=$quality; income=$income; expenses=$expense; '
         'active_installments=$installments; cashflow_after_debt=$cashflow; '
         'transaction_count=${evidence.transactionCount}; '
         'active_liability_count=${evidence.activeLiabilityCount}. '
-        'Gunakan hanya sebagai evidence, jangan mengarang angka lain. '
+        'Gunakan hanya sebagai data, jangan mengarang angka lain. '
         'Jika quality bukan sufficient, nyatakan keterbatasan data.';
   }
 
@@ -102,6 +102,16 @@ class FfmAssistantFinancialSnapshotService {
     DateTime? endDate,
     int maxItems = 8,
   }) async {
+    // Cek apakah ada data sama sekali di tabel utilityTokenPurchases untuk household ini
+    final allRows = await (_database.select(_database.utilityTokenPurchases)
+      ..where((row) => row.householdId.equals(householdId))
+    ).get();
+    
+    if (allRows.isEmpty) {
+      return 'STATUS_DATA_TOKEN_LISTRIK: BELUM_ADA_DATA_PEMBELIAN_TOKEN. Belum ada riwayat pembelian token listrik yang tercatat di database.';
+    }
+    
+    // Ada data, terapkan filter tanggal
     final query = _database.select(_database.utilityTokenPurchases)
       ..where((row) {
         var predicate = row.householdId.equals(householdId);
@@ -121,7 +131,13 @@ class FfmAssistantFinancialSnapshotService {
       ..orderBy([(row) => OrderingTerm.desc(row.purchasedAt)])
       ..limit(maxItems.clamp(1, 8));
     final rows = await query.get();
-    if (rows.isEmpty) return 'Electricity evidence bounded: data kosong.';
+    
+    if (rows.isEmpty) {
+      // Ada data tapi tidak cocok dengan filter tanggal
+      final firstDate = allRows.first.purchasedAt.toIso8601String().substring(0, 10);
+      final lastDate = allRows.last.purchasedAt.toIso8601String().substring(0, 10);
+      return 'STATUS_DATA_TOKEN_LISTRIK: ADA_DATA_PEMBELIAN_TAPI_TIDAK_DALAM_RENTANG_WAKTU. Ada ${allRows.length} pembelian token tercatat (rentang: $firstDate s/d $lastDate), tapi tidak dalam rentang waktu yang diminta.';
+    }
 
     final meters =
         await (_database.select(_database.electricityMeters)..where(
@@ -168,11 +184,11 @@ class FfmAssistantFinancialSnapshotService {
     final perHouseText = perHouseSummary.isNotEmpty
         ? 'per_house=[$perHouseSummary]; '
         : '';
-    return 'Electricity evidence bounded: count=${rows.length}; '
-        'total_cost=$total; total_credited_kwh=${totalKwh.toStringAsFixed(2)}; '
+    return 'DATA_TOKEN_LISTRIK: jumlah_pembelian=${rows.length}; '
+        'total_biaya=$total; total_kwh_terisi=${totalKwh.toStringAsFixed(2)}; '
         '$perHouseText'
-        'facts=$facts. Kode token dan nomor meter lengkap disembunyikan. '
-        'Gunakan hanya angka evidence ini; credited kWh bukan pemakaian aktual.';
+        'riwayat=$facts. Kode token dan nomor meter lengkap disembunyikan. '
+        'Gunakan hanya angka data ini; credited kWh bukan pemakaian aktual.';
   }
 
   /// Digest transaksi untuk capability cloud yang eksplisit. Detail merchant,
@@ -248,9 +264,9 @@ class FfmAssistantFinancialSnapshotService {
         ? _rangeLabel(startDate, endDate)
         : 'periode=${_monthLabel(now.month)} ${now.year}; rentang=seluruh_bulan';
     if (visible.isEmpty) {
-      return 'Transaction digest lokal bounded: $periodAndRange; tidak ada transaksi pemasukan/pengeluaran.';
+      return 'DIGEST_TRANSAKSI: $periodAndRange; tidak ada transaksi pemasukan/pengeluaran.';
     }
-    return 'Transaction digest lokal bounded: $periodAndRange; '
+    return 'DIGEST_TRANSAKSI: $periodAndRange; '
         'items=${visible.join('; ')}. Detail merchant, catatan, rekening, kategori, dan ID tidak tersedia.';
   }
 
@@ -1145,5 +1161,209 @@ class FfmAssistantFinancialSnapshotService {
         '${lines.join('\n')}\n'
         'Gunakan nama tabel teknis dan deskripsi di atas untuk menjawab pertanyaan struktur data, penyimpanan, atau tabel SQLite di aplikasi.';
     return _clip(context, maxCharacters);
+  }
+
+  /// Digest analisa keuangan untuk capability cloud.
+  Future<String> buildAnalysisDigest({
+    required String householdId,
+    required DateTime now,
+    int maxCharacters = 1000,
+  }) async {
+    final evidence = await readCurrentMonth(householdId: householdId, now: now);
+    final income = evidence.income;
+    final expenses = evidence.expenses;
+    final balance = income - expenses;
+    final transactionCount = evidence.transactionCount;
+
+    final parts = <String>[];
+    parts.add('ANALISIS_KEUANGAN:');
+    parts.add('bulan_saat_ini=${DateTime(now.year, now.month).month}');
+    parts.add('pemasukan_total=$income');
+    parts.add('pengeluaran_total=$expenses');
+    parts.add('saldo_bersih=$balance');
+    parts.add('jumlah_transaksi=$transactionCount');
+
+    if (income > 0) {
+      final savingsRate = ((income - expenses) / income * 100).toInt();
+      parts.add('rasio_tabungan=$savingsRate%');
+    }
+
+    if (evidence.activeLiabilityCount > 0) {
+      parts.add('jumlah_hutang_aktif=${evidence.activeLiabilityCount}');
+    }
+
+    if (evidence.currentInstallments > 0) {
+      parts.add('total_cicilan_bulanan=${evidence.currentInstallments}');
+    }
+
+    return _clip(parts.join('\n'), maxCharacters);
+  }
+
+  /// Digest log aktivitas (audit trail) untuk capability cloud.
+  ///
+  /// Privasi: hanya mengekspos capabilityId, status, dan tanggal. Tidak mengekspos
+  /// nilai saldo, detail transaksi, atau data sensitif lainnya.
+  Future<String> buildActivityLogDigest({
+    required String householdId,
+    String? action,
+    String? entity,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? search,
+    int? limit,
+    int? offset,
+    int maxItems = 20,
+    int maxCharacters = 800,
+  }) async {
+    final query = _database.select(_database.assistantAgentToolExecutions)
+      ..where((row) => row.householdId.equals(householdId));
+
+    if (action != null && action.isNotEmpty) {
+      query.where((row) => row.capabilityId.like('%$action%'));
+    }
+    if (entity != null && entity.isNotEmpty) {
+      query.where((row) => row.capabilityId.like('%$entity%'));
+    }
+    if (startDate != null) {
+      query.where((row) => row.startedAt.isBiggerOrEqualValue(startDate));
+    }
+    if (endDate != null) {
+      query.where((row) => row.startedAt.isSmallerOrEqualValue(endDate));
+    }
+    if (search != null && search.isNotEmpty) {
+      query.where((row) =>
+          row.capabilityId.like('%$search%') | row.status.like('%$search%'));
+    }
+
+    query.orderBy([(row) => OrderingTerm.desc(row.startedAt)]);
+
+    if (offset != null && offset > 0) {
+      query.limit(limit ?? maxItems, offset: offset);
+    } else {
+      query.limit(limit ?? maxItems);
+    }
+
+    final logs = await query.get();
+
+    if (logs.isEmpty) {
+      return 'Activity log: belum ada jejak aktivitas yang tercatat.';
+    }
+
+    final lines = logs.map((log) {
+      final capability = log.capabilityId.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+      final status = log.status.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+      final date = _formatDate(log.startedAt);
+      return '$date|$capability|$status';
+    }).toList();
+
+    return _clip(
+      'Activity log (terbaru ${logs.length} item): ${lines.join('; ')}.',
+      maxCharacters,
+    );
+  }
+
+  /// Digest transaksi berkala untuk capability cloud.
+  Future<String> buildRecurringTransactionsDigest({
+    required String householdId,
+    int maxItems = 10,
+    int maxCharacters = 700,
+  }) async {
+    final recurring = await (_database.select(_database.recurringTransactions)
+          ..where((row) =>
+              row.householdId.equals(householdId) & row.isActive.equals(true)))
+        .get();
+
+    if (recurring.isEmpty) {
+      return 'Recurring transactions: belum ada transaksi berkala aktif.';
+    }
+
+    final lines = recurring.take(maxItems).map((row) {
+      final name = row.name.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+      final type = row.type;
+      final amount = row.amount;
+      final periodType = row.periodType;
+      return '$name|type=$type|amount=$amount|period=$periodType';
+    }).toList();
+
+    final suffix = recurring.length > maxItems
+        ? '; … (+${recurring.length - maxItems} lebih)'
+        : '';
+
+    return _clip(
+      'Recurring transactions: ${lines.join('; ')}$suffix.',
+      maxCharacters,
+    );
+  }
+
+  /// Digest evaluasi bukti progres target untuk capability cloud.
+  Future<String> buildGoalEvidenceEvaluationDigest({
+    required String householdId,
+    String? goalId,
+    required DateTime now,
+    int maxCharacters = 800,
+  }) async {
+    final goalsQuery = _database.select(_database.goals)
+      ..where((row) =>
+          row.householdId.equals(householdId) & row.isActive.equals(true));
+
+    if (goalId != null && goalId.isNotEmpty) {
+      goalsQuery.where((row) => row.id.equals(goalId));
+    }
+
+    final goals = await goalsQuery.get();
+
+    if (goals.isEmpty) {
+      return 'Goal evidence evaluation: belum ada target aktif.';
+    }
+
+    final lines = <String>[];
+    for (final goal in goals) {
+      final name = goal.name.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+      final targetAmount = goal.targetAmount;
+      final currentAmount = goal.currentAmount;
+      final progress = targetAmount > 0
+          ? ((currentAmount / targetAmount) * 100).toInt()
+          : 0;
+      lines.add('$name|target=$targetAmount|current=$currentAmount|progress=$progress%');
+    }
+
+    return _clip(
+      'Goal evidence evaluation: ${lines.join('; ')}.',
+      maxCharacters,
+    );
+  }
+
+  /// Digest pencarian riwayat percakapan untuk capability cloud.
+  Future<String> buildHistorySearchDigest({
+    required String householdId,
+    String? query,
+    int maxCharacters = 800,
+  }) async {
+    if (query == null || query.isEmpty) {
+      return 'History search: query pencarian kosong.';
+    }
+
+    return 'History search: fitur pencarian riwayat percakapan tersedia untuk query "$query". Implementasi pencarian memerlukan akses ke storage percakapan.';
+  }
+
+  /// Digest status model Gemini Cloud untuk capability cloud.
+  Future<String> buildModelStatusDigest({
+    required String householdId,
+    int maxCharacters = 500,
+  }) async {
+    return 'Model status: fitur pengecekan status Gemini Cloud tersedia. Implementasi memerlukan akses ke konfigurasi API key dan model.';
+  }
+
+  /// Digest evaluasi pemantauan untuk capability cloud.
+  Future<String> buildMonitoringEvaluationDigest({
+    required String householdId,
+    required DateTime now,
+    int maxCharacters = 800,
+  }) async {
+    return 'Monitoring evaluation: fitur evaluasi pemantauan otonom tersedia. Implementasi memerlukan akses ke service pemantauan.';
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 }

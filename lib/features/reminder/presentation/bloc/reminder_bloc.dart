@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../core/events/ffm_data_event_bus.dart';
 import '../../../assistant/data/ffm_assistant_autonomy_trigger_service.dart';
 import '../../data/repositories/reminder_repository.dart';
 import '../../data/services/reminder_notification_service.dart';

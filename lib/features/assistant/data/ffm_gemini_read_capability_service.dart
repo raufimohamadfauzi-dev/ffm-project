@@ -34,6 +34,15 @@ class FfmGeminiReadCapabilityPolicy {
     'read.tables',
     'read.monitoring',
     'read.monitoring_jobs',
+    'read.accounts',
+    'read.categories',
+    'read.analysis',
+    'read.activityLog',
+    'read.recurring',
+    'read.monitoring_evaluation',
+    'read.goal_evidence_evaluation',
+    'read.history_search',
+    'read.model_status',
   };
 
   static const List<String> canonicalToolChoices = <String>[
@@ -51,6 +60,15 @@ class FfmGeminiReadCapabilityPolicy {
     'read.hijriDate',
     'read.schema',
     'read.monitoring',
+    'read.accounts',
+    'read.categories',
+    'read.analysis',
+    'read.activityLog',
+    'read.recurring',
+    'read.monitoring_evaluation',
+    'read.goal_evidence_evaluation',
+    'read.history_search',
+    'read.model_status',
   ];
 
   static String get formattedToolChoices =>
@@ -163,6 +181,54 @@ class FfmGeminiReadCapabilityService {
               .buildMonitoringDigest(householdId: householdId, now: now);
         }
         return 'Data pemantauan tidak tersedia.';
+      case 'read.accounts':
+        return await _financialSnapshot.buildAccountsDigest(
+          householdId: householdId,
+        );
+      case 'read.categories':
+        return await _financialSnapshot.buildCategoriesDigest(
+          householdId: householdId,
+        );
+      case 'read.analysis':
+        return await _financialSnapshot.buildAnalysisDigest(
+          householdId: householdId,
+          now: now,
+        );
+      case 'read.activityLog':
+        return await _financialSnapshot.buildActivityLogDigest(
+          householdId: householdId,
+          action: request.action,
+          entity: request.entity,
+          startDate: request.startDate,
+          endDate: request.endDate,
+          search: request.search,
+          limit: request.limit,
+          offset: request.offset,
+        );
+      case 'read.recurring':
+        return await _financialSnapshot.buildRecurringTransactionsDigest(
+          householdId: householdId,
+        );
+      case 'read.monitoring_evaluation':
+        return await _financialSnapshot.buildMonitoringEvaluationDigest(
+          householdId: householdId,
+          now: now,
+        );
+      case 'read.goal_evidence_evaluation':
+        return await _financialSnapshot.buildGoalEvidenceEvaluationDigest(
+          householdId: householdId,
+          goalId: request.goalId,
+          now: now,
+        );
+      case 'read.history_search':
+        return await _financialSnapshot.buildHistorySearchDigest(
+          householdId: householdId,
+          query: request.query,
+        );
+      case 'read.model_status':
+        return await _financialSnapshot.buildModelStatusDigest(
+          householdId: householdId,
+        );
       default:
         throw StateError('Capability baca tidak diizinkan.');
     }

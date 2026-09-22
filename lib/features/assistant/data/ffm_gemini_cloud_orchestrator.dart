@@ -164,6 +164,34 @@ class FfmGeminiCloudOrchestrator {
             "proposal": props,
           });
           finalText += '\n$jsonStr';
+        } else if (call.name == 'set_theme') {
+          final theme = args['theme'] ?? 'system';
+          final jsonStr = jsonEncode({
+            "formatVersion": "ffm-assistant-proposal-v1",
+            "proposal": {
+              "type": "set_theme",
+              "theme": theme,
+            },
+          });
+          finalText += '\n$jsonStr';
+        } else if (call.name == 'set_hijri_adjustment') {
+          final adjustment = args['adjustment'] ?? 0;
+          final jsonStr = jsonEncode({
+            "formatVersion": "ffm-assistant-proposal-v1",
+            "proposal": {
+              "type": "set_hijri_adjustment",
+              "adjustment": adjustment,
+            },
+          });
+          finalText += '\n$jsonStr';
+        } else if (call.name == 'market_refresh') {
+          final jsonStr = jsonEncode({
+            "formatVersion": "ffm-assistant-proposal-v1",
+            "proposal": {
+              "type": "market_refresh",
+            },
+          });
+          finalText += '\n$jsonStr';
         } else if (call.name == 'read_data') {
           final cap = args['capabilityId'];
           final jsonStr = jsonEncode({
@@ -558,7 +586,7 @@ class FfmGeminiCloudOrchestrator {
           },
           {
             'name': 'create_draft',
-            'description': 'Membuat draft mutasi atau perubahan data (transaksi, goal, budget, master_data, activity, reminder, memory)',
+            'description': 'Membuat draft mutasi atau perubahan data. Jenis draft yang tersedia: FINANSIAL (expense, income, transfer, transaction_update, transaction_archive, transaction_delete), TARGET (goal, goal_deposit, goal_usage, goal_update, goal_archive), HUTANG_PIUTANG (liability, liability_payment, liability_update, liability_archive, receivable, receivable_payment, receivable_update, receivable_archive), ASET (asset, asset_update, asset_archive), ANGGARAN (budget_update, budget_archive), MASTER_DATA (master_data, merchant_update, merchant_archive, merchant_delete, tag_update, tag_archive, tag_delete, income_source_update, income_source_archive, income_source_delete, category_update, category_archive, category_delete, account_update, account_archive, account_delete), PENGINGAT (reminder, reminder_update, reminder_archive, reminder_complete), AKTIVITAS (activity, daily_note, daily_note_archive, task, task_update, task_complete, task_reopen, task_archive, routine, routine_update, routine_mark_complete, routine_unmark_complete, routine_activate, routine_deactivate, routine_archive, schedule, schedule_update, schedule_archive, activity_archive, activity_delete, activity_finish, activity_update, activity_edit, meter_reading), TRANSAKSI_BERKALA (recurring_transaction_update, recurring_transaction_archive), PEMANTAUAN (monitoring_job), MEMORY (memory)',
             'parameters': {
               'type': 'OBJECT',
               'properties': {
@@ -708,11 +736,72 @@ class FfmGeminiCloudOrchestrator {
                   'description': 'Tipe siklus: agriculture (pertanian/perkebunan), business (usaha/dagang/UMKM), freelance, atau salaried',
                 },
                 'note': {'type': 'STRING', 'description': 'Catatan tambahan'},
+                'meterId': {
+                  'type': 'STRING',
+                  'description': 'ID meteran untuk type meter_reading (dapatkan dari read.electricity result)',
+                },
+                'readingKwh': {
+                  'type': 'NUMBER',
+                  'description': 'Angka pembacaan kWh untuk type meter_reading',
+                },
+                'meterNumber': {
+                  'type': 'STRING',
+                  'description': 'Nomor meter/IDPEL untuk metadata utilityProposal (format digits only, 9-13 digit)',
+                },
+                'tokenCode': {
+                  'type': 'STRING',
+                  'description': 'Kode token 20 digit untuk metadata utilityProposal',
+                },
+                'creditedKwh': {
+                  'type': 'NUMBER',
+                  'description': 'Jumlah kWh yang terisi untuk metadata utilityProposal',
+                },
+                'timestamp': {
+                  'type': 'STRING',
+                  'description': 'Timestamp pembelian token untuk metadata utilityProposal (format ISO 8601 atau YYYY-MM-DD)',
+                },
               },
               'required': ['type'],
             },
           },
         ],
+      },
+      {
+        'name': 'set_theme',
+        'description': 'Mengubah tema tampilan aplikasi (dark, light, atau system)',
+        'parameters': {
+          'type': 'OBJECT',
+          'properties': {
+            'theme': {
+              'type': 'STRING',
+              'description': 'Tema aplikasi: "dark" untuk mode gelap, "light" untuk mode terang, atau "system" untuk mengikuti pengaturan sistem',
+            },
+          },
+          'required': ['theme'],
+        },
+      },
+      {
+        'name': 'set_hijri_adjustment',
+        'description': 'Mengubah offset kalender Hijriah untuk koreksi Hilal lokal (-2 sampai +2 hari)',
+        'parameters': {
+          'type': 'OBJECT',
+          'properties': {
+            'adjustment': {
+              'type': 'NUMBER',
+              'description': 'Offset hari: -2, -1, 0, 1, atau 2. Default 0 berarti tanpa koreksi',
+            },
+          },
+          'required': ['adjustment'],
+        },
+      },
+      {
+        'name': 'market_refresh',
+        'description': 'Memperbarui data berita pasar dan kurs valas dari API publik',
+        'parameters': {
+          'type': 'OBJECT',
+          'properties': {},
+          'required': [],
+        },
       },
     ];
   }
@@ -723,8 +812,8 @@ class FfmGeminiCloudOrchestrator {
     bool isFinalStep = true,
   }) {
     final suffix = isFinalStep
-        ? '\n\nSekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi di atas. Jangan meminta capability baca lagi, dan jangan menyatakan data telah diubah jika belum disetujui pengguna.'
-        : '\n\nHasil pembacaan data lokal terverifikasi sejauh ini tercantum di atas. Jika masih memerlukan sumber data lain yang relevan, panggil read_data berikutnya; jika data sudah mencukupi, jawab pertanyaan pengguna sekarang secara tuntas.';
+        ? '\n\nSekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi di atas. Jangan meminta capability baca lagi, dan jangan menyatakan data telah diubah jika belum disetujui pengguna. JANGAN meng-echo pesan teknis mentah seperti "STATUS_DATA_TOKEN_LISTRIK:", "DATA_TOKEN_LISTRIK:", "SNAPSHOT_KEUANGAN:", "DIGEST_TRANSAKSI:", "evidence bounded:", atau label teknis lainnya. Konversi semua informasi menjadi respons alami dalam Bahasa Indonesia.'
+        : '\n\nHasil pembacaan data lokal terverifikasi sejauh ini tercantum di atas. Jika masih memerlukan sumber data lain yang relevan, panggil read_data berikutnya; jika data sudah mencukupi, jawab pertanyaan pengguna sekarang secara tuntas. JANGAN meng-echo pesan teknis mentah; konversi menjadi respons alami.';
     const header = '\n\nHASIL CAPABILITY LOKAL TERVERIFIKASI:\n';
     final combined = '$instruction$header$facts$suffix';
     if (combined.length <= 12000) return combined;
@@ -820,7 +909,24 @@ ATURAN ONBOARDING ADAPTIF:
 ATURAN NAVIGASI HALAMAN:
 - HALAMAN AKTIF SAAT INI tercantum di KONTEKS TERARAH.
 - Jika user bertanya tentang fitur di halaman lain, usulkan pindah halaman dengan menggunakan tool `navigate`.
-- Daftar halaman: summary, transactions, budget, analysis, otherMenu, masterData, familyProfile, assets, goals, liabilities, activity, reminders, backup, monthlyReport, reconciliation, appSecurity, diagnostics, activityLog, recurringTransaction, privacyCenter, databaseStructure, assistantProfile, intelligenceDashboard, paymentDetector, telegramSetup, agentInbox, autonomyMonitor, hijriSettings, calendarSettings, marketNewsRadar.
+- Daftar halaman lengkap: summary, transactions, budget, analysis, otherMenu, masterData, familyProfile, assets, goals, liabilities, activity, reminders, backup, monthlyReport, reconciliation, appSecurity, diagnostics, activityLog, recurringTransaction, privacyCenter, databaseStructure, assistantProfile, intelligenceDashboard, paymentDetector, telegramSetup, agentInbox, autonomyMonitor, hijriSettings, calendarSettings, marketNewsRadar, utilityMeter, assistantIssueLog.
+- ALIASES PENTING untuk mengenali intent navigasi dengan akurat:
+  * Token Listrik/utilityMeter: "token listrik", "listrik", "meteran", "token PLN", "beli token", "cek token", "IDPEL", "nomor meter"
+  * Asisten Log/assistantIssueLog: "log asisten", "masalah asisten", "error asisten", "laporan asisten", "jawaban bermasalah"
+  * Intelligence Dashboard/assistantProfile: "setup asisten", "konfigurasi asisten", "memori asisten", "Gemini", "Supabase", "koneksi cloud"
+  * Agent Inbox/autonomyMonitor: "laporan asisten", "insight", "rekomendasi", "monitoring agent", "otonomi"
+  * Payment Detector/paymentDetector: "notifikasi pembayaran", "deteksi pembayaran", "pembayaran otomatis", "notifikasi bank"
+  * Telegram Setup/telegramSetup: "bot Telegram", "laporan mingguan", "alarm boncos", "keluarga"
+  * Market News Radar/marketNewsRadar: "berita pasar", "harga komoditas", "radar berita", "pasar"
+  * Hijri Settings/hijriSettings: "kalender Hijriah", "Hilal", "tanggal Islam", "tanggal Hijriah"
+  * Calendar Settings/calendarSettings: "Google Calendar", "smartwatch", "sinkronisasi", "jam tangan pintar"
+- Jika user menyebutkan fitur yang tidak ada di daftar di atas, jangan membuat halaman baru. Jelaskan bahwa fitur tersebut belum tersedia dan tawarkan fitur terdekat yang mungkin relevan.
+- ATURAN KHUSUS HALAMAN TOKEN LISTRIK (utilityMeter):
+  * Capability yang relevan: `read.electricity` untuk membaca data token listrik dan meteran
+  * Jika user bertanya tentang data token listrik dan evidence menunjukkan "BELUM_ADA_DATA_PEMBELIAN_TOKEN", usulkan navigasi ke halaman utilityMeter untuk mendaftarkan meteran pertama
+  * Jika user ingin melihat detail meteran, riwayat pembelian, atau analisis konsumsi, usulkan navigasi ke halaman utilityMeter
+  * Jika user menyebutkan "lihat meteran", "cek meteran", "detail token", atau frasa serupa, usulkan navigasi ke halaman utilityMeter
+- Navigasi ke halaman yang sudah ada: Gunakan tool `navigate` dengan destination yang tepat sesuai daftar di atas.
 
 ATURAN STRUKTUR HALAMAN AKTIVITAS & CATATAN HARIAN (`activity`):
 - Halaman Aktivitas & Catatan Harian (`activity`) disederhanakan dan leluasa tanpa tumpukan kolom berantakan:
@@ -877,7 +983,43 @@ ATURAN KHUSUS TOKEN LISTRIK / METERAN:
 - Jika user bertanya hal yang sama atau sangat mirip dengan pertanyaan sebelumnya, berikan respons yang lebih ringkas dan merujuk ke jawaban sebelumnya jika tidak ada perubahan data.
 - Data meteran listrik mencakup: IDPEL, nama meteran, nama pelanggan, tarif/daya, token terakhir, riwayat pembelian, dan analisis konsumsi.
 - Untuk pertanyaan spesifik per meteran (misal "berapa tagihan rumah A bulan ini?"), gunakan `read.electricity` dan filter berdasarkan nama meteran yang disebut.
-- Jika user menyebutkan nominal pembelian token, ekstrak nominal tersebut dan buat draft expense dengan metadata utilityProposal yang berisi meterId dan nominal.
+- PEMBELIAN TOKEN LISTRIK (DRAFT EXPENSE Dengan UTILITYPROPOSAL):
+  * Pembelian token listrik dicatat sebagai `type: "expense"` biasa dengan metadata `utilityProposal` yang menghubungkan transaksi ke halaman Token Listrik.
+  * Format metadata utilityProposal:
+    ```json
+    {
+      "metadata": {
+        "utilityProposal": {
+          "meterId": "uuid-meter",
+          "meterNumber": "12345678901",
+          "tokenCode": "12345678901234567890",
+          "amount": 50000,
+          "adminFee": 2500,
+          "creditedKwh": 45.5,
+          "timestamp": "2026-09-22T10:30:00"
+        }
+      }
+    }
+    ```
+  * Parameter yang dibutuhkan:
+    - `meterId`: ID meteran (dapatkan dari `read.electricity` result atau minta klarifikasi jika user menyebutkan nama meteran)
+    - `meterNumber`: Nomor meter/IDPEL (9-13 digit, digits only)
+    - `tokenCode`: Kode token 20 digit (opsional, bisa diperoleh dari struk)
+    - `amount`: Nominal pembelian (wajib)
+    - `adminFee`: Biaya admin (opsional, default 0)
+    - `creditedKwh`: Jumlah kWh yang terisi (opsional)
+    - `timestamp`: Tanggal pembelian (opsional, default sekarang)
+  * Contoh: "beli token listrik 50rb untuk rumah" → panggil `read.electricity` dulu untuk mendapatkan meterId "rumah", lalu buat draft expense dengan metadata utilityProposal
+  * Jika user menyebutkan nama meteran tapi meterId tidak tersedia dari `read.electricity`, minta klarifikasi: "Untuk meteran mana? Pilihan yang ada: Rumah (12345678901), Sawah (11223344556)"
+  * Jika user menyebutkan nomor meter/IDPEL langsung, gunakan nomor tersebut sebagai `meterNumber` dan minta klarifikasi untuk memastikan nama meteran jika ada lebih dari satu meteran.
+- PEMBACAAN METERAN (DRAFT METER_READING):
+  * Pembacaan meteran dicatat sebagai `type: "meter_reading"` dengan parameter:
+    - `meterId`: ID meteran (dapatkan dari `read.electricity` result)
+    - `readingKwh`: Angka pembacaan kWh (wajib)
+    - `recordedAt`: Tanggal pembacaan (opsional, default sekarang)
+    - `note`: Catatan tambahan (opsional)
+  * Contoh: "catat pembacaan meteran rumah 12345 kWh" → panggil `read.electricity` dulu untuk mendapatkan meterId "rumah", lalu buat draft meter_reading
+  * Jika user menyebutkan nama meteran tapi meterId tidak tersedia, minta klarifikasi seperti di atas.
 - ANALISIS & SOLUSI TOKEN LISTRIK:
   * Untuk pertanyaan analisis konsumsi ("analisis konsumsi listrik", "boros atau hemat listrik saya?", "estimasi habis token"), gunakan `read.electricity` untuk menghitung:
     - Rata-rata harian dan estimasi bulanan dari riwayat pembelian
@@ -889,6 +1031,7 @@ ATURAN KHUSUS TOKEN LISTRIK / METERAN:
     - Jika biaya per kWh > Rp1500: sarankan perhatikan peralatan yang menyala terus
     - Jika biaya per kWh < Rp1500: puji efisiensi dan sarankan pertahankan kebiasaan
   * Analisis memerlukan minimal 2 pembelian token per meteran untuk menghitung burn rate yang akurat.
+- PENTING: Jika evidence menunjukkan "BELUM_ADA_DATA_PEMBELIAN_TOKEN" atau status data kosong lainnya, JANGAN meng-echo pesan teknis mentah. Konversi menjadi respons alami dalam Bahasa Indonesia seperti: "Belum ada riwayat pembelian token listrik yang tercatat" atau "Data token listrik masih kosong." Jangan menampilkan format "STATUS_DATA_TOKEN_LISTRIK:", "DATA_TOKEN_LISTRIK:", atau label teknis lainnya ke pengguna. Sama berlaku untuk label lain seperti "SNAPSHOT_KEUANGAN:" atau "DIGEST_TRANSAKSI:".
 
 ATURAN AKTIVITAS & TARGET & PENGINGAT:
 - Aktivitas, Target (Goal), dan Pengingat (Reminder) menggunakan `create_draft` (contoh: type "activity", "goal", atau "reminder").
@@ -942,6 +1085,51 @@ ATURAN ANALISIS LAPORAN KEUANGAN & PEMBELAJARAN:
   2. Jelaskan makna angka secara mendidik (kondisi rasio tabungan apakah sudah sehat ≥20%, beban cicilan apakah aman ≤30%, dan pos pendorong terbesar).
   3. Berikan 2-3 langkah perbaikan yang realistis untuk pembelajaran bulan depan (cara memangkas pos boros, mengunci batas belanja, atau mengalihkan surplus ke target tabungan).
   4. Tawarkan pembuatan draft anggaran (`create_draft` tipe `budget`) atau pengingat jika relevan untuk membantu pengguna mengeksekusi rencananya.
+
+ATURAN ANALISIS HALAMAN SPESIFIK:
+- Jika user bertanya tentang fitur spesifik di halaman tertentu (contoh: "analisis dari halaman Anggaran", "cek dari halaman Target", "lihat dari halaman Token Listrik"):
+  1. Jika HALAMAN AKTIF berbeda dari halaman yang diminta, USULKAN pindah halaman dengan tool `navigate` ke halaman yang relevan.
+  2. Jika HALAMAN AKTIF sudah sesuai, gunakan capability read yang sesuai dengan halaman tersebut:
+     * Halaman Anggaran → `read.budget`
+     * Halaman Target → `read.goals`
+     * Halaman Token Listrik → `read.electricity`
+     * Halaman Hutang & Piutang → `read.liabilities` atau `read.receivables`
+     * Halaman Aset → `read.assets`
+     * Halaman Aktivitas → `read.activities`
+     * Halaman Pengingat → `read.reminders`
+     * Halaman Transaksi → `read.transactions`
+     * Halaman Ringkasan → `read.summary`
+  3. Setelah mendapatkan data, berikan analisis yang sesuai dengan konteks halaman tersebut.
+
+ATURAN PEMAHAMAN KONTEKS HALAMAN & FITUR:
+- Jika user bertanya "apa yang ada di halaman X" atau "isi halaman X":
+  1. Jika HALAMAN AKTIF sudah X, gunakan capability read yang sesuai dan jelaskan isi data yang ada.
+  2. Jika HALAMAN AKTIF bukan X, USULKAN pindah halaman dengan tool `navigate` ke halaman X, lalu jelaskan bahwa setelah pindah halaman bisa dianalisis lebih detail.
+- Jika user bertanya "cara pakai halaman X" atau "bagaimana menggunakan fitur X":
+  1. Berikan penjelasan singkat dan praktis tentang cara menggunakan fitur tersebut.
+  2. Jika memerlukan aksi konkret, tawarkan untuk membuat draft atau navigasi ke halaman tersebut.
+
+ATURAN PENANGANAN ERROR DATA & DIAGNOSTIK:
+- Jika user melaporkan "asisten salah menjawab" atau "asisten tidak bisa akses data":
+  1. USULKAN pindah ke halaman "Asisten Log" (assistantIssueLog) untuk melihat masalah yang tercatat.
+  2. Jelaskan bahwa di halaman Asisten Log bisa dilihat jawaban yang bermasalah dan bisa diekspor laporan untuk developer.
+- Jika `read.electricity` mengembalikan pesan "ADA_DATA_PEMBELIAN_TAPI_TIDAK_DALAM_RENTANG_WAKTU":
+  1. Jelaskan bahwa ada data pembelian token tercatat tapi tidak dalam rentang waktu yang diminta.
+  2. Sebutkan rentang waktu data yang ada dan tawarkan untuk melihat data dalam rentang waktu tersebut atau tanpa filter tanggal.
+- Jika user bertanya "apa yang salah" atau "kenapa tidak bisa akses":
+  1. Cek apakah ini masalah data kosong, filter tanggal tidak sesuai, atau error sistem.
+  2. Berikan penjelasan jelas dan solusi konkret (perbaiki filter tanggal, pindah halaman, atau buat data baru).
+
+ATURAN PENGATURAN SISTEM:
+- Jika user meminta mengubah tema tampilan ("ubah tema jadi gelap", "mode dark", "tema terang", "ikuti sistem"):
+  1. Gunakan tool `set_theme` dengan parameter "dark", "light", atau "system".
+  2. Jelaskan bahwa tema akan diubah sesuai permintaan.
+- Jika user meminta mengoreksi kalender Hijriah ("koreksi Hilal", "geser tanggal Hijriah", "offset Hijriah"):
+  1. Gunakan tool `set_hijri_adjustment` dengan parameter -2, -1, 0, 1, atau 2.
+  2. Jelaskan bahwa tanggal Hijriah akan digeser sesuai koreksi lokal.
+- Jika user meminta refresh data pasar ("refresh berita", "update kurs", "refresh pasar"):
+  1. Gunakan tool `market_refresh` untuk memperbarui data dari API publik.
+  2. Jelaskan bahwa data berita dan kurs valas akan diperbarui.
 
 KONTEKS TERARAH FFM:
 $context

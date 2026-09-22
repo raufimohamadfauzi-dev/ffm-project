@@ -237,6 +237,10 @@ class FfmAssistantProposalJsonService {
         'monitoring' => _parseMonitoringJob(proposal, createdAt),
         'memory' => _parseMemory(proposal),
         'navigation' => _parseNavigation(proposal),
+        'set_theme' => _parseSystemCapability(proposal, 'system.set_theme'),
+        'set_hijri_adjustment' =>
+            _parseSystemCapability(proposal, 'system.set_hijri_adjustment'),
+        'market_refresh' => _parseSystemCapability(proposal, 'market.refresh'),
         _ => const FfmAssistantProposalParseResult.invalid(_userFriendlyError),
       };
     } on FormatException {
@@ -305,6 +309,10 @@ class FfmAssistantProposalJsonService {
             'monitoring' => _parseMonitoringJob(proposal, createdAt),
             'memory' => _parseMemory(proposal),
             'navigation' => _parseNavigation(proposal),
+            'set_theme' => _parseSystemCapability(proposal, 'system.set_theme'),
+            'set_hijri_adjustment' =>
+                _parseSystemCapability(proposal, 'system.set_hijri_adjustment'),
+            'market_refresh' => _parseSystemCapability(proposal, 'market.refresh'),
             _ => const FfmAssistantProposalParseResult.invalid(
               _userFriendlyError,
             ),
@@ -316,6 +324,8 @@ class FfmAssistantProposalJsonService {
           if (result.teachingProposal != null) {
             teachings.add(result.teachingProposal!);
           }
+          // System capabilities are handled differently - skip in multi-proposal
+          // They should be handled via single proposal path
         }
         if (drafts.isEmpty && teachings.isEmpty && firstError != null) {
           return FfmAssistantMultiProposalParseResult.error(firstError);
@@ -1350,6 +1360,42 @@ class FfmAssistantProposalJsonService {
     );
   }
 
+  static FfmAssistantProposalParseResult _parseSystemCapability(
+    Map<String, dynamic> proposal,
+    String capabilityId,
+  ) {
+    // Extract parameters from proposal (excluding 'type' field)
+    final parameters = <String, dynamic>{};
+    for (final key in proposal.keys) {
+      if (key != 'type') {
+        parameters[key] = proposal[key];
+      }
+    }
+
+    // Return as a special draft with system capability info in formValues
+    return FfmAssistantProposalParseResult.draft(
+      FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.masterData, // Use existing kind as placeholder
+        createdAt: DateTime.now(),
+        title: _getSystemCapabilityTitle(capabilityId),
+        categoryName: 'system_capability',
+        formValues: {
+          'systemCapability': capabilityId,
+          'systemParameters': parameters,
+        },
+      ),
+    );
+  }
+
+  static String _getSystemCapabilityTitle(String capabilityId) {
+    return switch (capabilityId) {
+      'system.set_theme' => 'Mengubah tema tampilan',
+      'system.set_hijri_adjustment' => 'Mengoreksi kalender Hijriah',
+      'market.refresh' => 'Menyegarkan data pasar',
+      _ => 'System capability',
+    };
+  }
+
   static FfmAssistantProposalParseResult _parseCashFlowProfile(
     Map<String, dynamic> proposal,
     DateTime createdAt,
@@ -1805,6 +1851,13 @@ class FfmAssistantReadCapabilityRequest {
     this.endDate,
     this.tagNames = const [],
     this.treatmentType,
+    this.action,
+    this.entity,
+    this.search,
+    this.limit,
+    this.offset,
+    this.goalId,
+    this.query,
   });
 
   final String capabilityId;
@@ -1813,6 +1866,13 @@ class FfmAssistantReadCapabilityRequest {
   final DateTime? endDate;
   final List<String> tagNames;
   final String? treatmentType;
+  final String? action;
+  final String? entity;
+  final String? search;
+  final int? limit;
+  final int? offset;
+  final String? goalId;
+  final String? query;
 }
 
 class FfmAssistantReadCapabilityRequestParseResult {
